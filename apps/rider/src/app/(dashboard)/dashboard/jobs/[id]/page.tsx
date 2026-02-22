@@ -5,13 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth, getApiClient } from '@riderguy/auth';
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Badge,
   Spinner,
-  Separator,
   Input,
   Textarea,
   Dialog,
@@ -30,26 +24,28 @@ import type { ChatMessage, OrderStatusUpdate } from '@riderguy/types';
 // ============================================================
 
 // ── Status display config ──
-const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = {
-  ASSIGNED: { label: 'Assigned', color: 'bg-blue-100 text-blue-700', icon: '📋' },
-  PICKUP_EN_ROUTE: { label: 'Heading to Pickup', color: 'bg-blue-100 text-blue-700', icon: '🗺️' },
-  AT_PICKUP: { label: 'At Pickup', color: 'bg-indigo-100 text-indigo-700', icon: '📍' },
-  PICKED_UP: { label: 'Picked Up', color: 'bg-purple-100 text-purple-700', icon: '📦' },
-  IN_TRANSIT: { label: 'In Transit', color: 'bg-purple-100 text-purple-700', icon: '🛵' },
-  AT_DROPOFF: { label: 'At Dropoff', color: 'bg-teal-100 text-teal-700', icon: '📍' },
-  DELIVERED: { label: 'Delivered', color: 'bg-green-100 text-green-700', icon: '✅' },
-  FAILED: { label: 'Failed', color: 'bg-red-100 text-red-700', icon: '❌' },
-  CANCELLED_BY_RIDER: { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: '🚫' },
+const STATUS_STEPS = ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF', 'DELIVERED'];
+
+const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  ASSIGNED: { label: 'Assigned', color: 'text-blue-700', bg: 'bg-blue-50', dot: 'bg-blue-500' },
+  PICKUP_EN_ROUTE: { label: 'Heading to Pickup', color: 'text-blue-700', bg: 'bg-blue-50', dot: 'bg-blue-500' },
+  AT_PICKUP: { label: 'At Pickup', color: 'text-indigo-700', bg: 'bg-indigo-50', dot: 'bg-indigo-500' },
+  PICKED_UP: { label: 'Picked Up', color: 'text-purple-700', bg: 'bg-purple-50', dot: 'bg-purple-500' },
+  IN_TRANSIT: { label: 'In Transit', color: 'text-purple-700', bg: 'bg-purple-50', dot: 'bg-purple-500' },
+  AT_DROPOFF: { label: 'At Dropoff', color: 'text-teal-700', bg: 'bg-teal-50', dot: 'bg-teal-500' },
+  DELIVERED: { label: 'Delivered', color: 'text-accent-700', bg: 'bg-accent-50', dot: 'bg-accent-500' },
+  FAILED: { label: 'Failed', color: 'text-danger-700', bg: 'bg-danger-50', dot: 'bg-danger-500' },
+  CANCELLED_BY_RIDER: { label: 'Cancelled', color: 'text-danger-700', bg: 'bg-danger-50', dot: 'bg-danger-500' },
 };
 
 // Rider-driven status transitions
-const NEXT_STATUS: Record<string, { status: string; label: string; icon: string }> = {
-  ASSIGNED: { status: 'PICKUP_EN_ROUTE', label: 'Start Heading to Pickup', icon: '🚀' },
-  PICKUP_EN_ROUTE: { status: 'AT_PICKUP', label: 'Arrived at Pickup', icon: '📍' },
-  AT_PICKUP: { status: 'PICKED_UP', label: 'Package Collected', icon: '📦' },
-  PICKED_UP: { status: 'IN_TRANSIT', label: 'Start Delivery', icon: '🛵' },
-  IN_TRANSIT: { status: 'AT_DROPOFF', label: 'Arrived at Dropoff', icon: '📍' },
-  AT_DROPOFF: { status: 'DELIVERED', label: 'Confirm Delivery', icon: '✅' },
+const NEXT_STATUS: Record<string, { status: string; label: string }> = {
+  ASSIGNED: { status: 'PICKUP_EN_ROUTE', label: 'Head to Pickup' },
+  PICKUP_EN_ROUTE: { status: 'AT_PICKUP', label: 'Arrived at Pickup' },
+  AT_PICKUP: { status: 'PICKED_UP', label: 'Package Collected' },
+  PICKED_UP: { status: 'IN_TRANSIT', label: 'Start Delivery' },
+  IN_TRANSIT: { status: 'AT_DROPOFF', label: 'Arrived at Dropoff' },
+  AT_DROPOFF: { status: 'DELIVERED', label: 'Confirm Delivery' },
 };
 
 const PACKAGE_LABELS: Record<string, string> = {
@@ -178,7 +174,7 @@ function SignatureCanvas({
         ref={canvasRef}
         width={320}
         height={160}
-        className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white touch-none"
+        className="w-full rounded-2xl border-2 border-dashed border-surface-300 bg-white touch-none"
         onMouseDown={startDraw}
         onMouseMove={draw}
         onMouseUp={endDraw}
@@ -188,10 +184,10 @@ function SignatureCanvas({
         onTouchEnd={endDraw}
       />
       <div className="mt-2 flex gap-2">
-        <Button variant="outline" size="sm" onClick={clear} className="flex-1">
+        <Button variant="outline" size="sm" onClick={clear} className="flex-1 rounded-xl">
           Clear
         </Button>
-        <Button size="sm" onClick={save} className="flex-1 bg-brand-500 hover:bg-brand-600">
+        <Button size="sm" onClick={save} className="flex-1 bg-brand-500 hover:bg-brand-600 rounded-xl">
           Accept Signature
         </Button>
       </div>
@@ -594,7 +590,7 @@ export default function ActiveJobPage() {
   // ── Loading state ──
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Spinner className="h-8 w-8 text-brand-500" />
       </div>
     );
@@ -602,10 +598,13 @@ export default function ActiveJobPage() {
 
   if (!order) {
     return (
-      <div className="p-4 text-center">
-        <p className="text-sm text-gray-500">Order not found</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-100">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <p className="mt-3 text-sm font-medium text-surface-900">Order not found</p>
         <Button
-          className="mt-4"
+          className="mt-4 rounded-xl"
           variant="outline"
           onClick={() => router.push('/dashboard/jobs')}
         >
@@ -615,11 +614,7 @@ export default function ActiveJobPage() {
     );
   }
 
-  const statusInfo = STATUS_LABELS[order.status] || {
-    label: order.status,
-    color: 'bg-gray-100 text-gray-700',
-    icon: '📄',
-  };
+  const statusInfo = STATUS_LABELS[order.status] || { label: order.status, color: 'text-surface-600', bg: 'bg-surface-50', dot: 'bg-surface-400' };
   const nextAction = NEXT_STATUS[order.status];
   const isCompleted = ['DELIVERED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN', 'CANCELLED_BY_CLIENT', 'FAILED'].includes(order.status);
   const canCancel = ['ASSIGNED', 'PICKUP_EN_ROUTE'].includes(order.status);
@@ -631,207 +626,196 @@ export default function ActiveJobPage() {
       ? { lat: order.pickupLat, lng: order.pickupLng, label: 'Pickup' }
       : { lat: order.dropoffLat, lng: order.dropoffLng, label: 'Dropoff' };
 
+  // Current step index for progress bar
+  const currentStepIdx = STATUS_STEPS.indexOf(order.status);
+
   return (
-    <div className="p-4 pb-40">
-      {/* ── Header ── */}
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          onClick={() => router.push('/dashboard/jobs')}
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
-          ← Back
-        </button>
-        <div className="flex items-center gap-2">
-          {/* Connection indicator */}
-          <span
-            className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`}
-            title={connected ? 'Connected' : 'Disconnected'}
-          />
-          <Badge className={`${statusInfo.color} border-0`}>
-            {statusInfo.icon} {statusInfo.label}
-          </Badge>
+    <div className="dash-page-enter pb-44">
+      {/* ── Sticky Header ── */}
+      <div className="sticky top-14 z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100">
+        <div className="flex items-center justify-between px-4 h-12">
+          <button
+            onClick={() => router.push('/dashboard/jobs')}
+            className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-surface-700 active:scale-95 transition-all"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <div className="flex items-center gap-2">
+            <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-accent-500' : 'bg-surface-300'}`} />
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${statusInfo.bg} ${statusInfo.color}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
+              {statusInfo.label}
+            </span>
+          </div>
         </div>
+
+        {/* Progress Steps */}
+        {!isCompleted && currentStepIdx >= 0 && (
+          <div className="px-4 pb-2">
+            <div className="flex gap-1">
+              {STATUS_STEPS.map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+                    idx <= currentStepIdx ? 'bg-brand-500' : 'bg-surface-200'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Delivery Complete Summary ── */}
       {order.status === 'DELIVERED' && (
-        <Card className="mb-4 border-green-200 bg-green-50">
-          <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-3xl">🎉</p>
-            <p className="mt-1 text-lg font-semibold text-green-800">
-              Delivery Completed!
-            </p>
-            <p className="mt-2 text-2xl font-bold text-green-700">
+        <div className="px-4 pt-6">
+          <div className="rounded-2xl bg-gradient-to-br from-accent-50 to-accent-100/50 border border-accent-200 p-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-500 mx-auto auth-scale-in">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h2 className="mt-4 text-lg font-bold text-surface-900">Delivery Completed!</h2>
+            <p className="mt-2 text-3xl font-bold text-accent-600">
               +GH₵{riderEarnings.toLocaleString()}
             </p>
-            <p className="mt-1 text-xs text-green-600">
-              Earnings credited to your wallet
-            </p>
-            <Separator className="my-3" />
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <p className="text-xs text-surface-500 mt-1">Earnings credited to your wallet</p>
+
+            <div className="mt-4 grid grid-cols-3 gap-3 rounded-xl bg-white p-3">
               <div>
-                <p className="text-xs text-gray-500">Distance</p>
-                <p className="text-sm font-semibold text-gray-800">
-                  {order.distanceKm.toFixed(1)} km
-                </p>
+                <p className="text-[10px] text-surface-400">Distance</p>
+                <p className="text-sm font-semibold text-surface-900">{order.distanceKm.toFixed(1)} km</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Duration</p>
-                <p className="text-sm font-semibold text-gray-800">
-                  ~{order.estimatedDurationMinutes} min
-                </p>
+                <p className="text-[10px] text-surface-400">Duration</p>
+                <p className="text-sm font-semibold text-surface-900">~{order.estimatedDurationMinutes} min</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Package</p>
-                <p className="text-sm font-semibold text-gray-800">
-                  {PACKAGE_LABELS[order.packageType] ?? order.packageType}
-                </p>
+                <p className="text-[10px] text-surface-400">Package</p>
+                <p className="text-sm font-semibold text-surface-900">{PACKAGE_LABELS[order.packageType] ?? order.packageType}</p>
               </div>
             </div>
-            {order.proofOfDeliveryType && (
-              <>
-                <Separator className="my-3" />
-                <p className="text-xs text-gray-500">
-                  Proof: {order.proofOfDeliveryType.replace('_', ' ')}
-                </p>
-              </>
-            )}
+
             <Button
-              className="mt-4 w-full bg-brand-500 hover:bg-brand-600"
+              className="mt-5 w-full bg-brand-500 hover:bg-brand-600 rounded-xl h-12"
               onClick={() => router.push('/dashboard/jobs')}
             >
               Find Next Job
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* ── Failed delivery banner ── */}
       {order.status === 'FAILED' && (
-        <Card className="mb-4 border-red-200 bg-red-50">
-          <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-2xl">❌</p>
-            <p className="mt-1 text-sm font-semibold text-red-800">
-              Delivery Failed
-            </p>
-            <p className="mt-1 text-xs text-red-600">
-              This delivery has been marked as failed.
-            </p>
-            <Button
-              className="mt-4 w-full"
-              variant="outline"
-              onClick={() => router.push('/dashboard/jobs')}
-            >
+        <div className="px-4 pt-6">
+          <div className="rounded-2xl bg-danger-50 border border-danger-200 p-6 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-danger-100 mx-auto">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+            <h2 className="mt-3 text-base font-semibold text-danger-800">Delivery Failed</h2>
+            <p className="mt-1 text-sm text-danger-600">This delivery has been marked as failed.</p>
+            <Button className="mt-4 w-full rounded-xl" variant="outline" onClick={() => router.push('/dashboard/jobs')}>
               Back to Jobs
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* ── Navigation Card (shown during en-route phases) ── */}
+      {/* ── Navigation Card ── */}
       {isNavigating && (
-        <Card className="mb-4 border-brand-200 bg-brand-50">
-          <CardContent className="pt-4 pb-4">
+        <div className="px-4 pt-4">
+          <div className="rounded-2xl bg-brand-500 p-4 text-white">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-brand-600 uppercase">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-brand-100 uppercase tracking-wider">
                   Navigating to {navTarget.label}
                 </p>
-                <p className="text-sm text-gray-700 mt-1">
+                <p className="text-sm font-medium text-white mt-1 truncate">
                   {order.status === 'PICKUP_EN_ROUTE' || order.status === 'ASSIGNED'
                     ? order.pickupAddress
                     : order.dropoffAddress}
                 </p>
                 {riderLocation && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    📡 GPS active · {riderLocation.lat.toFixed(4)}, {riderLocation.lng.toFixed(4)}
+                  <p className="text-[10px] text-brand-200 mt-1">
+                    GPS active · {riderLocation.lat.toFixed(4)}, {riderLocation.lng.toFixed(4)}
                   </p>
                 )}
               </div>
               <Button
                 size="sm"
-                className="bg-brand-500 hover:bg-brand-600"
+                className="ml-3 bg-white text-brand-600 hover:bg-brand-50 rounded-xl flex-shrink-0"
                 onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.label)}
               >
-                🗺️ Navigate
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                Navigate
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* ── Pickup Confirmation (at pickup stage) ── */}
+      {/* ── Pickup Confirmation ── */}
       {order.status === 'AT_PICKUP' && (
-        <Card className="mb-4 border-indigo-200 bg-indigo-50">
-          <CardContent className="pt-4 pb-4">
-            <p className="text-sm font-semibold text-gray-800 mb-2">
-              📸 Pickup Confirmation
-            </p>
-            <p className="text-xs text-gray-500 mb-3">
-              Take a photo of the package for confirmation (optional but recommended).
-            </p>
-            <input
-              ref={pickupPhotoRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handlePickupPhoto}
-            />
+        <div className="px-4 pt-4">
+          <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </div>
+              <p className="text-sm font-semibold text-surface-900">Pickup Confirmation</p>
+            </div>
+            <p className="text-xs text-surface-500 mb-3">Take a photo of the package (optional but recommended)</p>
+            <input ref={pickupPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePickupPhoto} />
             {pickupPhoto ? (
               <div className="relative">
-                <img
-                  src={pickupPhoto}
-                  alt="Pickup confirmation"
-                  className="w-full rounded-lg"
-                />
-                <button
-                  className="absolute top-2 right-2 rounded-full bg-white/80 p-1 text-xs"
-                  onClick={() => setPickupPhoto(null)}
-                >
-                  ✕
+                <img src={pickupPhoto} alt="Pickup" className="w-full rounded-xl" />
+                <button className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm p-1.5" onClick={() => setPickupPhoto(null)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
             ) : (
-              <Button
-                variant="outline"
-                className="w-full"
+              <button
+                className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-indigo-200 bg-white py-3 text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
                 onClick={() => pickupPhotoRef.current?.click()}
               >
-                📷 Take Photo of Package
-              </Button>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Take Photo
+              </button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* ── Proof of Delivery (at dropoff stage) ── */}
+      {/* ── Proof of Delivery ── */}
       {order.status === 'AT_DROPOFF' && (
-        <Card className="mb-4 border-teal-200 bg-teal-50">
-          <CardContent className="pt-4 pb-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
-              🔐 Proof of Delivery
-            </p>
+        <div className="px-4 pt-4">
+          <div className="rounded-2xl bg-teal-50 border border-teal-100 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </div>
+              <p className="text-sm font-semibold text-surface-900">Proof of Delivery</p>
+            </div>
 
             {/* Proof type selector */}
             <div className="mb-4 grid grid-cols-2 gap-2">
               {([
-                { type: 'PHOTO' as ProofType, label: '📷 Photo', desc: 'Take a photo' },
-                { type: 'SIGNATURE' as ProofType, label: '✍️ Signature', desc: 'Get signature' },
-                { type: 'PIN_CODE' as ProofType, label: '🔢 PIN Code', desc: 'Enter PIN' },
-                { type: 'LEFT_AT_DOOR' as ProofType, label: '🚪 Left at Door', desc: 'No contact' },
+                { type: 'PHOTO' as ProofType, label: 'Photo', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> },
+                { type: 'SIGNATURE' as ProofType, label: 'Signature', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> },
+                { type: 'PIN_CODE' as ProofType, label: 'PIN Code', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> },
+                { type: 'LEFT_AT_DOOR' as ProofType, label: 'Left at Door', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
               ] as const).map((opt) => (
                 <button
                   key={opt.type}
-                  className={`rounded-lg border-2 p-3 text-left transition-colors ${
+                  className={`flex items-center gap-2 rounded-xl border-2 p-3 text-left transition-all ${
                     proofType === opt.type
-                      ? 'border-brand-500 bg-brand-50'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
+                      ? 'border-brand-500 bg-brand-50 shadow-sm'
+                      : 'border-surface-200 bg-white hover:border-surface-300'
                   }`}
                   onClick={() => setProofType(opt.type)}
                 >
-                  <p className="text-sm font-medium">{opt.label}</p>
-                  <p className="text-xs text-gray-500">{opt.desc}</p>
+                  <span className={proofType === opt.type ? 'text-brand-600' : 'text-surface-400'}>{opt.icon}</span>
+                  <span className="text-sm font-medium">{opt.label}</span>
                 </button>
               ))}
             </div>
@@ -839,391 +823,277 @@ export default function ActiveJobPage() {
             {/* Photo proof */}
             {proofType === 'PHOTO' && (
               <div>
-                <input
-                  ref={proofPhotoRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleProofPhoto}
-                />
+                <input ref={proofPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleProofPhoto} />
                 {proofPhoto ? (
                   <div className="relative">
-                    <img
-                      src={proofPhoto}
-                      alt="Proof of delivery"
-                      className="w-full rounded-lg"
-                    />
-                    <button
-                      className="absolute top-2 right-2 rounded-full bg-white/80 p-1 text-xs"
-                      onClick={() => setProofPhoto(null)}
-                    >
-                      ✕
+                    <img src={proofPhoto} alt="Proof" className="w-full rounded-xl" />
+                    <button className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm p-1.5" onClick={() => setProofPhoto(null)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
                 ) : (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => proofPhotoRef.current?.click()}
-                  >
-                    📷 Take Delivery Photo
-                  </Button>
+                  <button className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-200 bg-white py-3 text-sm font-medium text-teal-600 hover:bg-teal-50 transition" onClick={() => proofPhotoRef.current?.click()}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Take Delivery Photo
+                  </button>
                 )}
               </div>
             )}
 
-            {/* Signature proof */}
             {proofType === 'SIGNATURE' && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">
-                  Ask the recipient to sign below:
-                </p>
+                <p className="text-xs text-surface-500 mb-2">Ask the recipient to sign below:</p>
                 {signatureData ? (
                   <div className="relative">
-                    <img
-                      src={signatureData}
-                      alt="Signature"
-                      className="w-full rounded-lg border"
-                    />
-                    <button
-                      className="absolute top-2 right-2 rounded-full bg-white/80 p-1 text-xs"
-                      onClick={() => setSignatureData(null)}
-                    >
-                      ✕
+                    <img src={signatureData} alt="Signature" className="w-full rounded-xl border" />
+                    <button className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm p-1.5" onClick={() => setSignatureData(null)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
                 ) : (
-                  <SignatureCanvas
-                    onSave={setSignatureData}
-                    onClear={() => setSignatureData(null)}
-                  />
+                  <SignatureCanvas onSave={setSignatureData} onClear={() => setSignatureData(null)} />
                 )}
               </div>
             )}
 
-            {/* PIN code proof */}
             {proofType === 'PIN_CODE' && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">
-                  Ask the recipient for their delivery PIN:
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="Enter PIN"
-                    value={deliveryPinInput}
-                    onChange={(e) => {
-                      setDeliveryPinInput(e.target.value.replace(/\D/g, '').slice(0, 6));
-                      setPinError('');
-                    }}
-                    className="w-32 rounded-md border border-gray-300 px-3 py-2 text-center text-lg font-mono tracking-[0.25em] focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
-                {pinError && (
-                  <p className="mt-2 text-xs text-red-600">{pinError}</p>
-                )}
+                <p className="text-xs text-surface-500 mb-2">Ask the recipient for their delivery PIN:</p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="Enter PIN"
+                  value={deliveryPinInput}
+                  onChange={(e) => { setDeliveryPinInput(e.target.value.replace(/\D/g, '').slice(0, 6)); setPinError(''); }}
+                  className="w-full rounded-xl border-2 border-surface-200 px-4 py-3 text-center text-xl font-mono tracking-[0.3em] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                />
+                {pinError && <p className="mt-2 text-xs text-danger-600">{pinError}</p>}
               </div>
             )}
 
-            {/* Left at door */}
             {proofType === 'LEFT_AT_DOOR' && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">
-                  Optionally take a photo showing where the package was left:
-                </p>
-                <input
-                  ref={proofPhotoRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleProofPhoto}
-                />
+                <p className="text-xs text-surface-500 mb-2">Optionally photo where the package was left:</p>
+                <input ref={proofPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleProofPhoto} />
                 {proofPhoto ? (
                   <div className="relative">
-                    <img
-                      src={proofPhoto}
-                      alt="Left at door"
-                      className="w-full rounded-lg"
-                    />
-                    <button
-                      className="absolute top-2 right-2 rounded-full bg-white/80 p-1 text-xs"
-                      onClick={() => setProofPhoto(null)}
-                    >
-                      ✕
+                    <img src={proofPhoto} alt="Left at door" className="w-full rounded-xl" />
+                    <button className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm p-1.5" onClick={() => setProofPhoto(null)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
                 ) : (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => proofPhotoRef.current?.click()}
-                  >
-                    📷 Photo of Drop Location (Optional)
-                  </Button>
+                  <button className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-200 bg-white py-3 text-sm font-medium text-teal-600 hover:bg-teal-50 transition" onClick={() => proofPhotoRef.current?.click()}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Photo (Optional)
+                  </button>
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* ── Address Card ── */}
-      <Card className="mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-gray-500">
-            Order #{order.orderNumber}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {/* Pickup */}
-            <div className="flex items-start gap-2">
-              <div className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-green-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-gray-400">PICKUP</p>
-                <p className="text-sm text-gray-800">{order.pickupAddress}</p>
+      {/* ── Route Card ── */}
+      <div className="px-4 pt-4">
+        <div className="rounded-2xl bg-white shadow-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-surface-400 font-medium">Order #{order.orderNumber}</p>
+            <p className="text-base font-bold text-accent-600">GH₵{riderEarnings.toLocaleString()}</p>
+          </div>
+
+          {/* Route visualization */}
+          <div className="flex gap-3">
+            <div className="flex flex-col items-center pt-1.5">
+              <div className="h-3 w-3 rounded-full bg-accent-500 ring-2 ring-accent-100" />
+              <div className="w-0.5 flex-1 bg-surface-200 my-1.5 min-h-[2rem]" />
+              <div className="h-3 w-3 rounded-full bg-danger-500 ring-2 ring-danger-100" />
+            </div>
+            <div className="flex-1 min-w-0">
+              {/* Pickup */}
+              <div>
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Pickup</p>
+                <p className="text-sm text-surface-800 mt-0.5">{order.pickupAddress}</p>
                 {order.senderName && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-surface-500 mt-0.5">
                     {order.senderName}
                     {order.senderPhone && (
-                      <a href={`tel:${order.senderPhone}`} className="ml-2 text-brand-500 underline">
-                        {order.senderPhone}
-                      </a>
+                      <a href={`tel:${order.senderPhone}`} className="ml-1.5 text-brand-500 font-medium">{order.senderPhone}</a>
                     )}
                   </p>
                 )}
                 {(order.status === 'ASSIGNED' || order.status === 'PICKUP_EN_ROUTE') && (
-                  <button
-                    className="mt-1 text-xs text-brand-500 hover:text-brand-600 font-medium"
-                    onClick={() => openNavigation(order.pickupLat, order.pickupLng, 'Pickup')}
-                  >
-                    🗺️ Get Directions
+                  <button className="mt-1 flex items-center gap-1 text-xs text-brand-500 font-medium" onClick={() => openNavigation(order.pickupLat, order.pickupLng, 'Pickup')}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                    Directions
                   </button>
                 )}
               </div>
-            </div>
 
-            <div className="ml-[5px] h-6 border-l-2 border-dashed border-gray-200" />
+              <div className="h-5" />
 
-            {/* Dropoff */}
-            <div className="flex items-start gap-2">
-              <div className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-red-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-gray-400">DROPOFF</p>
-                <p className="text-sm text-gray-800">{order.dropoffAddress}</p>
+              {/* Dropoff */}
+              <div>
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Dropoff</p>
+                <p className="text-sm text-surface-800 mt-0.5">{order.dropoffAddress}</p>
                 {order.recipientName && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-surface-500 mt-0.5">
                     {order.recipientName}
                     {order.recipientPhone && (
-                      <a href={`tel:${order.recipientPhone}`} className="ml-2 text-brand-500 underline">
-                        {order.recipientPhone}
-                      </a>
+                      <a href={`tel:${order.recipientPhone}`} className="ml-1.5 text-brand-500 font-medium">{order.recipientPhone}</a>
                     )}
                   </p>
                 )}
                 {['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(order.status) && (
-                  <button
-                    className="mt-1 text-xs text-brand-500 hover:text-brand-600 font-medium"
-                    onClick={() => openNavigation(order.dropoffLat, order.dropoffLng, 'Dropoff')}
-                  >
-                    🗺️ Get Directions
+                  <button className="mt-1 flex items-center gap-1 text-xs text-brand-500 font-medium" onClick={() => openNavigation(order.dropoffLat, order.dropoffLng, 'Dropoff')}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                    Directions
                   </button>
                 )}
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* ── Package + Client Info ── */}
-      <Card className="mb-4">
-        <CardContent className="pt-4 pb-4">
+      {/* ── Details Grid ── */}
+      <div className="px-4 pt-3">
+        <div className="rounded-2xl bg-white shadow-card p-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-400">Package</p>
-              <p className="text-sm font-medium text-gray-800">
-                {PACKAGE_LABELS[order.packageType] ?? order.packageType}
-              </p>
-              {order.packageDescription && (
-                <p className="text-xs text-gray-500 mt-1">{order.packageDescription}</p>
-              )}
+              <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Package</p>
+              <p className="text-sm font-medium text-surface-900 mt-0.5">{PACKAGE_LABELS[order.packageType] ?? order.packageType}</p>
+              {order.packageDescription && <p className="text-xs text-surface-500 mt-0.5">{order.packageDescription}</p>}
             </div>
             <div>
-              <p className="text-xs text-gray-400">Distance</p>
-              <p className="text-sm font-medium text-gray-800">
-                {order.distanceKm.toFixed(1)} km · ~{order.estimatedDurationMinutes} min
-              </p>
+              <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Distance</p>
+              <p className="text-sm font-medium text-surface-900 mt-0.5">{order.distanceKm.toFixed(1)} km · ~{order.estimatedDurationMinutes} min</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Client</p>
-              <p className="text-sm font-medium text-gray-800">
-                {order.client.firstName} {order.client.lastName}
-              </p>
+              <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Client</p>
+              <p className="text-sm font-medium text-surface-900 mt-0.5">{order.client.firstName} {order.client.lastName}</p>
               {order.client.phone && (
-                <a href={`tel:${order.client.phone}`} className="text-xs text-brand-500 underline">
-                  Call Client
+                <a href={`tel:${order.client.phone}`} className="flex items-center gap-1 mt-0.5 text-xs text-brand-500 font-medium">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+                  Call
                 </a>
               )}
             </div>
             <div>
-              <p className="text-xs text-gray-400">Payment</p>
-              <p className="text-sm font-medium text-gray-800">
-                {order.paymentMethod === 'CASH' ? '💵 Cash' : '💳 ' + order.paymentMethod}
-              </p>
+              <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Payment</p>
+              <p className="text-sm font-medium text-surface-900 mt-0.5">{order.paymentMethod === 'CASH' ? 'Cash' : order.paymentMethod}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* ── Earnings ── */}
-      <Card className="mb-4">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">Your Earnings</p>
-            <p className="text-xl font-bold text-green-600">
-              GH₵{riderEarnings.toLocaleString()}
-            </p>
+          {/* Earnings breakdown */}
+          <div className="mt-4 pt-3 border-t border-surface-100 flex items-center justify-between">
+            <span className="text-xs text-surface-400">
+              Fare: GH₵{order.totalPrice.toLocaleString()} · Fee: GH₵{(order.serviceFee ?? 0).toLocaleString()}
+            </span>
+            <span className="text-sm font-bold text-accent-600">GH₵{riderEarnings.toLocaleString()}</span>
           </div>
-          <Separator className="my-2" />
-          <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>Total fare: GH₵{order.totalPrice.toLocaleString()}</span>
-            <span>Service fee: GH₵{(order.serviceFee ?? 0).toLocaleString()}</span>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* ── Chat Panel ── */}
       {!isCompleted && (
-        <Card className="mb-4">
-          <CardHeader className="pb-2">
+        <div className="px-4 pt-3">
+          <div className="rounded-2xl bg-white shadow-card overflow-hidden">
             <button
-              className="flex w-full items-center justify-between"
+              className="flex w-full items-center justify-between p-4"
               onClick={() => setChatOpen(!chatOpen)}
             >
-              <CardTitle className="text-sm font-medium text-gray-500">
-                💬 Chat with Client
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                </div>
+                <span className="text-sm font-semibold text-surface-900">Chat with Client</span>
+              </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger-500 px-1.5 text-[10px] font-bold text-white">
                     {unreadCount}
                   </span>
                 )}
-                <span className="text-xs text-gray-400">{chatOpen ? '▲' : '▼'}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" className={`transition-transform ${chatOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
               </div>
             </button>
-          </CardHeader>
-          {chatOpen && (
-            <CardContent>
-              {/* Messages */}
-              <div className="mb-3 max-h-64 overflow-y-auto rounded-lg bg-gray-50 p-3">
-                {messages.length === 0 ? (
-                  <p className="text-center text-xs text-gray-400 py-4">
-                    No messages yet. Send a message to the client.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {messages.map((msg) => {
-                      const isMe = msg.senderId === user?.id;
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div
-                            className={`max-w-[80%] rounded-lg px-3 py-2 ${
-                              isMe
-                                ? 'bg-brand-500 text-white'
-                                : 'bg-white border border-gray-200 text-gray-800'
-                            }`}
-                          >
-                            {!isMe && (
-                              <p className="text-[10px] font-medium text-gray-500 mb-0.5">
-                                {msg.senderName}
+
+            {chatOpen && (
+              <div className="border-t border-surface-100 p-4">
+                <div className="mb-3 max-h-64 overflow-y-auto rounded-xl bg-surface-50 p-3">
+                  {messages.length === 0 ? (
+                    <p className="text-center text-xs text-surface-400 py-6">No messages yet</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {messages.map((msg) => {
+                        const isMe = msg.senderId === user?.id;
+                        return (
+                          <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${
+                              isMe ? 'bg-brand-500 text-white rounded-br-md' : 'bg-white border border-surface-200 text-surface-800 rounded-bl-md'
+                            }`}>
+                              {!isMe && <p className="text-[10px] font-medium text-surface-500 mb-0.5">{msg.senderName}</p>}
+                              <p className="text-sm">{msg.content}</p>
+                              <p className={`text-[10px] mt-0.5 ${isMe ? 'text-white/60' : 'text-surface-400'}`}>
+                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
-                            )}
-                            <p className="text-sm">{msg.content}</p>
-                            <p
-                              className={`text-[10px] mt-0.5 ${
-                                isMe ? 'text-white/70' : 'text-gray-400'
-                              }`}
-                            >
-                              {new Date(msg.timestamp).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {peerTyping && (
+                        <div className="flex justify-start">
+                          <div className="rounded-2xl rounded-bl-md bg-surface-200 px-3.5 py-2">
+                            <p className="text-xs text-surface-500 animate-pulse">typing...</p>
                           </div>
                         </div>
-                      );
-                    })}
-                    {peerTyping && (
-                      <div className="flex justify-start">
-                        <div className="rounded-lg bg-gray-200 px-3 py-2">
-                          <p className="text-xs text-gray-500 animate-pulse">typing…</p>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-                )}
-              </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                  )}
+                </div>
 
-              {/* Input */}
-              <div className="flex gap-2">
-                <Input
-                  className="flex-1"
-                  placeholder="Type a message…"
-                  value={chatInput}
-                  onChange={(e) => {
-                    setChatInput(e.target.value);
-                    handleChatTyping();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  className="bg-brand-500 hover:bg-brand-600 px-4"
-                  onClick={handleSendMessage}
-                  disabled={!chatInput.trim()}
-                >
-                  Send
-                </Button>
+                <div className="flex gap-2">
+                  <Input
+                    className="flex-1 rounded-xl"
+                    placeholder="Type a message..."
+                    value={chatInput}
+                    onChange={(e) => { setChatInput(e.target.value); handleChatTyping(); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                  />
+                  <Button
+                    size="sm"
+                    className="bg-brand-500 hover:bg-brand-600 rounded-xl px-4"
+                    onClick={handleSendMessage}
+                    disabled={!chatInput.trim()}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          )}
-        </Card>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Failed Delivery Dialog ── */}
       <Dialog open={failDialogOpen} onOpenChange={setFailDialogOpen}>
-        <DialogContent className="mx-4 max-w-sm">
+        <DialogContent className="mx-4 max-w-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle>Report Failed Delivery</DialogTitle>
-            <DialogDescription>
-              Select a reason and optionally provide a photo as evidence.
-            </DialogDescription>
+            <DialogDescription>Select a reason and optionally provide a photo as evidence.</DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {/* Reason selection */}
+          <div className="space-y-3 py-2">
             <div className="space-y-2">
               {FAILURE_REASONS.map((reason) => (
                 <button
                   key={reason}
-                  className={`w-full rounded-lg border-2 px-3 py-2 text-left text-sm transition-colors ${
+                  className={`w-full rounded-xl border-2 px-3 py-2.5 text-left text-sm transition-all ${
                     failReason === reason
-                      ? 'border-red-500 bg-red-50 text-red-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-danger-500 bg-danger-50 text-danger-700 font-medium'
+                      : 'border-surface-200 hover:border-surface-300'
                   }`}
                   onClick={() => setFailReason(reason)}
                 >
@@ -1231,124 +1101,77 @@ export default function ActiveJobPage() {
                 </button>
               ))}
             </div>
-
-            {/* Custom reason */}
             {failReason === 'Other' && (
-              <Textarea
-                placeholder="Describe the reason..."
-                value={failCustomReason}
-                onChange={(e) => setFailCustomReason(e.target.value)}
-                rows={3}
-              />
+              <Textarea placeholder="Describe the reason..." value={failCustomReason} onChange={(e) => setFailCustomReason(e.target.value)} rows={3} className="rounded-xl" />
             )}
-
-            {/* Photo evidence */}
             <div>
-              <p className="text-xs text-gray-500 mb-2">
-                Photo evidence (optional):
-              </p>
-              <input
-                ref={failPhotoRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleFailPhoto}
-              />
+              <p className="text-xs text-surface-500 mb-2">Photo evidence (optional):</p>
+              <input ref={failPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFailPhoto} />
               {failPhoto ? (
                 <div className="relative">
-                  <img
-                    src={failPhoto}
-                    alt="Failure evidence"
-                    className="w-full rounded-lg"
-                  />
-                  <button
-                    className="absolute top-2 right-2 rounded-full bg-white/80 p-1 text-xs"
-                    onClick={() => setFailPhoto(null)}
-                  >
-                    ✕
+                  <img src={failPhoto} alt="Evidence" className="w-full rounded-xl" />
+                  <button className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm p-1.5" onClick={() => setFailPhoto(null)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => failPhotoRef.current?.click()}
-                >
-                  📷 Take Photo
+                <Button variant="outline" size="sm" className="w-full rounded-xl" onClick={() => failPhotoRef.current?.click()}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  Take Photo
                 </Button>
               )}
             </div>
           </div>
-
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setFailDialogOpen(false)}
-              disabled={failSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="bg-red-500 hover:bg-red-600"
-              onClick={handleFailDelivery}
-              disabled={failSubmitting || !failReason}
-            >
-              {failSubmitting ? (
-                <>
-                  <Spinner className="mr-2 h-4 w-4" />
-                  Submitting…
-                </>
-              ) : (
-                'Confirm Failed Delivery'
-              )}
+            <Button variant="outline" onClick={() => setFailDialogOpen(false)} disabled={failSubmitting} className="rounded-xl">Cancel</Button>
+            <Button className="bg-danger-500 hover:bg-danger-600 rounded-xl" onClick={handleFailDelivery} disabled={failSubmitting || !failReason}>
+              {failSubmitting ? <Spinner className="h-4 w-4" /> : 'Confirm Failed'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Bottom Action Bar ── */}
+      {/* ── Bottom Action Bar — Uber slide-up style ── */}
       {!isCompleted && nextAction && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50">
-          <div className="safe-area-bottom">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-100 z-50 safe-area-bottom">
+          <div className="p-4">
             <Button
-              className="w-full bg-brand-500 hover:bg-brand-600 text-base py-6"
+              className="w-full bg-surface-900 hover:bg-surface-800 text-white rounded-xl h-13 text-sm font-bold shadow-elevated"
               disabled={transitioning || proofUploading}
               onClick={() => handleTransition(nextAction.status)}
             >
               {transitioning || proofUploading ? (
-                <>
-                  <Spinner className="mr-2 h-4 w-4" />
-                  {proofUploading ? 'Uploading Proof…' : 'Updating…'}
-                </>
+                <span className="flex items-center gap-2">
+                  <Spinner className="h-4 w-4" />
+                  {proofUploading ? 'Uploading...' : 'Updating...'}
+                </span>
               ) : (
-                <>
-                  {nextAction.icon} {nextAction.label}
-                </>
+                nextAction.label
               )}
             </Button>
 
-            <div className="mt-2 flex gap-2">
-              {canFail && (
-                <button
-                  className="flex-1 text-center text-sm text-red-500 hover:text-red-600 py-1"
-                  onClick={() => setFailDialogOpen(true)}
-                  disabled={transitioning}
-                >
-                  ⚠️ Report Failed Delivery
-                </button>
-              )}
-              {canCancel && (
-                <button
-                  className="flex-1 text-center text-sm text-red-500 hover:text-red-600 py-1"
-                  onClick={handleCancelJob}
-                  disabled={transitioning}
-                >
-                  Cancel Delivery
-                </button>
-              )}
-            </div>
+            {(canFail || canCancel) && (
+              <div className="mt-2 flex gap-2">
+                {canFail && (
+                  <button
+                    className="flex-1 text-center text-xs font-medium text-danger-500 hover:text-danger-600 py-2 rounded-xl hover:bg-danger-50 transition"
+                    onClick={() => setFailDialogOpen(true)}
+                    disabled={transitioning}
+                  >
+                    Report Failed
+                  </button>
+                )}
+                {canCancel && (
+                  <button
+                    className="flex-1 text-center text-xs font-medium text-danger-500 hover:text-danger-600 py-2 rounded-xl hover:bg-danger-50 transition"
+                    onClick={handleCancelJob}
+                    disabled={transitioning}
+                  >
+                    Cancel Delivery
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

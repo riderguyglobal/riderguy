@@ -108,3 +108,108 @@
   30%, 50%, 70% { transform: translateX(-3px); }
   40%, 60% { transform: translateX(3px); }
 }
+
+/* ============================================================
+   Dashboard custom animations & effects
+   ============================================================ */
+
+/* Page entrance — slide up + fade in */
+.dash-page-enter {
+  animation: dashPageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes dashPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulsing green dot for online status */
+.dash-pulse-dot {
+  position: relative;
+}
+
+.dash-pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: rgba(34, 197, 94, 0.4);
+  animation: dashPulseDot 2s ease-in-out infinite;
+}
+
+@keyframes dashPulseDot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* Staggered children animation for lists */
+.dash-stagger-in > * {
+  animation: dashStaggerItem 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dash-stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.dash-stagger-in > *:nth-child(2) { animation-delay: 50ms; }
+.dash-stagger-in > *:nth-child(3) { animation-delay: 100ms; }
+.dash-stagger-in > *:nth-child(4) { animation-delay: 150ms; }
+.dash-stagger-in > *:nth-child(5) { animation-delay: 200ms; }
+.dash-stagger-in > *:nth-child(6) { animation-delay: 250ms; }
+.dash-stagger-in > *:nth-child(7) { animation-delay: 300ms; }
+.dash-stagger-in > *:nth-child(8) { animation-delay: 350ms; }
+.dash-stagger-in > *:nth-child(n+9) { animation-delay: 400ms; }
+
+@keyframes dashStaggerItem {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Bottom nav active indicator */
+.dash-nav-indicator {
+  position: relative;
+}
+
+.dash-nav-indicator::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #0ea5e9;
+  animation: dashNavDot 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes dashNavDot {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* Safe area bottom padding for bottom sheet actions */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
