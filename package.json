@@ -5,6 +5,9 @@
   "description": "RiderGuy — 4-in-1 delivery rider career platform",
   "author": "RiderGuy Team",
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0 <23.0.0"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
