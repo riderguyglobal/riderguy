@@ -5,8 +5,8 @@ import { logger } from '../lib/logger';
 // ============================================================
 // BullMQ Job Queue Infrastructure — Sprint 6
 //
-// Processors: payout processing, receipt generation,
-// commission crediting, and scheduled withdrawals.
+// Redis is OPTIONAL — if REDIS_URL is not set, queues are
+// disabled and enqueue calls become safe no-ops.
 // ============================================================
 
 // ── Parse Redis URL into ioredis-compatible connection options ──
@@ -24,44 +24,65 @@ function parseRedisUrl(url: string): Record<string, unknown> {
       tls: parsed.protocol === 'rediss:' ? {} : undefined,
     };
   } catch {
-    // Fallback for simple host:port or localhost
     return { host: 'localhost', port: 6379, maxRetriesPerRequest: null };
   }
 }
 
-const redisConnection = parseRedisUrl(config.redis.url);
+// ── Only enable when REDIS_URL is explicitly set ──
 
-// ── Queue definitions ──
+function isRedisConfigured(): boolean {
+  const url = config.redis.url;
+  if (config.nodeEnv === 'production' && (!url || url === 'redis://localhost:6379')) {
+    return false;
+  }
+  return true;
+}
 
-export const payoutQueue = new Queue('payouts', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 500 },
-    removeOnFail: { count: 200 },
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 5000 },
-  },
-});
+export const redisEnabled = isRedisConfigured();
 
-export const receiptQueue = new Queue('receipts', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 200 },
-    removeOnFail: { count: 100 },
-    attempts: 2,
-    backoff: { type: 'exponential', delay: 3000 },
-  },
-});
+let payoutQueue: Queue | null = null;
+let receiptQueue: Queue | null = null;
+let commissionQueue: Queue | null = null;
 
-export const commissionQueue = new Queue('commissions', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    removeOnComplete: { count: 200 },
-    removeOnFail: { count: 100 },
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 5000 },
-  },
-});
+if (redisEnabled) {
+  const redisConnection = parseRedisUrl(config.redis.url);
+
+  payoutQueue = new Queue('payouts', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      removeOnComplete: { count: 500 },
+      removeOnFail: { count: 200 },
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+    },
+  });
+
+  receiptQueue = new Queue('receipts', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      removeOnComplete: { count: 200 },
+      removeOnFail: { count: 100 },
+      attempts: 2,
+      backoff: { type: 'exponential', delay: 3000 },
+    },
+  });
+
+  commissionQueue = new Queue('commissions', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      removeOnComplete: { count: 200 },
+      removeOnFail: { count: 100 },
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+    },
+  });
+
+  logger.info('BullMQ queues initialized (Redis connected)');
+} else {
+  logger.warn('Redis not configured — BullMQ queues disabled. Set REDIS_URL to enable.');
+}
+
+export { payoutQueue, receiptQueue, commissionQueue };
 
 // ── Job data interfaces ──
 
@@ -92,9 +113,13 @@ export interface CommissionJobData {
   platformCommission: number;
 }
 
-// ── Queue helper functions ──
+// ── Queue helpers — safe no-ops when Redis is not configured ──
 
 export async function enqueuePayoutJob(data: PayoutJobData): Promise<void> {
+  if (!payoutQueue) {
+    logger.warn({ withdrawalId: data.withdrawalId }, 'Payout job skipped — Redis not configured');
+    return;
+  }
   await payoutQueue.add('process-payout', data, {
     jobId: `payout-${data.withdrawalId}`,
   });
@@ -102,6 +127,10 @@ export async function enqueuePayoutJob(data: PayoutJobData): Promise<void> {
 }
 
 export async function enqueueReceiptJob(data: ReceiptJobData): Promise<void> {
+  if (!receiptQueue) {
+    logger.warn({ orderId: data.orderId }, 'Receipt job skipped — Redis not configured');
+    return;
+  }
   await receiptQueue.add('generate-receipt', data, {
     jobId: `receipt-${data.orderId}`,
   });
@@ -109,6 +138,10 @@ export async function enqueueReceiptJob(data: ReceiptJobData): Promise<void> {
 }
 
 export async function enqueueCommissionJob(data: CommissionJobData): Promise<void> {
+  if (!commissionQueue) {
+    logger.warn({ orderId: data.orderId }, 'Commission job skipped — Redis not configured');
+    return;
+  }
   await commissionQueue.add('credit-commission', data, {
     jobId: `commission-${data.orderId}`,
   });
@@ -118,6 +151,10 @@ export async function enqueueCommissionJob(data: CommissionJobData): Promise<voi
 // ── Get queue stats for admin dashboard ──
 
 export async function getQueueStats() {
+  if (!payoutQueue || !receiptQueue || !commissionQueue) {
+    return { payouts: null, receipts: null, commissions: null, redisEnabled: false };
+  }
+
   const [payoutCounts, receiptCounts, commissionCounts] = await Promise.all([
     payoutQueue.getJobCounts(),
     receiptQueue.getJobCounts(),
@@ -128,5 +165,6 @@ export async function getQueueStats() {
     payouts: payoutCounts,
     receipts: receiptCounts,
     commissions: commissionCounts,
+    redisEnabled: true,
   };
 }
