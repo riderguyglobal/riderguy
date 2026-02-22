@@ -400,7 +400,7 @@ async function testOrders() {
         pickupLongitude: -0.1870,
         dropoffLatitude: 5.6145,
         dropoffLongitude: -0.2053,
-        packageType: 'SMALL',
+        packageType: 'SMALL_PARCEL',
       },
     });
     if (status === 200 && data.data) {
