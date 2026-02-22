@@ -1,0 +1,40 @@
+{
+  "name": "riderguy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RiderGuy — 4-in-1 delivery rider career platform",
+  "author": "RiderGuy Team",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "test": "turbo test",
+    "clean": "turbo clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "db:generate": "npm run generate --workspace=@riderguy/database",
+    "db:push": "npm run push --workspace=@riderguy/database",
+    "db:migrate": "npm run migrate --workspace=@riderguy/database",
+    "db:seed": "npm run seed --workspace=@riderguy/database",
+    "db:studio": "npm run studio --workspace=@riderguy/database"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.0",
+    "prettier-plugin-tailwindcss": "^0.6.0",
+    "turbo": "^2.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.8.0",
+  "dependencies": {
+    "@prisma/client": "^6.19.2"
+  }
+}

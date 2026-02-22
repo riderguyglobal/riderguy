@@ -1,0 +1,9 @@
+{
+  "name": "@riderguy/config",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./tailwind/index.ts",
+  "scripts": {
+    "clean": "rm -rf .turbo"
+  }
+}

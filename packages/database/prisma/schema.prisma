@@ -1,0 +1,752 @@
+// ============================================================
+// RiderGuy — Prisma Schema
+// The single source of truth for the entire database.
+// Every model here maps to a PostgreSQL table.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  RIDER
+  CLIENT
+  BUSINESS_CLIENT
+  PARTNER
+  DISPATCHER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+  BANNED
+}
+
+enum RiderOnboardingStatus {
+  REGISTERED
+  DOCUMENTS_PENDING
+  DOCUMENTS_SUBMITTED
+  DOCUMENTS_UNDER_REVIEW
+  DOCUMENTS_APPROVED
+  DOCUMENTS_REJECTED
+  TRAINING_PENDING
+  TRAINING_COMPLETE
+  ACTIVATED
+}
+
+enum RiderAvailability {
+  OFFLINE
+  ONLINE
+  ON_DELIVERY
+  ON_BREAK
+}
+
+enum VehicleType {
+  BICYCLE
+  MOTORCYCLE
+  CAR
+  VAN
+  TRUCK
+}
+
+enum DocumentType {
+  NATIONAL_ID
+  DRIVERS_LICENSE
+  VEHICLE_REGISTRATION
+  INSURANCE_CERTIFICATE
+  PROOF_OF_ADDRESS
+  SELFIE
+  VEHICLE_PHOTO_FRONT
+  VEHICLE_PHOTO_BACK
+  VEHICLE_PHOTO_LEFT
+  VEHICLE_PHOTO_RIGHT
+}
+
+enum DocumentStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum OrderStatus {
+  PENDING
+  SEARCHING_RIDER
+  ASSIGNED
+  PICKUP_EN_ROUTE
+  AT_PICKUP
+  PICKED_UP
+  IN_TRANSIT
+  AT_DROPOFF
+  DELIVERED
+  FAILED
+  CANCELLED_BY_CLIENT
+  CANCELLED_BY_RIDER
+  CANCELLED_BY_ADMIN
+}
+
+enum PackageType {
+  DOCUMENT
+  SMALL_PARCEL
+  MEDIUM_PARCEL
+  LARGE_PARCEL
+  FOOD
+  FRAGILE
+  HIGH_VALUE
+}
+
+enum ProofOfDeliveryType {
+  PHOTO
+  SIGNATURE
+  PIN_CODE
+  LEFT_AT_DOOR
+}
+
+enum PaymentMethod {
+  CARD
+  MOBILE_MONEY
+  WALLET
+  CASH
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum TransactionType {
+  DELIVERY_EARNING
+  TIP
+  BONUS
+  COMMISSION_DEDUCTION
+  WITHDRAWAL
+  DEPOSIT
+  REFERRAL_COMMISSION
+  REFUND
+  PENALTY
+  ADJUSTMENT
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PartnerTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum ZoneStatus {
+  ACTIVE
+  INACTIVE
+  FULL
+}
+
+enum OtpPurpose {
+  REGISTRATION
+  LOGIN
+  PASSWORD_RESET
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id             String        @id @default(cuid())
+  email          String?       @unique
+  phone          String        @unique
+  phoneVerified  Boolean       @default(false)
+  emailVerified  Boolean       @default(false)
+  passwordHash   String?
+  firstName      String
+  lastName       String
+  avatarUrl      String?
+  role           UserRole
+  status         AccountStatus @default(PENDING_VERIFICATION)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  riderProfile   RiderProfile?
+  clientProfile  ClientProfile?
+  businessAccount BusinessAccount?
+  partnerProfile PartnerProfile?
+  documents      Document[]
+  sessions       Session[]
+  wallet         Wallet?
+  ordersAsClient Order[]       @relation("ClientOrders")
+  notifications  Notification[]
+  pushTokens     PushToken[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([role, status])
+  @@map("users")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceInfo  String?
+  ipAddress   String?
+  lastActiveAt DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Otp {
+  id        String     @id @default(cuid())
+  phone     String
+  code      String
+  purpose   OtpPurpose
+  attempts  Int        @default(0)
+  verified  Boolean    @default(false)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+
+  @@index([phone, purpose])
+  @@index([expiresAt])
+  @@map("otps")
+}
+
+// ============================================================
+// RIDER
+// ============================================================
+
+model RiderProfile {
+  id                 String               @id @default(cuid())
+  userId             String               @unique
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  onboardingStatus   RiderOnboardingStatus @default(REGISTERED)
+  availability       RiderAvailability     @default(OFFLINE)
+  currentLevel       Int                  @default(1) // 1-7
+  totalXp            Int                  @default(0)
+  totalDeliveries    Int                  @default(0)
+  averageRating      Float                @default(0)
+  totalRatings       Int                  @default(0)
+  completionRate     Float                @default(0)
+  onTimeRate         Float                @default(0)
+  currentZoneId      String?
+  currentZone        Zone?                @relation(fields: [currentZoneId], references: [id])
+  preferredVehicleType VehicleType?
+  isVerified         Boolean              @default(false)
+  activatedAt        DateTime?
+  currentLatitude    Float?
+  currentLongitude   Float?
+  lastLocationUpdate DateTime?
+  referredByPartnerId String?
+  referredByPartner  PartnerProfile?      @relation("ReferredRiders", fields: [referredByPartnerId], references: [id])
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  // Relations
+  vehicles           Vehicle[]
+  ordersAsRider      Order[]              @relation("RiderOrders")
+  partnerRecruitments PartnerRecruitment[] @relation("RecruitedRider")
+
+  @@index([availability])
+  @@index([currentZoneId])
+  @@index([onboardingStatus])
+  @@index([currentLatitude, currentLongitude])
+  @@map("rider_profiles")
+}
+
+model Vehicle {
+  id            String      @id @default(cuid())
+  riderId       String
+  rider         RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  type          VehicleType
+  make          String
+  model         String
+  year          Int?
+  color         String?
+  plateNumber   String
+  isPrimary     Boolean     @default(false)
+  photoFrontUrl String?
+  photoBackUrl  String?
+  photoLeftUrl  String?
+  photoRightUrl String?
+  isApproved    Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([riderId])
+  @@map("vehicles")
+}
+
+// ============================================================
+// CLIENT
+// ============================================================
+
+model ClientProfile {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalOrders            Int      @default(0)
+  totalSpent             Float    @default(0)
+  averageRating          Float    @default(0)
+  defaultPaymentMethodId String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  // Relations
+  savedAddresses SavedAddress[]
+  favoriteRiders FavoriteRider[]
+
+  @@map("client_profiles")
+}
+
+model SavedAddress {
+  id           String        @id @default(cuid())
+  clientId     String
+  client       ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label        String        // e.g., "Home", "Office"
+  address      String
+  latitude     Float
+  longitude    Float
+  instructions String?
+  isDefault    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+
+  @@index([clientId])
+  @@map("saved_addresses")
+}
+
+model FavoriteRider {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  riderProfileId String
+  createdAt DateTime      @default(now())
+
+  @@unique([clientId, riderProfileId])
+  @@map("favorite_riders")
+}
+
+model BusinessAccount {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String
+  companyEmail       String
+  companyPhone       String
+  registrationNumber String?
+  billingAddress     String?
+  industry           String?
+  totalOrders        Int      @default(0)
+  totalSpent         Float    @default(0)
+  webhookUrl         String?
+  webhookSecret      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  apiKeys ApiKey[]
+
+  @@map("business_accounts")
+}
+
+model ApiKey {
+  id                String          @id @default(cuid())
+  businessAccountId String
+  businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
+  key               String          @unique
+  name              String
+  isActive          Boolean         @default(true)
+  lastUsedAt        DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime        @default(now())
+
+  @@index([key])
+  @@map("api_keys")
+}
+
+// ============================================================
+// DOCUMENTS
+// ============================================================
+
+model Document {
+  id              String         @id @default(cuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            DocumentType
+  fileUrl         String
+  fileName        String
+  fileSizeBytes   Int
+  mimeType        String
+  status          DocumentStatus @default(PENDING)
+  rejectionReason String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([userId, type])
+  @@index([status])
+  @@map("documents")
+}
+
+// ============================================================
+// ORDERS & DELIVERIES
+// ============================================================
+
+model Order {
+  id                    String              @id @default(cuid())
+  orderNumber           String              @unique
+  clientId              String
+  client                User                @relation("ClientOrders", fields: [clientId], references: [id])
+  riderId               String?
+  rider                 RiderProfile?       @relation("RiderOrders", fields: [riderId], references: [id])
+  zoneId                String?
+  zone                  Zone?               @relation(fields: [zoneId], references: [id])
+
+  // Pickup
+  pickupAddress         String
+  pickupLatitude        Float
+  pickupLongitude       Float
+  pickupContactName     String?
+  pickupContactPhone    String?
+  pickupInstructions    String?
+
+  // Dropoff
+  dropoffAddress        String
+  dropoffLatitude       Float
+  dropoffLongitude      Float
+  dropoffContactName    String?
+  dropoffContactPhone   String?
+  dropoffInstructions   String?
+
+  // Package
+  packageType           PackageType
+  packageDescription    String?
+  packagePhotoUrl       String?
+
+  // Pricing
+  distanceKm            Float
+  estimatedDurationMinutes  Int
+  baseFare              Float
+  distanceCharge        Float
+  surgeMultiplier       Float              @default(1.0)
+  serviceFee            Float
+  totalPrice            Float
+  currency              String             @default("NGN")
+
+  // Payment
+  paymentMethod         PaymentMethod
+  paymentStatus         PaymentStatus      @default(PENDING)
+  paymentReference      String?
+
+  // Status
+  status                OrderStatus        @default(PENDING)
+
+  // Proof of delivery
+  proofOfDeliveryType   ProofOfDeliveryType?
+  proofOfDeliveryUrl    String?
+  deliveryPinCode       String?
+
+  // Earnings
+  riderEarnings         Float?
+  platformCommission    Float?
+  tipAmount             Float              @default(0)
+
+  // Ratings
+  clientRating          Int?
+  clientReview          String?
+  riderRating           Int?
+
+  // Scheduling
+  isScheduled           Boolean            @default(false)
+  scheduledAt           DateTime?
+
+  // Failure
+  failureReason         String?
+  failurePhotoUrl       String?
+
+  // Timestamps
+  assignedAt            DateTime?
+  pickedUpAt            DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  // Relations
+  statusHistory         OrderStatusHistory[]
+  messages              OrderMessage[]
+
+  @@index([clientId])
+  @@index([riderId])
+  @@index([status])
+  @@index([zoneId])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  actor     String      // 'system', 'rider', 'client', 'admin', or a user ID
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+model OrderMessage {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_messages")
+}
+
+// ============================================================
+// WALLET & FINANCE
+// ============================================================
+
+model Wallet {
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance        Float         @default(0)
+  currency       String        @default("NGN")
+  totalEarned    Float         @default(0)
+  totalWithdrawn Float         @default(0)
+  totalTips      Float         @default(0)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  transactions   Transaction[]
+  withdrawals    Withdrawal[]
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  walletId      String
+  wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type          TransactionType
+  amount        Float
+  balanceAfter  Float
+  currency      String          @default("NGN")
+  description   String
+  referenceId   String?         // order ID, withdrawal ID, etc.
+  referenceType String?         // 'order', 'withdrawal', 'bonus'
+  metadata      Json?
+  createdAt     DateTime        @default(now())
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([referenceId])
+  @@map("transactions")
+}
+
+model Withdrawal {
+  id               String           @id @default(cuid())
+  walletId         String
+  wallet           Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId           String
+  amount           Float
+  currency         String           @default("NGN")
+  method           PaymentMethod
+  destination      String
+  destinationName  String
+  bankCode         String?
+  status           WithdrawalStatus @default(PENDING)
+  processedAt      DateTime?
+  failureReason    String?
+  paymentReference String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+// ============================================================
+// ZONES
+// ============================================================
+
+model Zone {
+  id              String     @id @default(cuid())
+  name            String     @unique
+  description     String?
+  status          ZoneStatus @default(ACTIVE)
+  polygon         Json       // GeoJSON polygon: number[][][]
+  centerLatitude  Float
+  centerLongitude Float
+  baseFare        Float
+  perKmRate       Float
+  minimumFare     Float
+  surgeMultiplier Float      @default(1.0)
+  commissionRate  Float      // percentage 0-100
+  currency        String     @default("NGN")
+  totalRiders     Int        @default(0)
+  activeRiders    Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  riders RiderProfile[]
+  orders Order[]
+
+  @@map("zones")
+}
+
+// ============================================================
+// PARTNER / REFERRAL PROGRAM
+// ============================================================
+
+model PartnerProfile {
+  id                          String     @id @default(cuid())
+  userId                      String     @unique
+  user                        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referralCode                String     @unique
+  tier                        PartnerTier @default(BRONZE)
+  totalRecruits               Int        @default(0)
+  activeRecruits              Int        @default(0)
+  totalCommissionEarned       Float      @default(0)
+  pendingCommission           Float      @default(0)
+  signUpBonusRate             Float      @default(0)
+  activationBonusRate         Float      @default(0)
+  ongoingCommissionRate       Float      @default(0) // percentage
+  ongoingCommissionDurationDays Int      @default(90)
+  isActive                    Boolean    @default(true)
+  createdAt                   DateTime   @default(now())
+  updatedAt                   DateTime   @updatedAt
+
+  // Relations
+  recruitments    PartnerRecruitment[]
+  referredRiders  RiderProfile[]  @relation("ReferredRiders")
+
+  @@index([referralCode])
+  @@map("partner_profiles")
+}
+
+model PartnerRecruitment {
+  id                    String         @id @default(cuid())
+  partnerId             String
+  partner               PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  riderId               String
+  rider                 RiderProfile   @relation("RecruitedRider", fields: [riderId], references: [id])
+  signUpBonusPaid       Boolean        @default(false)
+  activationBonusPaid   Boolean        @default(false)
+  ongoingCommissionEndsAt DateTime?
+  totalCommissionEarned Float          @default(0)
+  createdAt             DateTime       @default(now())
+
+  @@unique([partnerId, riderId])
+  @@index([partnerId])
+  @@index([riderId])
+  @@map("partner_recruitments")
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      String   // 'order', 'payment', 'system', 'community', 'training'
+  data      Json?    // arbitrary payload for deep linking
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// PUSH TOKENS — stores FCM / Web Push device tokens per user
+// ============================================================
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   // FCM registration token
+  platform  String   // 'web', 'android', 'ios'
+  deviceId  String?  // optional device identifier for de-duplication
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, token])
+  @@index([userId, isActive])
+  @@map("push_tokens")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  // who performed the action (null for system)
+  action      String   // e.g., "user.create", "order.assign", "document.approve"
+  entityType  String   // e.g., "User", "Order", "Document"
+  entityId    String
+  oldData     Json?
+  newData     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
