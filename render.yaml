@@ -1,0 +1,66 @@
+# ============================================================
+# Render Blueprint — RiderGuy API
+# https://render.com/docs/blueprint-spec
+#
+# Deploy: Connect this repo on Render → it auto-detects this file.
+# Or manually: Dashboard → New → Blueprint → select this repo.
+# ============================================================
+
+services:
+  # ── Express API Server ──────────────────────────────────────
+  - type: web
+    name: riderguy-api
+    runtime: node
+    region: frankfurt  # Closest to West Africa (Ghana)
+    plan: starter      # $7/mo — always-on (free tier spins down)
+    buildCommand: |
+      npm install --legacy-peer-deps &&
+      npx turbo run build --filter=@riderguy/api &&
+      cd packages/database && npx prisma generate && npx prisma migrate deploy
+    startCommand: cd apps/api && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: DATABASE_URL
+        sync: false  # Set manually — Neon pooled connection string
+      - key: DIRECT_URL
+        sync: false  # Set manually — Neon direct (non-pooled) connection string
+      - key: REDIS_URL
+        fromService:
+          name: riderguy-redis
+          type: redis
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: "15m"
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: "7d"
+      - key: SENDGRID_API_KEY
+        sync: false  # Set manually
+      - key: EMAIL_FROM
+        value: noreply@riderguy.com
+      - key: PAYSTACK_SECRET_KEY
+        sync: false  # Set manually
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: APP_URL
+        value: https://app.riderguy.com
+      - key: CORS_ORIGINS
+        value: "https://riderguy.com,https://app.riderguy.com,https://rider.riderguy.com,https://admin.riderguy.com"
+
+  # ── Redis (for rate limiting & BullMQ job queue) ────────────
+  - type: redis
+    name: riderguy-redis
+    plan: starter  # $7/mo — 25MB, persistent
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Only internal services can connect
