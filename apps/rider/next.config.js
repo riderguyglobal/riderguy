@@ -1,9 +1,3 @@
-const withSerwist = require('@serwist/next').default({
-  swSrc: 'src/sw.ts',
-  swDest: 'public/sw.js',
-  disable: process.env.NODE_ENV === 'development',
-});
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -30,4 +24,17 @@ const nextConfig = {
   ],
 };
 
-module.exports = withSerwist(nextConfig);
+// Wrap with Serwist PWA support if available
+let finalConfig = nextConfig;
+try {
+  const withSerwist = require('@serwist/next').default({
+    swSrc: 'src/sw.ts',
+    swDest: 'public/sw.js',
+    disable: process.env.NODE_ENV === 'development',
+  });
+  finalConfig = withSerwist(nextConfig);
+} catch (e) {
+  console.warn('⚠️  @serwist/next not available, building without PWA service worker');
+}
+
+module.exports = finalConfig;
