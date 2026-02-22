@@ -16,8 +16,8 @@ services:
     buildCommand: |
       npm install --legacy-peer-deps &&
       cd packages/database && npx prisma generate && cd ../.. &&
-      npx turbo run build --filter=@riderguy/api &&
-      cd packages/database && npx prisma migrate deploy
+      rm -rf apps/api/dist &&
+      npx turbo run build --filter=@riderguy/api
     startCommand: cd apps/api && node dist/index.js
     healthCheckPath: /health
     envVars:

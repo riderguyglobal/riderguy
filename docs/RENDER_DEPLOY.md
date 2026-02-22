@@ -32,8 +32,9 @@
 # 4. Runtime: Node
 # 5. Build Command:
 #      npm install --legacy-peer-deps &&
-#      npx turbo run build --filter=@riderguy/api &&
-#      cd packages/database && npx prisma generate && npx prisma migrate deploy
+#      cd packages/database && npx prisma generate && cd ../.. &&
+#      rm -rf apps/api/dist &&
+#      npx turbo run build --filter=@riderguy/api
 # 6. Start Command: cd apps/api && node dist/index.js
 # 7. Health Check Path: /health
 # 8. Add all env vars listed in render.yaml
