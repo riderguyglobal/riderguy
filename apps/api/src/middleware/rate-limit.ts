@@ -8,75 +8,83 @@ import { logger } from '../lib/logger';
 // Rate limiters — Redis-backed with in-memory fallback.
 //
 // Uses ioredis to connect to the configured Redis instance.
-// If Redis is unavailable at boot, gracefully falls back to
-// in-memory rate limiting (suitable for single-process dev).
+// If Redis is not configured or unavailable, uses in-memory
+// rate limiting (suitable for single-process deployments).
 // ============================================================
+
+function isRedisConfigured(): boolean {
+  const url = config.redis.url;
+  if (!url || url === 'redis://localhost:6379') {
+    if (config.nodeEnv === 'production') return false;
+  }
+  return true;
+}
 
 let globalLimiter: RateLimiterAbstract;
 let authLimiter: RateLimiterAbstract;
 let sensitiveApiLimiter: RateLimiterAbstract;
 
-// Try to set up Redis-backed rate limiters
-try {
-  // Lazy-require ioredis to avoid import-time crash if not available
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Redis = require('ioredis');
-  const redisClient = new Redis(config.redis.url, {
-    enableOfflineQueue: false,
-    maxRetriesPerRequest: 1,
-    lazyConnect: true,
-  });
+// Only attempt Redis if REDIS_URL is explicitly configured
+if (isRedisConfigured()) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Redis = require('ioredis');
+    const redisClient = new Redis(config.redis.url, {
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      lazyConnect: true,
+      retryStrategy: (times: number) => {
+        if (times > 3) return null; // Stop retrying after 3 attempts
+        return Math.min(times * 200, 1000);
+      },
+    });
 
-  // Attempt connection (non-blocking)
-  redisClient.connect().catch(() => {
-    logger.warn('Redis connection failed for rate limiter — falling back to in-memory');
-  });
+    redisClient.on('error', () => {
+      // Silently handled — insurance limiter takes over
+    });
 
-  globalLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
-    points: 100,        // 100 requests
-    duration: 60,        // per 60 seconds
-    keyPrefix: 'rl_global',
-    insuranceLimiter: new RateLimiterMemory({ points: 100, duration: 60 }),
-  });
+    redisClient.connect().catch(() => {
+      logger.warn('Redis connection failed for rate limiter — falling back to in-memory');
+    });
 
-  authLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
-    points: 10,          // 10 requests
-    duration: 60,        // per 60 seconds
-    keyPrefix: 'rl_auth',
-    insuranceLimiter: new RateLimiterMemory({ points: 10, duration: 60 }),
-  });
+    globalLimiter = new RateLimiterRedis({
+      storeClient: redisClient,
+      points: 100,
+      duration: 60,
+      keyPrefix: 'rl_global',
+      insuranceLimiter: new RateLimiterMemory({ points: 100, duration: 60 }),
+    });
 
-  sensitiveApiLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
-    points: 5,           // 5 requests
-    duration: 60,        // per 60 seconds per IP
-    keyPrefix: 'rl_sensitive',
-    insuranceLimiter: new RateLimiterMemory({ points: 5, duration: 60 }),
-  });
+    authLimiter = new RateLimiterRedis({
+      storeClient: redisClient,
+      points: 10,
+      duration: 60,
+      keyPrefix: 'rl_auth',
+      insuranceLimiter: new RateLimiterMemory({ points: 10, duration: 60 }),
+    });
 
-  logger.info('Rate limiter initialised with Redis backend');
-} catch {
-  logger.warn('Redis not available — using in-memory rate limiter');
+    sensitiveApiLimiter = new RateLimiterRedis({
+      storeClient: redisClient,
+      points: 5,
+      duration: 60,
+      keyPrefix: 'rl_sensitive',
+      insuranceLimiter: new RateLimiterMemory({ points: 5, duration: 60 }),
+    });
 
-  globalLimiter = new RateLimiterMemory({
-    points: 100,
-    duration: 60,
-    keyPrefix: 'rl_global',
-  });
+    logger.info('Rate limiter initialised with Redis backend');
+  } catch {
+    logger.warn('Redis not available — using in-memory rate limiter');
 
-  authLimiter = new RateLimiterMemory({
-    points: 10,
-    duration: 60,
-    keyPrefix: 'rl_auth',
-  });
+    globalLimiter = new RateLimiterMemory({ points: 100, duration: 60, keyPrefix: 'rl_global' });
+    authLimiter = new RateLimiterMemory({ points: 10, duration: 60, keyPrefix: 'rl_auth' });
+    sensitiveApiLimiter = new RateLimiterMemory({ points: 5, duration: 60, keyPrefix: 'rl_sensitive' });
+  }
+} else {
+  logger.info('Redis not configured — using in-memory rate limiter');
 
-  sensitiveApiLimiter = new RateLimiterMemory({
-    points: 5,
-    duration: 60,
-    keyPrefix: 'rl_sensitive',
-  });
+  globalLimiter = new RateLimiterMemory({ points: 100, duration: 60, keyPrefix: 'rl_global' });
+  authLimiter = new RateLimiterMemory({ points: 10, duration: 60, keyPrefix: 'rl_auth' });
+  sensitiveApiLimiter = new RateLimiterMemory({ points: 5, duration: 60, keyPrefix: 'rl_sensitive' });
 }
 
 function createRateLimitMiddleware(limiter: RateLimiterAbstract) {
