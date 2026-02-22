@@ -52,7 +52,7 @@ export class ZoneService {
         minimumFare: input.minimumFare,
         surgeMultiplier: input.surgeMultiplier ?? 1.0,
         commissionRate: input.commissionRate ?? 15,
-        currency: input.currency ?? 'NGN',
+        currency: input.currency ?? 'GHS',
         status: 'ACTIVE',
       },
     });

@@ -11,7 +11,7 @@ export default function TermsPage() {
       <div className="mx-auto max-w-3xl prose prose-gray prose-headings:font-bold">
         <h1>Terms of Service</h1>
         <p className="lead">
-          Last updated: {new Date().toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Last updated: {new Date().toLocaleDateString('en-GH', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
         <p>
           Welcome to RiderGuy. These Terms of Service (&ldquo;Terms&rdquo;) govern your
@@ -123,14 +123,14 @@ export default function TermsPage() {
         <h2>13. Dispute Resolution</h2>
         <p>
           Any disputes arising from these Terms or your use of the Platform shall be
-          resolved through binding arbitration in Lagos, Nigeria, in accordance with
-          applicable Nigerian arbitration laws.
+          resolved through binding arbitration in Accra, Ghana, in accordance with
+          applicable Ghanaian arbitration laws.
         </p>
 
         <h2>14. Governing Law</h2>
         <p>
           These Terms shall be governed by and construed in accordance with the laws
-          of the Federal Republic of Nigeria.
+          of the Republic of Ghana.
         </p>
 
         <h2>15. Changes to Terms</h2>

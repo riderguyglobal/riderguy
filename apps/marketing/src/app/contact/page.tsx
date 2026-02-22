@@ -187,11 +187,11 @@ export default function ContactPage() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Phone</h3>
-            <p className="mt-1 text-sm text-surface-500">+234 800 000 0000</p>
+            <p className="mt-1 text-sm text-surface-500">+233 20 000 0000</p>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Office</h3>
-            <p className="mt-1 text-sm text-surface-500">Lagos, Nigeria</p>
+            <p className="mt-1 text-sm text-surface-500">Accra, Ghana</p>
           </div>
         </div>
       </div>

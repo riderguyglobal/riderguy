@@ -462,7 +462,7 @@ model Order {
   surgeMultiplier       Float              @default(1.0)
   serviceFee            Float
   totalPrice            Float
-  currency              String             @default("NGN")
+  currency              String             @default("GHS")
 
   // Payment
   paymentMethod         PaymentMethod
@@ -549,7 +549,7 @@ model Wallet {
   userId         String        @unique
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   balance        Float         @default(0)
-  currency       String        @default("NGN")
+  currency       String        @default("GHS")
   totalEarned    Float         @default(0)
   totalWithdrawn Float         @default(0)
   totalTips      Float         @default(0)
@@ -571,7 +571,7 @@ model Transaction {
   type          TransactionType
   amount        Float
   balanceAfter  Float
-  currency      String          @default("NGN")
+  currency      String          @default("GHS")
   description   String
   referenceId   String?         // order ID, withdrawal ID, etc.
   referenceType String?         // 'order', 'withdrawal', 'bonus'
@@ -591,7 +591,7 @@ model Withdrawal {
   wallet           Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
   userId           String
   amount           Float
-  currency         String           @default("NGN")
+  currency         String           @default("GHS")
   method           PaymentMethod
   destination      String
   destinationName  String
@@ -626,7 +626,7 @@ model Zone {
   minimumFare     Float
   surgeMultiplier Float      @default(1.0)
   commissionRate  Float      // percentage 0-100
-  currency        String     @default("NGN")
+  currency        String     @default("GHS")
   totalRiders     Int        @default(0)
   activeRiders    Int        @default(0)
   createdAt       DateTime   @default(now())

@@ -50,7 +50,7 @@ export function SiteFooter() {
               className="h-8 w-auto"
             />
             <p className="mt-3 text-sm text-gray-500">
-              Fast, reliable, trackable last-mile delivery across Nigerian
+              Fast, reliable, trackable last-mile delivery across Ghanaian
               cities.
             </p>
           </div>

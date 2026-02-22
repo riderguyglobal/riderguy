@@ -11,7 +11,7 @@ export default function CookiePolicyPage() {
       <div className="mx-auto max-w-3xl prose prose-gray prose-headings:font-bold">
         <h1>Cookie Policy</h1>
         <p className="lead">
-          Last updated: {new Date().toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Last updated: {new Date().toLocaleDateString('en-GH', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
         <p>
           This Cookie Policy explains how RiderGuy (&ldquo;we,&rdquo; &ldquo;our,&rdquo;

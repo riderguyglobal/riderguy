@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 // ============================================================
 // PhoneInput — phone number input with country code selector
 //
-// Simple version focused on Nigeria (+234) as default, with
+// Simple version focused on Ghana (+233) as default, with
 // the ability to extend to other countries as needed.
 // ============================================================
 
@@ -18,8 +18,8 @@ export interface CountryCode {
 }
 
 const DEFAULT_COUNTRIES: CountryCode[] = [
-  { code: 'NG', dialCode: '+234', name: 'Nigeria', flag: '🇳🇬' },
   { code: 'GH', dialCode: '+233', name: 'Ghana', flag: '🇬🇭' },
+  { code: 'NG', dialCode: '+234', name: 'Nigeria', flag: '🇳🇬' },
   { code: 'KE', dialCode: '+254', name: 'Kenya', flag: '🇰🇪' },
   { code: 'ZA', dialCode: '+27', name: 'South Africa', flag: '🇿🇦' },
   { code: 'GB', dialCode: '+44', name: 'United Kingdom', flag: '🇬🇧' },
@@ -33,7 +33,7 @@ export interface PhoneInputProps {
   onValueChange?: (fullNumber: string) => void;
   /** List of countries to show (default: common African + intl) */
   countries?: CountryCode[];
-  /** Default selected country code (default: 'NG') */
+  /** Default selected country code (default: 'GH') */
   defaultCountry?: string;
   /** Placeholder for the local number */
   placeholder?: string;
@@ -50,7 +50,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(function
     value,
     onValueChange,
     countries = DEFAULT_COUNTRIES,
-    defaultCountry = 'NG',
+    defaultCountry = 'GH',
     placeholder = '800 000 0000',
     disabled = false,
     hasError = false,

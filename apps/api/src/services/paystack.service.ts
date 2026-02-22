@@ -38,7 +38,7 @@ export class PaystackService {
    */
   async initializeTransaction(params: {
     email: string;
-    amount: number; // in KOBO (1 NGN = 100 kobo)
+    amount: number; // in pesewas (1 GHS = 100 pesewas)
     reference: string;
     callbackUrl?: string;
     metadata?: Record<string, unknown>;
@@ -176,7 +176,7 @@ export class PaystackService {
         name: params.name,
         account_number: params.accountNumber,
         bank_code: params.bankCode,
-        currency: params.currency ?? 'NGN',
+        currency: params.currency ?? 'GHS',
       });
 
       return {
@@ -194,7 +194,7 @@ export class PaystackService {
    * Initiate a transfer (payout) to a bank account.
    */
   async initiateTransfer(params: {
-    amount: number; // in KOBO
+    amount: number; // in pesewas
     recipientCode: string;
     reason: string;
     reference: string;
@@ -249,7 +249,7 @@ export class PaystackService {
   // ── Bank / Account Utils ──
 
   /**
-   * List all Nigerian banks supported by Paystack.
+   * List all Ghanaian banks supported by Paystack.
    */
   async listBanks(params?: { currency?: string; type?: string }): Promise<
     { name: string; code: string; type: string; currency: string }[]
@@ -257,7 +257,7 @@ export class PaystackService {
     try {
       const { data } = await this.client.get('/bank', {
         params: {
-          currency: params?.currency ?? 'NGN',
+          currency: params?.currency ?? 'GHS',
           type: params?.type,
         },
       });

@@ -17,7 +17,7 @@ export default function HomePage() {
             <p className="mt-4 max-w-lg text-lg text-surface-500">
               RiderGuy connects businesses and individuals with verified dispatch
               riders for fast, reliable, real-time-tracked deliveries across
-              Nigerian cities.
+              Ghanaian cities.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
@@ -111,7 +111,7 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="mx-auto max-w-5xl text-center">
           <h2 className="text-3xl font-bold">Why RiderGuy?</h2>
-          <p className="mt-2 text-surface-500">Built for Nigerian logistics</p>
+          <p className="mt-2 text-surface-500">Built for Ghanaian logistics</p>
 
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {[

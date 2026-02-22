@@ -28,7 +28,7 @@ const MAPBOX_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
 /**
  * Forward geocode: address text → coordinates.
- * Biased towards Nigeria by default.
+ * Biased towards Ghana by default.
  */
 export async function forwardGeocode(
   address: string,
@@ -155,22 +155,22 @@ interface MapboxResponse {
 
 // ---- Mock implementations for local dev ----
 
-const LAGOS_AREAS = [
-  { name: 'Lekki Phase 1, Lagos', lat: 6.4478, lng: 3.4733 },
-  { name: 'Victoria Island, Lagos', lat: 6.4281, lng: 3.4219 },
-  { name: 'Ikeja GRA, Lagos', lat: 6.5833, lng: 3.3421 },
-  { name: 'Surulere, Lagos', lat: 6.4968, lng: 3.3567 },
-  { name: 'Yaba, Lagos', lat: 6.5103, lng: 3.3765 },
-  { name: 'Ikoyi, Lagos', lat: 6.4505, lng: 3.4358 },
-  { name: 'Ajah, Lagos', lat: 6.4667, lng: 3.5667 },
-  { name: 'Maryland, Lagos', lat: 6.5631, lng: 3.3635 },
-  { name: 'Gbagada, Lagos', lat: 6.5517, lng: 3.3891 },
-  { name: 'Ogba, Lagos', lat: 6.6167, lng: 3.3333 },
+const ACCRA_AREAS = [
+  { name: 'East Legon, Accra', lat: 5.6350, lng: -0.1572 },
+  { name: 'Osu, Accra', lat: 5.5560, lng: -0.1870 },
+  { name: 'Airport Residential, Accra', lat: 5.6050, lng: -0.1700 },
+  { name: 'Cantonments, Accra', lat: 5.5720, lng: -0.1770 },
+  { name: 'Labone, Accra', lat: 5.5630, lng: -0.1830 },
+  { name: 'Adabraka, Accra', lat: 5.5580, lng: -0.2120 },
+  { name: 'Dansoman, Accra', lat: 5.5390, lng: -0.2580 },
+  { name: 'Tema, Greater Accra', lat: 5.6698, lng: -0.0166 },
+  { name: 'Madina, Accra', lat: 5.6740, lng: -0.1680 },
+  { name: 'Achimota, Accra', lat: 5.6150, lng: -0.2310 },
 ];
 
 function mockForwardGeocode(address: string): GeocodingResult[] {
   const lower = address.toLowerCase();
-  const matches = LAGOS_AREAS.filter((a) => a.name.toLowerCase().includes(lower));
+  const matches = ACCRA_AREAS.filter((a) => a.name.toLowerCase().includes(lower));
 
   if (matches.length > 0) {
     return matches.map((m) => ({
@@ -181,8 +181,8 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
     }));
   }
 
-  // Return a random Lagos coordinate if no match
-  const fallback = LAGOS_AREAS[Math.floor(Math.random() * LAGOS_AREAS.length)]!;
+  // Return a random Accra coordinate if no match
+  const fallback = ACCRA_AREAS[Math.floor(Math.random() * ACCRA_AREAS.length)]!;
   return [
     {
       address: `${address} (${fallback.name})`,
@@ -195,7 +195,7 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
 
 function mockAutocomplete(query: string): AutocompleteSuggestion[] {
   const lower = query.toLowerCase();
-  return LAGOS_AREAS.filter((a) => a.name.toLowerCase().includes(lower))
+  return ACCRA_AREAS.filter((a) => a.name.toLowerCase().includes(lower))
     .slice(0, 5)
     .map((a, i) => ({
       id: `mock-${i}`,

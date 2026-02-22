@@ -95,7 +95,7 @@ function baseLayout(title: string, body: string): string {
     </div>
     <div class="footer">
       <p>&copy; ${new Date().getFullYear()} RiderGuy. All rights reserved.</p>
-      <p>Lagos, Nigeria</p>
+      <p>Accra, Ghana</p>
     </div>
   </div>
 </body>
@@ -173,7 +173,7 @@ export class EmailService {
         <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Package</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${escapeHtml(data.packageType.replace(/_/g, ' '))}</td></tr>
         <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Pickup</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${escapeHtml(data.pickupAddress)}</td></tr>
         <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Dropoff</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${escapeHtml(data.dropoffAddress)}</td></tr>
-        <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Total</td><td style="padding:8px 0; text-align:right; font-weight:800; font-size:18px; color:#16a34a;">₦${data.totalPrice.toLocaleString()}</td></tr>
+        <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Total</td><td style="padding:8px 0; text-align:right; font-weight:800; font-size:18px; color:#16a34a;">GH₵${data.totalPrice.toLocaleString()}</td></tr>
       </table>
       <p>We're searching for a rider near you. You'll receive updates as your delivery progresses.</p>
       <a href="${process.env.APP_URL ?? 'https://riderguy.com'}/dashboard/orders" class="btn">Track Order</a>
@@ -209,9 +209,9 @@ export class EmailService {
         <tr><td class="info-label" style="padding:8px 0; color:#71717a;">Order #</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${data.orderNumber}</td></tr>
         <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Delivered</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${data.deliveredAt}</td></tr>
         <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Rider</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${escapeHtml(data.riderName)}</td></tr>
-        <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Delivery Fee</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">₦${data.totalPrice.toLocaleString()}</td></tr>
-        ${data.tipAmount > 0 ? `<tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Tip</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">₦${data.tipAmount.toLocaleString()}</td></tr>` : ''}
-        <tr style="border-top:2px solid #e4e4e7;"><td class="info-label" style="padding:8px 0; color:#71717a; font-weight:700;">Total</td><td style="padding:8px 0; text-align:right; font-weight:800; font-size:18px; color:#16a34a;">₦${total.toLocaleString()}</td></tr>
+        <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Delivery Fee</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">GH₵${data.totalPrice.toLocaleString()}</td></tr>
+        ${data.tipAmount > 0 ? `<tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Tip</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">GH₵${data.tipAmount.toLocaleString()}</td></tr>` : ''}
+        <tr style="border-top:2px solid #e4e4e7;"><td class="info-label" style="padding:8px 0; color:#71717a; font-weight:700;">Total</td><td style="padding:8px 0; text-align:right; font-weight:800; font-size:18px; color:#16a34a;">GH₵${total.toLocaleString()}</td></tr>
       </table>
       <p>Thank you for using RiderGuy! We'd love to hear about your experience.</p>
       <a href="${process.env.APP_URL ?? 'https://riderguy.com'}/dashboard/orders" class="btn">Rate Your Delivery</a>
@@ -274,7 +274,7 @@ export class EmailService {
       <h2>Payout Sent! 💰</h2>
       <p>Hi ${escapeHtml(data.firstName)}, your withdrawal has been processed successfully.</p>
       <div style="text-align:center; margin:20px 0;">
-        <p class="amount" style="font-size:28px; font-weight:800; color:#16a34a; margin:0;">₦${data.amount.toLocaleString()}</p>
+        <p class="amount" style="font-size:28px; font-weight:800; color:#16a34a; margin:0;">GH₵${data.amount.toLocaleString()}</p>
         <p style="color:#71717a; font-size:13px; margin-top:4px;">sent to ${escapeHtml(data.destination)}</p>
       </div>
       <table style="width:100%; border-collapse:collapse; margin:16px 0;">
@@ -286,7 +286,7 @@ export class EmailService {
     );
     return sendMail({
       to,
-      subject: `Payout of ₦${data.amount.toLocaleString()} Processed — RiderGuy`,
+      subject: `Payout of GH₵${data.amount.toLocaleString()} Processed — RiderGuy`,
       html,
     });
   }

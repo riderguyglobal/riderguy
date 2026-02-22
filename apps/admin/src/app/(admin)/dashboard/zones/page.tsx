@@ -58,7 +58,7 @@ export default function ZoneManagementPage() {
   const [newPerKm, setNewPerKm] = useState('5');
   const [newMinFare, setNewMinFare] = useState('20');
   const [newCommission, setNewCommission] = useState('15');
-  const [newCurrency, setNewCurrency] = useState('NGN');
+  const [newCurrency, setNewCurrency] = useState('GHS');
   const [newCenterLat, setNewCenterLat] = useState('');
   const [newCenterLng, setNewCenterLng] = useState('');
 

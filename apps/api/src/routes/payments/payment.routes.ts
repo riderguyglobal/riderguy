@@ -97,7 +97,7 @@ router.post(
 
     const result = await paystackService.initializeTransaction({
       email: user?.email ?? `user-${userId}@riderguy.com`,
-      amount: Math.round(order.totalPrice * 100), // Convert to kobo
+      amount: Math.round(order.totalPrice * 100), // Convert to pesewas
       reference,
       callbackUrl: callbackUrl ?? undefined,
       metadata: {
@@ -168,11 +168,11 @@ router.get(
       const verification = await paystackService.verifyTransaction(reference as string);
 
       if (verification.status === 'success') {
-        // Verify amount matches (in kobo)
-        const expectedKobo = Math.round(order.totalPrice * 100);
-        if (verification.amount !== expectedKobo) {
+        // Verify amount matches (in pesewas)
+        const expectedPesewas = Math.round(order.totalPrice * 100);
+        if (verification.amount !== expectedPesewas) {
           logger.warn(
-            { reference, expected: expectedKobo, received: verification.amount },
+            { reference, expected: expectedPesewas, received: verification.amount },
             'Payment amount mismatch',
           );
           res.status(StatusCodes.BAD_REQUEST).json({
@@ -355,7 +355,7 @@ router.post(
 
 /**
  * GET /payments/banks
- * List available Nigerian banks (from Paystack).
+ * List available Ghanaian banks (from Paystack).
  */
 router.get(
   '/banks',

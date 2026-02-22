@@ -34,13 +34,13 @@ export const JWT_ACCESS_EXPIRY = '15m';
 export const JWT_REFRESH_EXPIRY = '7d';
 
 /** Minimum withdrawal amount */
-export const MIN_WITHDRAWAL_AMOUNT = 500; // in NGN
+export const MIN_WITHDRAWAL_AMOUNT = 5; // in GHS
 
 /** Maximum avatar file size (2MB) */
 export const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 
 /** Default currency */
-export const DEFAULT_CURRENCY = 'NGN';
+export const DEFAULT_CURRENCY = 'GHS';
 
 /** Default surge multiplier (no surge) */
 export const DEFAULT_SURGE_MULTIPLIER = 1.0;

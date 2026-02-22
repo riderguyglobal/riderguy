@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About — RiderGuy',
-  description: 'Learn about RiderGuy, our mission, and the team building the future of Nigerian logistics.',
+  description: 'Learn about RiderGuy, our mission, and the team building the future of Ghanaian logistics.',
 };
 
 export default function AboutPage() {
@@ -20,7 +20,7 @@ export default function AboutPage() {
             </h1>
             <p className="mt-4 max-w-lg text-lg text-surface-500">
               We&#39;re building the infrastructure for last-mile delivery in Africa,
-              starting with Nigeria. Our platform connects riders, businesses, and
+              starting with Ghana. Our platform connects riders, businesses, and
               individuals in one seamless experience.
             </p>
           </div>
@@ -52,7 +52,7 @@ export default function AboutPage() {
           <div>
             <h2 className="text-2xl font-bold">Our Vision</h2>
             <p className="mt-4 text-surface-500">
-              A Nigeria where every person and business has access to reliable,
+              A Ghana where every person and business has access to reliable,
               affordable last-mile delivery. We&#39;re starting with dispatch
               riders and expanding to a full logistics marketplace.
             </p>

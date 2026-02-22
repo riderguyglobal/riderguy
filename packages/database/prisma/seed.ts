@@ -5,7 +5,7 @@
 //   - Admin & Super Admin users
 //   - Riders at various onboarding stages
 //   - Clients with saved addresses
-//   - Zones with polygon coordinates (Lagos)
+//   - Zones with polygon coordinates (Accra)
 //   - Orders in various statuses
 //   - Vehicles
 //   - Wallets with transactions
@@ -33,78 +33,78 @@ function orderNumber(): string {
   return `RG-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
-// ---- Lagos zone polygons (simplified) ----
-const LAGOS_ZONES = [
+// ---- Accra zone polygons (simplified) ----
+const ACCRA_ZONES = [
   {
-    name: 'Ikeja',
-    description: 'Ikeja and surrounding areas',
-    centerLatitude: 6.6018,
-    centerLongitude: 3.3515,
-    polygon: [[[3.33, 6.58], [3.37, 6.58], [3.37, 6.62], [3.33, 6.62], [3.33, 6.58]]],
-    baseFare: 500,
-    perKmRate: 150,
-    minimumFare: 700,
+    name: 'East Legon',
+    description: 'East Legon and surrounding areas',
+    centerLatitude: 5.6350,
+    centerLongitude: -0.1572,
+    polygon: [[[-0.18, 5.62], [-0.13, 5.62], [-0.13, 5.66], [-0.18, 5.66], [-0.18, 5.62]]],
+    baseFare: 10,
+    perKmRate: 3,
+    minimumFare: 15,
     commissionRate: 20,
   },
   {
-    name: 'Victoria Island',
-    description: 'VI, Lekki Phase 1',
-    centerLatitude: 6.4281,
-    centerLongitude: 3.4219,
-    polygon: [[[3.40, 6.41], [3.45, 6.41], [3.45, 6.45], [3.40, 6.45], [3.40, 6.41]]],
-    baseFare: 600,
-    perKmRate: 180,
-    minimumFare: 800,
+    name: 'Osu',
+    description: 'Osu, Oxford Street, Cantonments',
+    centerLatitude: 5.5560,
+    centerLongitude: -0.1870,
+    polygon: [[[-0.20, 5.54], [-0.17, 5.54], [-0.17, 5.58], [-0.20, 5.58], [-0.20, 5.54]]],
+    baseFare: 12,
+    perKmRate: 3.5,
+    minimumFare: 18,
     commissionRate: 20,
   },
   {
-    name: 'Surulere',
-    description: 'Surulere, Yaba, Ebute-Metta',
-    centerLatitude: 6.5059,
-    centerLongitude: 3.3687,
-    polygon: [[[3.35, 6.49], [3.39, 6.49], [3.39, 6.53], [3.35, 6.53], [3.35, 6.49]]],
-    baseFare: 450,
-    perKmRate: 130,
-    minimumFare: 600,
+    name: 'Dansoman',
+    description: 'Dansoman, Mamprobi, Korle Bu',
+    centerLatitude: 5.5390,
+    centerLongitude: -0.2580,
+    polygon: [[[-0.28, 5.52], [-0.24, 5.52], [-0.24, 5.56], [-0.28, 5.56], [-0.28, 5.52]]],
+    baseFare: 8,
+    perKmRate: 2.5,
+    minimumFare: 12,
     commissionRate: 20,
   },
   {
-    name: 'Lekki',
-    description: 'Lekki Phase 2, Ajah, Sangotedo',
-    centerLatitude: 6.4415,
-    centerLongitude: 3.5265,
-    polygon: [[[3.50, 6.42], [3.56, 6.42], [3.56, 6.46], [3.50, 6.46], [3.50, 6.42]]],
-    baseFare: 550,
-    perKmRate: 160,
-    minimumFare: 750,
+    name: 'Tema',
+    description: 'Tema, Community 1-25, Tema New Town',
+    centerLatitude: 5.6698,
+    centerLongitude: -0.0166,
+    polygon: [[[-0.04, 5.65], [0.01, 5.65], [0.01, 5.69], [-0.04, 5.69], [-0.04, 5.65]]],
+    baseFare: 10,
+    perKmRate: 3,
+    minimumFare: 15,
     commissionRate: 20,
   },
   {
-    name: 'Mainland',
-    description: 'Ikorodu Road, Maryland, Ojota',
-    centerLatitude: 6.5776,
-    centerLongitude: 3.3792,
-    polygon: [[[3.36, 6.56], [3.40, 6.56], [3.40, 6.60], [3.36, 6.60], [3.36, 6.56]]],
-    baseFare: 450,
-    perKmRate: 130,
-    minimumFare: 600,
+    name: 'Achimota',
+    description: 'Achimota, Dome, Madina',
+    centerLatitude: 5.6150,
+    centerLongitude: -0.2310,
+    polygon: [[[-0.25, 5.60], [-0.21, 5.60], [-0.21, 5.64], [-0.25, 5.64], [-0.25, 5.60]]],
+    baseFare: 8,
+    perKmRate: 2.5,
+    minimumFare: 12,
     commissionRate: 20,
   },
 ];
 
-const LAGOS_ADDRESSES = [
-  { address: '25 Allen Avenue, Ikeja, Lagos', lat: 6.6018, lng: 3.3515 },
-  { address: '14 Admiralty Way, Lekki Phase 1, Lagos', lat: 6.4322, lng: 3.4498 },
-  { address: '7 Bode Thomas Street, Surulere, Lagos', lat: 6.4932, lng: 3.3578 },
-  { address: '42 Toyin Street, Ikeja, Lagos', lat: 6.5985, lng: 3.3488 },
-  { address: '88 Awolowo Road, Ikoyi, Lagos', lat: 6.4500, lng: 3.4350 },
-  { address: '3 Ozumba Mbadiwe Avenue, VI, Lagos', lat: 6.4281, lng: 3.4219 },
-  { address: '15 Herbert Macaulay Way, Yaba, Lagos', lat: 6.5100, lng: 3.3700 },
-  { address: '9 Adeola Odeku Street, VI, Lagos', lat: 6.4312, lng: 3.4155 },
-  { address: '33 Isaac John Street, GRA Ikeja, Lagos', lat: 6.5862, lng: 3.3580 },
-  { address: '21 Sanusi Fafunwa Street, VI, Lagos', lat: 6.4288, lng: 3.4167 },
-  { address: '5 Admiralty Road, Lekki Phase 1, Lagos', lat: 6.4350, lng: 3.4520 },
-  { address: '17 Opebi Road, Ikeja, Lagos', lat: 6.5890, lng: 3.3560 },
+const ACCRA_ADDRESSES = [
+  { address: '12 Nii Nortei Nyanchi St, East Legon, Accra', lat: 5.6350, lng: -0.1572 },
+  { address: '5 Oxford Street, Osu, Accra', lat: 5.5560, lng: -0.1870 },
+  { address: '7 Farrar Avenue, Adabraka, Accra', lat: 5.5580, lng: -0.2120 },
+  { address: '23 Liberation Road, Airport Residential, Accra', lat: 5.6050, lng: -0.1700 },
+  { address: '14 Cantonments Road, Cantonments, Accra', lat: 5.5720, lng: -0.1770 },
+  { address: '9 Labone Crescent, Labone, Accra', lat: 5.5630, lng: -0.1830 },
+  { address: '3 High Street, James Town, Accra', lat: 5.5440, lng: -0.2070 },
+  { address: '18 Spintex Road, Spintex, Accra', lat: 5.6340, lng: -0.1120 },
+  { address: '8 Baatsonaa Road, East Legon, Accra', lat: 5.6398, lng: -0.1430 },
+  { address: '22 Boundary Road, East Legon, Accra', lat: 5.6280, lng: -0.1650 },
+  { address: '6 Community 25, Tema, Greater Accra', lat: 5.6698, lng: -0.0166 },
+  { address: '11 Ring Road Central, Asylum Down, Accra', lat: 5.5670, lng: -0.2130 },
 ];
 
 async function main() {
@@ -141,7 +141,7 @@ async function main() {
   // ══════════════════════════════════════════════════════════════
   console.log('  Creating zones...');
   const zones = await Promise.all(
-    LAGOS_ZONES.map((z) =>
+    ACCRA_ZONES.map((z) =>
       prisma.zone.create({
         data: {
           name: z.name,
@@ -155,7 +155,7 @@ async function main() {
           minimumFare: z.minimumFare,
           surgeMultiplier: 1.0,
           commissionRate: z.commissionRate,
-          currency: 'NGN',
+          currency: 'GHS',
         },
       }),
     ),
@@ -168,7 +168,7 @@ async function main() {
   console.log('  Creating admin users...');
   const superAdmin = await prisma.user.create({
     data: {
-      phone: '+2348000000001',
+      phone: '+233200000001',
       email: 'superadmin@riderguy.com',
       phoneVerified: true,
       emailVerified: true,
@@ -182,13 +182,13 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      phone: '+2348000000002',
+      phone: '+233200000002',
       email: 'admin@riderguy.com',
       phoneVerified: true,
       emailVerified: true,
       passwordHash: SEED_PASSWORD_HASH,
-      firstName: 'Adebayo',
-      lastName: 'Ogunlesi',
+      firstName: 'Kwame',
+      lastName: 'Mensah',
       role: 'ADMIN',
       status: 'ACTIVE',
     },
@@ -201,14 +201,14 @@ async function main() {
   console.log('  Creating riders...');
 
   const riderData = [
-    { phone: '+2348100000001', first: 'Chinedu', last: 'Okoro', email: 'chinedu@email.com', status: 'ACTIVATED' as const, availability: 'ONLINE' as const, zone: 0, deliveries: 147, rating: 4.8, xp: 2400 },
-    { phone: '+2348100000002', first: 'Emeka', last: 'Eze', email: 'emeka@email.com', status: 'ACTIVATED' as const, availability: 'ONLINE' as const, zone: 1, deliveries: 89, rating: 4.6, xp: 1500 },
-    { phone: '+2348100000003', first: 'Tunde', last: 'Bakare', email: 'tunde@email.com', status: 'ACTIVATED' as const, availability: 'OFFLINE' as const, zone: 2, deliveries: 234, rating: 4.9, xp: 3800 },
-    { phone: '+2348100000004', first: 'Ibrahim', last: 'Musa', email: 'ibrahim@email.com', status: 'ACTIVATED' as const, availability: 'ON_DELIVERY' as const, zone: 0, deliveries: 56, rating: 4.5, xp: 900 },
-    { phone: '+2348100000005', first: 'Dayo', last: 'Adeyemi', email: 'dayo@email.com', status: 'DOCUMENTS_SUBMITTED' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
-    { phone: '+2348100000006', first: 'Segun', last: 'Afolabi', email: 'segun@email.com', status: 'DOCUMENTS_UNDER_REVIEW' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
-    { phone: '+2348100000007', first: 'Yusuf', last: 'Abdullahi', email: 'yusuf@email.com', status: 'DOCUMENTS_REJECTED' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
-    { phone: '+2348100000008', first: 'Kunle', last: 'Oladipo', email: 'kunle@email.com', status: 'REGISTERED' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
+    { phone: '+233240000001', first: 'Kofi', last: 'Asante', email: 'kofi@email.com', status: 'ACTIVATED' as const, availability: 'ONLINE' as const, zone: 0, deliveries: 147, rating: 4.8, xp: 2400 },
+    { phone: '+233240000002', first: 'Kwesi', last: 'Boateng', email: 'kwesi@email.com', status: 'ACTIVATED' as const, availability: 'ONLINE' as const, zone: 1, deliveries: 89, rating: 4.6, xp: 1500 },
+    { phone: '+233240000003', first: 'Yaw', last: 'Darko', email: 'yaw@email.com', status: 'ACTIVATED' as const, availability: 'OFFLINE' as const, zone: 2, deliveries: 234, rating: 4.9, xp: 3800 },
+    { phone: '+233240000004', first: 'Ibrahim', last: 'Issahaku', email: 'ibrahim@email.com', status: 'ACTIVATED' as const, availability: 'ON_DELIVERY' as const, zone: 0, deliveries: 56, rating: 4.5, xp: 900 },
+    { phone: '+233240000005', first: 'Kwabena', last: 'Adu', email: 'kwabena@email.com', status: 'DOCUMENTS_SUBMITTED' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
+    { phone: '+233240000006', first: 'Prince', last: 'Ofori', email: 'prince@email.com', status: 'DOCUMENTS_UNDER_REVIEW' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
+    { phone: '+233240000007', first: 'Abdul', last: 'Rahman', email: 'abdul@email.com', status: 'DOCUMENTS_REJECTED' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
+    { phone: '+233240000008', first: 'Nana', last: 'Osei', email: 'nana@email.com', status: 'REGISTERED' as const, availability: 'OFFLINE' as const, zone: null, deliveries: 0, rating: 0, xp: 0 },
   ];
 
   const riders: Array<{ userId: string; profileId: string; zoneIdx: number | null }> = [];
@@ -244,8 +244,8 @@ async function main() {
         preferredVehicleType: 'MOTORCYCLE',
         isVerified: r.status === 'ACTIVATED',
         activatedAt: r.status === 'ACTIVATED' ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) : null,
-        currentLatitude: r.zone !== null ? LAGOS_ZONES[r.zone].centerLatitude + (Math.random() - 0.5) * 0.02 : null,
-        currentLongitude: r.zone !== null ? LAGOS_ZONES[r.zone].centerLongitude + (Math.random() - 0.5) * 0.02 : null,
+        currentLatitude: r.zone !== null ? ACCRA_ZONES[r.zone].centerLatitude + (Math.random() - 0.5) * 0.02 : null,
+        currentLongitude: r.zone !== null ? ACCRA_ZONES[r.zone].centerLongitude + (Math.random() - 0.5) * 0.02 : null,
         lastLocationUpdate: r.availability !== 'OFFLINE' ? new Date() : null,
       },
     });
@@ -266,7 +266,7 @@ async function main() {
         model: ['CB125', 'GN125', 'Boxer', 'Apache'][i],
         year: 2020 + (i % 4),
         color: ['Red', 'Black', 'Blue', 'Silver'][i],
-        plateNumber: `LAG-${100 + i}XY`,
+        plateNumber: `GR-${1000 + i}-${String.fromCharCode(65 + i)}${String.fromCharCode(65 + i + 1)}`,
         isPrimary: true,
         isApproved: true,
       },
@@ -284,7 +284,7 @@ async function main() {
       data: {
         userId: riders[i].userId,
         balance: earnings - withdrawn,
-        currency: 'NGN',
+        currency: 'GHS',
         totalEarned: earnings,
         totalWithdrawn: withdrawn,
         totalTips: Math.floor(riderData[i].deliveries * 100),
@@ -310,7 +310,7 @@ async function main() {
           amount: Math.abs(tx.amount),
           balanceAfter: Math.max(0, runningBalance),
           description: tx.desc,
-          currency: 'NGN',
+          currency: 'GHS',
         },
       });
     }
@@ -323,11 +323,11 @@ async function main() {
   console.log('  Creating clients...');
 
   const clientData = [
-    { phone: '+2348200000001', first: 'Aisha', last: 'Bello', email: 'aisha@email.com', orders: 12, spent: 18500 },
-    { phone: '+2348200000002', first: 'Ngozi', last: 'Onyeka', email: 'ngozi@email.com', orders: 5, spent: 7800 },
-    { phone: '+2348200000003', first: 'Temi', last: 'Adekunle', email: 'temi@email.com', orders: 28, spent: 42000 },
-    { phone: '+2348200000004', first: 'Femi', last: 'Oluwole', email: 'femi@email.com', orders: 3, spent: 4500 },
-    { phone: '+2348200000005', first: 'Chioma', last: 'Obi', email: 'chioma@email.com', orders: 0, spent: 0 },
+    { phone: '+233250000001', first: 'Ama', last: 'Serwaa', email: 'ama@email.com', orders: 12, spent: 185 },
+    { phone: '+233250000002', first: 'Akosua', last: 'Frimpong', email: 'akosua@email.com', orders: 5, spent: 78 },
+    { phone: '+233250000003', first: 'Abena', last: 'Owusu', email: 'abena@email.com', orders: 28, spent: 420 },
+    { phone: '+233250000004', first: 'Kweku', last: 'Annan', email: 'kweku@email.com', orders: 3, spent: 45 },
+    { phone: '+233250000005', first: 'Efua', last: 'Mensah', email: 'efua@email.com', orders: 0, spent: 0 },
   ];
 
   const clients: Array<{ userId: string; profileId: string }> = [];
@@ -366,17 +366,17 @@ async function main() {
           {
             clientId: profile.id,
             label: 'Home',
-            address: LAGOS_ADDRESSES[addrIdx].address,
-            latitude: LAGOS_ADDRESSES[addrIdx].lat,
-            longitude: LAGOS_ADDRESSES[addrIdx].lng,
+            address: ACCRA_ADDRESSES[addrIdx].address,
+            latitude: ACCRA_ADDRESSES[addrIdx].lat,
+            longitude: ACCRA_ADDRESSES[addrIdx].lng,
             isDefault: true,
           },
           {
             clientId: profile.id,
             label: 'Office',
-            address: LAGOS_ADDRESSES[addrIdx + 1].address,
-            latitude: LAGOS_ADDRESSES[addrIdx + 1].lat,
-            longitude: LAGOS_ADDRESSES[addrIdx + 1].lng,
+            address: ACCRA_ADDRESSES[addrIdx + 1].address,
+            latitude: ACCRA_ADDRESSES[addrIdx + 1].lat,
+            longitude: ACCRA_ADDRESSES[addrIdx + 1].lng,
           },
         ],
       });
@@ -387,7 +387,7 @@ async function main() {
       data: {
         userId: user.id,
         balance: Math.floor(Math.random() * 5000),
-        currency: 'NGN',
+        currency: 'GHS',
       },
     });
   }
@@ -420,10 +420,10 @@ async function main() {
 
   let orderCount = 0;
   for (const o of orderStatuses) {
-    const pickupAddr = LAGOS_ADDRESSES[orderCount % LAGOS_ADDRESSES.length];
-    const dropoffAddr = LAGOS_ADDRESSES[(orderCount + 3) % LAGOS_ADDRESSES.length];
+    const pickupAddr = ACCRA_ADDRESSES[orderCount % ACCRA_ADDRESSES.length];
+    const dropoffAddr = ACCRA_ADDRESSES[(orderCount + 3) % ACCRA_ADDRESSES.length];
     const distance = 2 + Math.random() * 15;
-    const zone = LAGOS_ZONES[o.zoneIdx];
+    const zone = ACCRA_ZONES[o.zoneIdx];
     const baseFare = zone.baseFare;
     const distanceCharge = distance * zone.perKmRate;
     const totalPrice = Math.max(zone.minimumFare, baseFare + distanceCharge);
@@ -445,7 +445,7 @@ async function main() {
         dropoffLatitude: dropoffAddr.lat,
         dropoffLongitude: dropoffAddr.lng,
         dropoffContactName: 'Recipient',
-        dropoffContactPhone: '+2349000000000',
+        dropoffContactPhone: '+233200000000',
         packageType: packageTypes[orderCount % packageTypes.length],
         packageDescription: `Sample package ${orderCount + 1}`,
         distanceKm: Math.round(distance * 10) / 10,
@@ -455,7 +455,7 @@ async function main() {
         surgeMultiplier: 1.0,
         serviceFee: Math.round(serviceFee),
         totalPrice: Math.round(totalPrice),
-        currency: 'NGN',
+        currency: 'GHS',
         paymentMethod: ['CARD', 'WALLET', 'CASH'][orderCount % 3] as 'CARD' | 'WALLET' | 'CASH',
         paymentStatus: o.status === 'DELIVERED' ? 'COMPLETED' : o.status === 'CANCELLED_BY_CLIENT' ? 'REFUNDED' : 'PENDING',
         status: o.status as any,
@@ -553,7 +553,7 @@ async function main() {
     { title: 'New Delivery Available', body: 'A new delivery request is waiting near you. Open the job feed to accept.', type: 'order' },
     { title: 'Document Approved', body: 'Your national ID has been verified successfully.', type: 'document_review' },
     { title: 'Delivery Complete', body: 'Your package has been delivered. Rate your experience!', type: 'order' },
-    { title: 'Payout Processed', body: 'Your withdrawal of ₦5,000 has been sent to your bank account.', type: 'payment' },
+    { title: 'Payout Processed', body: 'Your withdrawal of GH₵50 has been sent to your bank account.', type: 'payment' },
   ];
 
   let notifCount = 0;
@@ -593,7 +593,7 @@ async function main() {
     data: {
       userId: superAdmin.id,
       title: 'New Rider Application',
-      body: 'Dayo Adeyemi has submitted documents for review.',
+      body: 'Kwabena Adu has submitted documents for review.',
       type: 'rider_application',
       isRead: false,
     },
@@ -635,14 +635,14 @@ async function main() {
   console.log('\n✅ Seed complete!\n');
   console.log('  Accounts:');
   console.log('  ─────────────────────────────────────────');
-  console.log('  Super Admin: +2348000000001 (superadmin@riderguy.com)');
-  console.log('  Admin:       +2348000000002 (admin@riderguy.com)');
-  console.log('  Rider 1:     +2348100000001 (chinedu@email.com) — ACTIVATED, ONLINE');
-  console.log('  Rider 2:     +2348100000002 (emeka@email.com)   — ACTIVATED, ONLINE');
-  console.log('  Rider 3:     +2348100000003 (tunde@email.com)   — ACTIVATED, OFFLINE');
-  console.log('  Client 1:    +2348200000001 (aisha@email.com)');
-  console.log('  Client 2:    +2348200000002 (ngozi@email.com)');
-  console.log('  Client 3:    +2348200000003 (temi@email.com)');
+  console.log('  Super Admin: +233200000001 (superadmin@riderguy.com)');
+  console.log('  Admin:       +233200000002 (admin@riderguy.com)');
+  console.log('  Rider 1:     +233240000001 (kofi@email.com) — ACTIVATED, ONLINE');
+  console.log('  Rider 2:     +233240000002 (kwesi@email.com)   — ACTIVATED, ONLINE');
+  console.log('  Rider 3:     +233240000003 (yaw@email.com)   — ACTIVATED, OFFLINE');
+  console.log('  Client 1:    +233250000001 (ama@email.com)');
+  console.log('  Client 2:    +233250000002 (akosua@email.com)');
+  console.log('  Client 3:    +233250000003 (abena@email.com)');
   console.log('  ─────────────────────────────────────────');
   console.log('  Password for all accounts: Password123!');
   console.log('');

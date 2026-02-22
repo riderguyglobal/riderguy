@@ -17,23 +17,23 @@ const ACCOUNTS = {
   admin:      { email: 'admin@riderguy.com',      password: 'Password123!', role: 'ADMIN' },
 
   // Active riders (ACTIVATED, can accept orders)
-  rider1: { email: 'chinedu@email.com',  password: 'Password123!', role: 'RIDER', name: 'Chinedu Okoro' },
-  rider2: { email: 'emeka@email.com',    password: 'Password123!', role: 'RIDER', name: 'Emeka Eze' },
-  rider3: { email: 'tunde@email.com',    password: 'Password123!', role: 'RIDER', name: 'Tunde Bakare' },
-  rider4: { email: 'ibrahim@email.com',  password: 'Password123!', role: 'RIDER', name: 'Ibrahim Musa' },
+  rider1: { email: 'kofi@email.com',    password: 'Password123!', role: 'RIDER', name: 'Kofi Asante' },
+  rider2: { email: 'kwesi@email.com',   password: 'Password123!', role: 'RIDER', name: 'Kwesi Boateng' },
+  rider3: { email: 'yaw@email.com',     password: 'Password123!', role: 'RIDER', name: 'Yaw Darko' },
+  rider4: { email: 'ibrahim@email.com', password: 'Password123!', role: 'RIDER', name: 'Ibrahim Issahaku' },
 
   // Riders in various onboarding stages
-  riderPendingDocs:    { email: 'dayo@email.com',   password: 'Password123!', role: 'RIDER', name: 'Dayo Adeyemi' },
-  riderDocsReview:     { email: 'segun@email.com',  password: 'Password123!', role: 'RIDER', name: 'Segun Afolabi' },
-  riderDocsRejected:   { email: 'yusuf@email.com',  password: 'Password123!', role: 'RIDER', name: 'Yusuf Abdullahi' },
-  riderNewlyRegistered:{ email: 'kunle@email.com',  password: 'Password123!', role: 'RIDER', name: 'Kunle Oladipo' },
+  riderPendingDocs:    { email: 'kwabena@email.com', password: 'Password123!', role: 'RIDER', name: 'Kwabena Adu' },
+  riderDocsReview:     { email: 'prince@email.com',  password: 'Password123!', role: 'RIDER', name: 'Prince Ofori' },
+  riderDocsRejected:   { email: 'abdul@email.com',   password: 'Password123!', role: 'RIDER', name: 'Abdul Rahman' },
+  riderNewlyRegistered:{ email: 'nana@email.com',    password: 'Password123!', role: 'RIDER', name: 'Nana Osei' },
 
   // Clients (can create orders)
-  client1: { email: 'aisha@email.com',  password: 'Password123!', role: 'CLIENT', name: 'Aisha Bello' },
-  client2: { email: 'ngozi@email.com',  password: 'Password123!', role: 'CLIENT', name: 'Ngozi Onyeka' },
-  client3: { email: 'temi@email.com',   password: 'Password123!', role: 'CLIENT', name: 'Temi Adekunle' },
-  client4: { email: 'femi@email.com',   password: 'Password123!', role: 'CLIENT', name: 'Femi Oluwole' },
-  client5: { email: 'chioma@email.com', password: 'Password123!', role: 'CLIENT', name: 'Chioma Obi' },
+  client1: { email: 'ama@email.com',    password: 'Password123!', role: 'CLIENT', name: 'Ama Serwaa' },
+  client2: { email: 'akosua@email.com', password: 'Password123!', role: 'CLIENT', name: 'Akosua Frimpong' },
+  client3: { email: 'abena@email.com',  password: 'Password123!', role: 'CLIENT', name: 'Abena Owusu' },
+  client4: { email: 'kweku@email.com',  password: 'Password123!', role: 'CLIENT', name: 'Kweku Annan' },
+  client5: { email: 'efua@email.com',   password: 'Password123!', role: 'CLIENT', name: 'Efua Mensah' },
 };
 
 const results = { pass: 0, fail: 0, skip: 0, tests: [] };
@@ -278,7 +278,7 @@ async function phase4_ClientFeatures() {
     try {
       const { status, data } = await req('GET', `${BASE}/wallets`, { token: tokens[key].access });
       if (status === 200 && data.data) {
-        log('PASS', `Wallet: ${name}`, `balance: ${data.data.balance} ${data.data.currency || 'NGN'}`);
+        log('PASS', `Wallet: ${name}`, `balance: ${data.data.balance} ${data.data.currency || 'GHS'}`);
       } else {
         log('FAIL', `Wallet: ${name}`, `Status ${status}`);
       }
@@ -346,7 +346,7 @@ async function phase5_OrderLifecycle() {
     });
     if (status === 200 && data.data) {
       estimateData = data.data;
-      log('PASS', 'Price estimate', `₦${estimateData.estimatedPrice || estimateData.totalPrice || '?'} | ${estimateData.distanceKm || '?'}km | ${estimateData.estimatedDurationMinutes || '?'}min`);
+      log('PASS', 'Price estimate', `GH₵${estimateData.estimatedPrice || estimateData.totalPrice || '?'} | ${estimateData.distanceKm || '?'}km | ${estimateData.estimatedDurationMinutes || '?'}min`);
     } else {
       log('FAIL', 'Price estimate', `Status ${status}: ${JSON.stringify(data).slice(0, 200)}`);
     }
@@ -360,17 +360,17 @@ async function phase5_OrderLifecycle() {
     const { status, data } = await req('POST', `${BASE}/orders`, {
       token: tokens[orderClient].access,
       body: {
-        pickupAddress: '15 Awolowo Road, Ikeja, Lagos',
-        pickupLatitude: 6.6018,
-        pickupLongitude: 3.3515,
+        pickupAddress: '15 Independence Avenue, Ridge, Accra',
+        pickupLatitude: 5.5600,
+        pickupLongitude: -0.1969,
         pickupContactName: orderClientName,
-        pickupContactPhone: '+2348200000005',
+        pickupContactPhone: '+233250000005',
         pickupInstructions: 'Ring the bell at gate',
-        dropoffAddress: '22 Bode Thomas Street, Surulere, Lagos',
-        dropoffLatitude: 6.5059,
-        dropoffLongitude: 3.3687,
-        dropoffContactName: 'Kelechi',
-        dropoffContactPhone: '+2348300000001',
+        dropoffAddress: '22 Oxford Street, Osu, Accra',
+        dropoffLatitude: 5.5494,
+        dropoffLongitude: -0.1823,
+        dropoffContactName: 'Kwadwo',
+        dropoffContactPhone: '+233200000001',
         dropoffInstructions: 'Leave with the security guard',
         packageType: 'SMALL_PARCEL',
         packageDescription: 'E2E test package — small electronics',
@@ -380,7 +380,7 @@ async function phase5_OrderLifecycle() {
     if (status === 201 || status === 200) {
       newOrderId = data.data?.id;
       log('PASS', `Create order (${orderClientName})`,
-        `orderId: ${newOrderId?.slice(0, 8)}… | #${data.data?.orderNumber} | status: ${data.data?.status} | ₦${data.data?.totalPrice}`);
+        `orderId: ${newOrderId?.slice(0, 8)}… | #${data.data?.orderNumber} | status: ${data.data?.status} | GH₵${data.data?.totalPrice}`);
     } else {
       log('FAIL', `Create order (${orderClientName})`, `Status ${status}: ${JSON.stringify(data).slice(0, 250)}`);
     }
@@ -414,13 +414,13 @@ async function phase5_OrderLifecycle() {
     const { status, data } = await req('GET', `${BASE}/riders/profile`, { token: tokens.rider2.access });
     if (status === 200 && data.data) {
       riderProfileId = data.data.id;
-      log('PASS', 'Get rider profile ID', `Emeka's riderProfileId: ${riderProfileId?.slice(0, 8)}…`);
+      log('PASS', 'Get rider profile ID', `Kwesi's riderProfileId: ${riderProfileId?.slice(0, 8)}…`);
     }
   } catch (e) {
     log('FAIL', 'Get rider profile ID', e.message);
   }
 
-  // Make rider2 (Emeka) online first
+  // Make rider2 (Kwesi) online first
   await req('PATCH', `${BASE}/riders/availability`, {
     token: tokens.rider2.access,
     body: { availability: 'ONLINE' },
@@ -433,7 +433,7 @@ async function phase5_OrderLifecycle() {
         body: { riderProfileId },
       });
       if (status === 200) {
-        log('PASS', 'Admin assigns rider', `Emeka assigned to order`);
+        log('PASS', 'Admin assigns rider', `Kwesi assigned to order`);
       } else {
         log('FAIL', 'Admin assigns rider', `Status ${status}: ${JSON.stringify(data).slice(0, 200)}`);
       }
@@ -475,7 +475,7 @@ async function phase5_OrderLifecycle() {
       body: { rating: 5, review: 'Excellent delivery! Very fast.', tipAmount: 200 },
     });
     if (status === 200) {
-      log('PASS', 'Client rates order', '5 stars + ₦200 tip');
+      log('PASS', 'Client rates order', '5 stars + GH₵2 tip');
     } else {
       log('FAIL', 'Client rates order', `Status ${status}: ${JSON.stringify(data).slice(0, 200)}`);
     }
@@ -510,12 +510,12 @@ async function phase6_OrderCancellation() {
     const { status, data } = await req('POST', `${BASE}/orders`, {
       token: tokens.client4.access,
       body: {
-        pickupAddress: '5 Allen Avenue, Ikeja, Lagos',
-        pickupLatitude: 6.6018,
-        pickupLongitude: 3.3515,
-        dropoffAddress: '10 Adeola Odeku, Victoria Island, Lagos',
-        dropoffLatitude: 6.4281,
-        dropoffLongitude: 3.4219,
+        pickupAddress: '5 Liberation Road, East Legon, Accra',
+        pickupLatitude: 5.6340,
+        pickupLongitude: -0.1575,
+        dropoffAddress: '10 Cantonments Road, Cantonments, Accra',
+        dropoffLatitude: 5.5560,
+        dropoffLongitude: -0.1780,
         packageType: 'DOCUMENT',
         paymentMethod: 'CASH',
       },
@@ -562,7 +562,7 @@ async function phase7_WalletsAndFinance() {
       if (status === 200 && data.data) {
         const w = data.data;
         log('PASS', `Wallet: ${ACCOUNTS[key].name}`,
-          `balance: ₦${w.balance} | earned: ₦${w.totalEarnings || '?'} | withdrawn: ₦${w.totalWithdrawn || '?'}`);
+          `balance: GH₵${w.balance} | earned: GH₵${w.totalEarnings || '?'} | withdrawn: GH₵${w.totalWithdrawn || '?'}`);
       } else {
         log('FAIL', `Wallet: ${ACCOUNTS[key].name}`, `Status ${status}`);
       }
@@ -669,7 +669,7 @@ async function phase8_AdminDashboard() {
       });
       if (status === 200 && data.data) {
         const u = data.data;
-        log('PASS', `View user: Aisha Bello`, `role: ${u.role} | status: ${u.accountStatus} | email: ${u.email}`);
+        log('PASS', `View user: Ama Serwaa`, `role: ${u.role} | status: ${u.accountStatus} | email: ${u.email}`);
       } else {
         log('FAIL', 'View user detail', `Status ${status}`);
       }
@@ -769,7 +769,7 @@ async function phase9_Zones() {
       zones = Array.isArray(data.data) ? data.data : (data.data?.zones || []);
       for (const z of zones) {
         log('PASS', `Zone: ${z.name}`,
-          `baseFare: ₦${z.baseFare} | perKm: ₦${z.perKmRate} | min: ₦${z.minimumFare} | surge: ${z.surgeMultiplier}x | status: ${z.status}`);
+          `baseFare: GH₵${z.baseFare} | perKm: GH₵${z.perKmRate} | min: GH₵${z.minimumFare} | surge: ${z.surgeMultiplier}x | status: ${z.status}`);
       }
     } else {
       log('FAIL', 'List zones', `Status ${status}`);
@@ -866,7 +866,7 @@ async function phase11_Sessions() {
     if (status === 200) {
       const sessions = data.data || [];
       const count = Array.isArray(sessions) ? sessions.length : 0;
-      log('PASS', 'List sessions (Temi)', `${count} active session(s)`);
+      log('PASS', 'List sessions (Abena)', `${count} active session(s)`);
     } else {
       log('FAIL', 'List sessions', `Status ${status}`);
     }
@@ -883,7 +883,7 @@ async function phase11_Sessions() {
       if (status === 200 && data.data?.accessToken) {
         tokens.client3.access = data.data.accessToken;
         tokens.client3.refresh = data.data.refreshToken;
-        log('PASS', 'Token refresh (Temi)', 'New tokens issued');
+        log('PASS', 'Token refresh (Abena)', 'New tokens issued');
       } else {
         log('FAIL', 'Token refresh', `Status ${status}`);
       }
@@ -901,11 +901,11 @@ async function phase12_Geocoding() {
 
   // Geocode
   try {
-    const { status, data } = await req('GET', `${BASE}/orders/geocode?address=Ikeja+City+Mall+Lagos`, {
+    const { status, data } = await req('GET', `${BASE}/orders/geocode?address=Accra+Mall+Tetteh+Quarshie`, {
       token: tokens.client1.access,
     });
     if (status === 200 && data.data) {
-      log('PASS', 'Geocode: Ikeja City Mall', JSON.stringify(data.data).slice(0, 120));
+      log('PASS', 'Geocode: Accra Mall', JSON.stringify(data.data).slice(0, 120));
     } else {
       log('SKIP', 'Geocode', `Status ${status} (may need external API key)`);
     }

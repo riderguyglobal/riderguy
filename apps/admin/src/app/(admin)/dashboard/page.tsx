@@ -15,7 +15,7 @@ interface DashboardStats {
 }
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS', minimumFractionDigits: 0 }).format(amount);
 }
 
 export default function AdminDashboardPage() {

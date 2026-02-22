@@ -237,7 +237,7 @@ export default function FinancialsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-gray-900">
-                  ₦{stats.totalRevenue.toLocaleString()}
+                  GH₵{stats.totalRevenue.toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-400">
                   {stats.totalDeliveredOrders} delivered orders
@@ -251,7 +251,7 @@ export default function FinancialsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600">
-                  ₦{stats.totalCommissions.toLocaleString()}
+                  GH₵{stats.totalCommissions.toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-400">
                   {stats.totalRevenue > 0
@@ -281,7 +281,7 @@ export default function FinancialsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-gray-900">
-                  ₦{stats.totalWithdrawalAmount.toLocaleString()}
+                  GH₵{stats.totalWithdrawalAmount.toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-400">
                   {stats.completedWithdrawals} completed
@@ -332,7 +332,7 @@ export default function FinancialsPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Total Paid Out</span>
-                    <span className="font-medium">₦{stats.totalWithdrawalAmount.toLocaleString()}</span>
+                    <span className="font-medium">GH₵{stats.totalWithdrawalAmount.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Completed Payouts</span>
@@ -346,7 +346,7 @@ export default function FinancialsPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Net Retained</span>
                     <span className="font-semibold text-brand-600">
-                      ₦{(stats.totalRevenue - stats.totalWithdrawalAmount).toLocaleString()}
+                      GH₵{(stats.totalRevenue - stats.totalWithdrawalAmount).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -414,7 +414,7 @@ export default function FinancialsPage() {
                               <p className="text-xs text-gray-400">{w.wallet.user.phone}</p>
                             </td>
                             <td className="py-3 pr-4 font-semibold">
-                              ₦{w.amount.toLocaleString()}
+                              GH₵{w.amount.toLocaleString()}
                             </td>
                             <td className="py-3 pr-4">
                               <p className="text-gray-700">{w.destinationName}</p>
@@ -429,7 +429,7 @@ export default function FinancialsPage() {
                               )}
                             </td>
                             <td className="py-3 pr-4 text-xs text-gray-500">
-                              {new Date(w.createdAt).toLocaleDateString('en-NG', {
+                              {new Date(w.createdAt).toLocaleDateString('en-GH', {
                                 day: 'numeric',
                                 month: 'short',
                                 year: 'numeric',
@@ -571,16 +571,16 @@ export default function FinancialsPage() {
                               </Badge>
                             </td>
                             <td className={`py-2 pr-4 font-semibold ${isDebit ? 'text-red-600' : 'text-green-600'}`}>
-                              {isDebit ? '' : '+'}₦{Math.abs(tx.amount).toLocaleString()}
+                              {isDebit ? '' : '+'}GH₵{Math.abs(tx.amount).toLocaleString()}
                             </td>
                             <td className="py-2 pr-4 text-gray-600">
-                              ₦{tx.balanceAfter.toLocaleString()}
+                              GH₵{tx.balanceAfter.toLocaleString()}
                             </td>
                             <td className="py-2 pr-4 text-xs text-gray-500 max-w-[200px] truncate">
                               {tx.description}
                             </td>
                             <td className="py-2 text-xs text-gray-500 whitespace-nowrap">
-                              {new Date(tx.createdAt).toLocaleDateString('en-NG', {
+                              {new Date(tx.createdAt).toLocaleDateString('en-GH', {
                                 day: 'numeric',
                                 month: 'short',
                                 hour: '2-digit',

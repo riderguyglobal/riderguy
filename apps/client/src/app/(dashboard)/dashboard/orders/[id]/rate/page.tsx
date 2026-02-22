@@ -165,7 +165,7 @@ export default function RateDeliveryPage() {
 
           {tipAmount > 0 && (
             <p className="mt-2 text-sm text-green-600">
-              Tip: ₦{tipAmount.toLocaleString()} sent to rider
+              Tip: GH₵{tipAmount.toLocaleString()} sent to rider
             </p>
           )}
 
@@ -294,7 +294,7 @@ export default function RateDeliveryPage() {
                 }`}
                 onClick={() => setTipAmount(amount)}
               >
-                {amount === 0 ? 'No tip' : `₦${amount.toLocaleString()}`}
+                {amount === 0 ? 'No tip' : `GH₵${amount.toLocaleString()}`}
               </button>
             ))}
           </div>

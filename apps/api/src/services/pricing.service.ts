@@ -20,7 +20,7 @@ const PLATFORM_DEFAULTS = {
   perKmRate: 150,
   minimumFare: 300,
   commissionRate: 15, // percentage
-  currency: 'NGN',
+  currency: 'GHS',
 };
 
 export interface PriceBreakdown {

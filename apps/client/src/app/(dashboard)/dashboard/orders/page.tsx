@@ -177,10 +177,10 @@ export default function OrdersPage() {
                     </p>
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-xs text-gray-400">
-                        {new Date(order.createdAt).toLocaleDateString('en-NG', { dateStyle: 'short' })}
+                        {new Date(order.createdAt).toLocaleDateString('en-GH', { dateStyle: 'short' })}
                       </span>
                       <span className="text-sm font-semibold text-gray-900">
-                        ₦{order.totalPrice.toLocaleString()}
+                        GH₵{order.totalPrice.toLocaleString()}
                       </span>
                     </div>
                   </div>

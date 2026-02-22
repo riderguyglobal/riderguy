@@ -1,7 +1,7 @@
 /**
  * Format a currency amount with proper locale and currency symbol.
  */
-export function formatCurrency(amount: number, currency = 'NGN', locale = 'en-NG'): string {
+export function formatCurrency(amount: number, currency = 'GHS', locale = 'en-GH'): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
@@ -16,9 +16,9 @@ export function formatCurrency(amount: number, currency = 'NGN', locale = 'en-NG
 export function formatPhone(phone: string): string {
   // Remove non-digit chars except +
   const cleaned = phone.replace(/[^\d+]/g, '');
-  if (cleaned.startsWith('+234')) {
-    // Nigerian format: +234 XXX XXX XXXX
-    return `+234 ${cleaned.slice(4, 7)} ${cleaned.slice(7, 10)} ${cleaned.slice(10)}`;
+  if (cleaned.startsWith('+233')) {
+    // Ghanaian format: +233 XX XXX XXXX
+    return `+233 ${cleaned.slice(4, 6)} ${cleaned.slice(6, 9)} ${cleaned.slice(9)}`;
   }
   return cleaned;
 }

@@ -95,7 +95,7 @@ router.post(
         success: false,
         error: {
           code: 'MIN_WITHDRAWAL',
-          message: `Minimum withdrawal amount is NGN ${MIN_WITHDRAWAL_AMOUNT}`,
+          message: `Minimum withdrawal amount is GHS ${MIN_WITHDRAWAL_AMOUNT}`,
         },
       });
       return;

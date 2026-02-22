@@ -80,7 +80,7 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-2xl font-bold text-green-600">₦0</p>
+            <p className="text-2xl font-bold text-green-600">GH₵0</p>
             <p className="text-xs text-gray-400">Today</p>
           </CardContent>
         </Card>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <p className="ml-3 text-sm font-bold text-green-600">
-                      ₦{earnings.toLocaleString()}
+                      GH₵{earnings.toLocaleString()}
                     </p>
                   </CardContent>
                 </Card>

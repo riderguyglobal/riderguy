@@ -305,7 +305,7 @@ export default function DispatchDashboardPage() {
                       </Badge>
                     </div>
                     <span className="text-sm font-semibold text-gray-900">
-                      ₦{order.totalPrice.toLocaleString()}
+                      GH₵{order.totalPrice.toLocaleString()}
                     </span>
                   </div>
 
@@ -338,7 +338,7 @@ export default function DispatchDashboardPage() {
                     )}
                     <span>·</span>
                     <span>
-                      {new Date(order.createdAt).toLocaleString('en-NG', {
+                      {new Date(order.createdAt).toLocaleString('en-GH', {
                         dateStyle: 'short',
                         timeStyle: 'short',
                       })}

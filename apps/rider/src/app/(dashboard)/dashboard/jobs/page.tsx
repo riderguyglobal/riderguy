@@ -213,7 +213,7 @@ export default function JobFeedPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-green-600">
-                      ₦{riderEarnings(job).toLocaleString()}
+                      GH₵{riderEarnings(job).toLocaleString()}
                     </p>
                     <p className="text-xs text-gray-400">your earnings</p>
                   </div>

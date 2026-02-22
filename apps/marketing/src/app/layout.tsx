@@ -13,11 +13,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'RiderGuy — Logistics, Delivered.',
   description:
-    'RiderGuy is a last-mile delivery platform connecting businesses and individuals with verified dispatch riders across Nigerian cities.',
+    'RiderGuy is a last-mile delivery platform connecting businesses and individuals with verified dispatch riders across Ghanaian cities.',
   openGraph: {
     title: 'RiderGuy — Logistics, Delivered.',
     description:
-      'Fast, reliable, trackable last-mile delivery across Nigerian cities.',
+      'Fast, reliable, trackable last-mile delivery across Ghanaian cities.',,
     siteName: 'RiderGuy',
     type: 'website',
   },

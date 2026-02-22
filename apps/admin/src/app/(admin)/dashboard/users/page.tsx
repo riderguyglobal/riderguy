@@ -74,8 +74,8 @@ function statusBadge(status: string) {
   return <Badge className={map[status] ?? ''}>{status.replace(/_/g, ' ')}</Badge>;
 }
 
-function fmtCurrency(amount: number, currency = 'NGN') {
-  return new Intl.NumberFormat('en-NG', { style: 'currency', currency }).format(amount);
+function fmtCurrency(amount: number, currency = 'GHS') {
+  return new Intl.NumberFormat('en-GH', { style: 'currency', currency }).format(amount);
 }
 
 // ─── Component ──────────────────────────────────────────────

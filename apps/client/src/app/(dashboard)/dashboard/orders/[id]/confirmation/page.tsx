@@ -325,7 +325,7 @@ export default function OrderConfirmationPage() {
             Order {order.orderNumber}
           </h1>
           <p className="text-sm text-gray-500">
-            {new Date(order.createdAt).toLocaleDateString('en-NG', {
+            {new Date(order.createdAt).toLocaleDateString('en-GH', {
               dateStyle: 'medium',
             })}
           </p>
@@ -512,7 +512,7 @@ export default function OrderConfirmationPage() {
         <CardContent>
           <div className="flex justify-between text-base font-semibold">
             <span>Total</span>
-            <span className="text-brand-600">₦{order.totalPrice.toLocaleString()}</span>
+            <span className="text-brand-600">GH₵{order.totalPrice.toLocaleString()}</span>
           </div>
           <div className="mt-1 flex items-center justify-between">
             <p className="text-xs text-gray-400">
@@ -687,7 +687,7 @@ export default function OrderConfirmationPage() {
                     {STATUS_LABELS[entry.status]?.label ?? entry.status}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {new Date(entry.createdAt).toLocaleTimeString('en-NG', {
+                    {new Date(entry.createdAt).toLocaleTimeString('en-GH', {
                       timeStyle: 'short',
                     })}
                   </p>
@@ -721,7 +721,7 @@ export default function OrderConfirmationPage() {
               {order.deliveredAt && (
                 <p className="text-xs text-green-600 mt-1">
                   Delivered at{' '}
-                  {new Date(order.deliveredAt).toLocaleTimeString('en-NG', {
+                  {new Date(order.deliveredAt).toLocaleTimeString('en-GH', {
                     timeStyle: 'short',
                   })}
                 </p>

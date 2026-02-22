@@ -328,8 +328,7 @@ export default function SendPackagePage() {
                 <Label htmlFor="pickupPhone">Contact Phone (optional)</Label>
                 <Input
                   id="pickupPhone"
-                  placeholder="+234..."
-                  value={pickupContactPhone}
+                  placeholder="+233..."
                   onChange={(e) => setPickupContactPhone(e.target.value)}
                 />
               </div>
@@ -409,8 +408,7 @@ export default function SendPackagePage() {
                 <Label htmlFor="dropoffPhone">Recipient Phone (optional)</Label>
                 <Input
                   id="dropoffPhone"
-                  placeholder="+234..."
-                  value={dropoffContactPhone}
+                  placeholder="+233..."
                   onChange={(e) => setDropoffContactPhone(e.target.value)}
                 />
               </div>
@@ -600,11 +598,11 @@ export default function SendPackagePage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Base fare</span>
-                    <span className="text-gray-900">₦{estimate.baseFare.toLocaleString()}</span>
+                    <span className="text-gray-900">GH₵{estimate.baseFare.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Distance ({estimate.distanceKm.toFixed(1)} km)</span>
-                    <span className="text-gray-900">₦{estimate.distanceCharge.toLocaleString()}</span>
+                    <span className="text-gray-900">GH₵{estimate.distanceCharge.toLocaleString()}</span>
                   </div>
                   {estimate.surgeMultiplier > 1 && (
                     <div className="flex justify-between text-sm">
@@ -614,11 +612,11 @@ export default function SendPackagePage() {
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Service fee</span>
-                    <span className="text-gray-900">₦{estimate.serviceFee.toLocaleString()}</span>
+                    <span className="text-gray-900">GH₵{estimate.serviceFee.toLocaleString()}</span>
                   </div>
                   <div className="mt-2 flex justify-between border-t pt-2 text-base font-semibold">
                     <span className="text-gray-900">Total</span>
-                    <span className="text-brand-600">₦{estimate.totalPrice.toLocaleString()}</span>
+                    <span className="text-brand-600">GH₵{estimate.totalPrice.toLocaleString()}</span>
                   </div>
                 </div>
               ) : (
@@ -643,7 +641,7 @@ export default function SendPackagePage() {
               {submitting ? (
                 <Spinner className="h-4 w-4" />
               ) : (
-                `Confirm • ₦${estimate?.totalPrice.toLocaleString() ?? '...'}`
+                `Confirm • GH₵${estimate?.totalPrice.toLocaleString() ?? '...'}`
               )}
             </Button>
           </div>

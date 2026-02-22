@@ -121,7 +121,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <p className="ml-3 text-sm font-semibold text-gray-900">
-                    ₦{order.totalPrice.toLocaleString()}
+                    GH₵{order.totalPrice.toLocaleString()}
                   </p>
                 </CardContent>
               </Card>

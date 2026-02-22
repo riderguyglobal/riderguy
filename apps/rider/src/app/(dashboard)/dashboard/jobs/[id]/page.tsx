@@ -662,7 +662,7 @@ export default function ActiveJobPage() {
               Delivery Completed!
             </p>
             <p className="mt-2 text-2xl font-bold text-green-700">
-              +₦{riderEarnings.toLocaleString()}
+              +GH₵{riderEarnings.toLocaleString()}
             </p>
             <p className="mt-1 text-xs text-green-600">
               Earnings credited to your wallet
@@ -1085,13 +1085,13 @@ export default function ActiveJobPage() {
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">Your Earnings</p>
             <p className="text-xl font-bold text-green-600">
-              ₦{riderEarnings.toLocaleString()}
+              GH₵{riderEarnings.toLocaleString()}
             </p>
           </div>
           <Separator className="my-2" />
           <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>Total fare: ₦{order.totalPrice.toLocaleString()}</span>
-            <span>Service fee: ₦{(order.serviceFee ?? 0).toLocaleString()}</span>
+            <span>Total fare: GH₵{order.totalPrice.toLocaleString()}</span>
+            <span>Service fee: GH₵{(order.serviceFee ?? 0).toLocaleString()}</span>
           </div>
         </CardContent>
       </Card>

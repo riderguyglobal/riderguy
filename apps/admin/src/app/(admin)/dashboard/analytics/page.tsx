@@ -34,11 +34,11 @@ interface AnalyticsResponse {
 // ─── Helpers ────────────────────────────────────────────────
 
 function fmtCurrency(amount: number) {
-  return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS', maximumFractionDigits: 0 }).format(amount);
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
+  return new Date(d).toLocaleDateString('en-GH', { month: 'short', day: 'numeric' });
 }
 
 /** Simple CSS bar chart */

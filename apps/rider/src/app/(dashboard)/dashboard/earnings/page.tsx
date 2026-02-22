@@ -279,26 +279,26 @@ export default function EarningsPage() {
         <CardContent className="pt-6 pb-6">
           <p className="text-sm text-white/80">Available Balance</p>
           <p className="text-3xl font-bold mt-1">
-            ₦{wallet.balance.toLocaleString()}
+            GH₵{wallet.balance.toLocaleString()}
           </p>
           <Separator className="my-4 bg-white/20" />
           <div className="grid grid-cols-3 gap-3">
             <div>
               <p className="text-xs text-white/70">Total Earned</p>
               <p className="text-sm font-semibold">
-                ₦{wallet.totalEarned.toLocaleString()}
+                GH₵{wallet.totalEarned.toLocaleString()}
               </p>
             </div>
             <div>
               <p className="text-xs text-white/70">Tips</p>
               <p className="text-sm font-semibold">
-                ₦{(wallet.totalTips ?? 0).toLocaleString()}
+                GH₵{(wallet.totalTips ?? 0).toLocaleString()}
               </p>
             </div>
             <div>
               <p className="text-xs text-white/70">Withdrawn</p>
               <p className="text-sm font-semibold">
-                ₦{wallet.totalWithdrawn.toLocaleString()}
+                GH₵{wallet.totalWithdrawn.toLocaleString()}
               </p>
             </div>
           </div>
@@ -315,7 +315,7 @@ export default function EarningsPage() {
       </Button>
       {wallet.balance > 0 && wallet.balance < MIN_WITHDRAWAL && (
         <p className="text-xs text-center text-gray-400 -mt-4 mb-6">
-          Minimum withdrawal: ₦{MIN_WITHDRAWAL.toLocaleString()}
+          Minimum withdrawal: GH₵{MIN_WITHDRAWAL.toLocaleString()}
         </p>
       )}
 
@@ -375,7 +375,7 @@ export default function EarningsPage() {
                           {tx.description}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {new Date(tx.createdAt).toLocaleDateString('en-NG', {
+                          {new Date(tx.createdAt).toLocaleDateString('en-GH', {
                             day: 'numeric',
                             month: 'short',
                             hour: '2-digit',
@@ -389,10 +389,10 @@ export default function EarningsPage() {
                             isDebit ? 'text-red-600' : 'text-green-600'
                           }`}
                         >
-                          {isDebit ? '' : '+'}₦{Math.abs(tx.amount).toLocaleString()}
+                          {isDebit ? '' : '+'}GH₵{Math.abs(tx.amount).toLocaleString()}
                         </p>
                         <p className="text-[10px] text-gray-400">
-                          Bal: ₦{tx.balanceAfter.toLocaleString()}
+                          Bal: GH₵{tx.balanceAfter.toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -449,13 +449,13 @@ export default function EarningsPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-800">
-                            ₦{w.amount.toLocaleString()}
+                            GH₵{w.amount.toLocaleString()}
                           </p>
                           <p className="text-xs text-gray-500">
                             {w.destinationName} • {w.destination}
                           </p>
                           <p className="text-xs text-gray-400">
-                            {new Date(w.createdAt).toLocaleDateString('en-NG', {
+                            {new Date(w.createdAt).toLocaleDateString('en-GH', {
                               day: 'numeric',
                               month: 'short',
                               year: 'numeric',
@@ -518,7 +518,7 @@ export default function EarningsPage() {
                   </div>
                   <p className="text-lg font-semibold text-green-700">Request Submitted!</p>
                   <p className="text-center text-sm text-gray-500">
-                    Your withdrawal of ₦{parseFloat(withdrawAmount).toLocaleString()} to{' '}
+                    Your withdrawal of GH₵{parseFloat(withdrawAmount).toLocaleString()} to{' '}
                     {accountName} is being processed.
                   </p>
                   <Button className="mt-2 bg-brand-500" onClick={closeWithdrawModal}>
@@ -631,7 +631,7 @@ export default function EarningsPage() {
 
                   <div>
                     <Label htmlFor="withdrawAmount">
-                      Amount (₦{MIN_WITHDRAWAL.toLocaleString()} — ₦
+                      Amount (GH₵{MIN_WITHDRAWAL.toLocaleString()} — GH₵
                       {wallet.balance.toLocaleString()})
                     </Label>
                     <Input
@@ -639,7 +639,7 @@ export default function EarningsPage() {
                       type="number"
                       min={MIN_WITHDRAWAL}
                       max={wallet.balance}
-                      placeholder={`Min ₦${MIN_WITHDRAWAL.toLocaleString()}`}
+                      placeholder={`Min GH₵${MIN_WITHDRAWAL.toLocaleString()}`}
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                     />
@@ -657,14 +657,14 @@ export default function EarningsPage() {
                         }`}
                         onClick={() => setWithdrawAmount(String(a))}
                       >
-                        ₦{a.toLocaleString()}
+                        GH₵{a.toLocaleString()}
                       </button>
                     ))}
                     <button
                       className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:border-gray-300"
                       onClick={() => setWithdrawAmount(String(wallet.balance))}
                     >
-                      All (₦{wallet.balance.toLocaleString()})
+                      All (GH₵{wallet.balance.toLocaleString()})
                     </button>
                   </div>
 
@@ -707,7 +707,7 @@ export default function EarningsPage() {
                     <div className="flex justify-between p-3">
                       <span className="text-sm text-gray-500">Amount</span>
                       <span className="text-base font-bold text-brand-600">
-                        ₦{parseFloat(withdrawAmount).toLocaleString()}
+                        GH₵{parseFloat(withdrawAmount).toLocaleString()}
                       </span>
                     </div>
                   </div>

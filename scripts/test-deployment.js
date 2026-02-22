@@ -19,8 +19,8 @@ const FRONTENDS = [
 const USERS = {
   superAdmin: { email: 'superadmin@riderguy.com', password: 'Password123!' },
   admin:      { email: 'admin@riderguy.com',      password: 'Password123!' },
-  rider:      { email: 'chinedu@email.com',        password: 'Password123!' },
-  client:     { email: 'aisha@email.com',          password: 'Password123!' },
+  rider:      { email: 'kofi@email.com',           password: 'Password123!' },
+  client:     { email: 'ama@email.com',            password: 'Password123!' },
 };
 
 // Stats
@@ -218,7 +218,7 @@ async function testUsers() {
   try {
     const { status, data } = await req('PATCH', `${BASE}/users/profile`, {
       token: tokens.client?.access,
-      body: { firstName: 'Aisha', lastName: 'Bello' }, // same data, just verify it works
+      body: { firstName: 'Ama', lastName: 'Serwaa' }, // same data, just verify it works
     });
     if (status === 200) {
       log('PASS', 'PATCH /users/profile', 'Profile updated');
@@ -936,7 +936,7 @@ async function testSecurity() {
   // Reset the name back
   await req('PATCH', `${BASE}/users/profile`, {
     token: tokens.client?.access,
-    body: { firstName: 'Aisha' },
+    body: { firstName: 'Ama' },
   });
 
   // 15d. Large payload rejected
