@@ -14,6 +14,7 @@ import { OnboardingService } from '../../services/onboarding.service';
 import { NotificationService } from '../../services/notification.service';
 import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
+import type { Request } from 'express';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -33,8 +34,8 @@ async function getRiderProfileId(userId: string): Promise<string> {
 }
 
 const tempStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, os.tmpdir()),
-  filename: (_req, file, cb) => {
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, os.tmpdir()),
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `riderguy-veh-${crypto.randomUUID()}${ext}`);
   },
@@ -43,7 +44,7 @@ const tempStorage = multer.diskStorage({
 const vehiclePhotoUpload = multer({
   storage: tempStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, allowed.includes(ext));

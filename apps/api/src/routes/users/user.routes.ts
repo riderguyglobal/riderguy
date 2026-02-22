@@ -8,6 +8,7 @@ import { AuthService } from '../../services/auth.service';
 import { PushService } from '../../services/push.service';
 import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
+import type { Request } from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -23,8 +24,8 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 const avatarStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, UPLOAD_DIR),
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${crypto.randomUUID()}${ext}`);
   },
@@ -33,7 +34,7 @@ const avatarStorage = multer.diskStorage({
 const avatarUpload = multer({
   storage: avatarStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowed.includes(ext)) {
