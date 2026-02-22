@@ -144,17 +144,17 @@ export default function DashboardPage() {
           <div className="p-4 flex items-center gap-4">
             {/* Earnings ring */}
             <div className="relative flex-shrink-0">
-              <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
+              <svg width="96" height="96" viewBox="0 0 96 96" className="transform -rotate-90">
                 {/* Track */}
-                <circle cx="40" cy="40" r="33" fill="none" stroke="#f1f5f9" strokeWidth="6" />
+                <circle cx="48" cy="48" r="40" fill="none" stroke="#f1f5f9" strokeWidth="6" />
                 {/* Progress */}
                 <circle
-                  cx="40" cy="40" r="33"
+                  cx="48" cy="48" r="40"
                   fill="none"
                   stroke="url(#earningsGrad)"
                   strokeWidth="6"
                   strokeLinecap="round"
-                  strokeDasharray={`${Math.min(((wallet?.balance ?? 0) / Math.max(wallet?.totalEarned ?? 1, 1)) * 207, 207)} 207`}
+                  strokeDasharray={`${Math.min(((wallet?.balance ?? 0) / Math.max(wallet?.totalEarned ?? 1, 1)) * 251, 251)} 251`}
                   className="transition-all duration-1000"
                 />
                 <defs>
@@ -165,8 +165,8 @@ export default function DashboardPage() {
                 </defs>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-[10px] text-surface-400 font-medium">Balance</p>
-                <p className="text-sm font-bold text-surface-900">GH₵{wallet?.balance?.toLocaleString() ?? '0'}</p>
+                <p className="text-[9px] text-surface-400 font-medium leading-none">Balance</p>
+                <p className="text-xs font-bold text-surface-900 mt-0.5">GH₵{wallet?.balance?.toLocaleString() ?? '0'}</p>
               </div>
             </div>
 
