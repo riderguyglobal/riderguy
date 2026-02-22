@@ -135,54 +135,116 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Quick Stats — Uber-style horizontal cards ── */}
+      {/* ── Today's Snapshot — Earnings ring + live metrics ── */}
       <div className="px-4 -mt-4 relative z-20">
-        <div className="grid grid-cols-3 gap-2.5">
-          <button
-            onClick={() => router.push('/dashboard/jobs')}
-            className="rounded-2xl bg-white p-3.5 shadow-card hover:shadow-card-hover transition-all active:scale-[0.97] text-left"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="7" width="20" height="14" rx="2" />
-                <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
+        <button
+          onClick={() => router.push('/dashboard/earnings')}
+          className="w-full rounded-2xl bg-white shadow-elevated overflow-hidden active:scale-[0.98] transition-all text-left"
+        >
+          <div className="p-4 flex items-center gap-4">
+            {/* Earnings ring */}
+            <div className="relative flex-shrink-0">
+              <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
+                {/* Track */}
+                <circle cx="40" cy="40" r="33" fill="none" stroke="#f1f5f9" strokeWidth="6" />
+                {/* Progress */}
+                <circle
+                  cx="40" cy="40" r="33"
+                  fill="none"
+                  stroke="url(#earningsGrad)"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeDasharray={`${Math.min(((wallet?.balance ?? 0) / Math.max(wallet?.totalEarned ?? 1, 1)) * 207, 207)} 207`}
+                  className="transition-all duration-1000"
+                />
+                <defs>
+                  <linearGradient id="earningsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#0ea5e9" />
+                    <stop offset="100%" stopColor="#22c55e" />
+                  </linearGradient>
+                </defs>
               </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <p className="text-[10px] text-surface-400 font-medium">Balance</p>
+                <p className="text-sm font-bold text-surface-900">GH₵{wallet?.balance?.toLocaleString() ?? '0'}</p>
+              </div>
             </div>
-            <p className="text-xl font-bold text-surface-900 mt-2">{availableCount}</p>
-            <p className="text-[10px] text-surface-400 font-medium mt-0.5">Jobs nearby</p>
-          </button>
 
-          <button
-            onClick={() => activeOrders.length > 0 && activeOrders[0] ? router.push(`/dashboard/jobs/${activeOrders[0].id}`) : null}
-            className="rounded-2xl bg-white p-3.5 shadow-card hover:shadow-card-hover transition-all active:scale-[0.97] text-left"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
+            {/* Metrics */}
+            <div className="flex-1 min-w-0 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-50">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  </div>
+                  <span className="text-xs text-surface-500">Active</span>
+                </div>
+                <span className="text-sm font-bold text-surface-900">{activeOrders.length} {activeOrders.length === 1 ? 'trip' : 'trips'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  </div>
+                  <span className="text-xs text-surface-500">Nearby</span>
+                </div>
+                <span className="text-sm font-bold text-surface-900">{availableCount} {availableCount === 1 ? 'job' : 'jobs'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-50">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                  </div>
+                  <span className="text-xs text-surface-500">Earned</span>
+                </div>
+                <span className="text-sm font-bold text-accent-600">GH₵{wallet?.totalEarned?.toLocaleString() ?? '0'}</span>
+              </div>
             </div>
-            <p className="text-xl font-bold text-surface-900 mt-2">{activeOrders.length}</p>
-            <p className="text-[10px] text-surface-400 font-medium mt-0.5">Active now</p>
-          </button>
+          </div>
 
-          <button
-            onClick={() => router.push('/dashboard/earnings')}
-            className="rounded-2xl bg-white p-3.5 shadow-card hover:shadow-card-hover transition-all active:scale-[0.97] text-left"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-50">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-              </svg>
+          {/* Live status strip */}
+          <div className="border-t border-surface-100 px-4 py-2.5 flex items-center justify-between bg-surface-50/50">
+            <div className="flex items-center gap-2">
+              {isOnline ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-500" />
+                  </span>
+                  <span className="text-[11px] font-semibold text-accent-600">Live · Receiving requests</span>
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-surface-300" />
+                  <span className="text-[11px] font-medium text-surface-400">Offline · Tap to view earnings</span>
+                </>
+              )}
             </div>
-            <p className="text-xl font-bold text-accent-600 mt-2">
-              GH₵{wallet?.balance?.toLocaleString() ?? '0'}
-            </p>
-            <p className="text-[10px] text-surface-400 font-medium mt-0.5">Balance</p>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </button>
+      </div>
+
+      {/* ── Contextual Action Strip ── */}
+      {activeOrders.length > 0 && (
+        <div className="px-4 mt-3">
+          <button
+            onClick={() => activeOrders[0] ? router.push(`/dashboard/jobs/${activeOrders[0].id}`) : null}
+            className="w-full flex items-center gap-3 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 p-3.5 text-white shadow-elevated active:scale-[0.98] transition-all"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-bold">Continue Active Delivery</p>
+              <p className="text-[11px] text-white/70 truncate">
+                {activeOrders[0]?.pickupAddress ?? 'Pickup'} → {activeOrders[0]?.dropoffAddress ?? 'Dropoff'}
+              </p>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
-      </div>
+      )}
 
       {/* ── Active Deliveries ── */}
       {activeOrders.length > 0 && (
