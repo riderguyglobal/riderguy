@@ -15,7 +15,7 @@ services:
     plan: starter      # $7/mo — always-on (free tier spins down)
     buildCommand: |
       npm install --legacy-peer-deps &&
-      cd packages/database && npx prisma generate && cd ../.. &&
+      cd packages/database && npm run generate && cd ../.. &&
       rm -rf apps/api/dist &&
       npx turbo run build --filter=@riderguy/api
     startCommand: cd apps/api && node dist/index.js

@@ -32,7 +32,7 @@
 # 4. Runtime: Node
 # 5. Build Command:
 #      npm install --legacy-peer-deps &&
-#      cd packages/database && npx prisma generate && cd ../.. &&
+#      cd packages/database && npm run generate && cd ../.. &&
 #      rm -rf apps/api/dist &&
 #      npx turbo run build --filter=@riderguy/api
 # 6. Start Command: cd apps/api && node dist/index.js
