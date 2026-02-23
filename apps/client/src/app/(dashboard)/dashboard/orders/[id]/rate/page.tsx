@@ -3,18 +3,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getApiClient } from '@riderguy/auth';
-import {
-  Button,
-  Card,
-  CardContent,
-  Spinner,
-  Textarea,
-  Separator,
-} from '@riderguy/ui';
+import { Button, Spinner, Textarea } from '@riderguy/ui';
 
 // ============================================================
-// Rate Delivery Page — Client rates rider after delivery
+// Rate Delivery — Bolt/Uber-style post-delivery rating
 // ============================================================
+
+function StarIcon({ filled, className }: { filled: boolean; className?: string }) {
+  return (
+    <svg width="36" height="36" viewBox="0 0 24 24" className={className} fill={filled ? '#f59e0b' : 'none'} stroke={filled ? '#f59e0b' : '#d1d5db'} strokeWidth="1.5">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
 
 interface OrderSummary {
   id: string;
@@ -34,6 +35,9 @@ interface OrderSummary {
   };
 }
 
+const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
+const TIP_PRESETS = [0, 100, 200, 500, 1000];
+
 export default function RateDeliveryPage() {
   const router = useRouter();
   const params = useParams();
@@ -44,43 +48,28 @@ export default function RateDeliveryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Rating state
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [review, setReview] = useState('');
   const [tipAmount, setTipAmount] = useState(0);
-
-  const TIP_PRESETS = [0, 100, 200, 500, 1000];
 
   const fetchOrder = useCallback(async () => {
     try {
       const api = getApiClient();
       const { data } = await api.get(`/orders/${orderId}`);
       setOrder(data.data);
-
-      // Already rated
       if (data.data.rating) {
         setRating(data.data.rating);
         setReview(data.data.review ?? '');
         setSubmitted(true);
       }
-    } catch {
-      // Order not found
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* silent */ } finally { setLoading(false); }
   }, [orderId]);
 
-  useEffect(() => {
-    fetchOrder();
-  }, [fetchOrder]);
+  useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
   async function handleSubmitRating() {
-    if (rating === 0) {
-      alert('Please select a star rating.');
-      return;
-    }
-
+    if (rating === 0) { alert('Please select a star rating.'); return; }
     setSubmitting(true);
     try {
       const api = getApiClient();
@@ -91,17 +80,12 @@ export default function RateDeliveryPage() {
       });
       setSubmitted(true);
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response: { data: { error?: string } } }).response?.data?.error
-          : 'Failed to submit rating';
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response: { data: { error?: string } } }).response?.data?.error
+        : 'Failed to submit rating';
       alert(msg || 'Failed to submit rating');
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   }
-
-  const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 
   if (loading) {
     return (
@@ -113,76 +97,63 @@ export default function RateDeliveryPage() {
 
   if (!order) {
     return (
-      <div className="p-4 text-center">
-        <p className="text-gray-500">Order not found</p>
-        <Button className="mt-4" onClick={() => router.push('/dashboard/orders')}>
-          Back to Orders
-        </Button>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-50 mb-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+        </div>
+        <p className="text-sm font-medium text-surface-700">Order not found</p>
+        <Button className="mt-4 bg-brand-500 hover:bg-brand-600 rounded-xl" size="sm" onClick={() => router.push('/dashboard/orders')}>Back to Orders</Button>
       </div>
     );
   }
 
   if (order.status !== 'DELIVERED') {
     return (
-      <div className="p-4 text-center">
-        <p className="text-gray-500">This order has not been delivered yet.</p>
-        <Button
-          className="mt-4"
-          onClick={() => router.push(`/dashboard/orders/${orderId}/confirmation`)}
-        >
-          Back to Order
-        </Button>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+        <p className="text-sm text-surface-500">This order has not been delivered yet.</p>
+        <Button className="mt-4 bg-brand-500 hover:bg-brand-600 rounded-xl" size="sm" onClick={() => router.push(`/dashboard/orders/${orderId}/confirmation`)}>Back to Order</Button>
       </div>
     );
   }
 
-  // Thank you screen after submission
+  // ── Thank You Screen ──
   if (submitted) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center p-4">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-4 dash-page-enter">
         <div className="text-center">
-          <p className="text-4xl">🎉</p>
-          <h2 className="mt-3 text-xl font-bold text-gray-900">Thank You!</h2>
-          <p className="mt-2 text-sm text-gray-500">
-            Your feedback helps us improve the delivery experience.
-          </p>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-50 auth-scale-in">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-surface-900">Thank You!</h2>
+          <p className="mt-2 text-sm text-surface-500">Your feedback helps us improve the delivery experience.</p>
 
-          <div className="mt-4 flex justify-center gap-1">
+          <div className="mt-5 flex justify-center gap-1.5">
             {[1, 2, 3, 4, 5].map((star) => (
-              <span
-                key={star}
-                className={`text-2xl ${star <= rating ? 'text-yellow-500' : 'text-gray-300'}`}
-              >
-                ★
-              </span>
+              <StarIcon key={star} filled={star <= rating} className={star <= rating ? 'star-pop' : ''} />
             ))}
           </div>
-          <p className="mt-1 text-sm text-gray-500">{RATING_LABELS[rating]}</p>
+          <p className="mt-1 text-sm font-medium text-surface-600">{RATING_LABELS[rating]}</p>
 
           {review && (
-            <p className="mt-3 text-sm text-gray-600 italic">"{review}"</p>
+            <p className="mt-3 rounded-xl bg-surface-50 px-4 py-3 text-sm text-surface-600 italic">&ldquo;{review}&rdquo;</p>
           )}
 
           {tipAmount > 0 && (
-            <p className="mt-2 text-sm text-green-600">
-              Tip: GH₵{tipAmount.toLocaleString()} sent to rider
-            </p>
+            <div className="mt-3 flex items-center justify-center gap-1.5 text-sm font-medium text-accent-600">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
+              GH₵{tipAmount.toLocaleString()} tip sent to rider
+            </div>
           )}
 
-          <div className="mt-6 space-y-2">
-            <Button
-              className="w-full bg-brand-500 hover:bg-brand-600"
-              onClick={() => router.push('/dashboard/send')}
-            >
+          <div className="mt-6 space-y-3 w-full max-w-xs mx-auto">
+            <button className="w-full rounded-xl bg-surface-900 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-surface-800 active:scale-[0.98]" onClick={() => router.push('/dashboard/send')}>
               Send Another Package
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => router.push('/dashboard/orders')}
-            >
+            </button>
+            <button className="w-full rounded-xl border border-surface-200 px-4 py-3 text-sm font-semibold text-surface-700 transition-all hover:bg-surface-50 active:scale-[0.98]" onClick={() => router.push('/dashboard/orders')}>
               View My Orders
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -190,107 +161,93 @@ export default function RateDeliveryPage() {
   }
 
   return (
-    <div className="p-4 pb-8">
-      {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(`/dashboard/orders/${orderId}/confirmation`)}
-          className="mb-2 text-sm text-gray-500 hover:text-gray-700"
-        >
-          ← Back to Order
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">Rate Your Delivery</h1>
-        <p className="text-sm text-gray-500">Order {order.orderNumber}</p>
+    <div className="pb-24 dash-page-enter">
+      {/* ── Sticky Header ── */}
+      <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-lg border-b border-surface-100 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push(`/dashboard/orders/${orderId}/confirmation`)} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-50">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <div>
+            <p className="text-sm font-bold text-surface-900">Rate Your Delivery</p>
+            <p className="text-[11px] text-surface-400">{order.orderNumber}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Rider card */}
+      {/* ── Rider Card ── */}
       {order.rider && (
-        <Card className="mb-6">
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-xl font-semibold text-brand-700">
-              {order.rider.user.firstName[0]}
-              {order.rider.user.lastName[0]}
+        <div className="px-4 mt-5">
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-5 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-lg font-bold text-brand-700 ring-2 ring-brand-100">
+              {order.rider.user.firstName[0]}{order.rider.user.lastName[0]}
             </div>
-            <div>
-              <p className="font-medium text-gray-900">
-                {order.rider.user.firstName} {order.rider.user.lastName}
-              </p>
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span>⭐ {order.rider.averageRating.toFixed(1)}</span>
-                <span>{order.rider.totalDeliveries} deliveries</span>
-              </div>
+            <p className="mt-3 text-base font-bold text-surface-900">
+              {order.rider.user.firstName} {order.rider.user.lastName}
+            </p>
+            <div className="flex items-center justify-center gap-3 text-xs text-surface-400 mt-1">
+              <span className="flex items-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                {order.rider.averageRating.toFixed(1)}
+              </span>
+              <span>{order.rider.totalDeliveries} trips</span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Star rating */}
-      <Card className="mb-6">
-        <CardContent className="pt-6 text-center">
-          <p className="text-sm font-medium text-gray-700 mb-4">
-            How was your delivery experience?
-          </p>
-          <div className="flex justify-center gap-2">
+      {/* ── Star Rating ── */}
+      <div className="px-4 mt-5">
+        <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-6 text-center">
+          <p className="text-sm font-medium text-surface-700 mb-5">How was your delivery experience?</p>
+          <div className="flex justify-center gap-3">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
-                className={`text-4xl transition-transform hover:scale-110 ${
-                  star <= (hoverRating || rating)
-                    ? 'text-yellow-500'
-                    : 'text-gray-300'
-                }`}
+                className={`transition-transform active:scale-90 ${star <= (hoverRating || rating) ? 'scale-110' : 'scale-100 hover:scale-105'}`}
                 onMouseEnter={() => setHoverRating(star)}
                 onMouseLeave={() => setHoverRating(0)}
                 onClick={() => setRating(star)}
               >
-                ★
+                <StarIcon filled={star <= (hoverRating || rating)} className={star <= rating ? 'star-pop' : ''} />
               </button>
             ))}
           </div>
           {(hoverRating || rating) > 0 && (
-            <p className="mt-2 text-sm font-medium text-gray-600">
-              {RATING_LABELS[hoverRating || rating]}
-            </p>
+            <p className="mt-3 text-sm font-semibold text-surface-600">{RATING_LABELS[hoverRating || rating]}</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Review */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <p className="text-sm font-medium text-gray-700 mb-2">
-            Leave a review (optional)
-          </p>
+      {/* ── Review ── */}
+      <div className="px-4 mt-4">
+        <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+          <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Review (optional)</p>
           <Textarea
             placeholder="Tell us about your experience..."
             value={review}
             onChange={(e) => setReview(e.target.value)}
             rows={3}
             maxLength={500}
+            className="rounded-xl border-surface-200 text-sm resize-none"
           />
-          <p className="mt-1 text-right text-xs text-gray-400">
-            {review.length}/500
-          </p>
-        </CardContent>
-      </Card>
+          <p className="mt-1 text-right text-[11px] text-surface-300">{review.length}/500</p>
+        </div>
+      </div>
 
-      {/* Tip */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <p className="text-sm font-medium text-gray-700 mb-1">
-            Say thanks with a tip (optional)
-          </p>
-          <p className="text-xs text-gray-500 mb-3">
-            100% of tips go directly to your rider.
-          </p>
+      {/* ── Tip ── */}
+      <div className="px-4 mt-4">
+        <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+          <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Say thanks with a tip</p>
+          <p className="text-[11px] text-surface-400 mt-0.5 mb-3">100% of tips go directly to your rider.</p>
           <div className="flex flex-wrap gap-2">
             {TIP_PRESETS.map((amount) => (
               <button
                 key={amount}
-                className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-colors ${
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all active:scale-95 ${
                   tipAmount === amount
-                    ? 'border-brand-500 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    ? 'bg-brand-500 text-white shadow-card'
+                    : 'bg-surface-50 text-surface-600 border border-surface-100 hover:border-surface-200'
                 }`}
                 onClick={() => setTipAmount(amount)}
               >
@@ -298,24 +255,19 @@ export default function RateDeliveryPage() {
               </button>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Submit */}
-      <Button
-        className="w-full bg-brand-500 hover:bg-brand-600 text-base py-6"
-        disabled={submitting || rating === 0}
-        onClick={handleSubmitRating}
-      >
-        {submitting ? (
-          <>
-            <Spinner className="mr-2 h-4 w-4" />
-            Submitting…
-          </>
-        ) : (
-          'Submit Rating'
-        )}
-      </Button>
+      {/* ── Submit ── */}
+      <div className="fixed bottom-20 left-0 right-0 px-4 pb-2 z-30 safe-area-bottom">
+        <button
+          className="w-full rounded-xl bg-surface-900 py-3.5 text-sm font-bold text-white transition-all hover:bg-surface-800 active:scale-[0.98] disabled:opacity-40 shadow-elevated"
+          disabled={submitting || rating === 0}
+          onClick={handleSubmitRating}
+        >
+          {submitting ? <Spinner className="h-4 w-4 mx-auto" /> : 'Submit Rating'}
+        </button>
+      </div>
     </div>
   );
 }

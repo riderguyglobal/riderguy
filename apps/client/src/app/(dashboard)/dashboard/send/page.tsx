@@ -5,34 +5,111 @@ import { useRouter } from 'next/navigation';
 import { useAuth, getApiClient } from '@riderguy/auth';
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Input,
   Label,
   Spinner,
 } from '@riderguy/ui';
 
 // ============================================================
-// Delivery Request Page — Client creates a new delivery order
-// Form: pickup → dropoff → package type → price estimate → confirm
+// Send Package — Bolt/Uber-inspired delivery request flow
 // ============================================================
 
 const PACKAGE_TYPES = [
-  { value: 'DOCUMENT', label: 'Document', icon: '📄', desc: 'Letters, contracts, forms' },
-  { value: 'SMALL_PARCEL', label: 'Small Parcel', icon: '📦', desc: 'Under 5kg' },
-  { value: 'MEDIUM_PARCEL', label: 'Medium Parcel', icon: '📦', desc: '5–15kg' },
-  { value: 'LARGE_PARCEL', label: 'Large Parcel', icon: '📦', desc: '15–30kg' },
-  { value: 'FOOD', label: 'Food', icon: '🍔', desc: 'Hot or cold meals' },
-  { value: 'FRAGILE', label: 'Fragile', icon: '🥚', desc: 'Handle with care' },
-  { value: 'HIGH_VALUE', label: 'High Value', icon: '💎', desc: 'Electronics, jewelry' },
+  {
+    value: 'DOCUMENT', label: 'Document', desc: 'Letters, contracts, forms',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill={active ? 'rgba(14,165,233,0.08)' : 'none'} />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+      </svg>
+    ),
+  },
+  {
+    value: 'SMALL_PARCEL', label: 'Small Parcel', desc: 'Under 5 kg',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" fill={active ? 'rgba(14,165,233,0.08)' : 'none'} />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    ),
+  },
+  {
+    value: 'MEDIUM_PARCEL', label: 'Medium Parcel', desc: '5–15 kg',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" fill={active ? 'rgba(14,165,233,0.08)' : 'none'} />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+        <path d="M16.5 9.4l-9-5.19" />
+      </svg>
+    ),
+  },
+  {
+    value: 'LARGE_PARCEL', label: 'Large Parcel', desc: '15–30 kg',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="6" width="22" height="14" rx="2" fill={active ? 'rgba(14,165,233,0.08)' : 'none'} />
+        <path d="M1 10h22" />
+      </svg>
+    ),
+  },
+  {
+    value: 'FOOD', label: 'Food', desc: 'Hot or cold meals',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" fill={active ? 'rgba(14,165,233,0.08)' : 'none'} />
+        <line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
+      </svg>
+    ),
+  },
+  {
+    value: 'FRAGILE', label: 'Fragile', desc: 'Handle with care',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#f59e0b' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" fill={active ? 'rgba(245,158,11,0.08)' : 'none'} />
+        <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    value: 'HIGH_VALUE', label: 'High Value', desc: 'Electronics, jewelry',
+    icon: (active: boolean) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#8b5cf6' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill={active ? 'rgba(139,92,246,0.08)' : 'none'} />
+        <path d="M9 12l2 2 4-4" />
+      </svg>
+    ),
+  },
 ] as const;
 
 const PAYMENT_METHODS = [
-  { value: 'CASH', label: 'Cash on Delivery', icon: '💵' },
-  { value: 'CARD', label: 'Card Payment', icon: '💳' },
-  { value: 'MOBILE_MONEY', label: 'Mobile Money', icon: '📱' },
+  {
+    value: 'CASH', label: 'Cash on Delivery', desc: 'Pay rider on delivery',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#22c55e' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2" fill={active ? 'rgba(34,197,94,0.08)' : 'none'} />
+        <circle cx="12" cy="12" r="3" /><path d="M1 10h2M21 10h2" />
+      </svg>
+    ),
+  },
+  {
+    value: 'CARD', label: 'Card Payment', desc: 'Debit or credit card',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2" fill={active ? 'rgba(14,165,233,0.08)' : 'none'} />
+        <line x1="1" y1="10" x2="23" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    value: 'MOBILE_MONEY', label: 'Mobile Money', desc: 'MTN, Vodafone, AirtelTigo',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#8b5cf6' : '#64748b'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2" fill={active ? 'rgba(139,92,246,0.08)' : 'none'} />
+        <line x1="12" y1="18" x2="12.01" y2="18" />
+      </svg>
+    ),
+  },
 ] as const;
 
 interface AddressSuggestion {
@@ -111,13 +188,12 @@ export default function SendPackagePage() {
           setShowDropoffSuggestions(true);
         }
       } catch {
-        // Silent fail for autocomplete
+        // Silent fail
       }
     },
     [],
   );
 
-  // Debounced autocomplete
   useEffect(() => {
     const timer = setTimeout(() => {
       if (step === 'pickup' && pickupAddress.length >= 3 && !pickupLat) {
@@ -136,7 +212,6 @@ export default function SendPackagePage() {
     return () => clearTimeout(timer);
   }, [dropoffAddress, step, dropoffLat, fetchSuggestions]);
 
-  // ── Get price estimate when all locations are set ──
   useEffect(() => {
     if (step === 'review' && pickupLat && pickupLng && dropoffLat && dropoffLng) {
       fetchEstimate();
@@ -164,7 +239,6 @@ export default function SendPackagePage() {
     }
   }
 
-  // ── Submit order ──
   async function handleSubmit() {
     if (!pickupLat || !pickupLng || !dropoffLat || !dropoffLng) return;
     setSubmitting(true);
@@ -191,7 +265,6 @@ export default function SendPackagePage() {
 
       const orderId = data.data.id;
 
-      // For card / mobile money payments, initialise Paystack
       if (paymentMethod === 'CARD' || paymentMethod === 'MOBILE_MONEY') {
         try {
           const callbackUrl = `${window.location.origin}/dashboard/orders/${orderId}/payment`;
@@ -199,17 +272,14 @@ export default function SendPackagePage() {
             orderId,
             callbackUrl,
           });
-          // Redirect to Paystack checkout
           window.location.href = payRes.data.data.authorizationUrl;
           return;
         } catch {
-          // If payment init fails, still go to confirmation (payment can be retried)
           router.push(`/dashboard/orders/${orderId}/confirmation`);
           return;
         }
       }
 
-      // For cash / wallet — go straight to confirmation
       router.push(`/dashboard/orders/${orderId}/confirmation`);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Failed to create order');
@@ -232,209 +302,248 @@ export default function SendPackagePage() {
     }
   }
 
-  const steps: { key: Step; label: string; number: number }[] = [
-    { key: 'pickup', label: 'Pickup', number: 1 },
-    { key: 'dropoff', label: 'Dropoff', number: 2 },
-    { key: 'package', label: 'Package', number: 3 },
-    { key: 'review', label: 'Review', number: 4 },
+  const steps: { key: Step; label: string }[] = [
+    { key: 'pickup', label: 'Pickup' },
+    { key: 'dropoff', label: 'Dropoff' },
+    { key: 'package', label: 'Package' },
+    { key: 'review', label: 'Review' },
   ];
-
   const currentStepIdx = steps.findIndex((s) => s.key === step);
 
   return (
-    <div className="p-4 pb-24">
-      {/* Header */}
-      <div className="mb-6">
-        <button onClick={() => router.back()} className="mb-2 text-sm text-gray-500 hover:text-gray-700">
-          ← Back
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">Send a Package</h1>
-      </div>
+    <div className="dash-page-enter pb-24">
+      {/* ── Header ── */}
+      <div className="sticky top-14 z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => (currentStepIdx > 0 ? setStep(steps[currentStepIdx - 1]!.key) : router.back())}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-50 transition-colors hover:bg-surface-100 active:scale-95"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <div className="flex-1">
+            <h1 className="text-base font-bold text-surface-900">Send a Package</h1>
+          </div>
+          <span className="text-xs font-medium text-surface-400">Step {currentStepIdx + 1}/4</span>
+        </div>
 
-      {/* Step indicator */}
-      <div className="mb-6 flex items-center gap-2">
-        {steps.map((s, i) => (
-          <React.Fragment key={s.key}>
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
-                i <= currentStepIdx
-                  ? 'bg-brand-500 text-white'
-                  : 'bg-gray-100 text-gray-400'
-              }`}
-            >
-              {s.number}
-            </div>
-            {i < steps.length - 1 && (
+        {/* Progress bar */}
+        <div className="mt-3 flex gap-1.5">
+          {steps.map((s, i) => (
+            <div key={s.key} className="flex-1 h-1 rounded-full bg-surface-100 overflow-hidden">
               <div
-                className={`h-0.5 flex-1 transition-colors ${
-                  i < currentStepIdx ? 'bg-brand-500' : 'bg-gray-200'
+                className={`h-full rounded-full transition-all duration-500 ease-out ${
+                  i <= currentStepIdx ? 'bg-brand-500' : 'bg-transparent'
                 }`}
+                style={{ width: i <= currentStepIdx ? '100%' : '0%' }}
               />
-            )}
-          </React.Fragment>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Pickup Step ── */}
       {step === 'pickup' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Pickup Location</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <Label htmlFor="pickupAddress">Address *</Label>
-                <Input
-                  id="pickupAddress"
-                  placeholder="Enter pickup address..."
-                  value={pickupAddress}
-                  onChange={(e) => {
-                    setPickupAddress(e.target.value);
-                    setPickupLat(null);
-                    setPickupLng(null);
-                  }}
-                />
-                {pickupLat && (
-                  <p className="mt-1 text-xs text-green-600">✓ Location confirmed</p>
-                )}
-                {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-white shadow-lg">
-                    {pickupSuggestions.map((s) => (
-                      <button
-                        key={s.id}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        onClick={() => selectSuggestion(s, 'pickup')}
-                      >
-                        <p className="font-medium text-gray-900">{s.text}</p>
-                        <p className="text-xs text-gray-500">{s.placeName}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
+        <div className="p-4 space-y-4 dash-page-enter">
+          {/* Route preview card */}
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+            <div className="flex gap-3">
+              <div className="flex flex-col items-center pt-1">
+                <div className="h-3 w-3 rounded-full border-2 border-brand-500 bg-white" />
+                <div className="w-0.5 flex-1 bg-surface-200 my-1" />
+                <div className="h-3 w-3 rounded-full bg-surface-200" />
               </div>
-
-              <div>
-                <Label htmlFor="pickupContact">Contact Name (optional)</Label>
-                <Input
-                  id="pickupContact"
-                  placeholder="Who to contact at pickup"
-                  value={pickupContactName}
-                  onChange={(e) => setPickupContactName(e.target.value)}
-                />
+              <div className="flex-1 space-y-3">
+                <div className="relative">
+                  <Input
+                    placeholder="Pickup address"
+                    value={pickupAddress}
+                    onChange={(e) => {
+                      setPickupAddress(e.target.value);
+                      setPickupLat(null);
+                      setPickupLng(null);
+                    }}
+                    className="border-0 bg-surface-50 rounded-xl pl-3 pr-8 text-sm font-medium placeholder:text-surface-400"
+                  />
+                  {pickupLat && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  )}
+                  {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-surface-100 bg-white shadow-elevated overflow-hidden">
+                      {pickupSuggestions.map((s) => (
+                        <button
+                          key={s.id}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-50 transition-colors border-b border-surface-50 last:border-0"
+                          onClick={() => selectSuggestion(s, 'pickup')}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 shrink-0">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-surface-900 truncate">{s.text}</p>
+                            <p className="text-xs text-surface-400 truncate">{s.placeName}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl bg-surface-50 px-3 py-2.5 text-sm text-surface-400">
+                  {dropoffAddress || 'Dropoff address (next step)'}
+                </div>
               </div>
+            </div>
+          </div>
 
-              <div>
-                <Label htmlFor="pickupPhone">Contact Phone (optional)</Label>
-                <Input
-                  id="pickupPhone"
-                  placeholder="+233..."
-                  onChange={(e) => setPickupContactPhone(e.target.value)}
-                />
-              </div>
+          {/* Contact details */}
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4 space-y-3">
+            <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Pickup Contact</p>
+            <div>
+              <Label className="text-xs text-surface-500">Name (optional)</Label>
+              <Input
+                placeholder="Who to contact at pickup"
+                value={pickupContactName}
+                onChange={(e) => setPickupContactName(e.target.value)}
+                className="mt-1 rounded-xl border-surface-200 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-surface-500">Phone (optional)</Label>
+              <Input
+                placeholder="+233..."
+                onChange={(e) => setPickupContactPhone(e.target.value)}
+                className="mt-1 rounded-xl border-surface-200 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-surface-500">Instructions (optional)</Label>
+              <Input
+                placeholder="e.g., Ring the bell, office on 3rd floor"
+                value={pickupInstructions}
+                onChange={(e) => setPickupInstructions(e.target.value)}
+                className="mt-1 rounded-xl border-surface-200 text-sm"
+              />
+            </div>
+          </div>
 
-              <div>
-                <Label htmlFor="pickupInstructions">Instructions (optional)</Label>
-                <Input
-                  id="pickupInstructions"
-                  placeholder="e.g., Ring the bell, office on 3rd floor"
-                  value={pickupInstructions}
-                  onChange={(e) => setPickupInstructions(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Button
-            className="w-full"
-            disabled={!pickupAddress || !pickupLat}
-            onClick={() => setStep('dropoff')}
-          >
-            Continue to Dropoff →
-          </Button>
+          {/* Continue button */}
+          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
+            <Button
+              className="w-full bg-brand-500 hover:bg-brand-600 rounded-xl py-3 text-sm font-semibold shadow-card"
+              disabled={!pickupAddress || !pickupLat}
+              onClick={() => setStep('dropoff')}
+            >
+              Continue to Dropoff
+            </Button>
+          </div>
         </div>
       )}
 
       {/* ── Dropoff Step ── */}
       {step === 'dropoff' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Dropoff Location</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <Label htmlFor="dropoffAddress">Address *</Label>
-                <Input
-                  id="dropoffAddress"
-                  placeholder="Enter dropoff address..."
-                  value={dropoffAddress}
-                  onChange={(e) => {
-                    setDropoffAddress(e.target.value);
-                    setDropoffLat(null);
-                    setDropoffLng(null);
-                  }}
-                />
-                {dropoffLat && (
-                  <p className="mt-1 text-xs text-green-600">✓ Location confirmed</p>
-                )}
-                {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-white shadow-lg">
-                    {dropoffSuggestions.map((s) => (
-                      <button
-                        key={s.id}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        onClick={() => selectSuggestion(s, 'dropoff')}
-                      >
-                        <p className="font-medium text-gray-900">{s.text}</p>
-                        <p className="text-xs text-gray-500">{s.placeName}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
+        <div className="p-4 space-y-4 dash-page-enter">
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+            <div className="flex gap-3">
+              <div className="flex flex-col items-center pt-1">
+                <div className="h-3 w-3 rounded-full bg-brand-500" />
+                <div className="w-0.5 flex-1 bg-surface-200 my-1" />
+                <div className="h-3 w-3 rounded-full border-2 border-accent-500 bg-white" />
               </div>
-
-              <div>
-                <Label htmlFor="dropoffContact">Recipient Name (optional)</Label>
-                <Input
-                  id="dropoffContact"
-                  placeholder="Who to deliver to"
-                  value={dropoffContactName}
-                  onChange={(e) => setDropoffContactName(e.target.value)}
-                />
+              <div className="flex-1 space-y-3">
+                <div className="rounded-xl bg-surface-50 px-3 py-2.5 text-sm text-surface-700 font-medium truncate">
+                  {pickupAddress}
+                </div>
+                <div className="relative">
+                  <Input
+                    placeholder="Dropoff address"
+                    value={dropoffAddress}
+                    onChange={(e) => {
+                      setDropoffAddress(e.target.value);
+                      setDropoffLat(null);
+                      setDropoffLng(null);
+                    }}
+                    className="border-0 bg-surface-50 rounded-xl pl-3 pr-8 text-sm font-medium placeholder:text-surface-400"
+                  />
+                  {dropoffLat && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  )}
+                  {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-surface-100 bg-white shadow-elevated overflow-hidden">
+                      {dropoffSuggestions.map((s) => (
+                        <button
+                          key={s.id}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-50 transition-colors border-b border-surface-50 last:border-0"
+                          onClick={() => selectSuggestion(s, 'dropoff')}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-50 shrink-0">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-surface-900 truncate">{s.text}</p>
+                            <p className="text-xs text-surface-400 truncate">{s.placeName}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+          </div>
 
-              <div>
-                <Label htmlFor="dropoffPhone">Recipient Phone (optional)</Label>
-                <Input
-                  id="dropoffPhone"
-                  placeholder="+233..."
-                  onChange={(e) => setDropoffContactPhone(e.target.value)}
-                />
-              </div>
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4 space-y-3">
+            <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Recipient Details</p>
+            <div>
+              <Label className="text-xs text-surface-500">Name (optional)</Label>
+              <Input
+                placeholder="Who to deliver to"
+                value={dropoffContactName}
+                onChange={(e) => setDropoffContactName(e.target.value)}
+                className="mt-1 rounded-xl border-surface-200 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-surface-500">Phone (optional)</Label>
+              <Input
+                placeholder="+233..."
+                onChange={(e) => setDropoffContactPhone(e.target.value)}
+                className="mt-1 rounded-xl border-surface-200 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-surface-500">Instructions (optional)</Label>
+              <Input
+                placeholder="e.g., Leave with security, apartment 12B"
+                value={dropoffInstructions}
+                onChange={(e) => setDropoffInstructions(e.target.value)}
+                className="mt-1 rounded-xl border-surface-200 text-sm"
+              />
+            </div>
+          </div>
 
-              <div>
-                <Label htmlFor="dropoffInstructions">Instructions (optional)</Label>
-                <Input
-                  id="dropoffInstructions"
-                  placeholder="e.g., Leave with security, apartment 12B"
-                  value={dropoffInstructions}
-                  onChange={(e) => setDropoffInstructions(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={() => setStep('pickup')}>
-              ← Back
-            </Button>
+          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
             <Button
-              className="flex-1"
+              className="w-full bg-brand-500 hover:bg-brand-600 rounded-xl py-3 text-sm font-semibold shadow-card"
               disabled={!dropoffAddress || !dropoffLat}
               onClick={() => setStep('package')}
             >
-              Continue →
+              Continue to Package Details
             </Button>
           </div>
         </div>
@@ -442,75 +551,92 @@ export default function SendPackagePage() {
 
       {/* ── Package Step ── */}
       {step === 'package' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Package Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="mb-2 block">Package Type *</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {PACKAGE_TYPES.map((pt) => (
-                    <button
-                      key={pt.value}
-                      onClick={() => setPackageType(pt.value)}
-                      className={`rounded-lg border-2 p-3 text-left transition-colors ${
-                        packageType === pt.value
-                          ? 'border-brand-500 bg-brand-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="text-lg">{pt.icon}</span>
-                      <p className="mt-1 text-sm font-medium text-gray-900">{pt.label}</p>
-                      <p className="text-xs text-gray-500">{pt.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+        <div className="p-4 space-y-5 dash-page-enter">
+          {/* Package type grid */}
+          <div>
+            <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">What are you sending?</p>
+            <div className="grid grid-cols-2 gap-2.5 dash-stagger-in">
+              {PACKAGE_TYPES.map((pt) => {
+                const isActive = packageType === pt.value;
+                return (
+                  <button
+                    key={pt.value}
+                    onClick={() => setPackageType(pt.value)}
+                    className={`relative flex flex-col items-start gap-2 rounded-2xl border-2 p-3.5 text-left transition-all active:scale-[0.97] ${
+                      isActive
+                        ? 'border-brand-500 bg-brand-50/50 shadow-card'
+                        : 'border-surface-100 bg-white hover:border-surface-200'
+                    }`}
+                  >
+                    {isActive && (
+                      <div className="absolute top-2.5 right-2.5">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#0ea5e9" stroke="white" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" /><polyline points="16 9 10 15 8 13" />
+                        </svg>
+                      </div>
+                    )}
+                    {pt.icon(isActive)}
+                    <div>
+                      <p className={`text-sm font-semibold ${isActive ? 'text-brand-700' : 'text-surface-900'}`}>{pt.label}</p>
+                      <p className="text-[11px] text-surface-400 mt-0.5">{pt.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-              <div>
-                <Label htmlFor="packageDesc">Description (optional)</Label>
-                <Input
-                  id="packageDesc"
-                  placeholder="Describe your package..."
-                  value={packageDescription}
-                  onChange={(e) => setPackageDescription(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          {/* Description */}
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+            <Label className="text-xs text-surface-500">Description (optional)</Label>
+            <Input
+              placeholder="Describe your package..."
+              value={packageDescription}
+              onChange={(e) => setPackageDescription(e.target.value)}
+              className="mt-1.5 rounded-xl border-surface-200 text-sm"
+            />
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Payment Method</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {PAYMENT_METHODS.map((pm) => (
+          {/* Payment method */}
+          <div>
+            <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">Payment Method</p>
+            <div className="space-y-2.5 dash-stagger-in">
+              {PAYMENT_METHODS.map((pm) => {
+                const isActive = paymentMethod === pm.value;
+                return (
                   <button
                     key={pm.value}
                     onClick={() => setPaymentMethod(pm.value)}
-                    className={`flex w-full items-center gap-3 rounded-lg border-2 p-3 transition-colors ${
-                      paymentMethod === pm.value
-                        ? 'border-brand-500 bg-brand-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                    className={`flex w-full items-center gap-3.5 rounded-2xl border-2 p-4 transition-all active:scale-[0.98] ${
+                      isActive
+                        ? 'border-brand-500 bg-brand-50/50 shadow-card'
+                        : 'border-surface-100 bg-white hover:border-surface-200'
                     }`}
                   >
-                    <span className="text-lg">{pm.icon}</span>
-                    <span className="text-sm font-medium text-gray-900">{pm.label}</span>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isActive ? 'bg-brand-50' : 'bg-surface-50'}`}>
+                      {pm.icon(isActive)}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className={`text-sm font-semibold ${isActive ? 'text-brand-700' : 'text-surface-900'}`}>{pm.label}</p>
+                      <p className="text-xs text-surface-400">{pm.desc}</p>
+                    </div>
+                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                      isActive ? 'border-brand-500' : 'border-surface-200'
+                    }`}>
+                      {isActive && <div className="h-2.5 w-2.5 rounded-full bg-brand-500" />}
+                    </div>
                   </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                );
+              })}
+            </div>
+          </div>
 
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={() => setStep('dropoff')}>
-              ← Back
-            </Button>
-            <Button className="flex-1" onClick={() => setStep('review')}>
-              Review Order →
+          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
+            <Button
+              className="w-full bg-brand-500 hover:bg-brand-600 rounded-xl py-3 text-sm font-semibold shadow-card"
+              onClick={() => setStep('review')}
+            >
+              Review Order
             </Button>
           </div>
         </div>
@@ -518,130 +644,114 @@ export default function SendPackagePage() {
 
       {/* ── Review Step ── */}
       {step === 'review' && (
-        <div className="space-y-4">
-          {/* Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Pickup */}
-              <div className="flex gap-3">
-                <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-100">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                </div>
+        <div className="p-4 space-y-4 dash-page-enter">
+          {/* Route summary */}
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+            <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-4">Route</p>
+            <div className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <div className="h-3 w-3 rounded-full border-2 border-brand-500 bg-white" />
+                <div className="w-0.5 flex-1 border-l-2 border-dashed border-surface-200 my-1" />
+                <div className="h-3 w-3 rounded-full bg-accent-500" />
+              </div>
+              <div className="flex-1 space-y-4">
                 <div>
-                  <p className="text-xs font-medium uppercase text-gray-400">Pickup</p>
-                  <p className="text-sm text-gray-900">{pickupAddress}</p>
-                  {pickupContactName && (
-                    <p className="text-xs text-gray-500">{pickupContactName}</p>
-                  )}
+                  <p className="text-[10px] font-semibold text-surface-400 uppercase">Pickup</p>
+                  <p className="text-sm font-medium text-surface-900 mt-0.5">{pickupAddress}</p>
+                  {pickupContactName && <p className="text-xs text-surface-400 mt-0.5">{pickupContactName}</p>}
                 </div>
-              </div>
-
-              {/* Connector */}
-              <div className="ml-3 border-l-2 border-dashed border-gray-200 py-1 pl-6">
-                <p className="text-xs text-gray-400">
-                  {estimate
-                    ? `${estimate.distanceKm.toFixed(1)} km • ~${estimate.estimatedDurationMinutes} min`
-                    : 'Calculating...'}
-                </p>
-              </div>
-
-              {/* Dropoff */}
-              <div className="flex gap-3">
-                <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-100">
-                  <div className="h-2 w-2 rounded-full bg-red-500" />
-                </div>
+                {estimate && (
+                  <div className="flex items-center gap-2 text-xs text-surface-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                    <span>{estimate.distanceKm.toFixed(1)} km</span>
+                    <span>·</span>
+                    <span>~{estimate.estimatedDurationMinutes} min</span>
+                  </div>
+                )}
                 <div>
-                  <p className="text-xs font-medium uppercase text-gray-400">Dropoff</p>
-                  <p className="text-sm text-gray-900">{dropoffAddress}</p>
-                  {dropoffContactName && (
-                    <p className="text-xs text-gray-500">{dropoffContactName}</p>
-                  )}
+                  <p className="text-[10px] font-semibold text-surface-400 uppercase">Dropoff</p>
+                  <p className="text-sm font-medium text-surface-900 mt-0.5">{dropoffAddress}</p>
+                  {dropoffContactName && <p className="text-xs text-surface-400 mt-0.5">{dropoffContactName}</p>}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Package & Payment */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between border-b pb-3">
-                <span className="text-sm text-gray-500">Package</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {PACKAGE_TYPES.find((p) => p.value === packageType)?.icon}{' '}
-                  {PACKAGE_TYPES.find((p) => p.value === packageType)?.label}
-                </span>
+          {/* Package & Payment summary */}
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4 space-y-3">
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs text-surface-400">Package</span>
+              <div className="flex items-center gap-2">
+                {PACKAGE_TYPES.find((p) => p.value === packageType)?.icon(true)}
+                <span className="text-sm font-medium text-surface-900">{PACKAGE_TYPES.find((p) => p.value === packageType)?.label}</span>
               </div>
-              <div className="flex items-center justify-between border-b py-3">
-                <span className="text-sm text-gray-500">Payment</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {PAYMENT_METHODS.find((p) => p.value === paymentMethod)?.icon}{' '}
-                  {PAYMENT_METHODS.find((p) => p.value === paymentMethod)?.label}
-                </span>
+            </div>
+            <div className="h-px bg-surface-100" />
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs text-surface-400">Payment</span>
+              <div className="flex items-center gap-2">
+                {PAYMENT_METHODS.find((p) => p.value === paymentMethod)?.icon(true)}
+                <span className="text-sm font-medium text-surface-900">{PAYMENT_METHODS.find((p) => p.value === paymentMethod)?.label}</span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Price Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Price Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {estimating ? (
-                <div className="flex items-center justify-center py-4">
-                  <Spinner className="h-6 w-6 text-brand-500" />
+          {/* Price breakdown */}
+          <div className="rounded-2xl bg-white border border-surface-100 shadow-card p-4">
+            <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">Price Breakdown</p>
+            {estimating ? (
+              <div className="flex items-center justify-center py-6">
+                <Spinner className="h-6 w-6 text-brand-500" />
+              </div>
+            ) : estimate ? (
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-surface-500">Base fare</span>
+                  <span className="text-surface-900 font-medium">GH₵{estimate.baseFare.toLocaleString()}</span>
                 </div>
-              ) : estimate ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Base fare</span>
-                    <span className="text-gray-900">GH₵{estimate.baseFare.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Distance ({estimate.distanceKm.toFixed(1)} km)</span>
-                    <span className="text-gray-900">GH₵{estimate.distanceCharge.toLocaleString()}</span>
-                  </div>
-                  {estimate.surgeMultiplier > 1 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-orange-500">Surge ({estimate.surgeMultiplier}×)</span>
-                      <span className="text-orange-500">Applied</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Service fee</span>
-                    <span className="text-gray-900">GH₵{estimate.serviceFee.toLocaleString()}</span>
-                  </div>
-                  <div className="mt-2 flex justify-between border-t pt-2 text-base font-semibold">
-                    <span className="text-gray-900">Total</span>
-                    <span className="text-brand-600">GH₵{estimate.totalPrice.toLocaleString()}</span>
-                  </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-surface-500">Distance ({estimate.distanceKm.toFixed(1)} km)</span>
+                  <span className="text-surface-900 font-medium">GH₵{estimate.distanceCharge.toLocaleString()}</span>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-400">Unable to calculate price</p>
-              )}
-            </CardContent>
-          </Card>
+                {estimate.surgeMultiplier > 1 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-amber-600">Surge ({estimate.surgeMultiplier}×)</span>
+                    <span className="text-amber-600 font-medium">Applied</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-surface-500">Service fee</span>
+                  <span className="text-surface-900 font-medium">GH₵{estimate.serviceFee.toLocaleString()}</span>
+                </div>
+                <div className="h-px bg-surface-100 my-1" />
+                <div className="flex justify-between text-base font-bold">
+                  <span className="text-surface-900">Total</span>
+                  <span className="text-brand-600">GH₵{estimate.totalPrice.toLocaleString()}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-surface-400 text-center py-4">Unable to calculate price</p>
+            )}
+          </div>
 
           {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-sm text-red-700 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+              {error}
+            </div>
           )}
 
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={() => setStep('package')}>
-              ← Back
-            </Button>
+          {/* Confirm button */}
+          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
             <Button
-              className="flex-1"
+              className="w-full bg-surface-900 hover:bg-surface-800 rounded-xl py-3.5 text-sm font-bold shadow-elevated"
               disabled={submitting || estimating || !estimate}
               onClick={handleSubmit}
             >
               {submitting ? (
                 <Spinner className="h-4 w-4" />
               ) : (
-                `Confirm • GH₵${estimate?.totalPrice.toLocaleString() ?? '...'}`
+                `Confirm · GH₵${estimate?.totalPrice.toLocaleString() ?? '...'}`
               )}
             </Button>
           </div>

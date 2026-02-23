@@ -108,3 +108,156 @@
   30%, 50%, 70% { transform: translateX(-3px); }
   40%, 60% { transform: translateX(3px); }
 }
+
+/* ============================================================
+   Dashboard — Bolt/Uber-inspired animations & effects
+   ============================================================ */
+
+/* Page entrance — slide up + fade in */
+.dash-page-enter {
+  animation: dashPageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes dashPageEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pulsing status dot */
+.dash-pulse-dot {
+  position: relative;
+}
+.dash-pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: rgba(34, 197, 94, 0.4);
+  animation: dashPulseDot 2s ease-in-out infinite;
+}
+@keyframes dashPulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0; transform: scale(1.8); }
+}
+
+/* Staggered children animation for lists */
+.dash-stagger-in > * {
+  animation: dashStaggerItem 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dash-stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.dash-stagger-in > *:nth-child(2) { animation-delay: 50ms; }
+.dash-stagger-in > *:nth-child(3) { animation-delay: 100ms; }
+.dash-stagger-in > *:nth-child(4) { animation-delay: 150ms; }
+.dash-stagger-in > *:nth-child(5) { animation-delay: 200ms; }
+.dash-stagger-in > *:nth-child(6) { animation-delay: 250ms; }
+.dash-stagger-in > *:nth-child(7) { animation-delay: 300ms; }
+.dash-stagger-in > *:nth-child(8) { animation-delay: 350ms; }
+.dash-stagger-in > *:nth-child(n+9) { animation-delay: 400ms; }
+
+@keyframes dashStaggerItem {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Bottom nav active indicator */
+.dash-nav-indicator {
+  animation: dashNavDot 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes dashNavDot {
+  from { opacity: 0; transform: scaleX(0); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+
+/* Safe area bottom padding */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Map placeholder shimmer */
+.map-shimmer {
+  background: linear-gradient(
+    110deg,
+    #e2e8f0 8%,
+    #f1f5f9 18%,
+    #e2e8f0 33%
+  );
+  background-size: 200% 100%;
+  animation: mapShimmer 1.5s linear infinite;
+}
+@keyframes mapShimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Rider pin bounce */
+.rider-pin-bounce {
+  animation: riderPinBounce 2s ease-in-out infinite;
+}
+@keyframes riderPinBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Slide in from bottom for modals/sheets */
+.slide-up-sheet {
+  animation: slideUpSheet 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes slideUpSheet {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Tracking pulse ring */
+.tracking-pulse-ring {
+  animation: trackingPulse 2s ease-out infinite;
+}
+@keyframes trackingPulse {
+  0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+  70% { box-shadow: 0 0 0 12px rgba(14, 165, 233, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+}
+
+/* Card hover lift */
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-lift:active {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Progress bar fill animation */
+.progress-fill {
+  animation: progressFill 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes progressFill {
+  from { width: 0%; }
+}
+
+/* Chat message slide-in */
+.chat-msg-in {
+  animation: chatMsgIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes chatMsgIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Typing indicator dot bounce */
+.typing-dot {
+  animation: typingDot 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Star rating pop */
+.star-pop {
+  animation: starPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes starPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
