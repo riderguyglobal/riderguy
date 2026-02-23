@@ -89,18 +89,18 @@ interface OrderDetail {
   orderNumber: string;
   status: string;
   pickupAddress: string;
-  pickupLat: number;
-  pickupLng: number;
+  pickupLatitude: number;
+  pickupLongitude: number;
   dropoffAddress: string;
-  dropoffLat: number;
-  dropoffLng: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
   packageType: string;
   packageDescription?: string;
   distanceKm: number;
   estimatedDurationMinutes: number;
   totalPrice: number;
   serviceFee: number;
-  deliveryFee: number;
+  riderEarnings?: number;
   currency: string;
   deliveryPinCode?: string;
   paymentMethod: string;
@@ -637,8 +637,8 @@ export default function ActiveJobPage() {
   const isNavigating = ['PICKUP_EN_ROUTE', 'IN_TRANSIT'].includes(order.status);
   const navTarget =
     order.status === 'PICKUP_EN_ROUTE' || order.status === 'ASSIGNED'
-      ? { lat: order.pickupLat, lng: order.pickupLng, label: 'Pickup' }
-      : { lat: order.dropoffLat, lng: order.dropoffLng, label: 'Dropoff' };
+      ? { lat: order.pickupLatitude, lng: order.pickupLongitude, label: 'Pickup' }
+      : { lat: order.dropoffLatitude, lng: order.dropoffLongitude, label: 'Dropoff' };
 
   // Current step index for progress bar
   const currentStepIdx = STATUS_STEPS.indexOf(order.status);
@@ -655,10 +655,10 @@ export default function ActiveJobPage() {
       {/* ── Real-time Navigation Map ── */}
       {isActiveDelivery && (
         <NavigationMap
-          pickupLat={order.pickupLat}
-          pickupLng={order.pickupLng}
-          dropoffLat={order.dropoffLat}
-          dropoffLng={order.dropoffLng}
+          pickupLat={order.pickupLatitude}
+          pickupLng={order.pickupLongitude}
+          dropoffLat={order.dropoffLatitude}
+          dropoffLng={order.dropoffLongitude}
           riderLat={riderLocation?.lat ?? null}
           riderLng={riderLocation?.lng ?? null}
           riderHeading={riderLocation?.heading}
@@ -960,7 +960,7 @@ export default function ActiveJobPage() {
                   </p>
                 )}
                 {(order.status === 'ASSIGNED' || order.status === 'PICKUP_EN_ROUTE') && (
-                  <button className="mt-1 flex items-center gap-1 text-xs text-brand-500 font-medium" onClick={() => openNavigation(order.pickupLat, order.pickupLng, 'Pickup')}>
+                  <button className="mt-1 flex items-center gap-1 text-xs text-brand-500 font-medium" onClick={() => openNavigation(order.pickupLatitude, order.pickupLongitude, 'Pickup')}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                     Directions
                   </button>
@@ -982,7 +982,7 @@ export default function ActiveJobPage() {
                   </p>
                 )}
                 {['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(order.status) && (
-                  <button className="mt-1 flex items-center gap-1 text-xs text-brand-500 font-medium" onClick={() => openNavigation(order.dropoffLat, order.dropoffLng, 'Dropoff')}>
+                  <button className="mt-1 flex items-center gap-1 text-xs text-brand-500 font-medium" onClick={() => openNavigation(order.dropoffLatitude, order.dropoffLongitude, 'Dropoff')}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                     Directions
                   </button>

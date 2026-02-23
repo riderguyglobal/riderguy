@@ -2,6 +2,7 @@ import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
 import { transitionStatus } from './order.service';
 import { createOrderNotification } from './notification.service';
+import { emitOrderStatusUpdate } from '../socket';
 
 // ============================================================
 // Dispatch Service — handles rider assignment, reassignment,
@@ -76,6 +77,16 @@ export async function assignRider(
     });
 
     return updatedOrder;
+  });
+
+  // Emit real-time status update via WebSocket
+  emitOrderStatusUpdate({
+    orderId,
+    orderNumber: order.orderNumber,
+    status: 'ASSIGNED',
+    previousStatus: order.status,
+    actor,
+    note: `Assigned to rider ${rider.user.firstName} ${rider.user.lastName}`,
   });
 
   // Notify rider

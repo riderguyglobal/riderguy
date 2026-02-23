@@ -17,7 +17,7 @@ const OFFER_DURATION_S = 30;
 
 export default function IncomingRequest() {
   const router = useRouter();
-  const { socket, connected } = useSocket();
+  const { socket, connected, respondToOffer } = useSocket();
   const [offer, setOffer] = useState<JobOffer | null>(null);
   const [timeLeft, setTimeLeft] = useState(OFFER_DURATION_S);
   const [responding, setResponding] = useState(false);
@@ -103,35 +103,26 @@ export default function IncomingRequest() {
   }, []);
 
   const handleAccept = useCallback(async () => {
-    if (!offer || !socket || responding) return;
+    if (!offer || responding) return;
     setResponding(true);
 
-    socket.emit(
-      'job:offer:respond',
-      { orderId: offer.orderId, response: 'accept' },
-      (res: { success: boolean; error?: string }) => {
-        if (res?.success) {
-          dismiss();
-          router.push(`/dashboard/jobs/${offer.orderId}`);
-        } else {
-          alert(res?.error ?? 'Failed to accept job');
-          setResponding(false);
-        }
-      },
-    );
-  }, [offer, socket, responding, dismiss, router]);
+    respondToOffer(offer.orderId, 'accept', (res) => {
+      if (res?.success) {
+        dismiss();
+        router.push(`/dashboard/jobs/${offer.orderId}`);
+      } else {
+        alert(res?.error ?? 'Failed to accept job');
+        setResponding(false);
+      }
+    });
+  }, [offer, responding, dismiss, router, respondToOffer]);
 
   const handleDecline = useCallback(() => {
-    if (!offer || !socket) return;
+    if (!offer) return;
 
-    socket.emit(
-      'job:offer:respond',
-      { orderId: offer.orderId, response: 'decline' },
-      () => {},
-    );
-
+    respondToOffer(offer.orderId, 'decline');
     dismiss();
-  }, [offer, socket, dismiss]);
+  }, [offer, dismiss, respondToOffer]);
 
   if (!offer) return null;
 
