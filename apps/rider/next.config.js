@@ -9,6 +9,7 @@ const nextConfig = {
     '@riderguy/validators',
     '@riderguy/config',
     '@riderguy/auth',
+    'mapbox-gl',
   ],
   images: {
     remotePatterns: [

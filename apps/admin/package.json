@@ -11,20 +11,20 @@
   },
   "dependencies": {
     "@riderguy/auth": "*",
+    "@riderguy/config": "*",
     "@riderguy/types": "*",
     "@riderguy/ui": "*",
     "@riderguy/utils": "*",
     "@riderguy/validators": "*",
-    "@riderguy/config": "*",
+    "@tanstack/react-query": "^5.62.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "zustand": "^5.0.0",
-    "@tanstack/react-query": "^5.62.0",
-    "lucide-react": "^0.468.0",
-    "clsx": "^2.1.1",
+    "recharts": "^2.14.0",
     "tailwind-merge": "^2.6.0",
-    "recharts": "^2.14.0"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

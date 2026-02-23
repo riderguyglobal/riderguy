@@ -2,8 +2,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth, getApiClient } from '@riderguy/auth';
 import { Badge, Button, Spinner } from '@riderguy/ui';
+
+// Lazy-load Mapbox map (browser-only, no SSR)
+const ClientMap = dynamic(() => import('@/components/client-map'), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 map-shimmer bg-surface-100" />,
+});
 
 // ============================================================
 // Client Dashboard Home — Bolt / Uber inspired
@@ -27,15 +34,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 const ACTIVE_STATUSES = ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
 
-// Simulated nearby rider positions for the map
-const NEARBY_RIDERS = [
-  { id: 1, x: 22, y: 35, angle: 45 },
-  { id: 2, x: 65, y: 20, angle: -30 },
-  { id: 3, x: 45, y: 60, angle: 120 },
-  { id: 4, x: 78, y: 55, angle: -90 },
-  { id: 5, x: 30, y: 75, angle: 60 },
-];
-
 interface RecentOrder {
   id: string;
   orderNumber: string;
@@ -48,15 +46,6 @@ interface RecentOrder {
 }
 
 // SVG inline icons
-function MapPinIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
 function PackageIcon({ className = '' }: { className?: string }) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -81,14 +70,6 @@ function ArrowRightIcon({ className = '' }: { className?: string }) {
     <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="5" y1="12" x2="19" y2="12" />
       <polyline points="12 5 19 12 12 19" />
-    </svg>
-  );
-}
-
-function MotorcycleIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19.5 16a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm0 4a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM4.5 16a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm0 4a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM17 11l-2-4h-3V5h4l2.7 5.4M7.5 18.5h9M2 18.5h2.5M10 5H6l-3 7h5.3" />
     </svg>
   );
 }
@@ -144,52 +125,10 @@ export default function DashboardPage() {
 
   return (
     <div className="dash-page-enter">
-      {/* ── Hero Map Section ── */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-surface-100 to-surface-50" style={{ height: '280px' }}>
-        {/* Simulated map grid */}
-        <div className="absolute inset-0" style={{
-          backgroundImage: `
-            linear-gradient(rgba(148,163,184,0.12) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148,163,184,0.12) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-        }} />
-
-        {/* Simulated street lines */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 280" fill="none">
-          {/* Major roads */}
-          <line x1="0" y1="140" x2="400" y2="140" stroke="rgba(148,163,184,0.25)" strokeWidth="8" />
-          <line x1="200" y1="0" x2="200" y2="280" stroke="rgba(148,163,184,0.25)" strokeWidth="8" />
-          <line x1="0" y1="80" x2="300" y2="80" stroke="rgba(148,163,184,0.15)" strokeWidth="4" />
-          <line x1="100" y1="0" x2="100" y2="280" stroke="rgba(148,163,184,0.15)" strokeWidth="4" />
-          <line x1="300" y1="0" x2="300" y2="200" stroke="rgba(148,163,184,0.15)" strokeWidth="4" />
-          <line x1="50" y1="200" x2="350" y2="200" stroke="rgba(148,163,184,0.15)" strokeWidth="4" />
-        </svg>
-
-        {/* Center dot — user location */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <div className="relative">
-            <div className="h-4 w-4 rounded-full bg-brand-500 border-2 border-white shadow-lg tracking-pulse-ring" />
-            <div className="absolute -inset-3 rounded-full bg-brand-500/10" />
-          </div>
-        </div>
-
-        {/* Nearby rider pins */}
-        {NEARBY_RIDERS.map((rider) => (
-          <div
-            key={rider.id}
-            className="absolute rider-pin-bounce"
-            style={{
-              left: `${rider.x}%`,
-              top: `${rider.y}%`,
-              animationDelay: `${rider.id * 0.3}s`,
-            }}
-          >
-            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-surface-900 shadow-lg border-2 border-white" style={{ transform: `rotate(${rider.angle}deg)` }}>
-              <MotorcycleIcon className="text-brand-400" />
-            </div>
-          </div>
-        ))}
+      {/* ── Hero Map Section — Live Mapbox ── */}
+      <div className="relative overflow-hidden bg-surface-100" style={{ height: '280px' }}>
+        {/* Real Mapbox map */}
+        <ClientMap />
 
         {/* Riders available badge */}
         <div className="absolute top-4 left-4 z-10">
@@ -200,7 +139,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Greeting overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-surface-50 via-surface-50/80 to-transparent pt-12 pb-4 px-5">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-surface-50 via-surface-50/80 to-transparent pt-12 pb-4 px-5 z-10">
           <p className="text-surface-500 text-sm">{greeting()},</p>
           <h1 className="text-xl font-bold text-surface-900">{user?.firstName}</h1>
         </div>

@@ -2,9 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth, getApiClient } from '@riderguy/auth';
 import { Badge, Button, Spinner, Switch } from '@riderguy/ui';
 import { useRiderAvailability } from '@/hooks/use-rider-availability';
+
+// Lazy-load Mapbox map (browser-only, no SSR)
+const RiderMap = dynamic(() => import('@/components/rider-map'), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-surface-900" />,
+});
 
 // ============================================================
 // Rider Dashboard Home — Bolt/Uber-inspired design
@@ -95,25 +102,27 @@ export default function DashboardPage() {
 
   return (
     <div className="dash-page-enter">
-      {/* ── Hero Section with Go Online Toggle ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-surface-900 via-surface-800 to-brand-900 px-5 pt-5 pb-8">
-        {/* Background pattern */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-          backgroundSize: '24px 24px'
-        }} />
+      {/* ── Hero Section with Live Map & Go Online Toggle ── */}
+      <div className="relative overflow-hidden" style={{ height: '300px' }}>
+        {/* Dark Mapbox map background */}
+        <RiderMap />
 
-        <div className="relative z-10">
+        {/* Gradient overlay for readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-surface-900/60 via-surface-900/40 to-surface-900/80 z-[1]" />
+
+        <div className="absolute inset-0 px-5 pt-5 pb-8 z-[2] flex flex-col justify-between">
           {/* Greeting */}
-          <p className="text-surface-400 text-sm">
-            {greeting()},
-          </p>
-          <h1 className="text-xl font-bold text-white mt-0.5">
-            {user?.firstName} {user?.lastName}
-          </h1>
+          <div>
+            <p className="text-surface-400 text-sm">
+              {greeting()},
+            </p>
+            <h1 className="text-xl font-bold text-white mt-0.5">
+              {user?.firstName} {user?.lastName}
+            </h1>
+          </div>
 
           {/* ── Go Online / Offline Toggle — Bolt style ── */}
-          <div className="mt-5 flex items-center justify-between rounded-2xl bg-white/10 backdrop-blur-md p-4 border border-white/10">
+          <div className="flex items-center justify-between rounded-2xl bg-white/10 backdrop-blur-md p-4 border border-white/10">
             <div className="flex items-center gap-3">
               <div className={`h-3 w-3 rounded-full ${isOnline ? 'bg-accent-400 dash-pulse-dot' : 'bg-surface-500'}`} />
               <div>
