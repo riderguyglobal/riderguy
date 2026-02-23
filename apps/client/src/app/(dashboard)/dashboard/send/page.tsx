@@ -311,9 +311,9 @@ export default function SendPackagePage() {
   const currentStepIdx = steps.findIndex((s) => s.key === step);
 
   return (
-    <div className="dash-page-enter pb-24">
+    <div className="dash-page-enter pb-44">
       {/* ── Header ── */}
-      <div className="sticky top-14 z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100 px-4 py-3">
+      <div className="sticky top-[3.5rem] z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100 px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => (currentStepIdx > 0 ? setStep(steps[currentStepIdx - 1]!.key) : router.back())}
@@ -436,7 +436,7 @@ export default function SendPackagePage() {
           </div>
 
           {/* Continue button */}
-          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
+          <div className="fixed bottom-16 left-0 right-0 z-30 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 px-4">
             <Button
               className="w-full bg-brand-500 hover:bg-brand-600 rounded-xl py-3 text-sm font-semibold shadow-card"
               disabled={!pickupAddress || !pickupLat}
@@ -537,7 +537,7 @@ export default function SendPackagePage() {
             </div>
           </div>
 
-          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
+          <div className="fixed bottom-16 left-0 right-0 z-30 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 px-4">
             <Button
               className="w-full bg-brand-500 hover:bg-brand-600 rounded-xl py-3 text-sm font-semibold shadow-card"
               disabled={!dropoffAddress || !dropoffLat}
@@ -631,7 +631,7 @@ export default function SendPackagePage() {
             </div>
           </div>
 
-          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
+          <div className="fixed bottom-16 left-0 right-0 z-30 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 px-4">
             <Button
               className="w-full bg-brand-500 hover:bg-brand-600 rounded-xl py-3 text-sm font-semibold shadow-card"
               onClick={() => setStep('review')}
@@ -742,7 +742,7 @@ export default function SendPackagePage() {
           )}
 
           {/* Confirm button */}
-          <div className="fixed bottom-20 left-0 right-0 px-4 z-30">
+          <div className="fixed bottom-16 left-0 right-0 z-30 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 px-4">
             <Button
               className="w-full bg-surface-900 hover:bg-surface-800 rounded-xl py-3.5 text-sm font-bold shadow-elevated"
               disabled={submitting || estimating || !estimate}

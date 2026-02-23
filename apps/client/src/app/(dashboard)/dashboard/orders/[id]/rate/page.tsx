@@ -259,7 +259,7 @@ export default function RateDeliveryPage() {
       </div>
 
       {/* ── Submit ── */}
-      <div className="fixed bottom-20 left-0 right-0 px-4 pb-2 z-30 safe-area-bottom">
+      <div className="fixed bottom-16 left-0 right-0 z-30 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 px-4">
         <button
           className="w-full rounded-xl bg-surface-900 py-3.5 text-sm font-bold text-white transition-all hover:bg-surface-800 active:scale-[0.98] disabled:opacity-40 shadow-elevated"
           disabled={submitting || rating === 0}
