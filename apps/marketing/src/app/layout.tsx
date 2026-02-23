@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'RiderGuy — Logistics, Delivered.',
     description:
-      'Fast, reliable, trackable last-mile delivery across Ghanaian cities.',,
+      'Fast, reliable, trackable last-mile delivery across Ghanaian cities.',
     siteName: 'RiderGuy',
     type: 'website',
   },
