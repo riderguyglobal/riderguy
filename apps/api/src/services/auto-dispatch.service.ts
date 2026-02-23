@@ -64,9 +64,9 @@ interface ScoredRider {
 // Active dispatch sessions keyed by orderId
 const activeDispatches = new Map<string, DispatchState>();
 
-// ── Scoring Functions ──
+// ── Scoring Functions (exported for unit testing) ──
 
-function proximityScore(distanceKm: number): number {
+export function proximityScore(distanceKm: number): number {
   if (distanceKm <= 0.5) return 100;
   if (distanceKm <= 1)   return 95;
   if (distanceKm <= 2)   return 85;
@@ -79,22 +79,22 @@ function proximityScore(distanceKm: number): number {
   return 0;
 }
 
-function ratingScore(avgRating: number | null): number {
+export function ratingScore(avgRating: number | null): number {
   if (!avgRating || avgRating === 0) return 50; // New rider default
   return (avgRating / 5) * 100;
 }
 
-function completionScore(rate: number | null): number {
+export function completionScore(rate: number | null): number {
   if (rate === null || rate === undefined) return 60; // New rider default
   return rate * 100;
 }
 
-function onTimeScore(rate: number | null): number {
+export function onTimeScore(rate: number | null): number {
   if (rate === null || rate === undefined) return 60;
   return rate * 100;
 }
 
-function experienceScore(totalDeliveries: number): number {
+export function experienceScore(totalDeliveries: number): number {
   if (totalDeliveries >= 500) return 100;
   if (totalDeliveries >= 200) return 85;
   if (totalDeliveries >= 100) return 70;
@@ -104,7 +104,7 @@ function experienceScore(totalDeliveries: number): number {
   return 10; // Brand new rider
 }
 
-function freshnessScore(lastUpdate: Date | null): number {
+export function freshnessScore(lastUpdate: Date | null): number {
   if (!lastUpdate) return 10;
   const ageMs = Date.now() - lastUpdate.getTime();
   if (ageMs < 60_000)       return 100;  // <1 min
@@ -114,7 +114,7 @@ function freshnessScore(lastUpdate: Date | null): number {
   return 5;
 }
 
-function computeOverallScore(
+export function computeOverallScore(
   distanceKm: number,
   avgRating: number | null,
   completionRate: number | null,

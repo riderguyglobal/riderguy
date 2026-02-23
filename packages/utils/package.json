@@ -6,6 +6,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint": "echo 'no lint configured'",
     "clean": "rm -rf dist .turbo"
