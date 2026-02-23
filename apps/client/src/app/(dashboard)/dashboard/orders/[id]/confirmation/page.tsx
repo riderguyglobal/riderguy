@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth, getApiClient } from '@riderguy/auth';
 import { Button, Input, Spinner } from '@riderguy/ui';
 import { useSocket } from '@/hooks/use-socket';
@@ -10,6 +11,15 @@ import type {
   RiderLocationUpdate,
   OrderStatusUpdate,
 } from '@riderguy/types';
+
+const TrackingMap = dynamic(() => import('@/components/tracking-map'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full bg-surface-100 flex items-center justify-center" style={{ height: '260px' }}>
+      <Spinner className="h-6 w-6 text-surface-400" />
+    </div>
+  ),
+});
 
 // ============================================================
 // Order Tracking — Bolt/Uber-inspired live tracking experience
@@ -47,11 +57,11 @@ interface Order {
   orderNumber: string;
   status: string;
   pickupAddress: string;
-  pickupLat: number;
-  pickupLng: number;
+  pickupLatitude: number;
+  pickupLongitude: number;
   dropoffAddress: string;
-  dropoffLat: number;
-  dropoffLng: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
   packageType: string;
   distanceKm: number;
   estimatedDurationMinutes: number;
@@ -106,6 +116,7 @@ export default function OrderConfirmationPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [liveEta, setLiveEta] = useState<{ distanceKm: number; durationMin: number } | null>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -230,36 +241,30 @@ export default function OrderConfirmationPage() {
   const isFailed = order.status === 'FAILED';
   const currentStepIndex = DELIVERY_STEPS.findIndex((s) => s.status === order.status);
 
+  // Tracking map phase
+  const trackingPhase: 'WAITING' | 'TO_PICKUP' | 'TO_DROPOFF' =
+    isPending ? 'WAITING'
+    : ['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(order.status) ? 'TO_DROPOFF'
+    : 'TO_PICKUP';
+
   return (
     <div className="dash-page-enter pb-24">
-      {/* ── Map / Status Hero ── */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-surface-100 to-surface-50" style={{ height: isPending ? '180px' : isActive ? '220px' : '140px' }}>
-        {/* Grid pattern */}
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'linear-gradient(rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.12) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }} />
+      {/* ── Live Tracking Map ── */}
+      <div className="relative">
+        <TrackingMap
+          pickupLat={order.pickupLatitude}
+          pickupLng={order.pickupLongitude}
+          dropoffLat={order.dropoffLatitude}
+          dropoffLng={order.dropoffLongitude}
+          riderLat={riderLocation?.lat ?? null}
+          riderLng={riderLocation?.lng ?? null}
+          phase={trackingPhase}
+          statusLabel={cfg.label}
+          onEtaUpdate={setLiveEta}
+        />
 
-        {/* Simulated route line */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 220" fill="none">
-          <path d="M80,180 C80,100 320,120 320,40" stroke="rgba(14,165,233,0.3)" strokeWidth="3" strokeDasharray="8 4" />
-          {/* Pickup dot */}
-          <circle cx="80" cy="180" r="8" fill="white" stroke="#0ea5e9" strokeWidth="3" />
-          <circle cx="80" cy="180" r="3" fill="#0ea5e9" />
-          {/* Dropoff dot */}
-          <circle cx="320" cy="40" r="8" fill="white" stroke="#22c55e" strokeWidth="3" />
-          <circle cx="320" cy="40" r="3" fill="#22c55e" />
-          {/* Rider position (if active) */}
-          {isActive && (
-            <g>
-              <circle cx="200" cy="110" r="14" fill="#1e293b" stroke="white" strokeWidth="2" className="rider-pin-bounce" />
-              <text x="200" y="115" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">R</text>
-            </g>
-          )}
-        </svg>
-
-        {/* Live indicator */}
-        <div className="absolute top-3 right-3 z-10">
+        {/* Live indicator badge */}
+        <div className="absolute bottom-3 left-3 z-10">
           <div className="flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-md px-2.5 py-1 shadow-card border border-surface-100">
             <div className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-accent-500 dash-pulse-dot' : 'bg-surface-300'}`} />
             <span className="text-[10px] font-medium text-surface-600">{connected ? 'Live' : 'Offline'}</span>
@@ -269,14 +274,14 @@ export default function OrderConfirmationPage() {
         {/* Back button */}
         <button
           onClick={() => router.push('/dashboard/orders')}
-          className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 backdrop-blur-md shadow-card border border-surface-100"
+          className="absolute top-3 left-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 backdrop-blur-md shadow-card border border-surface-100"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
       </div>
 
       {/* ── Status Banner ── */}
-      <div className="px-4 -mt-6 relative z-10">
+      <div className="px-4 -mt-5 relative z-10">
         <div className={`rounded-2xl ${isPending ? 'bg-amber-50 border-amber-100' : cfg.bg + ' border border-surface-100'} p-4 shadow-card`}>
           <div className="flex items-center gap-3">
             {isPending ? (
@@ -294,6 +299,13 @@ export default function OrderConfirmationPage() {
                 {order.orderNumber} · {new Date(order.createdAt).toLocaleDateString('en-GH', { dateStyle: 'medium' })}
               </p>
             </div>
+            {/* Live ETA badge */}
+            {liveEta && isActive && (
+              <div className="text-right">
+                <p className="text-sm font-bold text-surface-900">{liveEta.durationMin} min</p>
+                <p className="text-[10px] text-surface-400">{liveEta.distanceKm} km away</p>
+              </div>
+            )}
           </div>
           {isPending && (
             <p className="text-xs text-amber-600 mt-2">We&apos;re matching your delivery with available riders nearby.</p>
