@@ -2,10 +2,16 @@
 
 import React from 'react';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
 import { Avatar, AvatarFallback, AvatarImage, Spinner } from '@riderguy/ui';
+
+// Lazy-load the incoming request overlay (it uses Socket.IO)
+const IncomingRequest = dynamic(() => import('@/components/incoming-request'), {
+  ssr: false,
+});
 
 // ============================================================
 // Rider Dashboard Layout — Bolt/Uber-inspired mobile-first
@@ -106,6 +112,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* ── Page Content ── */}
         <main className="flex-1 pb-20 animate-fade-in">{children}</main>
+
+        {/* ── Incoming Job Request Overlay (auto-dispatch) ── */}
+        <IncomingRequest />
 
         {/* ── Bottom Navigation — Bolt/Uber style ── */}
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-surface-100 safe-area-bottom">

@@ -92,6 +92,13 @@ export function useSocket() {
     socketRef.current?.emit('message:typing', { orderId });
   }, []);
 
+  const respondToOffer = useCallback(
+    (orderId: string, response: 'accept' | 'decline', ack?: (res: { success: boolean; error?: string }) => void) => {
+      socketRef.current?.emit('job:offer:respond', { orderId, response }, ack);
+    },
+    [],
+  );
+
   return {
     socket: socketRef.current,
     connected,
@@ -100,5 +107,6 @@ export function useSocket() {
     unsubscribeFromOrder,
     sendMessage,
     sendTyping,
+    respondToOffer,
   };
 }

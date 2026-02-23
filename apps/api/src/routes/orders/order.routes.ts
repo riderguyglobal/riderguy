@@ -15,6 +15,7 @@ import * as DispatchService from '../../services/dispatch.service';
 import * as GeocodingService from '../../services/geocoding.service';
 import * as TrackingService from '../../services/tracking.service';
 import { notifyNearbyRiders } from '../../services/notification.service';
+import { autoDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
 import { prisma } from '@riderguy/database';
 import type { OrderStatus } from '@prisma/client';
@@ -129,7 +130,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const order = await OrderService.createOrder(req.user!.userId, req.body);
 
-    // Notify nearby riders about the new order
+    // Auto-dispatch: find the best nearby rider and send targeted offer
+    autoDispatch(order.id).catch(() => {});
+
+    // Also broadcast to job feed as a fallback
     notifyNearbyRiders(
       order.id,
       order.orderNumber,

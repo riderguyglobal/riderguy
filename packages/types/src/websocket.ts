@@ -18,6 +18,11 @@ export interface ServerToClientEvents {
   'job:new': (data: NewJobNotification) => void;
   'job:cancelled': (data: { orderId: string; reason?: string }) => void;
 
+  // ── Targeted auto-dispatch offers ──
+  'job:offer': (data: JobOffer) => void;
+  'job:offer:expired': (data: { orderId: string }) => void;
+  'job:offer:taken': (data: { orderId: string }) => void;
+
   // ── Generic notification ──
   'notification': (data: { title: string; body: string; orderId?: string }) => void;
 
@@ -43,6 +48,12 @@ export interface ClientToServerEvents {
     ack?: (response: { success: boolean; messageId?: string }) => void,
   ) => void;
   'message:typing': (data: { orderId: string }) => void;
+
+  // ── Respond to targeted job offers ──
+  'job:offer:respond': (
+    data: { orderId: string; response: 'accept' | 'decline' },
+    ack?: (response: { success: boolean; error?: string }) => void,
+  ) => void;
 }
 
 /** Data shapes */
@@ -91,4 +102,26 @@ export interface NewJobNotification {
   distanceKm: number;
   totalPrice: number;
   packageType: string;
+}
+
+/** Targeted job offer sent to the best-matching rider */
+export interface JobOffer {
+  orderId: string;
+  orderNumber: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupLat: number;
+  pickupLng: number;
+  dropoffLat: number;
+  dropoffLng: number;
+  distanceKm: number;
+  estimatedDurationMinutes: number;
+  totalPrice: number;
+  serviceFee: number;
+  riderEarnings: number;
+  packageType: string;
+  packageDescription?: string;
+  currency: string;
+  distanceToPickup: number; // km from rider to pickup
+  expiresAt: string;        // ISO timestamp — 30s window
 }

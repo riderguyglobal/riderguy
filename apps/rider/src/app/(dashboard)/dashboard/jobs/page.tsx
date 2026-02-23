@@ -9,6 +9,8 @@ import {
   Switch,
 } from '@riderguy/ui';
 import { useRiderAvailability } from '@/hooks/use-rider-availability';
+import { useSocket } from '@/hooks/use-socket';
+import type { NewJobNotification } from '@riderguy/types';
 
 // ============================================================
 // Rider Job Feed — Bolt/Uber-inspired design
@@ -82,6 +84,8 @@ export default function JobFeedPage() {
     loading: availabilityLoading,
   } = useRiderAvailability();
 
+  const { socket, connected } = useSocket();
+
   const fetchJobs = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
     try {
@@ -102,6 +106,39 @@ export default function JobFeedPage() {
     const interval = setInterval(() => fetchJobs(), 15000);
     return () => clearInterval(interval);
   }, [fetchJobs, isOnline]);
+
+  // ── Real-time: listen for new jobs via WebSocket ──
+  useEffect(() => {
+    if (!socket || !connected || !isOnline) return;
+
+    const handleNewJob = (data: NewJobNotification) => {
+      // Refresh the full list to get complete job data
+      fetchJobs();
+
+      // Vibrate to alert rider
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
+      }
+    };
+
+    const handleJobCancelled = (data: { orderId: string }) => {
+      setJobs((prev) => prev.filter((j) => j.id !== data.orderId));
+    };
+
+    const handleJobTaken = (data: { orderId: string }) => {
+      setJobs((prev) => prev.filter((j) => j.id !== data.orderId));
+    };
+
+    socket.on('job:new', handleNewJob);
+    socket.on('job:cancelled', handleJobCancelled);
+    socket.on('job:offer:taken', handleJobTaken);
+
+    return () => {
+      socket.off('job:new', handleNewJob);
+      socket.off('job:cancelled', handleJobCancelled);
+      socket.off('job:offer:taken', handleJobTaken);
+    };
+  }, [socket, connected, isOnline, fetchJobs]);
 
   async function handleAcceptJob(orderId: string) {
     setAcceptingId(orderId);
@@ -140,6 +177,12 @@ export default function JobFeedPage() {
             <h1 className="text-lg font-bold text-surface-900">Jobs</h1>
             <p className="text-xs text-surface-400">
               {jobs.length} available near you
+              {connected && isOnline && (
+                <span className="ml-1.5 text-accent-500">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-500 animate-pulse mr-0.5" />
+                  Live
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">

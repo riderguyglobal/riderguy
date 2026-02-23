@@ -8,6 +8,7 @@ import type {
   ClientToServerEvents,
 } from '@riderguy/types';
 import { prisma } from '@riderguy/database';
+import { handleOfferResponse } from '../services/auto-dispatch.service';
 
 // ============================================================
 // Socket.IO Server — real-time layer for RiderGuy
@@ -209,6 +210,18 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         senderId: userId,
         senderName: user?.firstName ?? 'Someone',
       });
+    });
+
+    // ── Respond to targeted job offer (auto-dispatch) ──
+    socket.on('job:offer:respond', async (data, ack) => {
+      try {
+        const { orderId, response } = data;
+        const result = await handleOfferResponse(orderId, userId, response);
+        ack?.({ success: result.success, error: result.error });
+      } catch (err) {
+        logger.error({ err, userId }, 'Failed to process job offer response');
+        ack?.({ success: false, error: 'Internal error' });
+      }
     });
 
     // ── Disconnect ──

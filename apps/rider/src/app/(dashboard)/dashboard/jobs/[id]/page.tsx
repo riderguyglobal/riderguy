@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth, getApiClient } from '@riderguy/auth';
 import {
   Button,
@@ -17,6 +18,19 @@ import {
 } from '@riderguy/ui';
 import { useSocket } from '@/hooks/use-socket';
 import type { ChatMessage, OrderStatusUpdate } from '@riderguy/types';
+
+// Dynamically import the navigation map (uses Mapbox GL — no SSR)
+const NavigationMap = dynamic(() => import('@/components/navigation-map'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full bg-surface-900 flex items-center justify-center" style={{ height: '50vh', minHeight: '300px' }}>
+      <div className="flex flex-col items-center gap-2">
+        <Spinner className="h-6 w-6 text-brand-500" />
+        <p className="text-xs text-surface-500">Loading map...</p>
+      </div>
+    </div>
+  ),
+});
 
 // ============================================================
 // Active Job Detail — Sprint 5: Full delivery execution with
@@ -629,10 +643,32 @@ export default function ActiveJobPage() {
   // Current step index for progress bar
   const currentStepIdx = STATUS_STEPS.indexOf(order.status);
 
+  // Navigation map phase: show route to pickup until picked up, then to dropoff
+  const isActiveDelivery = ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(order.status);
+  const mapPhase: 'TO_PICKUP' | 'TO_DROPOFF' =
+    ['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(order.status)
+      ? 'TO_DROPOFF'
+      : 'TO_PICKUP';
+
   return (
     <div className="dash-page-enter pb-44">
+      {/* ── Real-time Navigation Map ── */}
+      {isActiveDelivery && (
+        <NavigationMap
+          pickupLat={order.pickupLat}
+          pickupLng={order.pickupLng}
+          dropoffLat={order.dropoffLat}
+          dropoffLng={order.dropoffLng}
+          riderLat={riderLocation?.lat ?? null}
+          riderLng={riderLocation?.lng ?? null}
+          riderHeading={riderLocation?.heading}
+          phase={mapPhase}
+          statusLabel={statusInfo.label}
+        />
+      )}
+
       {/* ── Sticky Header ── */}
-      <div className="sticky top-14 z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100">
+      <div className={`sticky ${isActiveDelivery ? 'top-0' : 'top-14'} z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100`}>
         <div className="flex items-center justify-between px-4 h-12">
           <button
             onClick={() => router.push('/dashboard/jobs')}
@@ -721,7 +757,7 @@ export default function ActiveJobPage() {
         </div>
       )}
 
-      {/* ── Navigation Card ── */}
+      {/* ── Navigation Card — compact widget below map ── */}
       {isNavigating && (
         <div className="px-4 pt-4">
           <div className="rounded-2xl bg-brand-500 p-4 text-white">
@@ -747,7 +783,7 @@ export default function ActiveJobPage() {
                 onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.label)}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                Navigate
+                Google Maps
               </Button>
             </div>
           </div>
