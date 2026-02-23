@@ -9,6 +9,7 @@
 import { prisma } from '@riderguy/database';
 import type { Prisma } from '@riderguy/database';
 import { PushService } from './push.service';
+import { SmsService } from './sms.service';
 import { logger } from '../lib/logger';
 
 // --------------- types ------------------------------------------------
@@ -154,6 +155,7 @@ export class NotificationService {
 
 /**
  * Create a notification related to an order.
+ * Also sends an SMS to the user for critical order updates.
  */
 export async function createOrderNotification(
   userId: string,
@@ -161,6 +163,18 @@ export async function createOrderNotification(
   body: string,
   orderId: string,
 ) {
+  // Send SMS for order updates (fire-and-forget)
+  prisma.user
+    .findUnique({ where: { id: userId }, select: { phone: true } })
+    .then((user) => {
+      if (user?.phone) {
+        SmsService.sendOrderUpdate(user.phone, orderId.slice(0, 8).toUpperCase(), body).catch(
+          (err) => logger.error({ err, userId }, 'Order SMS delivery failed'),
+        );
+      }
+    })
+    .catch((err) => logger.error({ err, userId }, 'Failed to look up user for order SMS'));
+
   return NotificationService.create({
     userId,
     title,
@@ -194,14 +208,29 @@ export async function notifyNearbyRiders(
     take: 50,
   });
 
+  // Fetch rider phone numbers for SMS delivery
+  const riderUsers = await prisma.user.findMany({
+    where: { id: { in: riders.map((r) => r.userId) } },
+    select: { id: true, phone: true },
+  });
+  const phoneMap = new Map(riderUsers.map((u) => [u.id, u.phone]));
+
   await Promise.allSettled(
-    riders.map((rider) =>
-      createOrderNotification(
+    riders.map((rider) => {
+      // Send SMS to rider for new job (fire-and-forget)
+      const phone = phoneMap.get(rider.userId);
+      if (phone) {
+        SmsService.sendNewJobAvailable(phone, pickupAddress).catch((err) =>
+          logger.error({ err, userId: rider.userId }, 'New job SMS to rider failed'),
+        );
+      }
+
+      return createOrderNotification(
         rider.userId,
         'New Delivery Available',
         `New order ${orderNumber} — pickup at ${pickupAddress}. Open the job feed to accept.`,
         orderId,
-      ),
-    ),
+      );
+    }),
   );
 }

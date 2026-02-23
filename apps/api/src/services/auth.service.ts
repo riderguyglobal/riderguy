@@ -5,6 +5,7 @@ import { prisma } from '@riderguy/database';
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
+import { SmsService } from './sms.service';
 import type { AuthPayload } from '../middleware/auth';
 import type { UserRole } from '@riderguy/types';
 import type { UserRole as PrismaUserRole } from '@prisma/client';
@@ -72,7 +73,11 @@ export class AuthService {
       data: { phone, code, purpose, expiresAt },
     });
 
-    // TODO: Send SMS via Twilio / Africa's Talking
+    // Send OTP via mNotify SMS
+    SmsService.sendOtp(phone, code).catch((err) => {
+      logger.error({ err, phone, purpose }, 'Failed to send OTP SMS');
+    });
+
     if (config.nodeEnv === 'development') {
       logger.info({ phone, purpose, code }, 'OTP created (dev only)');
     } else {
@@ -183,6 +188,11 @@ export class AuthService {
     // Create wallet
     await prisma.wallet.create({
       data: { userId: user.id },
+    });
+
+    // Send welcome SMS (fire-and-forget)
+    SmsService.sendWelcome(user.phone, user.firstName).catch((err) => {
+      logger.error({ err, phone: user.phone }, 'Failed to send welcome SMS');
     });
 
     // Create session + tokens

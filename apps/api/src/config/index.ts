@@ -65,10 +65,10 @@ export const config = {
     apiKey: optionalEnv('SENDGRID_API_KEY', ''),
     fromEmail: optionalEnv('SENDGRID_FROM_EMAIL', 'noreply@riderguy.com'),
   },
-  twilio: {
-    accountSid: optionalEnv('TWILIO_ACCOUNT_SID', ''),
-    authToken: optionalEnv('TWILIO_AUTH_TOKEN', ''),
-    fromPhone: optionalEnv('TWILIO_FROM_PHONE', ''),
+  // mNotify SMS (Ghana)
+  mnotify: {
+    apiKey: optionalEnv('MNOTIFY_API_KEY', ''),
+    senderId: optionalEnv('MNOTIFY_SENDER_ID', 'RiderGuy'),
   },
 
   // Sentry
