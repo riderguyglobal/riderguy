@@ -54,6 +54,10 @@ services:
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
+      - key: MNOTIFY_API_KEY
+        sync: false  # Set manually — mNotify SMS API key
+      - key: MNOTIFY_SENDER_ID
+        value: Riderguy
       - key: APP_URL
         value: https://app.riderguy.com
       - key: CORS_ORIGINS
