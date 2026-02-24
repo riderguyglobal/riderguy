@@ -64,6 +64,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const { user } = useAuth();
 
+  const isHome = pathname === '/dashboard';
+
   return (
     <ProtectedRoute
       allowedRoles={[UserRole.RIDER]}
@@ -82,14 +84,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     >
       <div className="flex min-h-screen flex-col bg-surface-50">
         {/* ── Minimal Top Bar ── */}
-        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-surface-100">
+        <header className={`sticky top-0 z-40 border-b ${
+          pathname === '/dashboard'
+            ? 'bg-transparent border-transparent'
+            : 'bg-white/80 backdrop-blur-lg border-surface-100'
+        }`} id="rider-header">
           <div className="flex items-center justify-between px-4 h-14">
             {/* Logo + Brand */}
             <div className="flex items-center gap-2.5">
               <div className="relative h-8 w-8">
-                <Image src="/images/branding/logo-black.png" alt="RiderGuy" fill className="object-contain" />
+                <Image src={isHome ? '/images/branding/logo-white.png' : '/images/branding/logo-black.png'} alt="RiderGuy" fill className="object-contain" />
               </div>
-              <span className="text-sm font-bold text-surface-900 tracking-tight">
+              <span className={`text-sm font-bold tracking-tight ${isHome ? 'text-white' : 'text-surface-900'}`}>
                 RiderGuy
               </span>
             </div>
@@ -99,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => router.push('/dashboard/settings')}
               className="flex items-center gap-2 rounded-full p-0.5 transition-all hover:ring-2 hover:ring-brand-200 active:scale-95"
             >
-              <Avatar className="h-8 w-8 ring-2 ring-surface-100">
+              <Avatar className={`h-8 w-8 ring-2 ${isHome ? 'ring-white/20' : 'ring-surface-100'}`}>
                 {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="Avatar" />}
                 <AvatarFallback className="bg-brand-500 text-white text-xs font-bold">
                   {user?.firstName?.[0]}

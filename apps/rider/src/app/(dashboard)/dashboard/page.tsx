@@ -103,14 +103,15 @@ export default function DashboardPage() {
   return (
     <div className="dash-page-enter">
       {/* ── Hero Section with Live Map & Go Online Toggle ── */}
-      <div className="relative overflow-hidden" style={{ height: '300px' }}>
+      {/* -mt-14 pulls hero behind the 56px sticky header so map fills edge-to-edge */}
+      <div className="relative overflow-hidden -mt-14" style={{ height: '340px' }}>
         {/* Dark Mapbox map background */}
         <RiderMap />
 
-        {/* Gradient overlay for readability — light enough to let map show */}
-        <div className="absolute inset-0 bg-gradient-to-b from-surface-900/20 via-transparent to-surface-900/60 z-[1]" />
+        {/* Thin bottom-only gradient for toggle readability — no top overlay */}
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/50 to-transparent z-[1]" />
 
-        <div className="absolute inset-0 px-5 pt-5 pb-8 z-[2] flex flex-col justify-between">
+        <div className="absolute inset-0 px-5 pt-[4.5rem] pb-8 z-[2] flex flex-col justify-between">
           {/* Greeting */}
           <div>
             <p className="text-surface-400 text-sm">
