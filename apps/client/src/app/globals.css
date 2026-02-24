@@ -2,10 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Light Theme Base ──────────────────────────── */
+/* ═══════════════════════════════════════════════
+   RiderGuy Client — Premium Light Design System
+   Bolt/Uber-inspired customer experience
+   ═══════════════════════════════════════════════ */
+
+/* ─── Base ───────────────────────────────────── */
 @layer base {
   :root {
     color-scheme: light;
+    --brand: 14 165 233;
+    --accent: 34 197 94;
   }
 
   html {
@@ -21,120 +28,214 @@
   ::selection {
     @apply bg-brand-500/20 text-brand-700;
   }
+
+  input, textarea, select {
+    @apply text-surface-900;
+  }
 }
 
-/* ─── Animations ──────────────────────────────── */
+/* ─── Keyframes ──────────────────────────────── */
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fade-in {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
-
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
 }
-
-@keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(2.5); opacity: 0; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-4px); }
-  40% { transform: translateX(4px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(3px); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
 @keyframes bounce-in {
-  0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.1); }
+  0%   { transform: scale(0); opacity: 0; }
+  50%  { transform: scale(1.08); }
   100% { transform: scale(1); opacity: 1; }
 }
-
+@keyframes pulse-ring {
+  0%   { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--brand), 0.4); }
+  50%      { box-shadow: 0 0 0 12px rgba(var(--brand), 0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  40%      { transform: translateX(4px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 @keyframes countdown-stroke {
   from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: 283; }
+  to   { stroke-dashoffset: 283; }
+}
+@keyframes ping-soft {
+  75%, 100% { transform: scale(1.6); opacity: 0; }
 }
 
+/* ─── Animation Utilities ────────────────────── */
 @layer utilities {
-  .animate-page-enter { animation: page-enter 0.4s ease-out both; }
-  .animate-slide-up { animation: slide-up 0.45s ease-out both; }
-  .animate-slide-down { animation: slide-down 0.35s ease-out both; }
-  .animate-fade-in { animation: fade-in 0.35s ease-out both; }
-  .animate-scale-in { animation: scale-in 0.3s ease-out both; }
-  .animate-shake { animation: shake 0.4s ease-in-out; }
-  .animate-float { animation: float 3s ease-in-out infinite; }
-  .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-  .animate-pulse-ring { animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .animate-page-enter  { animation: page-enter 0.45s ease-out both; }
+  .animate-slide-up    { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-slide-down  { animation: slide-down 0.4s ease-out both; }
+  .animate-fade-in     { animation: fade-in 0.35s ease-out both; }
+  .animate-scale-in    { animation: scale-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .animate-shake       { animation: shake 0.4s ease-in-out; }
+  .animate-float       { animation: float 4s ease-in-out infinite; }
+  .animate-bounce-in   { animation: bounce-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .animate-pulse-ring  { animation: pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .animate-pulse-glow  { animation: pulse-glow 2s ease-in-out infinite; }
+  .animate-shimmer     { animation: shimmer 2s linear infinite; background-size: 200% 100%; }
+  .animate-spin-slow   { animation: spin-slow 8s linear infinite; }
+  .animate-gradient    { animation: gradient-shift 6s ease infinite; background-size: 200% 200%; }
+  .animate-slide-in-right { animation: slide-in-right 0.4s ease-out both; }
+  .animate-ping-soft   { animation: ping-soft 1.5s cubic-bezier(0,0,.2,1) infinite; }
 
+  /* Stagger delays */
   .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.1s;  }
   .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-4 { animation-delay: 0.2s;  }
   .stagger-5 { animation-delay: 0.25s; }
+  .stagger-6 { animation-delay: 0.3s;  }
+  .stagger-7 { animation-delay: 0.35s; }
+  .stagger-8 { animation-delay: 0.4s;  }
 
-  /* Safe areas for PWA */
-  .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+  /* Safe areas */
+  .safe-area-top    { padding-top: env(safe-area-inset-top, 0px); }
   .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-  /* Card elevation */
+  /* ─── Card System ────────────────────────── */
+  .card {
+    @apply bg-white rounded-2xl border border-surface-100/80;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.03);
+  }
   .card-elevated {
-    @apply bg-white rounded-2xl shadow-card border border-surface-100;
+    @apply bg-white rounded-2xl border border-surface-100/60;
+    box-shadow: 0 4px 12px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
   }
-
   .card-interactive {
-    @apply bg-white rounded-2xl shadow-card border border-surface-100 transition-all duration-200 hover:shadow-card-hover hover:border-surface-200 active:scale-[0.98];
+    @apply bg-white rounded-2xl border border-surface-100/60 transition-all duration-200;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.03);
+  }
+  .card-interactive:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.04);
+    @apply border-surface-200/80;
+  }
+  .card-interactive:active {
+    @apply scale-[0.98];
   }
 
-  /* Gradient brand bar */
+  /* ─── Button Press Effect ────────────────── */
+  .btn-press {
+    @apply transition-all duration-150 active:scale-[0.97];
+  }
+
+  /* ─── Premium Brand Gradient ─────────────── */
   .brand-gradient {
     @apply bg-gradient-to-r from-brand-500 to-brand-600;
   }
+  .brand-gradient-radial {
+    background: radial-gradient(circle at 30% 40%, #38bdf8 0%, #0ea5e9 50%, #0284c7 100%);
+  }
+
+  /* ─── Accent Gradient (Green) ────────────── */
+  .accent-gradient {
+    @apply bg-gradient-to-r from-accent-500 to-accent-600;
+  }
+
+  /* ─── Soft Tint Backgrounds ──────────────── */
+  .bg-brand-tint  { @apply bg-brand-50/60; }
+  .bg-accent-tint { @apply bg-accent-50/60; }
+
+  /* ─── Frosted Glass (light) ──────────────── */
+  .glass-light {
+    @apply bg-white/80 backdrop-blur-xl border border-white/60;
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+
+  /* ─── Status Dot ─────────────────────────── */
+  .status-dot {
+    @apply relative h-2 w-2;
+  }
+  .status-dot::before {
+    content: '';
+    @apply absolute inset-0 rounded-full animate-ping-soft;
+  }
+  .status-dot::after {
+    content: '';
+    @apply absolute inset-0 rounded-full;
+  }
+  .status-dot.active::before  { @apply bg-accent-400/50; }
+  .status-dot.active::after   { @apply bg-accent-500; }
+  .status-dot.pending::before { @apply bg-amber-400/50; }
+  .status-dot.pending::after  { @apply bg-amber-500; }
+  .status-dot.error::before   { @apply bg-danger-400/50; animation: none; }
+  .status-dot.error::after    { @apply bg-danger-500; }
+
+  /* ─── Route Connector Line ───────────────── */
+  .route-line {
+    @apply w-0.5 bg-gradient-to-b from-brand-400 to-accent-400;
+  }
+
+  /* ─── Floating Shadow ────────────────────── */
+  .shadow-float {
+    box-shadow: 0 12px 40px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.06);
+  }
+  .shadow-brand {
+    box-shadow: 0 8px 24px rgba(14,165,233,.2), 0 2px 8px rgba(14,165,233,.1);
+  }
+  .shadow-accent {
+    box-shadow: 0 8px 24px rgba(34,197,94,.2), 0 2px 8px rgba(34,197,94,.1);
+  }
 }
 
-/* ─── Mapbox Overrides (Light) ──────────────── */
-.mapboxgl-ctrl-logo { display: none !important; }
-.mapboxgl-ctrl-attrib { display: none !important; }
-.mapboxgl-ctrl-group {
-  @apply !rounded-xl !shadow-card !border-surface-200;
-}
-.mapboxgl-ctrl-group button {
-  @apply !border-surface-100;
-}
+/* ─── Mapbox Overrides (Light) ───────────────── */
+.mapboxgl-ctrl-logo    { display: none !important; }
+.mapboxgl-ctrl-attrib  { display: none !important; }
+.mapboxgl-ctrl-group   { @apply !rounded-2xl !shadow-elevated !border-0; }
+.mapboxgl-ctrl-group button { @apply !border-surface-100/50; }
+.mapboxgl-popup-content { @apply !rounded-2xl !shadow-elevated !p-0; }
+.mapboxgl-popup-tip     { display: none !important; }
 
-/* ─── Scrollbar ─────────────────────────────── */
-::-webkit-scrollbar { width: 4px; }
+/* ─── Scrollbar ──────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  @apply bg-surface-200 rounded-full;
-}
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-surface-300;
+::-webkit-scrollbar-thumb { @apply bg-surface-200 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-surface-300; }
+
+/* ─── Focus Ring ─────────────────────────────── */
+*:focus-visible {
+  @apply outline-none ring-2 ring-brand-500/30 ring-offset-2 ring-offset-white;
 }

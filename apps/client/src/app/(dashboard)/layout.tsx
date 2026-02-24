@@ -16,7 +16,6 @@ const NAV_ITEMS = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Hide nav on tracking / order detail pages
   const hideNav = /\/orders\/[^/]+\/(tracking|payment|rate)/.test(pathname);
 
   return (
@@ -25,23 +24,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
 
         {!hideNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-surface-100 safe-area-bottom">
-            <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
-              {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
-                const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${
-                      active ? 'text-brand-500' : 'text-surface-400 hover:text-surface-600'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-                    <span className="text-[10px] font-medium">{label}</span>
-                  </Link>
-                );
-              })}
+          <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom">
+            {/* Frosted glass nav */}
+            <div className="mx-4 mb-2 rounded-2xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-elevated overflow-hidden">
+              <div className="flex items-center justify-around h-16 max-w-lg mx-auto relative">
+                {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+                  const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={`relative flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-300 btn-press ${
+                        active ? 'text-brand-500' : 'text-surface-400 hover:text-surface-600'
+                      }`}
+                    >
+                      <div className={`relative transition-transform duration-300 ${active ? 'scale-110 -translate-y-0.5' : ''}`}>
+                        <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.8} />
+                        {active && (
+                          <div className="absolute -inset-2 bg-brand-500/10 rounded-xl -z-10 animate-scale-in" />
+                        )}
+                      </div>
+                      <span className={`text-[10px] transition-all duration-300 ${
+                        active ? 'font-bold' : 'font-medium'
+                      }`}>{label}</span>
+                      {active && (
+                        <div className="absolute -bottom-0.5 w-5 h-0.5 rounded-full bg-brand-500 animate-scale-in" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           </nav>
         )}

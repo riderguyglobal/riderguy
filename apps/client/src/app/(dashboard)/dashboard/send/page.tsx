@@ -3,27 +3,26 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL, MAPBOX_TOKEN, PACKAGE_TYPES, DEFAULT_CENTER } from '@/lib/constants';
+import { API_BASE_URL, MAPBOX_TOKEN, PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
-import { Button, Input, Label, Textarea, StepIndicator } from '@riderguy/ui';
 import {
   ArrowLeft,
   MapPin,
   Package,
-  CreditCard,
-  CheckCircle,
   Navigation,
   Search,
   X,
   AlertCircle,
   Loader2,
-  Phone,
-  User,
-  Clock,
   ChevronRight,
+  ArrowRight,
+  Sparkles,
+  CreditCard,
+  Smartphone,
+  Banknote,
 } from 'lucide-react';
 
-const STEPS = [{ label: 'Pickup' }, { label: 'Dropoff' }, { label: 'Package' }, { label: 'Review' }];
+const STEP_LABELS = ['Pickup', 'Dropoff', 'Package', 'Review'];
 
 interface LocationData {
   address: string;
@@ -115,7 +114,7 @@ export default function SendPackagePage() {
     );
   };
 
-  // Estimate price when both locations are set
+  // Estimate price
   useEffect(() => {
     if (!pickup.coordinates || !dropoff.coordinates || !api) return;
     const [lng1, lat1] = pickup.coordinates;
@@ -168,23 +167,23 @@ export default function SendPackagePage() {
     return true;
   };
 
-  // Search overlay
+  // ── Search overlay ──
   if (showSearch) {
     return (
-      <div className="fixed inset-0 z-50 bg-white animate-fade-in">
+      <div className="fixed inset-0 z-50 bg-white animate-slide-up">
         <div className="safe-area-top" />
         <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
-          <button onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }} className="h-9 w-9 rounded-full bg-surface-100 flex items-center justify-center">
+          <button onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }} className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center btn-press">
             <ArrowLeft className="h-5 w-5 text-surface-600" />
           </button>
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
             <input
               autoFocus
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for an address..."
-              className="w-full pl-10 pr-8 py-2.5 bg-surface-50 rounded-xl border border-surface-200 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+              className="w-full pl-10 pr-8 h-12 bg-surface-50 rounded-xl border border-surface-200 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
             />
             {searchQuery && (
               <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -195,17 +194,17 @@ export default function SendPackagePage() {
         </div>
 
         <div className="px-4 py-3">
-          <button onClick={useCurrentLocation} className="w-full flex items-center gap-3 py-3 px-3 rounded-xl hover:bg-surface-50 transition-colors">
-            <div className="h-8 w-8 rounded-full bg-brand-50 flex items-center justify-center">
-              <Navigation className="h-4 w-4 text-brand-500" />
+          <button onClick={useCurrentLocation} className="w-full flex items-center gap-3 py-3 px-3 rounded-2xl hover:bg-brand-50 transition-colors group">
+            <div className="h-10 w-10 rounded-xl brand-gradient flex items-center justify-center shadow-brand shrink-0">
+              <Navigation className="h-4 w-4 text-white" />
             </div>
-            <span className="text-sm font-medium text-brand-600">Use current location</span>
+            <span className="text-sm font-semibold text-brand-600">Use current location</span>
           </button>
         </div>
 
         {searching && (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 text-surface-400 animate-spin" />
+            <Loader2 className="h-5 w-5 text-brand-500 animate-spin" />
           </div>
         )}
 
@@ -214,10 +213,12 @@ export default function SendPackagePage() {
             <button
               key={i}
               onClick={() => selectPlace(place)}
-              className="w-full flex items-start gap-3 py-3 px-3 rounded-xl hover:bg-surface-50 transition-colors text-left"
+              className="w-full flex items-start gap-3 py-3 px-3 rounded-2xl hover:bg-surface-50 transition-colors text-left btn-press"
             >
-              <MapPin className="h-4 w-4 text-surface-400 mt-0.5 shrink-0" />
-              <span className="text-sm text-surface-700 leading-tight">{place.place_name}</span>
+              <div className="h-8 w-8 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 mt-0.5">
+                <MapPin className="h-4 w-4 text-surface-500" />
+              </div>
+              <span className="text-sm text-surface-700 leading-snug">{place.place_name}</span>
             </button>
           ))}
         </div>
@@ -228,44 +229,58 @@ export default function SendPackagePage() {
   return (
     <div className="min-h-[100dvh] bg-surface-50 animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-white sticky top-0 z-20 border-b border-surface-100">
+      <div className="safe-area-top bg-white/80 backdrop-blur-xl sticky top-0 z-20 border-b border-surface-100">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => step > 0 ? setStep(step - 1) : router.back()} className="h-9 w-9 rounded-full bg-surface-100 flex items-center justify-center">
+          <button onClick={() => step > 0 ? setStep(step - 1) : router.back()} className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center btn-press">
             <ArrowLeft className="h-5 w-5 text-surface-600" />
           </button>
-          <h1 className="text-lg font-bold text-surface-900">Send Package</h1>
+          <h1 className="text-lg font-extrabold text-surface-900">Send Package</h1>
         </div>
-        <div className="px-4 pb-3">
-          <StepIndicator steps={STEPS} currentStep={step} />
+        {/* Premium step indicator */}
+        <div className="px-4 pb-3 flex items-center gap-1">
+          {STEP_LABELS.map((label, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <div key={label} className="flex-1">
+                <div className={`h-1.5 rounded-full transition-all duration-500 ${
+                  done ? 'bg-brand-500' : active ? 'bg-brand-400/60' : 'bg-surface-200'
+                }`} />
+                <p className={`text-[10px] font-medium text-center mt-1 ${
+                  done || active ? 'text-brand-600' : 'text-surface-400'
+                }`}>{label}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="px-4 py-6 space-y-5">
         {error && (
-          <div className="p-3 rounded-xl bg-danger-50 border border-danger-100 flex items-start gap-2 animate-shake">
+          <div className="p-3.5 rounded-2xl bg-danger-50 border border-danger-100 flex items-start gap-2.5 animate-shake">
             <AlertCircle className="h-4 w-4 text-danger-500 shrink-0 mt-0.5" />
             <p className="text-sm text-danger-600">{error}</p>
           </div>
         )}
 
-        {/* Step 0: Pickup */}
+        {/* ── Step 0: Pickup ── */}
         {step === 0 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-surface-900">Pickup Location</h2>
-              <p className="text-xs text-surface-400">Where should the rider collect the package?</p>
+          <div className="space-y-4 animate-slide-up">
+            <div>
+              <h2 className="text-base font-extrabold text-surface-900">Pickup Location</h2>
+              <p className="text-xs text-surface-400 mt-0.5">Where should the rider collect the package?</p>
             </div>
 
             <button
               onClick={() => { setSearchTarget('pickup'); setShowSearch(true); }}
-              className="w-full card-interactive flex items-center gap-3 p-4 text-left"
+              className="w-full card-interactive flex items-center gap-3 p-4 text-left group"
             >
-              <div className="h-8 w-8 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
-                <MapPin className="h-4 w-4 text-brand-500" />
+              <div className="h-10 w-10 rounded-xl brand-gradient flex items-center justify-center shadow-brand shrink-0 group-hover:scale-105 transition-transform">
+                <MapPin className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 {pickup.address ? (
-                  <p className="text-sm text-surface-900 truncate">{pickup.address}</p>
+                  <p className="text-sm text-surface-900 font-medium truncate">{pickup.address}</p>
                 ) : (
                   <p className="text-sm text-surface-400">Search for pickup address</p>
                 )}
@@ -275,40 +290,43 @@ export default function SendPackagePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-surface-600 text-xs">Contact Name</Label>
-                <Input value={pickup.contactName} onChange={(e) => setPickup({ ...pickup, contactName: e.target.value })} placeholder="Sender name" />
+                <label className="text-xs font-medium text-surface-600">Contact Name</label>
+                <input value={pickup.contactName} onChange={(e) => setPickup({ ...pickup, contactName: e.target.value })} placeholder="Sender name"
+                  className="w-full h-12 rounded-xl bg-surface-50 border border-surface-200 px-4 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-surface-600 text-xs">Phone</Label>
-                <Input value={pickup.contactPhone} onChange={(e) => setPickup({ ...pickup, contactPhone: e.target.value })} placeholder="024 XXX XXXX" />
+                <label className="text-xs font-medium text-surface-600">Phone</label>
+                <input value={pickup.contactPhone} onChange={(e) => setPickup({ ...pickup, contactPhone: e.target.value })} placeholder="024 XXX XXXX"
+                  className="w-full h-12 rounded-xl bg-surface-50 border border-surface-200 px-4 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-surface-600 text-xs">Pickup Notes (optional)</Label>
-              <Textarea value={pickup.notes} onChange={(e) => setPickup({ ...pickup, notes: e.target.value })} placeholder="e.g. Gate code, floor number..." rows={2} />
+              <label className="text-xs font-medium text-surface-600">Pickup Notes (optional)</label>
+              <textarea value={pickup.notes} onChange={(e) => setPickup({ ...pickup, notes: e.target.value })} placeholder="e.g. Gate code, floor number..." rows={2}
+                className="w-full rounded-xl bg-surface-50 border border-surface-200 px-4 py-3 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all resize-none" />
             </div>
           </div>
         )}
 
-        {/* Step 1: Dropoff */}
+        {/* ── Step 1: Dropoff ── */}
         {step === 1 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-surface-900">Dropoff Location</h2>
-              <p className="text-xs text-surface-400">Where should the package be delivered?</p>
+          <div className="space-y-4 animate-slide-up">
+            <div>
+              <h2 className="text-base font-extrabold text-surface-900">Dropoff Location</h2>
+              <p className="text-xs text-surface-400 mt-0.5">Where should the package be delivered?</p>
             </div>
 
             <button
               onClick={() => { setSearchTarget('dropoff'); setShowSearch(true); }}
-              className="w-full card-interactive flex items-center gap-3 p-4 text-left"
+              className="w-full card-interactive flex items-center gap-3 p-4 text-left group"
             >
-              <div className="h-8 w-8 rounded-full bg-accent-50 flex items-center justify-center shrink-0">
-                <MapPin className="h-4 w-4 text-accent-500" />
+              <div className="h-10 w-10 rounded-xl accent-gradient flex items-center justify-center shadow-accent shrink-0 group-hover:scale-105 transition-transform">
+                <MapPin className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 {dropoff.address ? (
-                  <p className="text-sm text-surface-900 truncate">{dropoff.address}</p>
+                  <p className="text-sm text-surface-900 font-medium truncate">{dropoff.address}</p>
                 ) : (
                   <p className="text-sm text-surface-400">Search for delivery address</p>
                 )}
@@ -318,43 +336,46 @@ export default function SendPackagePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-surface-600 text-xs">Recipient Name</Label>
-                <Input value={dropoff.contactName} onChange={(e) => setDropoff({ ...dropoff, contactName: e.target.value })} placeholder="Recipient name" />
+                <label className="text-xs font-medium text-surface-600">Recipient Name</label>
+                <input value={dropoff.contactName} onChange={(e) => setDropoff({ ...dropoff, contactName: e.target.value })} placeholder="Recipient name"
+                  className="w-full h-12 rounded-xl bg-surface-50 border border-surface-200 px-4 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-surface-600 text-xs">Phone</Label>
-                <Input value={dropoff.contactPhone} onChange={(e) => setDropoff({ ...dropoff, contactPhone: e.target.value })} placeholder="024 XXX XXXX" />
+                <label className="text-xs font-medium text-surface-600">Phone</label>
+                <input value={dropoff.contactPhone} onChange={(e) => setDropoff({ ...dropoff, contactPhone: e.target.value })} placeholder="024 XXX XXXX"
+                  className="w-full h-12 rounded-xl bg-surface-50 border border-surface-200 px-4 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-surface-600 text-xs">Delivery Notes (optional)</Label>
-              <Textarea value={dropoff.notes} onChange={(e) => setDropoff({ ...dropoff, notes: e.target.value })} placeholder="e.g. Leave at reception..." rows={2} />
+              <label className="text-xs font-medium text-surface-600">Delivery Notes (optional)</label>
+              <textarea value={dropoff.notes} onChange={(e) => setDropoff({ ...dropoff, notes: e.target.value })} placeholder="e.g. Leave at reception..." rows={2}
+                className="w-full rounded-xl bg-surface-50 border border-surface-200 px-4 py-3 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all resize-none" />
             </div>
           </div>
         )}
 
-        {/* Step 2: Package Details */}
+        {/* ── Step 2: Package Details ── */}
         {step === 2 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-surface-900">Package Details</h2>
-              <p className="text-xs text-surface-400">What are you sending?</p>
+          <div className="space-y-4 animate-slide-up">
+            <div>
+              <h2 className="text-base font-extrabold text-surface-900">Package Details</h2>
+              <p className="text-xs text-surface-400 mt-0.5">What are you sending?</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {PACKAGE_TYPES.map(({ value, label, emoji }) => (
                 <button
                   key={value}
                   onClick={() => setPackageType(value)}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${
+                  className={`p-4 rounded-2xl border-2 text-left transition-all btn-press ${
                     packageType === value
-                      ? 'border-brand-500 bg-brand-50'
-                      : 'border-surface-200 bg-white hover:border-surface-300'
+                      ? 'border-brand-500 bg-brand-50 shadow-lg'
+                      : 'border-surface-200 bg-white hover:border-surface-300 hover:shadow-md'
                   }`}
                 >
-                  <span className="text-xl">{emoji}</span>
-                  <p className={`text-sm font-medium mt-1 ${packageType === value ? 'text-brand-600' : 'text-surface-700'}`}>
+                  <span className="text-2xl">{emoji}</span>
+                  <p className={`text-sm font-semibold mt-2 ${packageType === value ? 'text-brand-600' : 'text-surface-700'}`}>
                     {label}
                   </p>
                 </button>
@@ -362,38 +383,39 @@ export default function SendPackagePage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-surface-600 text-xs">Description (optional)</Label>
-              <Textarea
+              <label className="text-xs font-medium text-surface-600">Description (optional)</label>
+              <textarea
                 value={packageDescription}
                 onChange={(e) => setPackageDescription(e.target.value)}
                 placeholder="Brief description of the package..."
                 rows={3}
+                className="w-full rounded-xl bg-surface-50 border border-surface-200 px-4 py-3 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all resize-none"
               />
             </div>
           </div>
         )}
 
-        {/* Step 3: Review */}
+        {/* ── Step 3: Review ── */}
         {step === 3 && (
-          <div className="space-y-4 animate-fade-in">
-            <h2 className="text-base font-bold text-surface-900">Review & Confirm</h2>
+          <div className="space-y-4 animate-slide-up">
+            <h2 className="text-base font-extrabold text-surface-900">Review & Confirm</h2>
 
             {/* Route summary */}
             <div className="card-elevated p-4 space-y-3">
               <div className="flex items-start gap-3">
                 <div className="flex flex-col items-center gap-1 pt-1">
-                  <div className="h-3 w-3 rounded-full bg-brand-500" />
-                  <div className="w-0.5 h-8 bg-surface-200" />
-                  <div className="h-3 w-3 rounded-full bg-accent-500" />
+                  <div className="h-3.5 w-3.5 rounded-full brand-gradient shadow-brand" />
+                  <div className="w-0.5 h-8 bg-gradient-to-b from-brand-300 to-accent-300 rounded-full" />
+                  <div className="h-3.5 w-3.5 rounded-full accent-gradient shadow-accent" />
                 </div>
                 <div className="flex-1 space-y-3">
                   <div>
-                    <p className="text-xs text-surface-400">Pickup</p>
+                    <p className="text-[10px] font-semibold text-brand-500 uppercase tracking-wider">Pickup</p>
                     <p className="text-sm text-surface-900 font-medium truncate">{pickup.address}</p>
                     {pickup.contactName && <p className="text-xs text-surface-500">{pickup.contactName} · {pickup.contactPhone}</p>}
                   </div>
                   <div>
-                    <p className="text-xs text-surface-400">Dropoff</p>
+                    <p className="text-[10px] font-semibold text-accent-500 uppercase tracking-wider">Dropoff</p>
                     <p className="text-sm text-surface-900 font-medium truncate">{dropoff.address}</p>
                     {dropoff.contactName && <p className="text-xs text-surface-500">{dropoff.contactName} · {dropoff.contactPhone}</p>}
                   </div>
@@ -404,11 +426,11 @@ export default function SendPackagePage() {
             {/* Package info */}
             <div className="card-elevated p-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center text-xl">
+                <div className="h-11 w-11 rounded-2xl bg-surface-100 flex items-center justify-center text-2xl">
                   {PACKAGE_TYPES.find((p) => p.value === packageType)?.emoji || '📦'}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-surface-900">
+                  <p className="text-sm font-semibold text-surface-900">
                     {PACKAGE_TYPES.find((p) => p.value === packageType)?.label}
                   </p>
                   {packageDescription && <p className="text-xs text-surface-400 truncate max-w-[200px]">{packageDescription}</p>}
@@ -418,34 +440,43 @@ export default function SendPackagePage() {
 
             {/* Payment */}
             <div className="card-elevated p-4">
-              <p className="text-xs text-surface-400 mb-2">Payment Method</p>
+              <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Payment Method</p>
               <div className="flex gap-2">
                 {[
-                  { value: 'MOBILE_MONEY', label: 'Mobile Money' },
-                  { value: 'CASH', label: 'Cash' },
-                  { value: 'CARD', label: 'Card' },
-                ].map((m) => (
-                  <button
-                    key={m.value}
-                    onClick={() => setPaymentMethod(m.value)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all border ${
-                      paymentMethod === m.value
-                        ? 'border-brand-500 bg-brand-50 text-brand-600'
-                        : 'border-surface-200 text-surface-600 hover:border-surface-300'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+                  { value: 'MOBILE_MONEY', label: 'MoMo', icon: Smartphone },
+                  { value: 'CASH', label: 'Cash', icon: Banknote },
+                  { value: 'CARD', label: 'Card', icon: CreditCard },
+                ].map((m) => {
+                  const active = paymentMethod === m.value;
+                  return (
+                    <button
+                      key={m.value}
+                      onClick={() => setPaymentMethod(m.value)}
+                      className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all border-2 flex flex-col items-center gap-1.5 btn-press ${
+                        active
+                          ? 'border-brand-500 bg-brand-50 text-brand-600 shadow-md'
+                          : 'border-surface-200 text-surface-600 hover:border-surface-300'
+                      }`}
+                    >
+                      <m.icon className={`h-5 w-5 ${active ? 'text-brand-500' : 'text-surface-400'}`} />
+                      {m.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Price */}
             {estimatedPrice !== null && (
-              <div className="card-elevated p-4 bg-accent-50 border-accent-100">
+              <div className="card-elevated p-5 bg-gradient-to-r from-accent-50 to-accent-100/50 border-accent-100">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-accent-700">Estimated Price</span>
-                  <span className="text-xl font-bold text-accent-700">{formatCurrency(estimatedPrice)}</span>
+                  <div>
+                    <p className="text-[10px] font-semibold text-accent-600 uppercase tracking-wider">Estimated Price</p>
+                    <p className="text-2xl font-extrabold text-accent-700 mt-0.5">{formatCurrency(estimatedPrice)}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-2xl accent-gradient flex items-center justify-center shadow-accent">
+                    <Package className="h-6 w-6 text-white" />
+                  </div>
                 </div>
               </div>
             )}
@@ -455,34 +486,33 @@ export default function SendPackagePage() {
         {/* Navigation buttons */}
         <div className="flex gap-3 pt-2">
           {step > 0 && (
-            <Button
-              size="xl"
-              variant="outline"
-              className="flex-1 border-surface-200 text-surface-600"
+            <button
               onClick={() => setStep(step - 1)}
+              className="flex-1 h-13 rounded-2xl border-2 border-surface-200 text-surface-600 font-semibold text-sm hover:bg-surface-50 transition-all btn-press flex items-center justify-center gap-2"
             >
-              Back
-            </Button>
+              <ArrowLeft className="h-4 w-4" /> Back
+            </button>
           )}
           {step < 3 ? (
-            <Button
-              size="xl"
-              className="flex-1 bg-brand-500 hover:bg-brand-600"
+            <button
               onClick={() => setStep(step + 1)}
               disabled={!canProceed()}
+              className="flex-1 h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Continue
-            </Button>
+              Continue <ArrowRight className="h-4 w-4" />
+            </button>
           ) : (
-            <Button
-              size="xl"
-              className="flex-1 bg-accent-500 hover:bg-accent-600"
+            <button
               onClick={handleSubmit}
-              loading={submitting}
+              disabled={submitting}
+              className="flex-1 h-13 rounded-2xl accent-gradient text-white font-semibold text-sm shadow-accent hover:shadow-lg transition-all btn-press disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Confirm & Send
-            </Button>
+              {submitting ? (
+                <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <><Sparkles className="h-4 w-4" /> Confirm & Send</>
+              )}
+            </button>
           )}
         </div>
       </div>

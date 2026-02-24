@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
 import { connectSocket, subscribeToOrder, unsubscribeFromOrder } from '@/hooks/use-socket';
-import { Badge, Button, Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
+import { Badge, Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
 import {
   ArrowLeft,
   Phone,
@@ -19,6 +19,8 @@ import {
   Navigation,
   Copy,
   X,
+  AlertTriangle,
+  Star,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -52,7 +54,6 @@ export default function TrackingPage() {
     refetchInterval: 15000,
   });
 
-  // Socket for real-time updates
   useEffect(() => {
     if (!id) return;
     const socket = connectSocket();
@@ -77,9 +78,10 @@ export default function TrackingPage() {
     return (
       <div className="min-h-[100dvh] bg-surface-50 p-5 space-y-4">
         <Skeleton className="h-10 w-40 rounded-xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
-        <Skeleton className="h-32 w-full rounded-xl" />
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-52 w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-24 w-full rounded-2xl" />
       </div>
     );
   }
@@ -98,19 +100,19 @@ export default function TrackingPage() {
   return (
     <div className="min-h-[100dvh] bg-surface-50 animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-white sticky top-0 z-20 border-b border-surface-100">
+      <div className="safe-area-top bg-white/80 backdrop-blur-xl sticky top-0 z-20 border-b border-surface-100">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/dashboard/orders')} className="h-9 w-9 rounded-full bg-surface-100 flex items-center justify-center">
+            <button onClick={() => router.push('/dashboard/orders')} className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center btn-press">
               <ArrowLeft className="h-5 w-5 text-surface-600" />
             </button>
             <div>
-              <h1 className="text-base font-bold text-surface-900">Order #{id?.slice(-6).toUpperCase()}</h1>
-              <Badge className={`${statusConfig.bg} ${statusConfig.color} text-xs`}>{statusConfig.label}</Badge>
+              <h1 className="text-base font-extrabold text-surface-900">Order #{id?.slice(-6).toUpperCase()}</h1>
+              <Badge className={`${statusConfig.bg} ${statusConfig.color} text-[11px] font-semibold`}>{statusConfig.label}</Badge>
             </div>
           </div>
           {isCancelled && (
-            <div className="h-8 w-8 rounded-full bg-danger-50 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-danger-50 flex items-center justify-center">
               <X className="h-4 w-4 text-danger-500" />
             </div>
           )}
@@ -119,7 +121,7 @@ export default function TrackingPage() {
 
       <div className="px-4 py-5 space-y-4">
         {/* Map */}
-        <div className="h-52 rounded-2xl overflow-hidden shadow-card">
+        <div className="h-56 rounded-2xl overflow-hidden shadow-elevated">
           <TrackingMap
             pickupCoords={pickupCoords}
             dropoffCoords={dropoffCoords}
@@ -131,26 +133,26 @@ export default function TrackingPage() {
         {/* Status stepper */}
         {!isCancelled && (
           <div className="card-elevated p-4">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
               {STATUS_STEPS.map((s, i) => {
                 const done = i <= currentStepIndex;
                 const active = i === currentStepIndex;
                 const Icon = s.icon;
                 return (
-                  <div key={s.key} className="flex items-center gap-1.5 shrink-0">
-                    <div className={`h-7 w-7 rounded-full flex items-center justify-center transition-all ${
-                      done ? 'bg-brand-500' : 'bg-surface-100'
-                    } ${active ? 'ring-2 ring-brand-200' : ''}`}>
+                  <div key={s.key} className="flex items-center gap-1 shrink-0">
+                    <div className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all ${
+                      done ? 'brand-gradient shadow-brand' : 'bg-surface-100'
+                    } ${active ? 'ring-2 ring-brand-200 scale-110' : ''}`}>
                       <Icon className={`h-3.5 w-3.5 ${done ? 'text-white' : 'text-surface-400'}`} />
                     </div>
                     {i < STATUS_STEPS.length - 1 && (
-                      <div className={`w-6 h-0.5 ${done ? 'bg-brand-500' : 'bg-surface-200'}`} />
+                      <div className={`w-4 h-0.5 rounded-full ${done ? 'bg-brand-500' : 'bg-surface-200'}`} />
                     )}
                   </div>
                 );
               })}
             </div>
-            <p className="text-xs text-surface-500 mt-2 text-center">
+            <p className="text-xs font-semibold text-brand-600 mt-3 text-center">
               {STATUS_STEPS[currentStepIndex]?.label || order.status}
             </p>
           </div>
@@ -158,16 +160,21 @@ export default function TrackingPage() {
 
         {/* Delivery PIN */}
         {deliveryPin && !isComplete && !isCancelled && (
-          <div className="card-elevated p-4 bg-amber-50 border-amber-100">
-            <p className="text-xs text-amber-600 mb-1">Delivery PIN — Share with rider</p>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold tracking-[0.3em] text-amber-700">{deliveryPin}</span>
-              <button
-                onClick={() => navigator.clipboard?.writeText(deliveryPin)}
-                className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center"
-              >
-                <Copy className="h-3.5 w-3.5 text-amber-600" />
-              </button>
+          <div className="card-elevated p-4 bg-gradient-to-r from-amber-50 to-amber-100/50 border-amber-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Delivery PIN</p>
+                <p className="text-xs text-amber-500 mt-0.5">Share with rider at delivery</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-extrabold tracking-[0.3em] text-amber-700">{deliveryPin}</span>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(deliveryPin)}
+                  className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center btn-press"
+                >
+                  <Copy className="h-3.5 w-3.5 text-amber-600" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -175,21 +182,21 @@ export default function TrackingPage() {
         {/* Rider card */}
         {rider && (
           <div className="card-elevated p-4">
-            <p className="text-xs text-surface-400 mb-2">Your Rider</p>
+            <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Your Rider</p>
             <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-12 w-12 ring-2 ring-brand-100">
                 {rider.avatarUrl ? <AvatarImage src={rider.avatarUrl as string} alt={String(rider.firstName ?? '')} /> : null}
                 <AvatarFallback className="bg-brand-50 text-brand-600 text-sm font-bold">
                   {String(rider.firstName ?? '')[0] || ''}{String(rider.lastName ?? '')[0] || ''}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-surface-900">{String(rider.firstName ?? '')} {String(rider.lastName ?? '')}</p>
-                {rider.vehiclePlate ? <p className="text-xs text-surface-400">{String(rider.vehiclePlate)}</p> : null}
+                <p className="text-sm font-bold text-surface-900">{String(rider.firstName ?? '')} {String(rider.lastName ?? '')}</p>
+                {rider.vehiclePlate ? <p className="text-xs text-surface-400 font-medium">{String(rider.vehiclePlate)}</p> : null}
               </div>
               {rider.phone ? (
-                <a href={`tel:${String(rider.phone)}`} className="h-10 w-10 rounded-full bg-accent-50 flex items-center justify-center">
-                  <Phone className="h-4 w-4 text-accent-600" />
+                <a href={`tel:${String(rider.phone)}`} className="h-11 w-11 rounded-xl accent-gradient flex items-center justify-center shadow-accent btn-press">
+                  <Phone className="h-4 w-4 text-white" />
                 </a>
               ) : null}
             </div>
@@ -200,18 +207,18 @@ export default function TrackingPage() {
         <div className="card-elevated p-4 space-y-3">
           <div className="flex items-start gap-3">
             <div className="flex flex-col items-center gap-0.5 pt-1.5">
-              <div className="h-3 w-3 rounded-full bg-brand-500" />
-              <div className="w-0.5 h-6 bg-surface-200" />
-              <div className="h-3 w-3 rounded-full bg-accent-500" />
+              <div className="h-3.5 w-3.5 rounded-full brand-gradient shadow-brand" />
+              <div className="w-0.5 h-6 bg-gradient-to-b from-brand-300 to-accent-300 rounded-full" />
+              <div className="h-3.5 w-3.5 rounded-full accent-gradient shadow-accent" />
             </div>
             <div className="flex-1 space-y-2">
               <div>
-                <p className="text-xs text-surface-400">Pickup</p>
-                <p className="text-sm text-surface-900">{order.pickupAddress || 'N/A'}</p>
+                <p className="text-[10px] font-semibold text-brand-500 uppercase tracking-wider">Pickup</p>
+                <p className="text-sm text-surface-900 font-medium">{order.pickupAddress || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs text-surface-400">Dropoff</p>
-                <p className="text-sm text-surface-900">{order.dropoffAddress || 'N/A'}</p>
+                <p className="text-[10px] font-semibold text-accent-500 uppercase tracking-wider">Dropoff</p>
+                <p className="text-sm text-surface-900 font-medium">{order.dropoffAddress || 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -220,36 +227,33 @@ export default function TrackingPage() {
         {/* Price */}
         {order.totalPrice && (
           <div className="card-elevated p-4 flex items-center justify-between">
-            <span className="text-sm text-surface-500">Total</span>
-            <span className="text-lg font-bold text-surface-900">{formatCurrency(order.totalPrice)}</span>
+            <span className="text-sm text-surface-500 font-medium">Total</span>
+            <span className="text-lg font-extrabold text-surface-900">{formatCurrency(order.totalPrice)}</span>
           </div>
         )}
 
         {/* Actions */}
         {isComplete && (
-          <Button
-            size="xl"
-            className="w-full bg-brand-500 hover:bg-brand-600"
+          <button
             onClick={() => router.push(`/dashboard/orders/${id}/rate`)}
+            className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press flex items-center justify-center gap-2"
           >
-            Rate Delivery
-          </Button>
+            <Star className="h-4 w-4" /> Rate Delivery
+          </button>
         )}
 
         {!isComplete && !isCancelled && order.status === 'PENDING' && (
-          <Button
-            size="xl"
-            variant="outline"
-            className="w-full border-danger-200 text-danger-600 hover:bg-danger-50"
+          <button
             onClick={async () => {
               try {
                 await api!.patch(`${API_BASE_URL}/orders/${id}/cancel`);
                 refetch();
               } catch { /* ignored */ }
             }}
+            className="w-full h-13 rounded-2xl border-2 border-danger-200 text-danger-600 font-semibold text-sm hover:bg-danger-50 transition-all btn-press flex items-center justify-center gap-2"
           >
-            Cancel Order
-          </Button>
+            <AlertTriangle className="h-4 w-4" /> Cancel Order
+          </button>
         )}
       </div>
 
