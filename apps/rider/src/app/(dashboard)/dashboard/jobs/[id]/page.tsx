@@ -23,7 +23,7 @@ import type { ChatMessage, OrderStatusUpdate } from '@riderguy/types';
 const NavigationMap = dynamic(() => import('@/components/navigation-map'), {
   ssr: false,
   loading: () => (
-    <div className="w-full bg-surface-900 flex items-center justify-center" style={{ height: '50vh', minHeight: '300px' }}>
+    <div className="w-full flex items-center justify-center" style={{ height: 'calc(100dvh - 3.5rem)' }}>
       <div className="flex flex-col items-center gap-2">
         <Spinner className="h-6 w-6 text-brand-500" />
         <p className="text-xs text-surface-500">Loading map...</p>

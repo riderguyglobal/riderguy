@@ -10,7 +10,7 @@ import { useRiderAvailability } from '@/hooks/use-rider-availability';
 // Lazy-load Mapbox map (browser-only, no SSR)
 const RiderMap = dynamic(() => import('@/components/rider-map'), {
   ssr: false,
-  loading: () => <div className="absolute inset-0 bg-surface-900" />,
+  loading: () => <div className="absolute inset-0" />,
 });
 
 // ============================================================
@@ -108,8 +108,8 @@ export default function DashboardPage() {
         {/* Dark Mapbox map background */}
         <RiderMap />
 
-        {/* Thin bottom-only gradient for toggle readability — no top overlay */}
-        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/50 to-transparent z-[1]" />
+        {/* Thin bottom-only gradient for toggle readability */}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/30 to-transparent z-[1]" />
 
         <div className="absolute inset-0 px-5 pt-[4.5rem] pb-8 z-[2] flex flex-col justify-between">
           {/* Greeting */}

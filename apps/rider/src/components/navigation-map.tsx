@@ -110,8 +110,6 @@ export default function NavigationMap({
     durationMin: number;
   } | null>(null);
   const [centered, setCentered] = useState(true);
-  const [mapReady, setMapReady] = useState(false);
-  const [mapError, setMapError] = useState<string | null>(null);
 
   // Current navigation destination
   const destLat = phase === 'TO_PICKUP' ? pickupLat : dropoffLat;
@@ -203,7 +201,6 @@ export default function NavigationMap({
         failIfMajorPerformanceCaveat: false,
       });
     } catch (err) {
-      setMapError('Map failed to initialize');
       console.error('[NavigationMap] init error:', err);
       return;
     }
@@ -211,8 +208,6 @@ export default function NavigationMap({
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
 
     map.on('load', () => {
-      setMapReady(true);
-
       // ── Pickup marker ──
       new mapboxgl.Marker({ element: createWaypointEl('#10b981', 'Pickup') })
         .setLngLat([pickupLng, pickupLat])
@@ -246,13 +241,9 @@ export default function NavigationMap({
     // Detect user interaction to disable auto-center
     map.on('dragstart', () => setCentered(false));
 
-    // Handle errors (invalid token, tile load failures, etc.)
+    // Log errors for debugging
     map.on('error', (e) => {
       console.error('[NavigationMap] error:', e.error?.message || e);
-      const status = (e.error as any)?.status;
-      if (e.error?.message?.includes('access token') || status === 401) {
-        setMapError('Map authentication failed');
-      }
     });
 
     mapRef.current = map;
@@ -354,35 +345,9 @@ export default function NavigationMap({
   }, [pickupLat, pickupLng, dropoffLat, dropoffLng, riderLat, riderLng]);
 
   return (
-    <div className="relative w-full bg-[#0a0a1a]" style={{ height: 'calc(100dvh - 3.5rem)' }}>
+    <div className="relative w-full" style={{ height: 'calc(100dvh - 3.5rem)' }}>
       {/* Map container */}
       <div ref={containerRef} className="absolute inset-0" />
-
-      {/* Loading state */}
-      {!mapReady && !mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a1a] z-20">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
-            <p className="text-sm text-surface-400">Loading navigation map…</p>
-          </div>
-        </div>
-      )}
-
-      {/* Error state */}
-      {mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a1a] z-20">
-          <div className="flex flex-col items-center gap-3 text-center px-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-800">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4M12 16h.01" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium text-surface-300">{mapError}</p>
-            <p className="text-xs text-surface-500">Navigation is unavailable. Check your connection.</p>
-          </div>
-        </div>
-      )}
 
       {/* ── Navigation info overlay ── */}
       {routeInfo && (
