@@ -22,6 +22,7 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || atob(
 //   • Re-center button
 //   • Auto-fetches Mapbox Directions for route geometry
 //   • Re-calculates route on significant position changes
+//   • Loading/error states for resilient rendering
 // ============================================================
 
 const ACCRA: [number, number] = [-0.1870, 5.6037];
@@ -54,11 +55,16 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Create a pulsing rider marker element */
+/** Create a pulsing rider marker element with heading indicator */
 function createRiderEl(): HTMLDivElement {
   const el = document.createElement('div');
   el.className = 'rider-nav-marker';
   el.innerHTML = `
+    <div class="rider-heading-cone" style="position:absolute;width:60px;height:60px;top:50%;left:50%;transform:translate(-50%,-50%) rotate(0deg);pointer-events:none;opacity:0;transition:opacity 0.3s">
+      <svg viewBox="0 0 60 60" width="60" height="60">
+        <path d="M30 4 L42 24 A18 18 0 0 0 18 24 Z" fill="rgba(14,165,233,0.2)" stroke="none"/>
+      </svg>
+    </div>
     <div style="position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(14,165,233,0.15);top:50%;left:50%;transform:translate(-50%,-50%);animation:pulse-ring 2s ease-out infinite"></div>
     <div style="position:relative;width:20px;height:20px;border-radius:50%;background:#0ea5e9;border:3px solid white;box-shadow:0 0 12px rgba(14,165,233,0.5);z-index:1"></div>
   `;
@@ -76,8 +82,8 @@ function createWaypointEl(color: string, label: string): HTMLDivElement {
   el.style.flexDirection = 'column';
   el.style.alignItems = 'center';
   el.innerHTML = `
-    <div style="background:${color};color:white;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.2)">${label}</div>
-    <div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);margin-top:4px"></div>
+    <div style="background:${color};color:white;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${label}</div>
+    <div style="width:14px;height:14px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);margin-top:4px"></div>
   `;
   return el;
 }
@@ -104,6 +110,8 @@ export default function NavigationMap({
     durationMin: number;
   } | null>(null);
   const [centered, setCentered] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Current navigation destination
   const destLat = phase === 'TO_PICKUP' ? pickupLat : dropoffLat;
@@ -180,21 +188,31 @@ export default function NavigationMap({
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
+    let map: mapboxgl.Map;
     const initialCenter: [number, number] =
       riderLat && riderLng ? [riderLng, riderLat] : ACCRA;
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      center: initialCenter,
-      zoom: 14,
-      attributionControl: false,
-      pitchWithRotate: false,
-    });
+    try {
+      map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/navigation-night-v1',
+        center: initialCenter,
+        zoom: 14,
+        attributionControl: false,
+        pitchWithRotate: false,
+        failIfMajorPerformanceCaveat: false,
+      });
+    } catch (err) {
+      setMapError('Map failed to initialize');
+      console.error('[NavigationMap] init error:', err);
+      return;
+    }
 
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
 
     map.on('load', () => {
+      setMapReady(true);
+
       // ── Pickup marker ──
       new mapboxgl.Marker({ element: createWaypointEl('#10b981', 'Pickup') })
         .setLngLat([pickupLng, pickupLat])
@@ -228,6 +246,15 @@ export default function NavigationMap({
     // Detect user interaction to disable auto-center
     map.on('dragstart', () => setCentered(false));
 
+    // Handle errors (invalid token, tile load failures, etc.)
+    map.on('error', (e) => {
+      console.error('[NavigationMap] error:', e.error?.message || e);
+      const status = (e.error as any)?.status;
+      if (e.error?.message?.includes('access token') || status === 401) {
+        setMapError('Map authentication failed');
+      }
+    });
+
     mapRef.current = map;
 
     return () => {
@@ -248,6 +275,16 @@ export default function NavigationMap({
     // Update marker position
     if (marker) {
       marker.setLngLat([riderLng, riderLat]);
+
+      // Apply heading rotation to direction cone
+      if (riderHeading != null) {
+        const el = marker.getElement();
+        const cone = el?.querySelector('.rider-heading-cone') as HTMLElement | null;
+        if (cone) {
+          cone.style.opacity = '1';
+          cone.style.transform = `translate(-50%,-50%) rotate(${riderHeading}deg)`;
+        }
+      }
     }
 
     // Auto-center on rider if user hasn't dragged the map
@@ -317,9 +354,35 @@ export default function NavigationMap({
   }, [pickupLat, pickupLng, dropoffLat, dropoffLng, riderLat, riderLng]);
 
   return (
-    <div className="relative w-full bg-[#1a1a2e]" style={{ height: 'calc(100dvh - 3.5rem)' }}>
+    <div className="relative w-full bg-[#0a0a1a]" style={{ height: 'calc(100dvh - 3.5rem)' }}>
       {/* Map container */}
       <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Loading state */}
+      {!mapReady && !mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a1a] z-20">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
+            <p className="text-sm text-surface-400">Loading navigation map…</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a1a] z-20">
+          <div className="flex flex-col items-center gap-3 text-center px-8">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-800">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-surface-300">{mapError}</p>
+            <p className="text-xs text-surface-500">Navigation is unavailable. Check your connection.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Navigation info overlay ── */}
       {routeInfo && (

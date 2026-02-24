@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -12,8 +12,8 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || atob(
 );
 
 // ============================================================
-// Rider Dashboard — Dark-themed Mapbox Map Hero
-// Shows rider location on a dark map style for the hero section
+// Rider Dashboard — Mapbox Map Hero
+// Shows rider location on a navigation-optimized dark map style
 // ============================================================
 
 /* Accra, Ghana — default center */
@@ -62,22 +62,32 @@ function createRiderLocationEl(): HTMLDivElement {
 export default function RiderMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      center: ACCRA,
-      zoom: 14,
-      attributionControl: false,
-      pitchWithRotate: false,
-      dragRotate: false,
-      interactive: false, // Hero map — non-interactive
-    });
+    let map: mapboxgl.Map;
+    try {
+      map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/navigation-night-v1',
+        center: ACCRA,
+        zoom: 14,
+        attributionControl: false,
+        pitchWithRotate: false,
+        dragRotate: false,
+        interactive: false, // Hero map — non-interactive
+        failIfMajorPerformanceCaveat: false,
+      });
+    } catch (err) {
+      setMapError('Map failed to initialize');
+      console.error('[RiderMap] init error:', err);
+      return;
+    }
 
     map.addControl(
       new mapboxgl.AttributionControl({ compact: true }),
@@ -87,6 +97,8 @@ export default function RiderMap() {
     const markers: mapboxgl.Marker[] = [];
 
     map.on('load', () => {
+      setMapReady(true);
+
       // ── Rider location marker ──
       const riderEl = createRiderLocationEl();
       const riderMarker = new mapboxgl.Marker({ element: riderEl })
@@ -111,6 +123,15 @@ export default function RiderMap() {
       }
     });
 
+    // Handle errors (invalid token, tile load failures, etc.)
+    map.on('error', (e) => {
+      console.error('[RiderMap] error:', e.error?.message || e);
+      const status = (e.error as any)?.status;
+      if (e.error?.message?.includes('access token') || status === 401) {
+        setMapError('Map authentication failed');
+      }
+    });
+
     mapRef.current = map;
 
     return () => {
@@ -120,5 +141,33 @@ export default function RiderMap() {
     };
   }, []);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div className="absolute inset-0">
+      {/* Map canvas container */}
+      <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Loading state */}
+      {!mapReady && !mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a1a]">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-5 w-5 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
+            <p className="text-[11px] text-surface-500">Loading map…</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a1a]">
+          <div className="flex flex-col items-center gap-2 text-center px-6">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p className="text-xs text-surface-400">{mapError}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
