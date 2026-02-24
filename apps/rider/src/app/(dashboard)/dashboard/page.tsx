@@ -107,8 +107,8 @@ export default function DashboardPage() {
         {/* Dark Mapbox map background */}
         <RiderMap />
 
-        {/* Gradient overlay for readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-surface-900/60 via-surface-900/40 to-surface-900/80 z-[1]" />
+        {/* Gradient overlay for readability — light enough to let map show */}
+        <div className="absolute inset-0 bg-gradient-to-b from-surface-900/20 via-transparent to-surface-900/60 z-[1]" />
 
         <div className="absolute inset-0 px-5 pt-5 pb-8 z-[2] flex flex-col justify-between">
           {/* Greeting */}
