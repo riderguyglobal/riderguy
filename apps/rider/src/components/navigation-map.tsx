@@ -345,7 +345,7 @@ export default function NavigationMap({
   }, [pickupLat, pickupLng, dropoffLat, dropoffLng, riderLat, riderLng]);
 
   return (
-    <div className="relative w-full" style={{ height: 'calc(100dvh - 3.5rem)' }}>
+    <div className="relative w-full h-full">
       {/* Map container */}
       <div ref={containerRef} className="absolute inset-0" />
 

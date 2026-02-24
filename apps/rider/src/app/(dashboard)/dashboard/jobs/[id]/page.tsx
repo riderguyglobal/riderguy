@@ -23,11 +23,8 @@ import type { ChatMessage, OrderStatusUpdate } from '@riderguy/types';
 const NavigationMap = dynamic(() => import('@/components/navigation-map'), {
   ssr: false,
   loading: () => (
-    <div className="w-full flex items-center justify-center" style={{ height: 'calc(100dvh - 3.5rem)' }}>
-      <div className="flex flex-col items-center gap-2">
-        <Spinner className="h-6 w-6 text-brand-500" />
-        <p className="text-xs text-surface-500">Loading map...</p>
-      </div>
+    <div className="h-full w-full flex items-center justify-center">
+      <Spinner className="h-6 w-6 text-brand-500" />
     </div>
   ),
 });
@@ -652,23 +649,28 @@ export default function ActiveJobPage() {
 
   return (
     <div className={isActiveDelivery ? '' : 'dash-page-enter pb-44'}>
-      {/* ── Real-time Navigation Map ── */}
+      {/* ── Real-time Navigation Map (fixed behind content sheet) ── */}
       {isActiveDelivery && (
-        <NavigationMap
-          pickupLat={order.pickupLatitude}
-          pickupLng={order.pickupLongitude}
-          dropoffLat={order.dropoffLatitude}
-          dropoffLng={order.dropoffLongitude}
-          riderLat={riderLocation?.lat ?? null}
-          riderLng={riderLocation?.lng ?? null}
-          riderHeading={riderLocation?.heading}
-          phase={mapPhase}
-          statusLabel={statusInfo.label}
-        />
+        <div className="fixed top-14 left-0 right-0 bottom-0 z-0">
+          <NavigationMap
+            pickupLat={order.pickupLatitude}
+            pickupLng={order.pickupLongitude}
+            dropoffLat={order.dropoffLatitude}
+            dropoffLng={order.dropoffLongitude}
+            riderLat={riderLocation?.lat ?? null}
+            riderLng={riderLocation?.lng ?? null}
+            riderHeading={riderLocation?.heading}
+            phase={mapPhase}
+            statusLabel={statusInfo.label}
+          />
+        </div>
       )}
 
-      {/* ── Content Sheet (overlaps map bottom for Bolt/Uber-style bottom sheet) ── */}
-      <div className={isActiveDelivery ? 'relative z-20 -mt-32 rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.12)] pb-44' : ''}>
+      {/* Spacer — pushes content sheet below visible map area */}
+      {isActiveDelivery && <div style={{ height: '52dvh' }} aria-hidden="true" />}
+
+      {/* ── Content Sheet (scrolls over the fixed map) ── */}
+      <div className={isActiveDelivery ? 'relative z-20 rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.12)] pb-44' : ''}>
 
       {/* ── Sticky Header ── */}
       <div className={`sticky ${isActiveDelivery ? 'top-0 rounded-t-3xl overflow-hidden' : 'top-14'} z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100`}>
