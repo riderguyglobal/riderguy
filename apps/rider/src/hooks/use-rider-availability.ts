@@ -28,7 +28,7 @@ export function useRiderAvailability() {
 
   // Track position when online
   useEffect(() => {
-    if (availability !== RiderAvailability.ONLINE || !navigator.geolocation) return;
+    if (availability !== RiderAvailability.ONLINE || !navigator.geolocation || !api) return;
 
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {

@@ -7,7 +7,7 @@ import { useAuth } from '@riderguy/auth';
 import { useSocket } from '@/hooks/use-socket';
 import { API_BASE_URL, STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Textarea } from '@riderguy/ui';
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Textarea } from '@riderguy/ui';
 import { DeliveryChat } from '@/components/delivery-chat';
 import { ProofOfDelivery } from '@/components/proof-of-delivery';
 import {
@@ -371,6 +371,7 @@ export default function JobDetailPage() {
         <DialogContent className="bg-surface-900 border-surface-700">
           <DialogHeader>
             <DialogTitle className="text-white">Report Failed Delivery</DialogTitle>
+            <DialogDescription className="text-surface-400">Explain why this delivery could not be completed.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea

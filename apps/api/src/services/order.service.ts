@@ -199,7 +199,13 @@ export async function listOrders(
   // ADMIN / SUPER_ADMIN / DISPATCHER see everything
 
   if (options.status) {
-    whereClause.status = options.status;
+    // Support comma-separated status values (e.g. "ASSIGNED,PICKUP_EN_ROUTE")
+    const statusStr = String(options.status);
+    if (statusStr.includes(',')) {
+      whereClause.status = { in: statusStr.split(',').map((s: string) => s.trim()) };
+    } else {
+      whereClause.status = options.status;
+    }
   }
 
   const [orders, total] = await Promise.all([

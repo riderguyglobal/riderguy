@@ -27,6 +27,8 @@ export function NavigationMap({
 }: NavigationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapboxglRef = useRef<any>(null);
   const riderMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const lastRoutePos = useRef<[number, number] | null>(null);
   const [eta, setEta] = useState<number | null>(null);
@@ -85,6 +87,7 @@ export function NavigationMap({
       // @ts-ignore css import
       await import('mapbox-gl/dist/mapbox-gl.css');
       mapboxgl.accessToken = MAPBOX_TOKEN;
+      mapboxglRef.current = mapboxgl;
 
       const map = new mapboxgl.Map({
         container: containerRef.current,
@@ -136,9 +139,9 @@ export function NavigationMap({
 
   // Update rider marker position
   useEffect(() => {
-    if (!mapRef.current || !loaded || !riderLat || !riderLng) return;
+    if (!mapRef.current || !mapboxglRef.current || !loaded || !riderLat || !riderLng) return;
 
-    const mapboxgl = require('mapbox-gl') as typeof import('mapbox-gl');
+    const mapboxgl = mapboxglRef.current;
 
     if (!riderMarkerRef.current) {
       const el = document.createElement('div');
@@ -148,7 +151,7 @@ export function NavigationMap({
           <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:#0ea5e9;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4);"></div>
         </div>
       `;
-      riderMarkerRef.current = new (mapboxgl as any).default.Marker({ element: el })
+      riderMarkerRef.current = new mapboxgl.Marker({ element: el })
         .setLngLat([riderLng, riderLat])
         .addTo(mapRef.current);
     } else {
@@ -177,9 +180,9 @@ export function NavigationMap({
   };
 
   const fitAll = () => {
-    if (!mapRef.current) return;
-    const mapboxgl = require('mapbox-gl') as typeof import('mapbox-gl');
-    const bounds = new (mapboxgl as any).default.LngLatBounds();
+    if (!mapRef.current || !mapboxglRef.current) return;
+    const mapboxgl = mapboxglRef.current;
+    const bounds = new mapboxgl.LngLatBounds();
     bounds.extend([pickupLng, pickupLat]);
     bounds.extend([dropoffLng, dropoffLat]);
     if (riderLat && riderLng) bounds.extend([riderLng, riderLat]);

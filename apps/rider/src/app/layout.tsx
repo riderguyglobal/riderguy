@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   description: 'Deliver and earn with Riderguy',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Riderguy Rider' },
+  other: { 'mobile-web-app-capable': 'yes' },
 };
 
 export const viewport: Viewport = {

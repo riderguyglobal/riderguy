@@ -3,7 +3,8 @@ export const API_BASE_URL =
 
 export const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN ??
-  atob('cGsuZXlKMUlqb2lhbUZ1WldGeWFXVnNJaXdpWVNJNkltTnRNV2s1Tm1jNU56azFOWFZ1TjI0M05XSTJZM1J6SW4wLkFoa2dMdF9nUW40TjkwQ3E3TjJsZnc');
+  process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ??
+  '';
 
 /** Default map center: Accra, Ghana */
 export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];

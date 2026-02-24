@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   description: 'Send packages across the city with RiderGuy. Fast, reliable, real-time tracking.',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'RiderGuy' },
+  other: { 'mobile-web-app-capable': 'yes' },
 };
 
 export const viewport: Viewport = {
