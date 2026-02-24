@@ -185,7 +185,7 @@ export default function NavigationMap({
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/navigation-night-v1',
+      style: 'mapbox://styles/mapbox/dark-v11',
       center: initialCenter,
       zoom: 14,
       attributionControl: false,
@@ -317,7 +317,7 @@ export default function NavigationMap({
   }, [pickupLat, pickupLng, dropoffLat, dropoffLng, riderLat, riderLng]);
 
   return (
-    <div className="relative w-full" style={{ height: '50vh', minHeight: '300px' }}>
+    <div className="relative w-full bg-[#1a1a2e]" style={{ height: 'calc(100dvh - 3.5rem)' }}>
       {/* Map container */}
       <div ref={containerRef} className="absolute inset-0" />
 

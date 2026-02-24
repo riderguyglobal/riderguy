@@ -651,7 +651,7 @@ export default function ActiveJobPage() {
       : 'TO_PICKUP';
 
   return (
-    <div className="dash-page-enter pb-44">
+    <div className={isActiveDelivery ? '' : 'dash-page-enter pb-44'}>
       {/* ── Real-time Navigation Map ── */}
       {isActiveDelivery && (
         <NavigationMap
@@ -667,8 +667,11 @@ export default function ActiveJobPage() {
         />
       )}
 
+      {/* ── Content Sheet (overlaps map bottom for Bolt/Uber-style bottom sheet) ── */}
+      <div className={isActiveDelivery ? 'relative z-20 -mt-32 rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.12)] pb-44' : ''}>
+
       {/* ── Sticky Header ── */}
-      <div className={`sticky ${isActiveDelivery ? 'top-0' : 'top-14'} z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100`}>
+      <div className={`sticky ${isActiveDelivery ? 'top-0 rounded-t-3xl overflow-hidden' : 'top-14'} z-30 bg-white/80 backdrop-blur-lg border-b border-surface-100`}>
         <div className="flex items-center justify-between px-4 h-12">
           <button
             onClick={() => router.push('/dashboard/jobs')}
@@ -1211,6 +1214,7 @@ export default function ActiveJobPage() {
           </div>
         </div>
       )}
+      </div>{/* /Content Sheet */}
     </div>
   );
 }
