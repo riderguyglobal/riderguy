@@ -73,10 +73,10 @@ export function RiderMap({ className = '' }: RiderMapProps) {
     <div className={`relative ${className}`}>
       <div ref={containerRef} className="w-full h-full" />
       {!loaded && (
-        <div className="absolute inset-0 bg-surface-900 animate-shimmer bg-gradient-to-r from-surface-900 via-surface-800 to-surface-900" />
+        <div className="absolute inset-0 bg-[#0a0e17] animate-shimmer bg-gradient-to-r from-[#0a0e17] via-white/[0.03] to-[#0a0e17]" />
       )}
       {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-surface-950 to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-[#0a0e17] to-transparent pointer-events-none" />
     </div>
   );
 }

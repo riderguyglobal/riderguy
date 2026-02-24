@@ -11,8 +11,8 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogT
 import { DeliveryChat } from '@/components/delivery-chat';
 import { ProofOfDelivery } from '@/components/proof-of-delivery';
 import {
-  ArrowLeft, Navigation, Phone, MapPin, Package, Clock,
-  CheckCircle, AlertTriangle, ChevronDown, ChevronUp, ExternalLink
+  ArrowLeft, Navigation, Phone, Package, Clock,
+  CheckCircle, AlertTriangle, ChevronDown, ChevronUp, Sparkles
 } from 'lucide-react';
 import type { Order } from '@riderguy/types';
 
@@ -151,17 +151,26 @@ export default function JobDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-surface-950">
-        <div className="animate-spin-slow"><Package className="h-8 w-8 text-brand-400" /></div>
+      <div className="min-h-[100dvh] flex items-center justify-center bg-[#0a0e17]">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl scale-150 animate-pulse" />
+          <div className="animate-spin-slow"><Package className="h-8 w-8 text-brand-400" /></div>
+        </div>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-surface-950 px-6 text-center">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0a0e17] px-6 text-center">
+        <div className="relative mb-4">
+          <div className="absolute inset-0 rounded-full bg-surface-500/10 blur-xl scale-150" />
+          <div className="relative h-16 w-16 rounded-2xl glass flex items-center justify-center">
+            <Package className="h-7 w-7 text-surface-500" />
+          </div>
+        </div>
         <p className="text-surface-400 mb-4">Order not found</p>
-        <Button variant="outline" className="border-surface-700 text-surface-300" onClick={() => router.back()}>
+        <Button variant="outline" className="border-white/10 text-surface-300 rounded-xl" onClick={() => router.back()}>
           Go Back
         </Button>
       </div>
@@ -175,22 +184,22 @@ export default function JobDetailPage() {
   const nextLabel = NEXT_STATUS_LABELS[order.status];
 
   return (
-    <div className="min-h-[100dvh] bg-surface-950 flex flex-col">
+    <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col">
       {/* Top bar */}
-      <div className="safe-area-top bg-surface-950/90 backdrop-blur-xl border-b border-white/5 sticky top-0 z-20">
+      <div className="safe-area-top bg-[#0a0e17]/90 backdrop-blur-2xl border-b border-white/[0.06] sticky top-0 z-20">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.push('/dashboard/jobs')} className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center">
+          <button onClick={() => router.push('/dashboard/jobs')} className="h-9 w-9 rounded-xl glass flex items-center justify-center btn-press">
             <ArrowLeft className="h-5 w-5 text-surface-300" />
           </button>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">
               {pkg.icon} {pkg.label} Delivery
             </p>
-            <p className={`text-xs ${sc.color}`}>{sc.label}</p>
+            <p className={`text-xs font-medium ${sc.color}`}>{sc.label}</p>
           </div>
           <button
             onClick={openExternalNav}
-            className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center"
+            className="h-9 w-9 rounded-xl glass flex items-center justify-center btn-press"
           >
             <Navigation className="h-4 w-4 text-brand-400" />
           </button>
@@ -199,7 +208,7 @@ export default function JobDetailPage() {
 
       {/* Map */}
       {!isComplete && (
-        <div className="h-[35dvh] min-h-[200px] px-4 pt-3">
+        <div className="relative h-[35dvh] min-h-[200px] px-4 pt-3">
           <NavigationMap
             pickupLat={order.pickupLatitude}
             pickupLng={order.pickupLongitude}
@@ -210,55 +219,75 @@ export default function JobDetailPage() {
             status={order.status}
             className="w-full h-full"
           />
+          <div className="absolute bottom-0 inset-x-4 h-12 bg-gradient-to-t from-[#0a0e17] to-transparent pointer-events-none rounded-b-2xl" />
         </div>
       )}
 
       {/* Content */}
-      <div className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
-        {/* Status progress */}
-        <div className="glass rounded-2xl p-4">
-          <div className="flex items-center gap-1.5 mb-3">
-            {STATUS_FLOW.map((s, i) => (
-              <div
-                key={s}
-                className={`h-1.5 flex-1 rounded-full transition-colors ${
-                  i <= currentStep ? 'bg-brand-500' : 'bg-surface-700'
-                }`}
-              />
-            ))}
+      <div className="flex-1 px-4 py-4 space-y-3 overflow-y-auto">
+        {/* Premium status progress */}
+        <div className="glass-elevated rounded-2xl p-4">
+          <div className="flex items-center gap-1 mb-3">
+            {STATUS_FLOW.map((s, i) => {
+              const isDone = i <= currentStep;
+              const isCurrent = i === currentStep;
+              return (
+                <div key={s} className="flex items-center flex-1">
+                  {/* Dot */}
+                  <div className="relative flex items-center justify-center">
+                    {isCurrent && (
+                      <div className="absolute h-6 w-6 rounded-full bg-brand-500/20 animate-ping" style={{ animationDuration: '2s' }} />
+                    )}
+                    <div className={`relative h-2.5 w-2.5 rounded-full transition-all duration-500 ${
+                      isDone ? 'bg-brand-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]' : 'bg-surface-700'
+                    }`} />
+                  </div>
+                  {/* Connector line */}
+                  {i < STATUS_FLOW.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-0.5 rounded-full transition-all duration-500 ${
+                      i < currentStep ? 'bg-brand-500' : 'bg-surface-700'
+                    }`} />
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <p className="text-sm text-surface-400">
-            Step {Math.max(currentStep + 1, 1)} of {STATUS_FLOW.length} — <span className={sc.color}>{sc.label}</span>
+          <p className="text-xs text-surface-400">
+            Step {Math.max(currentStep + 1, 1)} of {STATUS_FLOW.length} — <span className={`font-semibold ${sc.color}`}>{sc.label}</span>
           </p>
         </div>
 
         {/* Route info */}
-        <div className="glass rounded-2xl p-4 space-y-3">
+        <div className="glass-elevated rounded-2xl p-4 space-y-3">
           <div className="flex items-start gap-3">
-            <div className="mt-1 h-5 w-5 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-              <div className="h-2 w-2 rounded-full bg-amber-400" />
+            <div className="mt-0.5 relative">
+              <div className="h-6 w-6 rounded-full bg-brand-500/15 flex items-center justify-center">
+                <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_6px_rgba(14,165,233,0.5)]" />
+              </div>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-surface-400">Pickup</p>
-              <p className="text-sm text-white">{order.pickupAddress}</p>
+              <p className="text-[10px] text-surface-500 font-medium uppercase tracking-wider">Pickup</p>
+              <p className="text-sm text-white font-medium">{order.pickupAddress}</p>
               {order.pickupContactPhone && (
-                <a href={`tel:${order.pickupContactPhone}`} className="flex items-center gap-1 text-xs text-brand-400 mt-1">
-                  <Phone className="h-3 w-3" /> {order.pickupContactPhone}
+                <a href={`tel:${order.pickupContactPhone}`} className="inline-flex items-center gap-1.5 text-xs text-brand-400 mt-1.5 px-2.5 py-1 rounded-lg bg-brand-500/10 btn-press">
+                  <Phone className="h-3 w-3" /> Call
                 </a>
               )}
             </div>
           </div>
-          <div className="ml-2.5 w-px h-4 bg-surface-700" />
+          <div className="ml-3 w-px h-4 bg-gradient-to-b from-brand-500/40 to-accent-500/40" />
           <div className="flex items-start gap-3">
-            <div className="mt-1 h-5 w-5 rounded-full bg-accent-500/20 flex items-center justify-center shrink-0">
-              <div className="h-2 w-2 rounded-full bg-accent-400" />
+            <div className="mt-0.5 relative">
+              <div className="h-6 w-6 rounded-full bg-accent-500/15 flex items-center justify-center">
+                <div className="h-2.5 w-2.5 rounded-full bg-accent-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+              </div>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-surface-400">Drop-off</p>
-              <p className="text-sm text-white">{order.dropoffAddress}</p>
+              <p className="text-[10px] text-surface-500 font-medium uppercase tracking-wider">Drop-off</p>
+              <p className="text-sm text-white font-medium">{order.dropoffAddress}</p>
               {order.dropoffContactPhone && (
-                <a href={`tel:${order.dropoffContactPhone}`} className="flex items-center gap-1 text-xs text-brand-400 mt-1">
-                  <Phone className="h-3 w-3" /> {order.dropoffContactPhone}
+                <a href={`tel:${order.dropoffContactPhone}`} className="inline-flex items-center gap-1.5 text-xs text-brand-400 mt-1.5 px-2.5 py-1 rounded-lg bg-brand-500/10 btn-press">
+                  <Phone className="h-3 w-3" /> Call
                 </a>
               )}
             </div>
@@ -268,40 +297,40 @@ export default function JobDetailPage() {
         {/* Expandable details */}
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="glass rounded-2xl p-4 w-full flex items-center justify-between"
+          className="glass-elevated rounded-2xl p-4 w-full flex items-center justify-between btn-press"
         >
-          <span className="text-sm font-medium text-white">Order Details</span>
+          <span className="text-sm font-semibold text-white">Order Details</span>
           {showDetails ? <ChevronUp className="h-4 w-4 text-surface-400" /> : <ChevronDown className="h-4 w-4 text-surface-400" />}
         </button>
 
         {showDetails && (
           <div className="glass rounded-2xl p-4 space-y-3 animate-slide-down">
             <div className="flex justify-between text-sm">
-              <span className="text-surface-400">Package</span>
-              <span className="text-white">{pkg.icon} {pkg.label}</span>
+              <span className="text-surface-500">Package</span>
+              <span className="text-white font-medium">{pkg.icon} {pkg.label}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-surface-400">Earnings</span>
-              <span className="text-accent-400 font-semibold">{formatCurrency(order.riderEarnings ?? 0)}</span>
+              <span className="text-surface-500">Earnings</span>
+              <span className="text-accent-400 font-bold">{formatCurrency(order.riderEarnings ?? 0)}</span>
             </div>
             {order.packageDescription && (
               <div className="flex justify-between text-sm">
-                <span className="text-surface-400">Description</span>
+                <span className="text-surface-500">Description</span>
                 <span className="text-white text-right max-w-[200px]">{order.packageDescription}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
-              <span className="text-surface-400">Order ID</span>
-              <span className="text-surface-300 font-mono text-xs">{order.orderNumber ?? order.id.slice(0, 8)}</span>
+              <span className="text-surface-500">Order ID</span>
+              <span className="text-surface-400 font-mono text-xs">{order.orderNumber ?? order.id.slice(0, 8)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-surface-400">Created</span>
-              <span className="text-surface-300">{timeAgo(new Date(order.createdAt))}</span>
+              <span className="text-surface-500">Created</span>
+              <span className="text-surface-400">{timeAgo(new Date(order.createdAt))}</span>
             </div>
           </div>
         )}
 
-        {/* Proof of delivery (when at dropoff) */}
+        {/* Proof of delivery */}
         {showProof && (
           <ProofOfDelivery
             orderId={id}
@@ -312,17 +341,27 @@ export default function JobDetailPage() {
 
         {/* Completed state */}
         {isComplete && (
-          <div className="glass rounded-2xl p-6 text-center">
+          <div className="glass-elevated rounded-2xl p-6 text-center animate-scale-bounce">
             {order.status === 'DELIVERED' ? (
               <>
-                <CheckCircle className="h-12 w-12 text-accent-400 mx-auto mb-3" />
+                <div className="relative inline-flex mb-4">
+                  <div className="absolute inset-0 rounded-full bg-accent-500/20 blur-xl scale-[2] animate-pulse" />
+                  <div className="relative h-16 w-16 rounded-full bg-accent-500/15 flex items-center justify-center">
+                    <CheckCircle className="h-8 w-8 text-accent-400" />
+                  </div>
+                </div>
                 <h3 className="text-lg font-bold text-white mb-1">Delivery Complete!</h3>
-                <p className="text-accent-400 text-xl font-bold">{formatCurrency(order.riderEarnings ?? 0)}</p>
+                <p className="text-accent-400 text-2xl font-bold animate-number-pop">{formatCurrency(order.riderEarnings ?? 0)}</p>
                 <p className="text-surface-400 text-sm mt-1">Added to your wallet</p>
               </>
             ) : (
               <>
-                <AlertTriangle className="h-12 w-12 text-danger-400 mx-auto mb-3" />
+                <div className="relative inline-flex mb-4">
+                  <div className="absolute inset-0 rounded-full bg-danger-500/20 blur-xl scale-150" />
+                  <div className="relative h-16 w-16 rounded-full bg-danger-500/15 flex items-center justify-center">
+                    <AlertTriangle className="h-8 w-8 text-danger-400" />
+                  </div>
+                </div>
                 <h3 className="text-lg font-bold text-white mb-1">
                   {order.status.startsWith('CANCELLED') ? 'Order Cancelled' : 'Delivery Failed'}
                 </h3>
@@ -330,7 +369,7 @@ export default function JobDetailPage() {
             )}
             <Button
               variant="outline"
-              className="mt-4 border-surface-700 text-surface-300"
+              className="mt-5 border-white/10 text-surface-300 rounded-xl"
               onClick={() => router.push('/dashboard/jobs')}
             >
               Back to Jobs
@@ -341,22 +380,21 @@ export default function JobDetailPage() {
 
       {/* Bottom action bar */}
       {!isComplete && !showProof && (
-        <div className="sticky bottom-0 z-10 px-4 py-3 bg-surface-900/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom">
+        <div className="sticky bottom-0 z-10 px-4 py-3 bg-[#0a0e17]/95 backdrop-blur-2xl border-t border-white/[0.06] safe-area-bottom">
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              size="lg"
-              className="border-danger-500/30 text-danger-400 hover:bg-danger-500/10"
+            <button
               onClick={() => setShowFailDialog(true)}
+              className="h-12 w-12 rounded-xl glass flex items-center justify-center text-danger-400 hover:bg-danger-500/10 transition-colors btn-press shrink-0"
             >
-              <AlertTriangle className="h-4 w-4" />
-            </Button>
+              <AlertTriangle className="h-5 w-5" />
+            </button>
             <Button
               size="lg"
-              className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
+              className="flex-1 gradient-brand text-white font-semibold rounded-xl shadow-lg glow-brand btn-press h-12"
               onClick={advanceStatus}
               loading={updating}
             >
+              <Sparkles className="h-4 w-4 mr-2" />
               {nextLabel ?? 'Next Step'}
             </Button>
           </div>
@@ -368,7 +406,7 @@ export default function JobDetailPage() {
 
       {/* Failed delivery dialog */}
       <Dialog open={showFailDialog} onOpenChange={setShowFailDialog}>
-        <DialogContent className="bg-surface-900 border-surface-700">
+        <DialogContent className="bg-[#111827] border-white/[0.08] rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-white">Report Failed Delivery</DialogTitle>
             <DialogDescription className="text-surface-400">Explain why this delivery could not be completed.</DialogDescription>
@@ -378,14 +416,14 @@ export default function JobDetailPage() {
               value={failReason}
               onChange={(e) => setFailReason(e.target.value)}
               placeholder="Explain why the delivery couldn't be completed..."
-              className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500 min-h-[120px]"
+              className="bg-surface-800/50 border-white/[0.08] text-white placeholder:text-surface-500 min-h-[120px] rounded-xl focus:border-brand-500"
             />
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="border-surface-700 text-surface-300" onClick={() => setShowFailDialog(false)}>
+            <Button variant="outline" className="border-white/10 text-surface-300 rounded-xl" onClick={() => setShowFailDialog(false)}>
               Cancel
             </Button>
-            <Button className="bg-danger-500 hover:bg-danger-600 text-white" onClick={handleFail} loading={updating} disabled={!failReason.trim()}>
+            <Button className="bg-danger-500 hover:bg-danger-600 text-white rounded-xl" onClick={handleFail} loading={updating} disabled={!failReason.trim()}>
               Report Failed
             </Button>
           </DialogFooter>

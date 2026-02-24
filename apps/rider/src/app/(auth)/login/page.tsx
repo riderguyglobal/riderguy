@@ -83,25 +83,29 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
+      <h2 className="text-3xl font-extrabold text-white mb-1 tracking-tight">Welcome back</h2>
       <p className="text-surface-400 mb-8">Sign in to continue delivering</p>
 
       {/* Error banner */}
       {error && (
-        <div className="mb-6 p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-3 animate-shake">
+        <div className="mb-6 p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-3 animate-shake backdrop-blur-sm">
           <AlertCircle className="h-5 w-5 text-danger-400 shrink-0 mt-0.5" />
           <p className="text-sm text-danger-300">{error}</p>
         </div>
       )}
 
-      {/* Method tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-surface-800 mb-8">
+      {/* Premium segmented control */}
+      <div className="relative flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06] mb-8">
+        <div
+          className="absolute top-1 bottom-1 rounded-xl gradient-brand transition-all duration-300 ease-out shadow-lg glow-brand"
+          style={{ width: 'calc(50% - 4px)', left: method === 'phone' ? '4px' : 'calc(50% + 0px)' }}
+        />
         {(['phone', 'email'] as Method[]).map((m) => (
           <button
             key={m}
             onClick={() => { setMethod(m); setError(''); setPhoneStage('input'); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              method === m ? 'bg-surface-700 text-white shadow-sm' : 'text-surface-400 hover:text-surface-300'
+            className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors btn-press ${
+              method === m ? 'text-white' : 'text-surface-400 hover:text-surface-300'
             }`}
           >
             {m === 'phone' ? <Phone className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
@@ -115,12 +119,12 @@ export default function LoginPage() {
           {phoneStage === 'input' ? (
             <>
               <div>
-                <label className="block text-sm font-medium text-surface-300 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-surface-300 mb-2.5">Phone Number</label>
                 <PhoneInput value={phone} onValueChange={setPhone} />
               </div>
               <Button
                 size="xl"
-                className="w-full bg-brand-500 hover:bg-brand-600"
+                className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
                 onClick={handleRequestOtp}
                 loading={submitting}
               >
@@ -129,11 +133,14 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-              <div className="text-center mb-4">
+              <div className="text-center mb-4 glass-elevated rounded-2xl p-5">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                  <Phone className="h-6 w-6 text-brand-400" />
+                </div>
                 <p className="text-surface-300 text-sm">
-                  We sent a code to <span className="text-white font-medium">{phone}</span>
+                  We sent a code to <span className="text-white font-semibold">{phone}</span>
                 </p>
-                <button onClick={() => setPhoneStage('input')} className="text-brand-400 text-sm mt-1 hover:underline">
+                <button onClick={() => setPhoneStage('input')} className="text-brand-400 text-sm mt-2 hover:underline font-medium">
                   Change number
                 </button>
               </div>
@@ -142,7 +149,7 @@ export default function LoginPage() {
                 <button
                   onClick={handleRequestOtp}
                   disabled={submitting}
-                  className="text-sm text-surface-400 hover:text-brand-400 transition-colors"
+                  className="text-sm text-surface-400 hover:text-brand-400 transition-colors font-medium"
                 >
                   Resend code
                 </button>
@@ -153,35 +160,35 @@ export default function LoginPage() {
       ) : (
         <form onSubmit={handleEmailLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2">Email</label>
+            <label className="block text-sm font-medium text-surface-300 mb-2.5">Email</label>
             <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500"
+              className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2">Password</label>
+            <label className="block text-sm font-medium text-surface-300 mb-2.5">Password</label>
             <div className="relative">
               <Input
                 type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500 pr-11"
+                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 pr-11 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
               />
               <button
                 type="button"
                 onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-300 transition-colors"
               >
                 {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
           </div>
-          <Button type="submit" size="xl" className="w-full bg-brand-500 hover:bg-brand-600" loading={submitting}>
+          <Button type="submit" size="xl" className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold" loading={submitting}>
             Sign In
           </Button>
         </form>
@@ -189,7 +196,7 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-surface-400 mt-8">
         Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-brand-400 font-medium hover:underline">
+        <Link href="/register" className="text-brand-400 font-semibold hover:underline">
           Sign up
         </Link>
       </p>

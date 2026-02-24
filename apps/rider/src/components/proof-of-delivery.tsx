@@ -110,19 +110,26 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
   ];
 
   return (
-    <div className="glass rounded-2xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-white/5">
-        <h3 className="text-sm font-semibold text-white">Proof of Delivery</h3>
+    <div className="glass-elevated rounded-2xl overflow-hidden">
+      <div className="px-4 py-3.5 border-b border-white/[0.06]">
+        <h3 className="text-sm font-bold text-white tracking-tight">Proof of Delivery</h3>
       </div>
 
-      {/* Proof type selector */}
-      <div className="flex gap-1 p-1 m-3 rounded-xl bg-surface-800">
+      {/* Premium proof type selector */}
+      <div className="relative flex p-1 m-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+        <div
+          className="absolute top-1 bottom-1 rounded-xl gradient-brand transition-all duration-300 ease-out shadow-lg"
+          style={{
+            width: `calc(${100 / proofTypes.length}% - 4px)`,
+            left: `calc(${proofTypes.findIndex(p => p.type === proofType) * (100 / proofTypes.length)}% + 2px)`,
+          }}
+        />
         {proofTypes.map(({ type, label, icon }) => (
           <button
             key={type}
             onClick={() => setProofType(type)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
-              proofType === type ? 'bg-surface-700 text-white shadow-sm' : 'text-surface-400'
+            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors btn-press ${
+              proofType === type ? 'text-white' : 'text-surface-400'
             }`}
           >
             {icon} {label}
@@ -134,11 +141,11 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
         {proofType === 'PHOTO' && (
           <>
             {photoPreview ? (
-              <div className="relative rounded-xl overflow-hidden">
+              <div className="relative rounded-2xl overflow-hidden border border-white/[0.06]">
                 <img src={photoPreview} alt="Proof" className="w-full h-48 object-cover" />
                 <button
                   onClick={() => { setPhotoPreview(null); if (fileRef.current) fileRef.current.value = ''; }}
-                  className="absolute top-2 right-2 h-8 w-8 rounded-full bg-black/50 flex items-center justify-center"
+                  className="absolute top-2 right-2 h-8 w-8 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center btn-press"
                 >
                   <X className="h-4 w-4 text-white" />
                 </button>
@@ -146,10 +153,12 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full h-40 rounded-xl border-2 border-dashed border-surface-700 flex flex-col items-center justify-center gap-2 hover:border-surface-500 transition-colors"
+                className="w-full h-40 rounded-2xl border-2 border-dashed border-white/[0.08] flex flex-col items-center justify-center gap-2 hover:border-brand-500/30 hover:bg-brand-500/[0.03] transition-all btn-press"
               >
-                <ImageIcon className="h-8 w-8 text-surface-500" />
-                <span className="text-sm text-surface-400">Take or upload photo</span>
+                <div className="h-12 w-12 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                  <ImageIcon className="h-6 w-6 text-surface-500" />
+                </div>
+                <span className="text-sm text-surface-400 font-medium">Take or upload photo</span>
               </button>
             )}
             <input
@@ -169,7 +178,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               ref={canvasRef}
               width={320}
               height={150}
-              className="w-full rounded-xl border border-surface-700 bg-surface-800 touch-none"
+              className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] touch-none"
               onMouseDown={startDraw}
               onMouseMove={draw}
               onMouseUp={stopDraw}
@@ -178,7 +187,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               onTouchMove={draw}
               onTouchEnd={stopDraw}
             />
-            <button onClick={clearCanvas} className="text-xs text-brand-400 hover:underline">
+            <button onClick={clearCanvas} className="text-xs text-brand-400 hover:underline font-medium">
               Clear signature
             </button>
           </div>
@@ -196,7 +205,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               placeholder="Enter PIN"
-              className="w-full text-center text-2xl font-mono tracking-[0.5em] py-3 rounded-xl bg-surface-800 border border-surface-700 text-white placeholder:text-surface-600 outline-none focus:border-brand-500"
+              className="w-full text-center text-2xl font-mono tracking-[0.5em] py-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-surface-600 outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all"
             />
           </div>
         )}
@@ -209,7 +218,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               value={recipientName}
               onChange={(e) => setRecipientName(e.target.value)}
               placeholder="Enter recipient's name"
-              className="w-full py-3 px-4 rounded-xl bg-surface-800 border border-surface-700 text-white placeholder:text-surface-500 outline-none focus:border-brand-500"
+              className="w-full py-3 px-4 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-surface-500 outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all"
             />
           </div>
         )}
@@ -218,7 +227,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
 
         <Button
           size="lg"
-          className="w-full bg-accent-500 hover:bg-accent-600 text-white"
+          className="w-full gradient-accent text-white shadow-lg glow-accent btn-press rounded-2xl font-semibold"
           onClick={handleSubmit}
           loading={submitting}
         >

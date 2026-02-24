@@ -7,7 +7,7 @@ import { API_BASE_URL } from '@/lib/constants';
 import { Button } from '@riderguy/ui';
 import {
   ArrowLeft, FileText, Camera, Car, ImageIcon,
-  CheckCircle, Clock, AlertCircle, ChevronRight
+  CheckCircle, Clock, AlertCircle, ChevronRight, Sparkles
 } from 'lucide-react';
 
 interface OnboardingStep {
@@ -92,42 +92,54 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] pb-24 animate-page-enter">
+    <div className="min-h-[100dvh] pb-24 animate-page-enter bg-[#0a0e17]">
       {/* Header */}
-      <div className="safe-area-top bg-surface-950 sticky top-0 z-20 border-b border-white/5">
+      <div className="safe-area-top bg-[#0a0e17]/80 backdrop-blur-xl sticky top-0 z-20 border-b border-white/[0.06]">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.push('/dashboard')} className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center">
+          <button onClick={() => router.push('/dashboard')} className="h-9 w-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center btn-press">
             <ArrowLeft className="h-5 w-5 text-surface-300" />
           </button>
-          <h1 className="text-lg font-bold text-white">Rider Onboarding</h1>
+          <h1 className="text-lg font-bold text-white tracking-tight">Rider Onboarding</h1>
         </div>
       </div>
 
       <div className="px-4 py-6 space-y-6">
-        {/* Progress */}
-        <div className="glass rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white">Your Progress</h3>
-            <span className="text-sm text-brand-400 font-medium">{completedCount}/{steps.length}</span>
+        {/* Progress card */}
+        <div className="glass-elevated rounded-2xl p-5 relative overflow-hidden">
+          {/* Decorative glow */}
+          <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-brand-500/10 blur-2xl" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-brand-400" />
+                <h3 className="text-sm font-semibold text-white">Your Progress</h3>
+              </div>
+              <span className="text-sm text-brand-400 font-bold tabular-nums">{completedCount}/{steps.length}</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full rounded-full gradient-brand transition-all duration-700 shadow-[0_0_12px_rgba(14,165,233,0.3)]"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-surface-400 mt-2.5">
+              {progress === 100 ? '✨ All steps complete! Your application is under review.' : 'Complete all steps to start delivering.'}
+            </p>
           </div>
-          <div className="h-2 rounded-full bg-surface-700 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-700"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-surface-400 mt-2">
-            {progress === 100 ? 'All steps complete! Your application is under review.' : 'Complete all steps to start delivering.'}
-          </p>
         </div>
 
         {/* Steps */}
         <div className="space-y-3">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="glass rounded-2xl p-4 animate-pulse">
-                  <div className="h-5 bg-surface-700 rounded w-1/2 mb-2" />
-                  <div className="h-3 bg-surface-700 rounded w-3/4" />
+                <div key={i} className="glass-elevated rounded-2xl p-4 animate-pulse">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-white/[0.06]" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-white/[0.06] rounded w-1/2 mb-2" />
+                      <div className="h-3 bg-white/[0.06] rounded w-1/3" />
+                    </div>
+                  </div>
                 </div>
               ))
             : steps.map((step, idx) => {
@@ -136,21 +148,25 @@ export default function OnboardingPage() {
                   <button
                     key={step.key}
                     onClick={() => router.push(step.href)}
-                    className="w-full glass rounded-2xl p-4 flex items-center gap-4 hover:bg-white/5 transition-colors animate-slide-up"
+                    className="w-full glass-elevated rounded-2xl p-4 flex items-center gap-4 hover:bg-white/[0.04] transition-all btn-press animate-slide-up"
                     style={{ animationDelay: `${idx * 60}ms` }}
                   >
-                    <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${
-                      step.status === 'approved' ? 'bg-accent-500/10 text-accent-400'
-                        : step.status === 'rejected' ? 'bg-danger-500/10 text-danger-400'
-                        : 'bg-surface-800 text-surface-400'
+                    <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      step.status === 'approved' ? 'bg-accent-500/15 text-accent-400'
+                        : step.status === 'submitted' ? 'bg-amber-500/15 text-amber-400'
+                        : step.status === 'rejected' ? 'bg-danger-500/15 text-danger-400'
+                        : 'bg-white/[0.06] text-surface-400'
                     }`}>
                       {step.icon}
                     </div>
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-medium text-white">{step.label}</p>
-                      <p className={`text-xs ${sl.color}`}>{sl.text}</p>
+                      <p className="text-sm font-semibold text-white">{step.label}</p>
+                      <p className={`text-xs mt-0.5 font-medium ${sl.color}`}>{sl.text}</p>
                     </div>
-                    {statusIcon(step.status)}
+                    <div className="flex items-center gap-2">
+                      {statusIcon(step.status)}
+                      <ChevronRight className="h-4 w-4 text-surface-600" />
+                    </div>
                   </button>
                 );
               })

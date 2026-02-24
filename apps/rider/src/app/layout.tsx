@@ -3,13 +3,17 @@ import { Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'Riderguy Rider',
-  description: 'Deliver and earn with Riderguy',
+  title: 'Riderguy — Deliver & Earn',
+  description: 'Deliver packages and earn on your schedule with Riderguy',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Riderguy Rider' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Riderguy' },
   other: { 'mobile-web-app-capable': 'yes' },
 };
 
@@ -18,7 +22,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0ea5e9',
+  themeColor: '#0a0e17',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

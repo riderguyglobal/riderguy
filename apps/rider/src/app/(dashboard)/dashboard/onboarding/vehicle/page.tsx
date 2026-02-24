@@ -81,15 +81,20 @@ export default function VehiclePage() {
 
   if (success) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-surface-950 px-6 text-center animate-scale-in">
-        <CheckCircle className="h-16 w-16 text-accent-400 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Vehicle Saved!</h2>
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0a0e17] px-6 text-center animate-scale-in">
+        <div className="relative mb-6">
+          <div className="absolute inset-0 rounded-full bg-accent-500/20 animate-ping" />
+          <div className="relative h-20 w-20 rounded-full gradient-accent flex items-center justify-center shadow-xl glow-accent">
+            <CheckCircle className="h-10 w-10 text-white" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-extrabold text-white mb-2 tracking-tight">Vehicle Saved!</h2>
         <p className="text-surface-400 mb-8">Now upload photos of your vehicle.</p>
-        <div className="flex gap-3">
-          <Button variant="outline" className="border-surface-700 text-surface-300" onClick={() => router.push('/dashboard/onboarding')}>
+        <div className="flex gap-3 w-full max-w-xs">
+          <Button variant="outline" className="flex-1 border-white/[0.08] text-surface-300 rounded-xl btn-press" onClick={() => router.push('/dashboard/onboarding')}>
             Back
           </Button>
-          <Button className="bg-brand-500 hover:bg-brand-600" onClick={() => router.push('/dashboard/onboarding/vehicle-photos')}>
+          <Button className="flex-1 gradient-brand text-white shadow-lg glow-brand btn-press rounded-xl font-semibold" onClick={() => router.push('/dashboard/onboarding/vehicle-photos')}>
             Upload Photos
           </Button>
         </div>
@@ -98,20 +103,20 @@ export default function VehiclePage() {
   }
 
   return (
-    <div className="min-h-[100dvh] pb-10 animate-page-enter">
+    <div className="min-h-[100dvh] pb-10 animate-page-enter bg-[#0a0e17]">
       {/* Header */}
-      <div className="safe-area-top bg-surface-950 sticky top-0 z-20 border-b border-white/5">
+      <div className="safe-area-top bg-[#0a0e17]/80 backdrop-blur-xl sticky top-0 z-20 border-b border-white/[0.06]">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center">
+          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center btn-press">
             <ArrowLeft className="h-5 w-5 text-surface-300" />
           </button>
-          <h1 className="text-lg font-bold text-white">Vehicle Registration</h1>
+          <h1 className="text-lg font-bold text-white tracking-tight">Vehicle Registration</h1>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-6 space-y-5">
         {error && (
-          <div className="p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake">
+          <div className="p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake backdrop-blur-sm">
             <AlertCircle className="h-4 w-4 text-danger-400 shrink-0 mt-0.5" />
             <p className="text-xs text-danger-300">{error}</p>
           </div>
@@ -119,21 +124,21 @@ export default function VehiclePage() {
 
         {/* Vehicle type */}
         <div>
-          <label className="block text-sm font-medium text-surface-300 mb-2">Vehicle Type</label>
-          <div className="grid grid-cols-2 gap-2">
+          <label className="block text-sm font-medium text-surface-300 mb-2.5">Vehicle Type</label>
+          <div className="grid grid-cols-2 gap-2.5">
             {VEHICLE_TYPES.map(({ value, label, icon }) => (
               <button
                 type="button"
                 key={value}
                 onClick={() => setVehicleType(value)}
-                className={`p-3 rounded-xl border text-left transition-colors ${
+                className={`p-3.5 rounded-2xl border text-left transition-all btn-press ${
                   vehicleType === value
-                    ? 'border-brand-500 bg-brand-500/10'
-                    : 'border-surface-700 bg-surface-800 hover:bg-surface-700'
+                    ? 'border-brand-500/50 bg-brand-500/10 shadow-[0_0_20px_rgba(14,165,233,0.1)]'
+                    : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05]'
                 }`}
               >
-                <span className="text-xl">{icon}</span>
-                <p className="text-sm font-medium text-white mt-1">{label}</p>
+                <span className="text-2xl">{icon}</span>
+                <p className={`text-sm font-semibold mt-1.5 ${vehicleType === value ? 'text-brand-400' : 'text-white'}`}>{label}</p>
               </button>
             ))}
           </div>
@@ -141,32 +146,32 @@ export default function VehiclePage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-surface-400 mb-1.5">Make *</label>
-            <Input value={make} onChange={(e) => setMake(e.target.value)} placeholder="Honda" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+            <label className="block text-xs text-surface-400 mb-1.5 font-medium">Make *</label>
+            <Input value={make} onChange={(e) => setMake(e.target.value)} placeholder="Honda" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
           </div>
           <div>
-            <label className="block text-xs text-surface-400 mb-1.5">Model *</label>
-            <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="CBR 150" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+            <label className="block text-xs text-surface-400 mb-1.5 font-medium">Model *</label>
+            <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="CBR 150" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-surface-400 mb-1.5">Year</label>
-            <Input type="number" inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2023" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+            <label className="block text-xs text-surface-400 mb-1.5 font-medium">Year</label>
+            <Input type="number" inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2023" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
           </div>
           <div>
-            <label className="block text-xs text-surface-400 mb-1.5">Color</label>
-            <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="Black" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+            <label className="block text-xs text-surface-400 mb-1.5 font-medium">Color</label>
+            <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="Black" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs text-surface-400 mb-1.5">Plate Number *</label>
-          <Input value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="GR-1234-24" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500 uppercase" />
+          <label className="block text-xs text-surface-400 mb-1.5 font-medium">Plate Number *</label>
+          <Input value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="GR-1234-24" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 uppercase rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
         </div>
 
-        <Button type="submit" size="xl" className="w-full bg-brand-500 hover:bg-brand-600" loading={submitting}>
+        <Button type="submit" size="xl" className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold" loading={submitting}>
           {existing ? 'Update Vehicle' : 'Register Vehicle'}
         </Button>
       </form>

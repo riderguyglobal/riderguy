@@ -2,61 +2,89 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ProtectedRoute, useAuth } from '@riderguy/auth';
+import { ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
-import { Home, ClipboardList, Wallet, User } from 'lucide-react';
+import { Home, Package, DollarSign, User } from 'lucide-react';
 import { IncomingRequest } from '@/components/incoming-request';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', icon: Home },
-  { href: '/dashboard/jobs', label: 'Jobs', icon: ClipboardList },
-  { href: '/dashboard/earnings', label: 'Earnings', icon: Wallet },
+  { href: '/dashboard/jobs', label: 'Jobs', icon: Package },
+  { href: '/dashboard/earnings', label: 'Earnings', icon: DollarSign },
   { href: '/dashboard/settings', label: 'Account', icon: User },
-] as const;
+];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useAuth();
 
-  // Hide bottom nav on active job pages
-  const isJobDetail = pathname.startsWith('/dashboard/jobs/') && pathname !== '/dashboard/jobs';
-  const isOnboarding = pathname.startsWith('/dashboard/onboarding');
-  const showBottomNav = !isJobDetail && !isOnboarding;
+  const hideNav =
+    pathname.startsWith('/dashboard/jobs/') ||
+    pathname.startsWith('/dashboard/onboarding');
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.RIDER]}>
-      <div className="min-h-[100dvh] bg-surface-950">
-        {children}
+      <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col">
+        {/* Main content */}
+        <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
+          {children}
+        </main>
 
-        {/* Bottom navigation */}
-        {showBottomNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface-900/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom">
-            <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
-              {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-                const isActive = href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`flex flex-col items-center justify-center gap-0.5 w-16 py-1.5 rounded-xl transition-all ${
-                      isActive ? 'text-brand-400' : 'text-surface-500 active:text-surface-300'
-                    }`}
-                  >
-                    <div className="relative">
-                      <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 1.5} />
+        {/* Premium Bottom Navigation */}
+        {!hideNav && (
+          <nav className="fixed bottom-0 inset-x-0 z-50">
+            {/* Frosted glass background */}
+            <div className="absolute inset-0 bg-[#0a0e17]/80 backdrop-blur-xl border-t border-white/[0.06]" />
+
+            {/* Ambient glow from active tab */}
+            <div className="relative px-4 pb-[env(safe-area-inset-bottom)]">
+              <div className="flex items-center justify-around h-[4.5rem]">
+                {NAV_ITEMS.map((item) => {
+                  const isActive = item.href === '/dashboard'
+                    ? pathname === '/dashboard'
+                    : pathname.startsWith(item.href);
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="relative flex flex-col items-center justify-center gap-1 py-2 px-4 btn-press"
+                    >
+                      {/* Active indicator pill */}
                       {isActive && (
-                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-400" />
+                        <div className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-brand-500 shadow-[0_0_12px_rgba(14,165,233,0.6)]" />
                       )}
-                    </div>
-                    <span className="text-[10px] font-medium">{label}</span>
-                  </Link>
-                );
-              })}
+
+                      {/* Icon with glow */}
+                      <div className="relative">
+                        {isActive && (
+                          <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-lg scale-[2]" />
+                        )}
+                        <Icon
+                          className={`relative h-[22px] w-[22px] transition-colors duration-200 ${
+                            isActive ? 'text-brand-400' : 'text-surface-500'
+                          }`}
+                          strokeWidth={isActive ? 2.2 : 1.8}
+                        />
+                      </div>
+
+                      {/* Label */}
+                      <span
+                        className={`text-[10px] font-medium tracking-wide transition-colors duration-200 ${
+                          isActive ? 'text-brand-400' : 'text-surface-500'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           </nav>
         )}
 
-        {/* Incoming job request overlay */}
+        {/* Incoming delivery request overlay */}
         <IncomingRequest />
       </div>
     </ProtectedRoute>

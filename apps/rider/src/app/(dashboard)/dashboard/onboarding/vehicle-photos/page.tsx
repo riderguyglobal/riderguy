@@ -90,11 +90,16 @@ export default function VehiclePhotosPage() {
 
   if (success) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-surface-950 px-6 text-center animate-scale-in">
-        <CheckCircle className="h-16 w-16 text-accent-400 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Photos Uploaded!</h2>
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0a0e17] px-6 text-center animate-scale-in">
+        <div className="relative mb-6">
+          <div className="absolute inset-0 rounded-full bg-accent-500/20 animate-ping" />
+          <div className="relative h-20 w-20 rounded-full gradient-accent flex items-center justify-center shadow-xl glow-accent">
+            <CheckCircle className="h-10 w-10 text-white" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-extrabold text-white mb-2 tracking-tight">Photos Uploaded!</h2>
         <p className="text-surface-400 mb-8">Your vehicle photos are being reviewed.</p>
-        <Button className="bg-brand-500 hover:bg-brand-600" onClick={() => router.push('/dashboard/onboarding')}>
+        <Button className="gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold px-8" onClick={() => router.push('/dashboard/onboarding')}>
           Back to Onboarding
         </Button>
       </div>
@@ -102,14 +107,14 @@ export default function VehiclePhotosPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] pb-10 animate-page-enter">
+    <div className="min-h-[100dvh] pb-10 animate-page-enter bg-[#0a0e17]">
       {/* Header */}
-      <div className="safe-area-top bg-surface-950 sticky top-0 z-20 border-b border-white/5">
+      <div className="safe-area-top bg-[#0a0e17]/80 backdrop-blur-xl sticky top-0 z-20 border-b border-white/[0.06]">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center">
+          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center btn-press">
             <ArrowLeft className="h-5 w-5 text-surface-300" />
           </button>
-          <h1 className="text-lg font-bold text-white">Vehicle Photos</h1>
+          <h1 className="text-lg font-bold text-white tracking-tight">Vehicle Photos</h1>
         </div>
       </div>
 
@@ -117,26 +122,26 @@ export default function VehiclePhotosPage() {
         <p className="text-sm text-surface-400">Take clear photos of your vehicle from all angles.</p>
 
         {error && (
-          <div className="p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake">
+          <div className="p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake backdrop-blur-sm">
             <AlertCircle className="h-4 w-4 text-danger-400 shrink-0 mt-0.5" />
             <p className="text-xs text-danger-300">{error}</p>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          {PHOTO_ANGLES.map(({ key, label }) => (
-            <div key={key} className="relative">
+          {PHOTO_ANGLES.map(({ key, label }, idx) => (
+            <div key={key} className="relative animate-slide-up" style={{ animationDelay: `${idx * 60}ms` }}>
               {photos[key] ? (
-                <div className="relative aspect-square rounded-xl overflow-hidden">
+                <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/[0.06]">
                   <img src={photos[key]} alt={label} className="w-full h-full object-cover" />
                   <button
                     onClick={() => removePhoto(key)}
-                    className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center"
+                    className="absolute top-2 right-2 h-7 w-7 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center btn-press"
                   >
                     <X className="h-4 w-4 text-white" />
                   </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-2 px-3">
-                    <p className="text-xs text-white font-medium">{label}</p>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent py-2.5 px-3">
+                    <p className="text-xs text-white font-semibold">{label}</p>
                   </div>
                 </div>
               ) : (
@@ -145,10 +150,12 @@ export default function VehiclePhotosPage() {
                     setActiveAngle(key);
                     setTimeout(() => fileRef.current?.click(), 50);
                   }}
-                  className="w-full aspect-square rounded-xl border-2 border-dashed border-surface-700 flex flex-col items-center justify-center gap-2 hover:border-surface-500 transition-colors bg-surface-800/50"
+                  className="w-full aspect-square rounded-2xl border-2 border-dashed border-white/[0.08] flex flex-col items-center justify-center gap-2 hover:border-brand-500/30 hover:bg-brand-500/[0.03] transition-all bg-white/[0.02] btn-press"
                 >
-                  <Camera className="h-6 w-6 text-surface-500" />
-                  <span className="text-xs text-surface-400">{label}</span>
+                  <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                    <Camera className="h-5 w-5 text-surface-500" />
+                  </div>
+                  <span className="text-xs text-surface-400 font-medium">{label}</span>
                 </button>
               )}
             </div>
@@ -159,7 +166,7 @@ export default function VehiclePhotosPage() {
 
         <Button
           size="xl"
-          className="w-full bg-brand-500 hover:bg-brand-600"
+          className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
           onClick={uploadAll}
           loading={uploading}
           disabled={Object.keys(photos).length === 0}

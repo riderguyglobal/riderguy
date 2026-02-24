@@ -194,23 +194,23 @@ export function NavigationMap({
       <div ref={containerRef} className="w-full h-full rounded-2xl overflow-hidden" />
 
       {!loaded && (
-        <div className="absolute inset-0 rounded-2xl bg-surface-900 animate-shimmer bg-gradient-to-r from-surface-900 via-surface-800 to-surface-900" />
+        <div className="absolute inset-0 rounded-2xl bg-[#0a0e17] animate-shimmer bg-gradient-to-r from-[#0a0e17] via-white/[0.03] to-[#0a0e17]" />
       )}
 
       {/* ETA overlay */}
       {eta !== null && (
-        <div className="absolute top-3 left-3 glass rounded-xl px-3 py-2">
-          <p className="text-xs text-surface-400">ETA</p>
-          <p className="text-lg font-bold text-white">{eta} min</p>
+        <div className="absolute top-3 left-3 glass-elevated rounded-2xl px-4 py-2.5">
+          <p className="text-[10px] text-surface-500 uppercase tracking-wider font-medium">ETA</p>
+          <p className="text-xl font-extrabold text-white tabular-nums">{eta} <span className="text-sm font-medium text-surface-400">min</span></p>
         </div>
       )}
 
       {/* Map controls */}
       <div className="absolute bottom-3 right-3 flex flex-col gap-2">
-        <button onClick={recenter} className="h-10 w-10 rounded-xl glass flex items-center justify-center hover:bg-white/10 transition-colors">
+        <button onClick={recenter} className="h-10 w-10 rounded-xl glass-elevated flex items-center justify-center hover:bg-white/[0.08] transition-colors btn-press">
           <Crosshair className="h-5 w-5 text-white" />
         </button>
-        <button onClick={fitAll} className="h-10 w-10 rounded-xl glass flex items-center justify-center hover:bg-white/10 transition-colors">
+        <button onClick={fitAll} className="h-10 w-10 rounded-xl glass-elevated flex items-center justify-center hover:bg-white/[0.08] transition-colors btn-press">
           <Maximize2 className="h-5 w-5 text-white" />
         </button>
       </div>
