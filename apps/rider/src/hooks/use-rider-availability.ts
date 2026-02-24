@@ -1,155 +1,76 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { getApiClient } from '@riderguy/auth';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@riderguy/auth';
 import { useSocket } from './use-socket';
+import { API_BASE_URL, LOCATION_INTERVAL } from '@/lib/constants';
+import { RiderAvailability } from '@riderguy/types';
 
-// ============================================================
-// useRiderAvailability — manages the rider's online/offline
-// state, persists to API, and controls geolocation tracking.
-// ============================================================
-
-export type RiderAvailability = 'ONLINE' | 'OFFLINE' | 'ON_DELIVERY' | 'ON_BREAK';
-
-interface RiderAvailabilityState {
-  availability: RiderAvailability;
-  isOnline: boolean;
-  loading: boolean;
-  toggling: boolean;
-  error: string | null;
-  toggleAvailability: (status?: RiderAvailability) => Promise<void>;
-  goOnline: () => Promise<void>;
-  goOffline: () => Promise<void>;
-}
-
-export function useRiderAvailability(): RiderAvailabilityState {
-  const [availability, setAvailability] = useState<RiderAvailability>('OFFLINE');
-  const [loading, setLoading] = useState(true);
-  const [toggling, setToggling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+export function useRiderAvailability() {
+  const { api } = useAuth();
   const { emitLocation, connected } = useSocket();
-  const watchIdRef = useRef<number | null>(null);
-  const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [availability, setAvailability] = useState<RiderAvailability>(RiderAvailability.OFFLINE);
+  const [loading, setLoading] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const watchRef = useRef<number | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ---- Fetch current availability from rider profile ----
+  // Fetch initial availability
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const api = getApiClient();
-        const { data } = await api.get('/riders/profile');
-        if (!cancelled && data.data?.availability) {
-          setAvailability(data.data.availability as RiderAvailability);
-        }
-      } catch {
-        // Will default to OFFLINE if profile fails
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    let mounted = true;
+    api?.get(`${API_BASE_URL}/riders/profile`)
+      .then((res) => {
+        if (mounted) setAvailability(res.data.data?.availability ?? RiderAvailability.OFFLINE);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [api]);
 
-  // ---- Geolocation tracking ----
-  const startLocationTracking = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+  // Track position when online
+  useEffect(() => {
+    if (availability !== RiderAvailability.ONLINE || !navigator.geolocation) return;
 
-    // Use watchPosition for real-time updates
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, heading, speed } = position.coords;
-        emitLocation(
-          latitude,
-          longitude,
-          heading ?? undefined,
-          speed ?? undefined,
-        );
+    watchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setCoords({ lat, lng });
+        if (connected) emitLocation(lat, lng, pos.coords.heading ?? undefined);
       },
-      (err) => {
-        console.warn('[Geolocation] Watch error:', err.message);
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 10000,
-        timeout: 15000,
-      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5_000 }
     );
-    watchIdRef.current = watchId;
 
-    // Also send location every 30s as a heartbeat (in case watchPosition
-    // doesn't fire on stationary riders)
-    locationIntervalRef.current = setInterval(() => {
+    // Heartbeat interval for location via REST
+    intervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          emitLocation(
-            pos.coords.latitude,
-            pos.coords.longitude,
-            pos.coords.heading ?? undefined,
-            pos.coords.speed ?? undefined,
-          );
+          const { latitude, longitude } = pos.coords;
+          api?.post(`${API_BASE_URL}/riders/location`, { latitude, longitude }).catch(() => {});
         },
-        () => { /* silent */ },
-        { enableHighAccuracy: true, maximumAge: 30000 },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 5_000 }
       );
-    }, 30000);
-  }, [emitLocation]);
+    }, LOCATION_INTERVAL * 6); // 30s heartbeat
 
-  const stopLocationTracking = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
+    return () => {
+      if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [availability, connected, emitLocation, api]);
+
+  const toggleAvailability = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    const next: RiderAvailability = availability === RiderAvailability.ONLINE ? RiderAvailability.OFFLINE : RiderAvailability.ONLINE;
+    try {
+      await api?.patch(`${API_BASE_URL}/riders/availability`, { availability: next });
+      setAvailability(next);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
     }
-    if (locationIntervalRef.current) {
-      clearInterval(locationIntervalRef.current);
-      locationIntervalRef.current = null;
-    }
-  }, []);
+  }, [availability, loading, api]);
 
-  // Auto-start/stop geolocation when availability changes
-  useEffect(() => {
-    if (availability === 'ONLINE' || availability === 'ON_DELIVERY') {
-      startLocationTracking();
-    } else {
-      stopLocationTracking();
-    }
-    return () => stopLocationTracking();
-  }, [availability, startLocationTracking, stopLocationTracking]);
-
-  // ---- Toggle availability via API ----
-  const toggleAvailability = useCallback(
-    async (status?: RiderAvailability) => {
-      const newStatus = status ?? (availability === 'ONLINE' ? 'OFFLINE' : 'ONLINE');
-      setToggling(true);
-      setError(null);
-      try {
-        const api = getApiClient();
-        const { data } = await api.patch('/riders/availability', { availability: newStatus });
-        setAvailability(data.data?.availability ?? newStatus);
-      } catch (err: unknown) {
-        const msg =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response: { data: { error?: string } } }).response?.data?.error
-            : 'Failed to update availability';
-        setError(msg || 'Failed to update availability');
-      } finally {
-        setToggling(false);
-      }
-    },
-    [availability],
-  );
-
-  const goOnline = useCallback(() => toggleAvailability('ONLINE'), [toggleAvailability]);
-  const goOffline = useCallback(() => toggleAvailability('OFFLINE'), [toggleAvailability]);
-
-  return {
-    availability,
-    isOnline: availability === 'ONLINE' || availability === 'ON_DELIVERY',
-    loading,
-    toggling,
-    error,
-    toggleAvailability,
-    goOnline,
-    goOffline,
-  };
+  return { availability, toggleAvailability, loading, coords };
 }

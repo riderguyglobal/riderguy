@@ -1,284 +1,175 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import {
-  Button,
-  Card,
-  CardContent,
-  Input,
-  Label,
-  Spinner,
-} from '@riderguy/ui';
 import { API_BASE_URL } from '@/lib/constants';
+import { Button, Input } from '@riderguy/ui';
+import { ArrowLeft, Car, CheckCircle, AlertCircle } from 'lucide-react';
+import { VehicleType } from '@riderguy/types';
 
-// ─── Vehicle types ──────────────────────────────────────────
+const VEHICLE_TYPES: { value: VehicleType; label: string; icon: string }[] = [
+  { value: 'MOTORCYCLE' as VehicleType, label: 'Motorcycle', icon: '🏍️' },
+  { value: 'BICYCLE' as VehicleType, label: 'Bicycle', icon: '🚲' },
+  { value: 'CAR' as VehicleType, label: 'Car', icon: '🚗' },
+  { value: 'VAN' as VehicleType, label: 'Van', icon: '🚐' },
+];
 
-const VEHICLE_TYPES = [
-  { value: 'BICYCLE', label: 'Bicycle', icon: '🚲' },
-  { value: 'MOTORCYCLE', label: 'Motorcycle', icon: '🏍️' },
-  { value: 'CAR', label: 'Car', icon: '🚗' },
-  { value: 'VAN', label: 'Van', icon: '🚐' },
-  { value: 'TRUCK', label: 'Truck', icon: '🚛' },
-] as const;
-
-// ─── Component ──────────────────────────────────────────────
-
-export default function VehicleRegistrationPage() {
+export default function VehiclePage() {
   const router = useRouter();
-  const { accessToken } = useAuth();
-
-  const [vehicleType, setVehicleType] = useState('');
+  const { api } = useAuth();
+  const [vehicleType, setVehicleType] = useState<string>('MOTORCYCLE');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
-  const [color, setColor] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
-
+  const [color, setColor] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [existing, setExisting] = useState(false);
 
-  // ── Submit ────────────────────────────────────────────────
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-
-      // Validation
-      if (!vehicleType) {
-        setError('Please select a vehicle type.');
-        return;
+  useEffect(() => {
+    if (!api) return;
+    api.get(`${API_BASE_URL}/riders/vehicles`).then((res) => {
+      const vehicles = res.data.data ?? [];
+      if (vehicles.length > 0) {
+        const v = vehicles[0];
+        setVehicleType(v.type);
+        setMake(v.make ?? '');
+        setModel(v.model ?? '');
+        setYear(v.year?.toString() ?? '');
+        setPlateNumber(v.plateNumber ?? '');
+        setColor(v.color ?? '');
+        setExisting(true);
       }
-      if (!make.trim()) {
-        setError('Please enter the vehicle make.');
-        return;
+    }).catch(() => {});
+  }, [api]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!make.trim() || !model.trim() || !plateNumber.trim()) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const body = {
+        type: vehicleType,
+        make: make.trim(),
+        model: model.trim(),
+        year: year ? parseInt(year) : undefined,
+        plateNumber: plateNumber.trim().toUpperCase(),
+        color: color.trim() || undefined,
+      };
+
+      if (existing) {
+        const res = await api?.get(`${API_BASE_URL}/riders/vehicles`);
+        const vid = res?.data.data?.[0]?.id;
+        if (vid) await api?.patch(`${API_BASE_URL}/riders/vehicles/${vid}`, body);
+      } else {
+        await api?.post(`${API_BASE_URL}/riders/vehicles`, body);
       }
-      if (!model.trim()) {
-        setError('Please enter the vehicle model.');
-        return;
-      }
-      if (!plateNumber.trim()) {
-        setError('Please enter the plate/license number.');
-        return;
-      }
+      setSuccess(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save vehicle');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      setSubmitting(true);
-      setError(null);
-
-      try {
-        const body: Record<string, unknown> = {
-          type: vehicleType,
-          make: make.trim(),
-          model: model.trim(),
-          plateNumber: plateNumber.trim().toUpperCase(),
-        };
-
-        if (year) body.year = parseInt(year);
-        if (color.trim()) body.color = color.trim();
-
-        const res = await fetch(`${API_BASE_URL}/riders/vehicles`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          const json = await res.json().catch(() => null);
-          throw new Error(
-            json?.error?.message ?? 'Registration failed. Please try again.',
-          );
-        }
-
-        setSuccess(true);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Registration failed.',
-        );
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [vehicleType, make, model, year, color, plateNumber, accessToken],
-  );
-
-  return (
-    <div className="p-4">
-      {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push('/dashboard/onboarding')}
-          className="mb-3 flex items-center gap-1 text-sm text-brand-500 hover:underline"
-        >
-          ← Back to checklist
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">Register Your Vehicle</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Enter your vehicle details to get started with deliveries.
-        </p>
-      </div>
-
-      {/* Success state */}
-      {success && (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-7 w-7 text-green-600"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-green-800">
-            Vehicle Registered!
-          </h3>
-          <p className="mt-1 text-sm text-green-600">
-            Your vehicle has been added to your profile.
-          </p>
-          <Button
-            className="mt-4"
-            onClick={() => router.push('/dashboard/onboarding')}
-          >
-            Back to Checklist
+  if (success) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-surface-950 px-6 text-center animate-scale-in">
+        <CheckCircle className="h-16 w-16 text-accent-400 mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Vehicle Saved!</h2>
+        <p className="text-surface-400 mb-8">Now upload photos of your vehicle.</p>
+        <div className="flex gap-3">
+          <Button variant="outline" className="border-surface-700 text-surface-300" onClick={() => router.push('/dashboard/onboarding')}>
+            Back
+          </Button>
+          <Button className="bg-brand-500 hover:bg-brand-600" onClick={() => router.push('/dashboard/onboarding/vehicle-photos')}>
+            Upload Photos
           </Button>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Form */}
-      {!success && (
-        <Card>
-          <CardContent className="p-6">
-            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
-              {/* Vehicle type selector */}
-              <div>
-                <Label className="mb-2 block">Vehicle Type *</Label>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                  {VEHICLE_TYPES.map((vt) => (
-                    <button
-                      key={vt.value}
-                      type="button"
-                      onClick={() => setVehicleType(vt.value)}
-                      className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-all ${
-                        vehicleType === vt.value
-                          ? 'border-brand-500 bg-brand-50 text-brand-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{vt.icon}</span>
-                      <span className="text-xs font-medium">{vt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+  return (
+    <div className="min-h-[100dvh] pb-10 animate-page-enter">
+      {/* Header */}
+      <div className="safe-area-top bg-surface-950 sticky top-0 z-20 border-b border-white/5">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center">
+            <ArrowLeft className="h-5 w-5 text-surface-300" />
+          </button>
+          <h1 className="text-lg font-bold text-white">Vehicle Registration</h1>
+        </div>
+      </div>
 
-              {/* Make & Model */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="make">Make *</Label>
-                  <Input
-                    id="make"
-                    value={make}
-                    onChange={(e) => setMake(e.target.value)}
-                    placeholder="e.g. Honda"
-                    required
-                    disabled={submitting}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="model">Model *</Label>
-                  <Input
-                    id="model"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="e.g. CB125"
-                    required
-                    disabled={submitting}
-                    className="mt-1.5"
-                  />
-                </div>
-              </div>
+      <form onSubmit={handleSubmit} className="px-4 py-6 space-y-5">
+        {error && (
+          <div className="p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake">
+            <AlertCircle className="h-4 w-4 text-danger-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-danger-300">{error}</p>
+          </div>
+        )}
 
-              {/* Year & Color */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="year">Year (optional)</Label>
-                  <Input
-                    id="year"
-                    type="number"
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    placeholder="e.g. 2022"
-                    min={1990}
-                    max={new Date().getFullYear() + 1}
-                    disabled={submitting}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="color">Color (optional)</Label>
-                  <Input
-                    id="color"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    placeholder="e.g. Red"
-                    disabled={submitting}
-                    className="mt-1.5"
-                  />
-                </div>
-              </div>
-
-              {/* Plate Number */}
-              <div>
-                <Label htmlFor="plateNumber">Plate / License Number *</Label>
-                <Input
-                  id="plateNumber"
-                  value={plateNumber}
-                  onChange={(e) => setPlateNumber(e.target.value)}
-                  placeholder="e.g. ABC-123-GP"
-                  required
-                  disabled={submitting}
-                  className="mt-1.5"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  Enter the registration number exactly as it appears on your number plate.
-                </p>
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
-                </div>
-              )}
-
-              {/* Submit */}
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={submitting}
+        {/* Vehicle type */}
+        <div>
+          <label className="block text-sm font-medium text-surface-300 mb-2">Vehicle Type</label>
+          <div className="grid grid-cols-2 gap-2">
+            {VEHICLE_TYPES.map(({ value, label, icon }) => (
+              <button
+                type="button"
+                key={value}
+                onClick={() => setVehicleType(value)}
+                className={`p-3 rounded-xl border text-left transition-colors ${
+                  vehicleType === value
+                    ? 'border-brand-500 bg-brand-500/10'
+                    : 'border-surface-700 bg-surface-800 hover:bg-surface-700'
+                }`}
               >
-                {submitting ? (
-                  <span className="flex items-center gap-2">
-                    <Spinner className="h-4 w-4" /> Registering…
-                  </span>
-                ) : (
-                  'Register Vehicle'
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+                <span className="text-xl">{icon}</span>
+                <p className="text-sm font-medium text-white mt-1">{label}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-surface-400 mb-1.5">Make *</label>
+            <Input value={make} onChange={(e) => setMake(e.target.value)} placeholder="Honda" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+          </div>
+          <div>
+            <label className="block text-xs text-surface-400 mb-1.5">Model *</label>
+            <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="CBR 150" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-surface-400 mb-1.5">Year</label>
+            <Input type="number" inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2023" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+          </div>
+          <div>
+            <label className="block text-xs text-surface-400 mb-1.5">Color</label>
+            <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="Black" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-surface-400 mb-1.5">Plate Number *</label>
+          <Input value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="GR-1234-24" className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500 uppercase" />
+        </div>
+
+        <Button type="submit" size="xl" className="w-full bg-brand-500 hover:bg-brand-600" loading={submitting}>
+          {existing ? 'Update Vehicle' : 'Register Vehicle'}
+        </Button>
+      </form>
     </div>
   );
 }

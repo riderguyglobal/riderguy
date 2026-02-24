@@ -2,229 +2,146 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Auth page custom animations & effects
-   ============================================================ */
-
-/* Animated gradient mesh for the hero panel */
-.auth-gradient-mesh {
-  background:
-    radial-gradient(ellipse at 20% 50%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(34, 197, 94, 0.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
-  animation: meshShift 12s ease-in-out infinite alternate;
-}
-
-@keyframes meshShift {
-  0% {
-    background-position: 0% 0%, 100% 0%, 50% 100%;
+/* ── Base ────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
   }
-  50% {
-    background-position: 30% 20%, 70% 40%, 40% 60%;
-  }
-  100% {
-    background-position: 10% 40%, 90% 10%, 60% 80%;
-  }
-}
 
-/* Subtle grid overlay */
-.auth-grid-pattern {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Slide-up entrance */
-.auth-slide-up {
-  animation: authSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes authSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+  html {
+    @apply antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  body {
+    @apply bg-surface-950 text-white min-h-[100dvh] selection:bg-brand-500/30;
+  }
+
+  /* Hide default input styling */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 }
 
-/* Fade-in entrance */
-.auth-fade-in {
-  animation: authFadeIn 0.4s ease-out both;
+/* ── Animations ──────────────────────────────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes authFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: .6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes countdown-stroke {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 283; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: .3; transform: translateY(0); }
+  30%           { opacity: 1;  transform: translateY(-3px); }
+}
+
+/* ── Utility classes ─────────────────────────────────── */
+@layer utilities {
+  .animate-page-enter   { animation: page-enter .4s ease-out both; }
+  .animate-slide-up     { animation: slide-up .5s ease-out both; }
+  .animate-slide-down   { animation: slide-down .35s ease-out both; }
+  .animate-fade-in      { animation: fade-in .3s ease-out both; }
+  .animate-scale-in     { animation: scale-in .3s ease-out both; }
+  .animate-pulse-ring   { animation: pulse-ring 1.5s ease-out infinite; }
+  .animate-shimmer      { animation: shimmer 2s linear infinite; background-size: 200% 100%; }
+  .animate-float        { animation: float 3s ease-in-out infinite; }
+  .animate-shake        { animation: shake .5s ease-in-out; }
+  .animate-gradient     { animation: gradient-shift 6s ease infinite; background-size: 200% 200%; }
+  .animate-spin-slow    { animation: spin-slow 3s linear infinite; }
+
+  .safe-area-top    { padding-top: var(--sat); }
+  .safe-area-bottom { padding-bottom: var(--sab); }
+
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
+
+  /* Glass effect for cards */
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-/* Scale-in for success checkmark */
-.auth-scale-in {
-  animation: authScaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes authScaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Floating logo animation */
-.auth-float {
-  animation: authFloat 4s ease-in-out infinite;
-}
-
-@keyframes authFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-/* Error shake */
-.auth-shake {
-  animation: authShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-}
-
-@keyframes authShake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-3px); }
-  40%, 60% { transform: translateX(3px); }
-}
-
-/* ============================================================
-   Dashboard custom animations & effects
-   ============================================================ */
-
-/* Page entrance — slide up + fade in */
-.dash-page-enter {
-  animation: dashPageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes dashPageEnter {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Pulsing green dot for online status */
-.dash-pulse-dot {
-  position: relative;
-}
-
-.dash-pulse-dot::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 9999px;
-  background: rgba(34, 197, 94, 0.4);
-  animation: dashPulseDot 2s ease-in-out infinite;
-}
-
-@keyframes dashPulseDot {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0;
-    transform: scale(1.8);
-  }
-}
-
-/* Staggered children animation for lists */
-.dash-stagger-in > * {
-  animation: dashStaggerItem 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.dash-stagger-in > *:nth-child(1) { animation-delay: 0ms; }
-.dash-stagger-in > *:nth-child(2) { animation-delay: 50ms; }
-.dash-stagger-in > *:nth-child(3) { animation-delay: 100ms; }
-.dash-stagger-in > *:nth-child(4) { animation-delay: 150ms; }
-.dash-stagger-in > *:nth-child(5) { animation-delay: 200ms; }
-.dash-stagger-in > *:nth-child(6) { animation-delay: 250ms; }
-.dash-stagger-in > *:nth-child(7) { animation-delay: 300ms; }
-.dash-stagger-in > *:nth-child(8) { animation-delay: 350ms; }
-.dash-stagger-in > *:nth-child(n+9) { animation-delay: 400ms; }
-
-@keyframes dashStaggerItem {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .glass-strong {
+    @apply bg-surface-900/80 backdrop-blur-xl border border-white/10;
   }
 }
 
-/* Bottom nav active indicator */
-.dash-nav-indicator {
-  position: relative;
+/* ── Mapbox overrides ────────────────────────────────── */
+.mapboxgl-ctrl-attrib,
+.mapboxgl-ctrl-logo {
+  display: none !important;
 }
 
-.dash-nav-indicator::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 9999px;
-  background: #0ea5e9;
-  animation: dashNavDot 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes dashNavDot {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) scale(0);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) scale(1);
-  }
-}
-
-/* Map — tracking pulse ring for rider location marker */
-.tracking-pulse-ring {
-  animation: trackingPulse 2s ease-out infinite;
-}
-@keyframes trackingPulse {
-  0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
-  70% { box-shadow: 0 0 0 12px rgba(14, 165, 233, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
-}
-
-/* Mapbox canvas — prevent focus outline on click */
-.mapboxgl-canvas:focus {
+.mapboxgl-canvas {
   outline: none;
 }
 
-/* Safe area bottom padding for bottom sheet actions */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
+/* ── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.25); }

@@ -1,20 +1,21 @@
 'use client';
 
-import React, { type ReactNode } from 'react';
-import { AuthProvider } from '@riderguy/auth';
+import { AuthProvider, initApiClient } from '@riderguy/auth';
 import { OfflineBanner, InstallBanner } from '@riderguy/ui';
+import { QueryProvider } from '@/lib/query-client';
 import { API_BASE_URL } from '@/lib/constants';
+import type { ReactNode } from 'react';
 
-// ============================================================
-// Providers — wraps the app with AuthProvider (client component)
-// ============================================================
+initApiClient(API_BASE_URL);
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider apiBaseUrl={API_BASE_URL}>
-      {children}
-      <OfflineBanner />
-      <InstallBanner appName="RiderGuy Rider" description="Install for instant job alerts, offline mode, and one-tap access." />
-    </AuthProvider>
+    <QueryProvider>
+      <AuthProvider apiBaseUrl={API_BASE_URL}>
+        {children}
+        <OfflineBanner />
+        <InstallBanner />
+      </AuthProvider>
+    </QueryProvider>
   );
 }

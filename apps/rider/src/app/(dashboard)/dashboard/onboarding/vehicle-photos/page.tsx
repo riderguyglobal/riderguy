@@ -1,322 +1,172 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { useAuth } from '@riderguy/auth';
-import {
-  Button,
-  Card,
-  CardContent,
-  Badge,
-  Spinner,
-} from '@riderguy/ui';
 import { API_BASE_URL } from '@/lib/constants';
+import { Button } from '@riderguy/ui';
+import { ArrowLeft, Camera, X, CheckCircle, AlertCircle, ImageIcon } from 'lucide-react';
 
-// ─── Photo positions ────────────────────────────────────────
-
-const POSITIONS = [
-  { key: 'front', label: 'Front', icon: '🔼', description: 'Front view of the vehicle' },
-  { key: 'back', label: 'Back', icon: '🔽', description: 'Rear view with plate visible' },
-  { key: 'left', label: 'Left Side', icon: '◀️', description: 'Left side profile' },
-  { key: 'right', label: 'Right Side', icon: '▶️', description: 'Right side profile' },
-] as const;
-
-type Position = (typeof POSITIONS)[number]['key'];
-
-interface VehicleData {
-  id: string;
-  make: string;
-  model: string;
-  plateNumber: string;
-  photoFrontUrl: string | null;
-  photoBackUrl: string | null;
-  photoLeftUrl: string | null;
-  photoRightUrl: string | null;
-}
-
-// ─── Component ──────────────────────────────────────────────
+const PHOTO_ANGLES = [
+  { key: 'front', label: 'Front View' },
+  { key: 'back', label: 'Back View' },
+  { key: 'left', label: 'Left Side' },
+  { key: 'right', label: 'Right Side' },
+];
 
 export default function VehiclePhotosPage() {
   const router = useRouter();
-  const { accessToken } = useAuth();
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
-  const [activePosition, setActivePosition] = useState<Position | null>(null);
+  const { api } = useAuth();
+  const [photos, setPhotos] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // ── Fetch vehicles ────────────────────────────────────────
-  const fetchVehicles = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/riders/vehicles`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!res.ok) throw new Error('Failed to load vehicles');
-
-      const json = await res.json();
-      const list = json.data as VehicleData[];
-      setVehicles(list);
-      if (list.length > 0) setSelectedVehicle(list[0]!);
-    } catch {
-      setError('Could not load your vehicles. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken]);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [activeAngle, setActiveAngle] = useState('');
 
   useEffect(() => {
-    void fetchVehicles();
-  }, [fetchVehicles]);
+    if (!api) return;
+    api.get(`${API_BASE_URL}/riders/vehicles`).then((res) => {
+      const vehicles = res.data.data ?? [];
+      if (vehicles.length > 0) setVehicleId(vehicles[0].id);
+    }).catch(() => {});
+  }, [api]);
 
-  // ── Get photo URL for a position ──────────────────────────
-  const getPhotoUrl = (vehicle: VehicleData, position: Position): string | null => {
-    const map: Record<Position, string | null> = {
-      front: vehicle.photoFrontUrl,
-      back: vehicle.photoBackUrl,
-      left: vehicle.photoLeftUrl,
-      right: vehicle.photoRightUrl,
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeAngle) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhotos((prev) => ({ ...prev, [activeAngle]: reader.result as string }));
     };
-    return map[position];
+    reader.readAsDataURL(file);
+    if (fileRef.current) fileRef.current.value = '';
   };
 
-  // ── Handle file selection + upload ────────────────────────
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file || !selectedVehicle || !activePosition) return;
+  const removePhoto = (angle: string) => {
+    setPhotos((prev) => {
+      const next = { ...prev };
+      delete next[angle];
+      return next;
+    });
+  };
 
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File is too large. Maximum size is 10MB.');
-        return;
-      }
+  const uploadAll = async () => {
+    if (!api || !vehicleId) {
+      setError('No vehicle found. Register a vehicle first.');
+      return;
+    }
+    const filled = Object.keys(photos);
+    if (filled.length === 0) {
+      setError('Add at least one photo');
+      return;
+    }
 
-      setUploading(true);
-      setError(null);
+    setUploading(true);
+    setError('');
 
-      try {
+    try {
+      for (const angle of filled) {
+        const photoUrl = photos[angle];
+        if (!photoUrl) continue;
+        const res = await fetch(photoUrl);
+        const blob = await res.blob();
         const formData = new FormData();
-        formData.append('photo', file);
-        formData.append('position', activePosition);
+        formData.append('file', blob, `vehicle-${angle}.jpg`);
+        formData.append('angle', angle);
 
-        const res = await fetch(
-          `${API_BASE_URL}/riders/vehicles/${selectedVehicle.id}/photos`,
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-            body: formData,
-          },
-        );
-
-        if (!res.ok) {
-          const json = await res.json().catch(() => null);
-          throw new Error(json?.error?.message ?? 'Upload failed');
-        }
-
-        // Refresh vehicles to get updated photo URLs
-        await fetchVehicles();
-        setActivePosition(null);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Upload failed. Please try again.',
-        );
-      } finally {
-        setUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+        await api.post(`${API_BASE_URL}/riders/vehicles/${vehicleId}/photos`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
       }
-    },
-    [selectedVehicle, activePosition, accessToken, fetchVehicles],
-  );
+      setSuccess(true);
+    } catch {
+      setError('Upload failed. Try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
-  // ── Loading state ─────────────────────────────────────────
-  if (loading) {
+  if (success) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Spinner className="h-8 w-8 text-brand-500" />
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-surface-950 px-6 text-center animate-scale-in">
+        <CheckCircle className="h-16 w-16 text-accent-400 mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Photos Uploaded!</h2>
+        <p className="text-surface-400 mb-8">Your vehicle photos are being reviewed.</p>
+        <Button className="bg-brand-500 hover:bg-brand-600" onClick={() => router.push('/dashboard/onboarding')}>
+          Back to Onboarding
+        </Button>
       </div>
     );
   }
-
-  // ── No vehicles registered ────────────────────────────────
-  if (vehicles.length === 0) {
-    return (
-      <div className="p-4">
-        <button
-          onClick={() => router.push('/dashboard/onboarding')}
-          className="mb-3 flex items-center gap-1 text-sm text-brand-500 hover:underline"
-        >
-          ← Back to checklist
-        </button>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
-          <p className="text-sm text-amber-800">
-            You need to register a vehicle first before uploading photos.
-          </p>
-          <Button
-            className="mt-3"
-            onClick={() => router.push('/dashboard/onboarding/vehicle')}
-          >
-            Register Vehicle
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const completedPhotos = selectedVehicle
-    ? POSITIONS.filter((p) => getPhotoUrl(selectedVehicle, p.key)).length
-    : 0;
 
   return (
-    <div className="p-4">
+    <div className="min-h-[100dvh] pb-10 animate-page-enter">
       {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push('/dashboard/onboarding')}
-          className="mb-3 flex items-center gap-1 text-sm text-brand-500 hover:underline"
-        >
-          ← Back to checklist
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">Vehicle Photos</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Upload photos of your vehicle from all four angles.
-        </p>
+      <div className="safe-area-top bg-surface-950 sticky top-0 z-20 border-b border-white/5">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-full bg-surface-800 flex items-center justify-center">
+            <ArrowLeft className="h-5 w-5 text-surface-300" />
+          </button>
+          <h1 className="text-lg font-bold text-white">Vehicle Photos</h1>
+        </div>
       </div>
 
-      {/* Vehicle selector (if multiple) */}
-      {vehicles.length > 1 && (
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
-          {vehicles.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => setSelectedVehicle(v)}
-              className={`flex-shrink-0 rounded-lg border-2 px-3 py-2 text-sm transition-all ${
-                selectedVehicle?.id === v.id
-                  ? 'border-brand-500 bg-brand-50'
-                  : 'border-gray-200'
-              }`}
-            >
-              {v.make} {v.model} — {v.plateNumber}
-            </button>
+      <div className="px-4 py-6 space-y-4">
+        <p className="text-sm text-surface-400">Take clear photos of your vehicle from all angles.</p>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake">
+            <AlertCircle className="h-4 w-4 text-danger-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-danger-300">{error}</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          {PHOTO_ANGLES.map(({ key, label }) => (
+            <div key={key} className="relative">
+              {photos[key] ? (
+                <div className="relative aspect-square rounded-xl overflow-hidden">
+                  <img src={photos[key]} alt={label} className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removePhoto(key)}
+                    className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center"
+                  >
+                    <X className="h-4 w-4 text-white" />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-2 px-3">
+                    <p className="text-xs text-white font-medium">{label}</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setActiveAngle(key);
+                    setTimeout(() => fileRef.current?.click(), 50);
+                  }}
+                  className="w-full aspect-square rounded-xl border-2 border-dashed border-surface-700 flex flex-col items-center justify-center gap-2 hover:border-surface-500 transition-colors bg-surface-800/50"
+                >
+                  <Camera className="h-6 w-6 text-surface-500" />
+                  <span className="text-xs text-surface-400">{label}</span>
+                </button>
+              )}
+            </div>
           ))}
         </div>
-      )}
 
-      {/* Progress */}
-      {selectedVehicle && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-          <span>{completedPhotos}/4 photos uploaded</span>
-          {completedPhotos === 4 && (
-            <Badge className="bg-green-100 text-green-700">Complete</Badge>
-          )}
-        </div>
-      )}
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect} className="hidden" />
 
-      {/* Photo grid */}
-      {selectedVehicle && (
-        <div className="grid grid-cols-2 gap-3">
-          {POSITIONS.map((pos) => {
-            const photoUrl = getPhotoUrl(selectedVehicle, pos.key);
-            const isActive = activePosition === pos.key;
-
-            return (
-              <Card
-                key={pos.key}
-                className={`overflow-hidden transition-all ${
-                  isActive ? 'ring-2 ring-brand-400' : ''
-                }`}
-              >
-                <CardContent className="p-0">
-                  {photoUrl ? (
-                    <div className="group relative aspect-square">
-                      <Image
-                        src={photoUrl}
-                        alt={`${pos.label} view`}
-                        fill
-                        className="object-cover"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="bg-white"
-                          onClick={() => {
-                            setActivePosition(pos.key);
-                            fileInputRef.current?.click();
-                          }}
-                        >
-                          Replace
-                        </Button>
-                      </div>
-                      {/* Label */}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 p-2">
-                        <span className="text-xs font-medium text-white">
-                          {pos.icon} {pos.label}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setActivePosition(pos.key);
-                        fileInputRef.current?.click();
-                      }}
-                      disabled={uploading}
-                      className="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-gray-50 transition-colors hover:bg-gray-100"
-                    >
-                      <span className="text-3xl">{pos.icon}</span>
-                      <span className="text-xs font-medium text-gray-600">
-                        {pos.label}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        Tap to upload
-                      </span>
-                    </button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        onChange={(e) => void handleFileChange(e)}
-        className="hidden"
-      />
-
-      {/* Uploading indicator */}
-      {uploading && (
-        <div className="mt-4 flex items-center justify-center gap-2 text-sm text-brand-600">
-          <Spinner className="h-4 w-4" />
-          Uploading photo…
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Done button */}
-      <Button
-        className="mt-6 w-full"
-        variant={completedPhotos === 4 ? 'default' : 'outline'}
-        onClick={() => router.push('/dashboard/onboarding')}
-      >
-        {completedPhotos === 4 ? 'Done — Back to Checklist' : 'Skip for Now'}
-      </Button>
+        <Button
+          size="xl"
+          className="w-full bg-brand-500 hover:bg-brand-600"
+          onClick={uploadAll}
+          loading={uploading}
+          disabled={Object.keys(photos).length === 0}
+        >
+          Upload {Object.keys(photos).length} Photo{Object.keys(photos).length !== 1 ? 's' : ''}
+        </Button>
+      </div>
     </div>
   );
 }

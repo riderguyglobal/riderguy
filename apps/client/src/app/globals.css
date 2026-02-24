@@ -2,267 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Auth page custom animations & effects
-   ============================================================ */
-
-/* Animated gradient mesh for the hero panel */
-.auth-gradient-mesh {
-  background:
-    radial-gradient(ellipse at 20% 50%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(34, 197, 94, 0.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
-  animation: meshShift 12s ease-in-out infinite alternate;
-}
-
-@keyframes meshShift {
-  0% {
-    background-position: 0% 0%, 100% 0%, 50% 100%;
+/* ─── Light Theme Base ──────────────────────────── */
+@layer base {
+  :root {
+    color-scheme: light;
   }
-  50% {
-    background-position: 30% 20%, 70% 40%, 40% 60%;
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
   }
-  100% {
-    background-position: 10% 40%, 90% 10%, 60% 80%;
+
+  body {
+    @apply bg-white text-surface-900 antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  ::selection {
+    @apply bg-brand-500/20 text-brand-700;
   }
 }
 
-/* Subtle grid overlay */
-.auth-grid-pattern {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Slide-up entrance */
-.auth-slide-up {
-  animation: authSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes authSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Fade-in entrance */
-.auth-fade-in {
-  animation: authFadeIn 0.4s ease-out both;
-}
-
-@keyframes authFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Scale-in for success checkmark */
-.auth-scale-in {
-  animation: authScaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes authScaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Floating logo animation */
-.auth-float {
-  animation: authFloat 4s ease-in-out infinite;
-}
-
-@keyframes authFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-/* Error shake */
-.auth-shake {
-  animation: authShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-}
-
-@keyframes authShake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-3px); }
-  40%, 60% { transform: translateX(3px); }
-}
-
-/* ============================================================
-   Dashboard — Bolt/Uber-inspired animations & effects
-   ============================================================ */
-
-/* Page entrance — slide up + fade in */
-.dash-page-enter {
-  animation: dashPageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes dashPageEnter {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* Pulsing status dot */
-.dash-pulse-dot {
-  position: relative;
-}
-.dash-pulse-dot::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 9999px;
-  background: rgba(34, 197, 94, 0.4);
-  animation: dashPulseDot 2s ease-in-out infinite;
-}
-@keyframes dashPulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0; transform: scale(1.8); }
-}
-
-/* Staggered children animation for lists */
-.dash-stagger-in > * {
-  animation: dashStaggerItem 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.dash-stagger-in > *:nth-child(1) { animation-delay: 0ms; }
-.dash-stagger-in > *:nth-child(2) { animation-delay: 50ms; }
-.dash-stagger-in > *:nth-child(3) { animation-delay: 100ms; }
-.dash-stagger-in > *:nth-child(4) { animation-delay: 150ms; }
-.dash-stagger-in > *:nth-child(5) { animation-delay: 200ms; }
-.dash-stagger-in > *:nth-child(6) { animation-delay: 250ms; }
-.dash-stagger-in > *:nth-child(7) { animation-delay: 300ms; }
-.dash-stagger-in > *:nth-child(8) { animation-delay: 350ms; }
-.dash-stagger-in > *:nth-child(n+9) { animation-delay: 400ms; }
-
-@keyframes dashStaggerItem {
+/* ─── Animations ──────────────────────────────── */
+@keyframes page-enter {
   from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Bottom nav active indicator */
-.dash-nav-indicator {
-  animation: dashNavDot 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-@keyframes dashNavDot {
-  from { opacity: 0; transform: scaleX(0); }
-  to   { opacity: 1; transform: scaleX(1); }
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Safe area bottom padding */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Map placeholder shimmer */
-.map-shimmer {
-  background: linear-gradient(
-    110deg,
-    #e2e8f0 8%,
-    #f1f5f9 18%,
-    #e2e8f0 33%
-  );
-  background-size: 200% 100%;
-  animation: mapShimmer 1.5s linear infinite;
-}
-@keyframes mapShimmer {
-  to { background-position: -200% 0; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* Rider pin bounce */
-.rider-pin-bounce {
-  animation: riderPinBounce 2s ease-in-out infinite;
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
-@keyframes riderPinBounce {
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
 
-/* Slide in from bottom for modals/sheets */
-.slide-up-sheet {
-  animation: slideUpSheet 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes slideUpSheet {
-  from { opacity: 0; transform: translateY(100%); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes bounce-in {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
-/* Tracking pulse ring */
-.tracking-pulse-ring {
-  animation: trackingPulse 2s ease-out infinite;
-}
-@keyframes trackingPulse {
-  0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
-  70% { box-shadow: 0 0 0 12px rgba(14, 165, 233, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+@keyframes countdown-stroke {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 283; }
 }
 
-/* Mapbox canvas — prevent focus outline on click */
-.mapboxgl-canvas:focus {
-  outline: none;
+@layer utilities {
+  .animate-page-enter { animation: page-enter 0.4s ease-out both; }
+  .animate-slide-up { animation: slide-up 0.45s ease-out both; }
+  .animate-slide-down { animation: slide-down 0.35s ease-out both; }
+  .animate-fade-in { animation: fade-in 0.35s ease-out both; }
+  .animate-scale-in { animation: scale-in 0.3s ease-out both; }
+  .animate-shake { animation: shake 0.4s ease-in-out; }
+  .animate-float { animation: float 3s ease-in-out infinite; }
+  .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .animate-pulse-ring { animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-5 { animation-delay: 0.25s; }
+
+  /* Safe areas for PWA */
+  .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  /* Card elevation */
+  .card-elevated {
+    @apply bg-white rounded-2xl shadow-card border border-surface-100;
+  }
+
+  .card-interactive {
+    @apply bg-white rounded-2xl shadow-card border border-surface-100 transition-all duration-200 hover:shadow-card-hover hover:border-surface-200 active:scale-[0.98];
+  }
+
+  /* Gradient brand bar */
+  .brand-gradient {
+    @apply bg-gradient-to-r from-brand-500 to-brand-600;
+  }
 }
 
-/* Card hover lift */
-.card-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+/* ─── Mapbox Overrides (Light) ──────────────── */
+.mapboxgl-ctrl-logo { display: none !important; }
+.mapboxgl-ctrl-attrib { display: none !important; }
+.mapboxgl-ctrl-group {
+  @apply !rounded-xl !shadow-card !border-surface-200;
 }
-.card-lift:active {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-/* Progress bar fill animation */
-.progress-fill {
-  animation: progressFill 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes progressFill {
-  from { width: 0%; }
+.mapboxgl-ctrl-group button {
+  @apply !border-surface-100;
 }
 
-/* Chat message slide-in */
-.chat-msg-in {
-  animation: chatMsgIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+/* ─── Scrollbar ─────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-200 rounded-full;
 }
-@keyframes chatMsgIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.95); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Typing indicator dot bounce */
-.typing-dot {
-  animation: typingDot 1.4s ease-in-out infinite;
-}
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes typingDot {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-4px); opacity: 1; }
-}
-
-/* Star rating pop */
-.star-pop {
-  animation: starPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-@keyframes starPop {
-  from { transform: scale(0.5); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-surface-300;
 }

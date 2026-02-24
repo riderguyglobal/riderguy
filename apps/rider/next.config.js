@@ -23,6 +23,19 @@ const nextConfig = {
       headers: [{ key: 'Content-Type', value: 'application/manifest+json' }],
     },
   ],
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+      };
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:crypto': false,
+      };
+    }
+    return config;
+  },
 };
 
 // Wrap with Serwist PWA support if available

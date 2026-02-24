@@ -1,138 +1,50 @@
 'use client';
 
-import React from 'react';
-import Image from 'next/image';
-import { useRouter, usePathname } from 'next/navigation';
-import { useAuth, ProtectedRoute } from '@riderguy/auth';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
-import { Avatar, AvatarFallback, AvatarImage, Spinner } from '@riderguy/ui';
-
-// ============================================================
-// Client Dashboard Layout — Bolt / Uber inspired mobile-first
-// ============================================================
-
-// SVG icon components for crisp bottom nav
-function HomeIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      {active && <path d="M9 22V12h6v10" fill="#0ea5e9" opacity="0.15" />}
-    </svg>
-  );
-}
-function SendIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 3L14.5 21a.55.55 0 01-1 0l-3-7.5L3 10.5a.55.55 0 010-1L21 3z" fill={active ? 'rgba(14,165,233,0.12)' : 'none'} />
-    </svg>
-  );
-}
-function OrdersIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" fill={active ? 'rgba(14,165,233,0.12)' : 'none'} />
-      <path d="M8 7h8M8 12h6M8 17h4" />
-    </svg>
-  );
-}
-function SettingsIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-      <circle cx="12" cy="7" r="4" fill={active ? 'rgba(14,165,233,0.15)' : 'none'} />
-    </svg>
-  );
-}
+import { Home, Package, ClipboardList, User } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { label: 'Home', href: '/dashboard', Icon: HomeIcon },
-  { label: 'Send', href: '/dashboard/send', Icon: SendIcon },
-  { label: 'Orders', href: '/dashboard/orders', Icon: OrdersIcon },
-  { label: 'Account', href: '/dashboard/settings', Icon: SettingsIcon },
+  { href: '/dashboard', icon: Home, label: 'Home' },
+  { href: '/dashboard/send', icon: Package, label: 'Send' },
+  { href: '/dashboard/orders', icon: ClipboardList, label: 'Orders' },
+  { href: '/dashboard/settings', icon: User, label: 'Account' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
+
+  // Hide nav on tracking / order detail pages
+  const hideNav = /\/orders\/[^/]+\/(tracking|payment|rate)/.test(pathname);
 
   return (
-    <ProtectedRoute
-      allowedRoles={[UserRole.CLIENT]}
-      loadingFallback={
-        <div className="flex min-h-screen items-center justify-center bg-surface-50">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative h-12 w-12">
-              <Image src="/images/branding/logo-black.png" alt="RiderGuy" fill className="object-contain" />
+    <ProtectedRoute allowedRoles={[UserRole.CLIENT]}>
+      <div className="min-h-[100dvh] bg-surface-50 pb-20">
+        {children}
+
+        {!hideNav && (
+          <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-surface-100 safe-area-bottom">
+            <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+              {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+                const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${
+                      active ? 'text-brand-500' : 'text-surface-400 hover:text-surface-600'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+                    <span className="text-[10px] font-medium">{label}</span>
+                  </Link>
+                );
+              })}
             </div>
-            <Spinner className="h-6 w-6 text-brand-500" />
-          </div>
-        </div>
-      }
-      onUnauthenticated={() => router.replace('/login')}
-      onUnauthorised={() => router.replace('/login')}
-    >
-      <div className="flex min-h-screen flex-col bg-surface-50">
-        {/* ── Glassmorphic Top Bar ── */}
-        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-surface-100">
-          <div className="flex items-center justify-between px-4 h-14">
-            {/* Logo + Brand */}
-            <div className="flex items-center gap-2.5">
-              <div className="relative h-8 w-8">
-                <Image src="/images/branding/logo-black.png" alt="RiderGuy" fill className="object-contain" />
-              </div>
-              <span className="text-sm font-bold text-surface-900 tracking-tight">
-                RiderGuy
-              </span>
-            </div>
-
-            {/* Avatar */}
-            <button
-              onClick={() => router.push('/dashboard/settings')}
-              className="flex items-center gap-2 rounded-full p-0.5 transition-all hover:ring-2 hover:ring-brand-200 active:scale-95"
-            >
-              <Avatar className="h-8 w-8 ring-2 ring-surface-100">
-                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="Avatar" />}
-                <AvatarFallback className="bg-brand-500 text-white text-xs font-bold">
-                  {user?.firstName?.[0]}
-                  {user?.lastName?.[0]}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-          </div>
-        </header>
-
-        {/* ── Page Content ── */}
-        <main className="flex-1 pb-20 animate-fade-in">{children}</main>
-
-        {/* ── Bottom Navigation — Bolt/Uber style ── */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-surface-100 safe-area-bottom">
-          <div className="flex items-stretch justify-around h-16">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => router.push(item.href)}
-                  className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
-                    isActive ? 'text-brand-500' : 'text-surface-400'
-                  }`}
-                >
-                  {/* Active indicator bar */}
-                  {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-brand-500 dash-nav-indicator" />
-                  )}
-                  <item.Icon active={isActive} />
-                  <span className={`text-[10px] font-medium ${isActive ? 'text-brand-500' : 'text-surface-400'}`}>
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+          </nav>
+        )}
       </div>
     </ProtectedRoute>
   );

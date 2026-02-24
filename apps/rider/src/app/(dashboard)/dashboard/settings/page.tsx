@@ -1,124 +1,97 @@
 'use client';
 
-import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, SessionManager } from '@riderguy/auth';
-import { Button } from '@riderguy/ui';
+import { useAuth } from '@riderguy/auth';
+import { SessionManager } from '@riderguy/auth';
+import { Avatar, AvatarImage, AvatarFallback } from '@riderguy/ui';
+import { getInitials } from '@riderguy/utils';
+import {
+  User, Shield, Bell, HelpCircle, FileText, LogOut,
+  ChevronRight, Bike, Settings
+} from 'lucide-react';
 
-export default function RiderSettingsPage() {
-  const { user, logout } = useAuth();
+const MENU_ITEMS = [
+  { icon: User, label: 'Edit Profile', href: '/dashboard/settings/profile', color: 'text-brand-400' },
+  { icon: Shield, label: 'Security', href: '/dashboard/settings/security', color: 'text-accent-400' },
+  { icon: Bell, label: 'Notifications', href: '/dashboard/settings/notifications', color: 'text-amber-400' },
+  { icon: FileText, label: 'Documents', href: '/dashboard/onboarding/documents', color: 'text-purple-400' },
+  { icon: Bike, label: 'Vehicle Info', href: '/dashboard/onboarding/vehicle', color: 'text-cyan-400' },
+  { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/settings/help', color: 'text-surface-400' },
+] as const;
+
+export default function SettingsPage() {
   const router = useRouter();
+  const { user, logout } = useAuth();
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch {
-      // ignore
-    }
+    await logout();
+    router.replace('/');
   };
 
   return (
-    <div className="dash-page-enter pb-8">
-      {/* ── Profile Header ── */}
-      <div className="bg-gradient-to-br from-surface-900 via-surface-800 to-brand-900 px-4 pt-6 pb-8">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold text-white backdrop-blur-sm">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-white">
-              {user?.firstName} {user?.lastName}
-            </h1>
-            <p className="text-sm text-white/60">{user?.email}</p>
-            {user?.phone && <p className="text-xs text-white/40 mt-0.5">{user.phone}</p>}
-          </div>
-        </div>
+    <div className="min-h-[100dvh] pb-24 animate-page-enter">
+      {/* Header */}
+      <div className="safe-area-top bg-surface-950 px-5 py-4">
+        <h1 className="text-xl font-bold text-white">Account</h1>
       </div>
 
-      {/* ── Menu Items ── */}
-      <div className="px-4 pt-4 space-y-2">
-        {/* Account Section */}
-        <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-1 mb-1">Account</p>
+      <div className="px-4 space-y-4">
+        {/* Profile card */}
+        <div className="glass rounded-2xl p-5 flex items-center gap-4">
+          <Avatar className="h-16 w-16 ring-2 ring-brand-500/30">
+            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.firstName} />}
+            <AvatarFallback className="bg-brand-500/20 text-brand-400 text-lg font-bold">
+              {getInitials(user?.firstName ?? '', user?.lastName ?? '')}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-lg font-semibold text-white truncate">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-sm text-surface-400 truncate">{user?.phone ?? user?.email}</p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-accent-400" />
+              <span className="text-xs text-accent-400">Verified Rider</span>
+            </div>
+          </div>
+        </div>
 
+        {/* Menu items */}
+        <div className="glass rounded-2xl overflow-hidden">
+          {MENU_ITEMS.map(({ icon: Icon, label, href, color }) => (
+            <button
+              key={href}
+              onClick={() => router.push(href)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0"
+            >
+              <Icon className={`h-5 w-5 ${color}`} />
+              <span className="text-sm text-white flex-1 text-left">{label}</span>
+              <ChevronRight className="h-4 w-4 text-surface-500" />
+            </button>
+          ))}
+        </div>
+
+        {/* Session manager */}
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/5">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Settings className="h-4 w-4 text-surface-400" />
+              Active Sessions
+            </h3>
+          </div>
+          <div className="p-4">
+            <SessionManager />
+          </div>
+        </div>
+
+        {/* Logout */}
         <button
-          className="flex w-full items-center gap-3 rounded-2xl bg-white shadow-card p-4 active:scale-[0.98] transition-all"
-          onClick={() => router.push('/dashboard/onboarding')}
+          onClick={handleLogout}
+          className="glass rounded-2xl w-full flex items-center justify-center gap-2 px-4 py-3.5 text-danger-400 hover:bg-danger-500/10 transition-colors"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-surface-900">Documents</p>
-            <p className="text-xs text-surface-500">Manage your verification documents</p>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <LogOut className="h-5 w-5" />
+          <span className="text-sm font-medium">Sign Out</span>
         </button>
-
-        <button
-          className="flex w-full items-center gap-3 rounded-2xl bg-white shadow-card p-4 active:scale-[0.98] transition-all"
-          onClick={() => router.push('/dashboard/earnings')}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 100 4h4v-4h-4z"/></svg>
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-surface-900">Earnings & Wallet</p>
-            <p className="text-xs text-surface-500">View transactions and withdrawals</p>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-
-        {/* Security Section */}
-        <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-1 mt-4 mb-1">Security</p>
-
-        <div className="rounded-2xl bg-white shadow-card p-4">
-          <SessionManager />
-        </div>
-
-        {/* Support Section */}
-        <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-1 mt-4 mb-1">Support</p>
-
-        <div className="rounded-2xl bg-white shadow-card overflow-hidden">
-          <button className="flex w-full items-center gap-3 p-4 border-b border-surface-100 active:bg-surface-50 transition">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-50">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-surface-900">Help Center</p>
-              <p className="text-xs text-surface-500">FAQs and support</p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-
-          <button className="flex w-full items-center gap-3 p-4 active:bg-surface-50 transition">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-50">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-            </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-surface-900">Contact Support</p>
-              <p className="text-xs text-surface-500">Chat or call our team</p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-
-        {/* Sign Out */}
-        <div className="pt-4">
-          <Button
-            variant="outline"
-            className="w-full rounded-xl h-12 border-danger-200 text-danger-600 hover:bg-danger-50 hover:text-danger-700"
-            onClick={handleLogout}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-          </Button>
-        </div>
-
-        {/* Version */}
-        <p className="text-center text-[10px] text-surface-300 pt-2 pb-4">
-          RiderGuy v1.0.0
-        </p>
       </div>
     </div>
   );

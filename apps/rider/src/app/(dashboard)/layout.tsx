@@ -1,155 +1,63 @@
 'use client';
 
-import React from 'react';
-import Image from 'next/image';
-import dynamic from 'next/dynamic';
-import { useRouter, usePathname } from 'next/navigation';
-import { useAuth, ProtectedRoute } from '@riderguy/auth';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { ProtectedRoute, useAuth } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
-import { Avatar, AvatarFallback, AvatarImage, Spinner } from '@riderguy/ui';
-
-// Lazy-load the incoming request overlay (it uses Socket.IO)
-const IncomingRequest = dynamic(() => import('@/components/incoming-request'), {
-  ssr: false,
-});
-
-// ============================================================
-// Rider Dashboard Layout — Bolt/Uber-inspired mobile-first
-// ============================================================
-
-// SVG icon components for crisp bottom nav
-function HomeIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      {active && <path d="M9 22V12h6v10" fill="#0ea5e9" opacity="0.15" />}
-    </svg>
-  );
-}
-function BriefcaseIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? 'rgba(14,165,233,0.12)' : 'none'} stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
-    </svg>
-  );
-}
-function WalletIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? 'rgba(14,165,233,0.12)' : 'none'} stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12V7H5a2 2 0 010-4h14v4" />
-      <path d="M3 5v14a2 2 0 002 2h16v-5" />
-      <path d="M18 12a2 2 0 100 4 2 2 0 000-4z" />
-    </svg>
-  );
-}
-function UserIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? '#0ea5e9' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-      <circle cx="12" cy="7" r="4" fill={active ? 'rgba(14,165,233,0.15)' : 'none'} />
-    </svg>
-  );
-}
+import { Home, ClipboardList, Wallet, User } from 'lucide-react';
+import { IncomingRequest } from '@/components/incoming-request';
 
 const NAV_ITEMS = [
-  { label: 'Home', href: '/dashboard', Icon: HomeIcon },
-  { label: 'Jobs', href: '/dashboard/jobs', Icon: BriefcaseIcon },
-  { label: 'Earnings', href: '/dashboard/earnings', Icon: WalletIcon },
-  { label: 'Account', href: '/dashboard/settings', Icon: UserIcon },
-];
+  { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/dashboard/jobs', label: 'Jobs', icon: ClipboardList },
+  { href: '/dashboard/earnings', label: 'Earnings', icon: Wallet },
+  { href: '/dashboard/settings', label: 'Account', icon: User },
+] as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
 
-  const isHome = pathname === '/dashboard';
+  // Hide bottom nav on active job pages
+  const isJobDetail = pathname.startsWith('/dashboard/jobs/') && pathname !== '/dashboard/jobs';
+  const isOnboarding = pathname.startsWith('/dashboard/onboarding');
+  const showBottomNav = !isJobDetail && !isOnboarding;
 
   return (
-    <ProtectedRoute
-      allowedRoles={[UserRole.RIDER]}
-      loadingFallback={
-        <div className="flex min-h-screen items-center justify-center bg-surface-50">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative h-12 w-12">
-              <Image src="/images/branding/logo-black.png" alt="RiderGuy" fill className="object-contain" />
+    <ProtectedRoute allowedRoles={[UserRole.RIDER]}>
+      <div className="min-h-[100dvh] bg-surface-950">
+        {children}
+
+        {/* Bottom navigation */}
+        {showBottomNav && (
+          <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface-900/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom">
+            <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
+              {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+                const isActive = href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex flex-col items-center justify-center gap-0.5 w-16 py-1.5 rounded-xl transition-all ${
+                      isActive ? 'text-brand-400' : 'text-surface-500 active:text-surface-300'
+                    }`}
+                  >
+                    <div className="relative">
+                      <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 1.5} />
+                      {isActive && (
+                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-400" />
+                      )}
+                    </div>
+                    <span className="text-[10px] font-medium">{label}</span>
+                  </Link>
+                );
+              })}
             </div>
-            <Spinner className="h-6 w-6 text-brand-500" />
-          </div>
-        </div>
-      }
-      onUnauthenticated={() => router.replace('/login')}
-      onUnauthorised={() => router.replace('/login')}
-    >
-      <div className="flex min-h-screen flex-col bg-surface-50">
-        {/* ── Minimal Top Bar ── */}
-        <header className={`sticky top-0 z-40 border-b ${
-          pathname === '/dashboard'
-            ? 'bg-transparent border-transparent'
-            : 'bg-white/80 backdrop-blur-lg border-surface-100'
-        }`} id="rider-header">
-          <div className="flex items-center justify-between px-4 h-14">
-            {/* Logo + Brand */}
-            <div className="flex items-center gap-2.5">
-              <div className="relative h-8 w-8">
-                <Image src={isHome ? '/images/branding/logo-white.png' : '/images/branding/logo-black.png'} alt="RiderGuy" fill className="object-contain" />
-              </div>
-              <span className={`text-sm font-bold tracking-tight ${isHome ? 'text-white' : 'text-surface-900'}`}>
-                RiderGuy
-              </span>
-            </div>
+          </nav>
+        )}
 
-            {/* Avatar */}
-            <button
-              onClick={() => router.push('/dashboard/settings')}
-              className="flex items-center gap-2 rounded-full p-0.5 transition-all hover:ring-2 hover:ring-brand-200 active:scale-95"
-            >
-              <Avatar className={`h-8 w-8 ring-2 ${isHome ? 'ring-white/20' : 'ring-surface-100'}`}>
-                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="Avatar" />}
-                <AvatarFallback className="bg-brand-500 text-white text-xs font-bold">
-                  {user?.firstName?.[0]}
-                  {user?.lastName?.[0]}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-          </div>
-        </header>
-
-        {/* ── Page Content ── */}
-        <main className="flex-1 pb-20 animate-fade-in">{children}</main>
-
-        {/* ── Incoming Job Request Overlay (auto-dispatch) ── */}
+        {/* Incoming job request overlay */}
         <IncomingRequest />
-
-        {/* ── Bottom Navigation — Bolt/Uber style ── */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-surface-100 safe-area-bottom">
-          <div className="flex items-stretch justify-around h-16">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => router.push(item.href)}
-                  className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
-                    isActive ? 'text-brand-500' : 'text-surface-400'
-                  }`}
-                >
-                  {/* Active indicator dot */}
-                  {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-brand-500 dash-nav-indicator" />
-                  )}
-                  <item.Icon active={isActive} />
-                  <span className={`text-[10px] font-medium ${isActive ? 'text-brand-500' : 'text-surface-400'}`}>
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
       </div>
     </ProtectedRoute>
   );

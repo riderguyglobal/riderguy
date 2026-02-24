@@ -3,32 +3,13 @@ import { Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'RiderGuy — Rider App',
-  description: 'Deliver with RiderGuy. Accept orders, navigate, and earn.',
+  title: 'Riderguy Rider',
+  description: 'Deliver and earn with Riderguy',
   manifest: '/manifest.json',
-  icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: '32x32' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: '/icons/icon-192.png',
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'RiderGuy Rider',
-  },
-  other: {
-    'mobile-web-app-capable': 'yes',
-  },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Riderguy Rider' },
 };
 
 export const viewport: Viewport = {
@@ -42,7 +23,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="bg-white font-sans text-surface-900 antialiased">
+      <body className="font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

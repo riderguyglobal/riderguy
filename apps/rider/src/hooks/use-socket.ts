@@ -1,139 +1,83 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { tokenStorage } from '@riderguy/auth';
-import type {
-  ServerToClientEvents,
-  ClientToServerEvents,
-} from '@riderguy/types';
 
-type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+const API_WS_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace('/api/v1', '');
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
+let sharedSocket: Socket | null = null;
+let listenerCount = 0;
 
-// ── Module-scoped singleton ─────────────────────────────────
-// All components that call useSocket() share ONE socket connection.
-let sharedSocket: AppSocket | null = null;
-let subscriberCount = 0;
-let connectedListeners: Set<(val: boolean) => void> = new Set();
-let isConnected = false;
-
-function setGlobalConnected(val: boolean) {
-  isConnected = val;
-  connectedListeners.forEach((fn) => fn(val));
-}
-
-function getOrCreateSocket(): AppSocket | null {
-  const token = tokenStorage.getAccessToken();
-  if (!token) return null;
+function getOrCreateSocket(): Socket {
   if (sharedSocket?.connected) return sharedSocket;
-  if (sharedSocket) return sharedSocket; // reconnecting
 
-  const socket: AppSocket = io(SOCKET_URL, {
+  const token = tokenStorage.getAccessToken();
+  sharedSocket = io(API_WS_URL, {
     auth: { token },
     transports: ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 2000,
+    reconnectionAttempts: 15,
+    reconnectionDelay: 2_000,
+    timeout: 10_000,
   });
 
-  socket.on('connect', () => {
-    console.log('[Socket] Connected:', socket.id);
-    setGlobalConnected(true);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('[Socket] Disconnected:', reason);
-    setGlobalConnected(false);
-  });
-
-  socket.on('connect_error', (err) => {
-    console.warn('[Socket] Connection error:', err.message);
-    setGlobalConnected(false);
-  });
-
-  sharedSocket = socket;
-  return socket;
+  return sharedSocket;
 }
 
-/**
- * Singleton Socket.IO connection for the rider app.
- * All components share a single connection. Connection is
- * created on first mount and destroyed when the last
- * subscriber unmounts.
- */
 export function useSocket() {
-  const [connected, setConnected] = useState(isConnected);
+  const socketRef = useRef<Socket | null>(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    // Track this subscriber
-    subscriberCount++;
-    connectedListeners.add(setConnected);
+    const socket = getOrCreateSocket();
+    socketRef.current = socket;
+    listenerCount++;
 
-    // Ensure socket exists
-    getOrCreateSocket();
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
 
-    // Sync initial state
-    setConnected(sharedSocket?.connected ?? false);
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    if (socket.connected) setConnected(true);
 
     return () => {
-      subscriberCount--;
-      connectedListeners.delete(setConnected);
-
-      // Disconnect only when the last subscriber unmounts
-      if (subscriberCount <= 0 && sharedSocket) {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      listenerCount--;
+      if (listenerCount <= 0 && sharedSocket) {
         sharedSocket.disconnect();
         sharedSocket = null;
-        subscriberCount = 0;
-        setGlobalConnected(false);
+        listenerCount = 0;
       }
     };
   }, []);
 
-  const emitLocation = useCallback(
-    (lat: number, lng: number, heading?: number, speed?: number) => {
-      sharedSocket?.emit('rider:updateLocation', { latitude: lat, longitude: lng, heading, speed }, () => {
-        // ack
-      });
-    },
-    [],
-  );
+  const emitLocation = useCallback((lat: number, lng: number, heading?: number) => {
+    socketRef.current?.emit('rider:location:update', { latitude: lat, longitude: lng, heading });
+  }, []);
 
   const subscribeToOrder = useCallback((orderId: string) => {
-    sharedSocket?.emit('order:subscribe', { orderId });
+    socketRef.current?.emit('order:subscribe', { orderId });
   }, []);
 
   const unsubscribeFromOrder = useCallback((orderId: string) => {
-    sharedSocket?.emit('order:unsubscribe', { orderId });
+    socketRef.current?.emit('order:unsubscribe', { orderId });
   }, []);
 
-  const sendMessage = useCallback(
-    (orderId: string, content: string) => {
-      sharedSocket?.emit(
-        'message:send',
-        { orderId, content },
-        () => {
-          // ack
-        },
-      );
-    },
-    [],
-  );
+  const sendMessage = useCallback((orderId: string, content: string) => {
+    socketRef.current?.emit('message:send', { orderId, content });
+  }, []);
 
   const sendTyping = useCallback((orderId: string) => {
-    sharedSocket?.emit('message:typing', { orderId });
+    socketRef.current?.emit('message:typing', { orderId });
   }, []);
 
-  const respondToOffer = useCallback(
-    (orderId: string, response: 'accept' | 'decline', ack?: (res: { success: boolean; error?: string }) => void) => {
-      sharedSocket?.emit('job:offer:respond', { orderId, response }, ack);
-    },
-    [],
-  );
+  const respondToOffer = useCallback((offerId: string, accepted: boolean) => {
+    socketRef.current?.emit('job:offer:respond', { offerId, accepted });
+  }, []);
 
   return {
-    socket: sharedSocket,
+    socket: socketRef.current,
     connected,
     emitLocation,
     subscribeToOrder,

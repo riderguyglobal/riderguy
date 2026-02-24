@@ -3,32 +3,13 @@ import { Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
+const inter = Inter({ subsets: ['latin'], display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'RiderGuy — Send a Package',
+  title: 'RiderGuy — Send Packages Fast',
   description: 'Send packages across the city with RiderGuy. Fast, reliable, real-time tracking.',
   manifest: '/manifest.json',
-  icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: '32x32' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: '/icons/icon-192.png',
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'RiderGuy',
-  },
-  other: {
-    'mobile-web-app-capable': 'yes',
-  },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'RiderGuy' },
 };
 
 export const viewport: Viewport = {
@@ -41,8 +22,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="bg-white font-sans text-surface-900 antialiased">
+    <html lang="en" className={inter.className}>
+      <body className="min-h-[100dvh] overflow-x-hidden">
         <Providers>{children}</Providers>
       </body>
     </html>

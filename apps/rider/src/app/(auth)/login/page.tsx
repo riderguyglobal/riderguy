@@ -1,337 +1,198 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@riderguy/auth';
-import {
-  Button,
-  Input,
-  Label,
-  PhoneInput,
-  OtpInput,
-  type OtpInputHandle,
-} from '@riderguy/ui';
+import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
+import { Eye, EyeOff, Mail, Phone, AlertCircle } from 'lucide-react';
 
-// ============================================================
-// Rider Login — phone+OTP or email+password
-// ============================================================
-
-type LoginMethod = 'phone' | 'email';
+type Method = 'phone' | 'email';
 type PhoneStage = 'input' | 'otp';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { requestOtp, loginWithOtp, loginWithPassword, isLoading, error } = useAuth();
+  const { loginWithOtp, loginWithPassword, requestOtp, isAuthenticated } = useAuth();
 
-  const [method, setMethod] = useState<LoginMethod>('email');
+  const [method, setMethod] = useState<Method>('phone');
   const [phoneStage, setPhoneStage] = useState<PhoneStage>('input');
-
-  // Phone+OTP fields
   const [phone, setPhone] = useState('');
-
-  // Email+password fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-
+  const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const otpRef = useRef<OtpInputHandle>(null);
+  const [error, setError] = useState('');
+  const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
-  const displayError = localError ?? error;
+  useEffect(() => {
+    if (isAuthenticated) router.replace('/dashboard');
+  }, [isAuthenticated, router]);
 
-  // ---- Phone: Request OTP ----
-  const handleRequestOtp = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!phone || phone.length < 10) {
-        setLocalError('Please enter a valid phone number.');
-        return;
-      }
-      setLocalError(null);
-      setSubmitting(true);
-      try {
-        await requestOtp(phone, 'LOGIN');
-        setPhoneStage('otp');
-      } catch {
-        setLocalError('Failed to send OTP. Please try again.');
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [phone, requestOtp]
-  );
+  const handleRequestOtp = async () => {
+    if (!phone || phone.length < 10) {
+      setError('Enter a valid phone number');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await requestOtp(phone, 'RIDER');
+      setPhoneStage('otp');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send OTP';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  // ---- Phone: Verify OTP ----
-  const handleOtpComplete = useCallback(
-    async (code: string) => {
-      setLocalError(null);
-      setSubmitting(true);
-      try {
-        await loginWithOtp(phone, code);
-        router.replace('/dashboard');
-      } catch {
-        setLocalError('Invalid OTP. Please try again.');
-        otpRef.current?.clear();
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [phone, loginWithOtp, router]
-  );
+  const handleOtpComplete = async (code: string) => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await loginWithOtp(phone, code);
+      router.replace('/dashboard');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid OTP';
+      setError(msg);
+      otpRef.current?.clear();
+      otpRef.current?.focus();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  // ---- Email+Password login ----
-  const handleEmailLogin = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!email.trim()) {
-        setLocalError('Please enter your email address.');
-        return;
-      }
-      if (!password) {
-        setLocalError('Please enter your password.');
-        return;
-      }
-      setLocalError(null);
-      setSubmitting(true);
-      try {
-        await loginWithPassword(email.trim(), password);
-        router.replace('/dashboard');
-      } catch {
-        setLocalError('Invalid email or password. Please try again.');
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [email, password, loginWithPassword, router]
-  );
-
-  // Switch method & reset state
-  const switchMethod = (m: LoginMethod) => {
-    setMethod(m);
-    setLocalError(null);
-    setPhoneStage('input');
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError('Enter your email and password');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await loginWithPassword(email, password);
+      router.replace('/dashboard');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid credentials';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="auth-slide-up">
-      {/* Greeting section */}
-      <div className="mb-6">
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5">
-          <span className="text-lg">👋</span>
-          <span className="text-caption font-semibold text-brand-600">Welcome back, Rider</span>
-        </div>
-        <h2 className="text-heading text-surface-900">Sign in to your account</h2>
-        <p className="mt-1.5 text-body-sm text-surface-500">
-          {method === 'email'
-            ? 'Enter your email and password to continue.'
-            : phoneStage === 'input'
-              ? 'Enter your registered phone number to continue.'
-              : (
-                <>
-                  We sent a 6-digit code to{' '}
-                  <span className="font-semibold text-surface-700">{phone}</span>
-                </>
-              )}
-        </p>
-      </div>
-
-      {/* Method toggle tabs */}
-      <div className="mb-6 flex rounded-xl bg-surface-100 p-1">
-        <button
-          type="button"
-          onClick={() => switchMethod('email')}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-body-sm font-medium transition-all duration-200 ${
-            method === 'email'
-              ? 'bg-white text-surface-900 shadow-card'
-              : 'text-surface-500 hover:text-surface-700'
-          }`}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-          </svg>
-          Email
-        </button>
-        <button
-          type="button"
-          onClick={() => switchMethod('phone')}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-body-sm font-medium transition-all duration-200 ${
-            method === 'phone'
-              ? 'bg-white text-surface-900 shadow-card'
-              : 'text-surface-500 hover:text-surface-700'
-          }`}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
-          </svg>
-          Phone
-        </button>
-      </div>
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
+      <p className="text-surface-400 mb-8">Sign in to continue delivering</p>
 
       {/* Error banner */}
-      {displayError && (
-        <div className="mb-5 flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 auth-shake">
-          <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-danger-100">
-            <svg className="h-3 w-3 text-danger-600" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </div>
-          <p className="text-body-sm text-danger-700">{displayError}</p>
+      {error && (
+        <div className="mb-6 p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-3 animate-shake">
+          <AlertCircle className="h-5 w-5 text-danger-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-danger-300">{error}</p>
         </div>
       )}
 
-      {/* ─── EMAIL + PASSWORD ─── */}
-      {method === 'email' && (
-        <form onSubmit={handleEmailLogin} className="flex flex-col gap-4 auth-fade-in">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email" className="text-body-sm font-medium text-surface-700">
-              Email address
-            </Label>
+      {/* Method tabs */}
+      <div className="flex gap-1 p-1 rounded-xl bg-surface-800 mb-8">
+        {(['phone', 'email'] as Method[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => { setMethod(m); setError(''); setPhoneStage('input'); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              method === m ? 'bg-surface-700 text-white shadow-sm' : 'text-surface-400 hover:text-surface-300'
+            }`}
+          >
+            {m === 'phone' ? <Phone className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+            {m === 'phone' ? 'Phone' : 'Email'}
+          </button>
+        ))}
+      </div>
+
+      {method === 'phone' ? (
+        <div className="space-y-6">
+          {phoneStage === 'input' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-surface-300 mb-2">Phone Number</label>
+                <PhoneInput value={phone} onValueChange={setPhone} />
+              </div>
+              <Button
+                size="xl"
+                className="w-full bg-brand-500 hover:bg-brand-600"
+                onClick={handleRequestOtp}
+                loading={submitting}
+              >
+                Send OTP
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="text-center mb-4">
+                <p className="text-surface-300 text-sm">
+                  We sent a code to <span className="text-white font-medium">{phone}</span>
+                </p>
+                <button onClick={() => setPhoneStage('input')} className="text-brand-400 text-sm mt-1 hover:underline">
+                  Change number
+                </button>
+              </div>
+              <OtpInput ref={otpRef} length={6} onComplete={handleOtpComplete} disabled={submitting} />
+              <div className="text-center mt-4">
+                <button
+                  onClick={handleRequestOtp}
+                  disabled={submitting}
+                  className="text-sm text-surface-400 hover:text-brand-400 transition-colors"
+                >
+                  Resend code
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={handleEmailLogin} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-surface-300 mb-2">Email</label>
             <Input
-              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="kofi@email.com"
-              disabled={submitting || isLoading}
-              className="rounded-xl border-surface-300 bg-surface-50 px-4 py-3 text-body transition-all focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
+              placeholder="you@example.com"
+              className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500"
             />
           </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password" className="text-body-sm font-medium text-surface-700">
-              Password
-            </Label>
+          <div>
+            <label className="block text-sm font-medium text-surface-300 mb-2">Password</label>
             <div className="relative">
               <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
+                type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                disabled={submitting || isLoading}
-                className="rounded-xl border-surface-300 bg-surface-50 px-4 py-3 pr-12 text-body transition-all focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
+                placeholder="••••••••"
+                className="bg-surface-800 border-surface-700 text-white placeholder:text-surface-500 pr-11"
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-surface-400 transition-colors hover:text-surface-600"
+                onClick={() => setShowPw(!showPw)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-300"
               >
-                {showPassword ? (
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
-                ) : (
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                )}
+                {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
           </div>
-
-          <Button
-            type="submit"
-            size="lg"
-            className="mt-1 w-full rounded-xl bg-brand-500 py-3.5 text-body font-semibold shadow-lg shadow-brand-500/25 transition-all duration-200 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 active:scale-[0.98]"
-            disabled={submitting || isLoading}
-          >
-            {submitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Signing in…
-              </span>
-            ) : 'Sign In'}
+          <Button type="submit" size="xl" className="w-full bg-brand-500 hover:bg-brand-600" loading={submitting}>
+            Sign In
           </Button>
         </form>
       )}
 
-      {/* ─── PHONE + OTP ─── */}
-      {method === 'phone' && phoneStage === 'input' && (
-        <form onSubmit={handleRequestOtp} className="flex flex-col gap-5 auth-fade-in">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="phone" className="text-body-sm font-medium text-surface-700">
-              Phone number
-            </Label>
-            <PhoneInput
-              value={phone}
-              onValueChange={setPhone}
-              disabled={submitting || isLoading}
-            />
-            <p className="text-caption text-surface-400">
-              We&apos;ll send you a one-time verification code
-            </p>
-          </div>
-
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full rounded-xl bg-brand-500 py-3.5 text-body font-semibold shadow-lg shadow-brand-500/25 transition-all duration-200 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 active:scale-[0.98]"
-            disabled={submitting || isLoading}
-          >
-            {submitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Sending code…
-              </span>
-            ) : 'Continue'}
-          </Button>
-        </form>
-      )}
-
-      {method === 'phone' && phoneStage === 'otp' && (
-        <div className="flex flex-col gap-5 auth-fade-in">
-          <div className="flex flex-col items-center gap-4">
-            <Label className="text-body-sm font-medium text-surface-700">Enter verification code</Label>
-            <OtpInput
-              ref={otpRef}
-              onComplete={handleOtpComplete}
-              disabled={submitting || isLoading}
-              autoFocus
-            />
-          </div>
-
-          <div className="flex items-center justify-center gap-1 text-body-sm text-surface-500">
-            <span>Didn&apos;t get the code?</span>
-            <button
-              type="button"
-              className="font-semibold text-brand-500 transition-colors hover:text-brand-600"
-              onClick={() => {
-                setPhoneStage('input');
-                setLocalError(null);
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Divider */}
-      <div className="my-8 flex items-center gap-3">
-        <div className="h-px flex-1 bg-surface-200" />
-        <span className="text-caption text-surface-400">or</span>
-        <div className="h-px flex-1 bg-surface-200" />
-      </div>
-
-      {/* Register CTA */}
-      <div className="rounded-xl border border-surface-200 bg-surface-50 p-4 text-center transition-colors hover:bg-surface-100">
-        <p className="text-body-sm text-surface-600">
-          New to RiderGuy?{' '}
-          <button
-            type="button"
-            className="font-semibold text-brand-500 transition-colors hover:text-brand-600"
-            onClick={() => router.push('/register')}
-          >
-            Create a rider account
-          </button>
-        </p>
-        <p className="mt-1 text-caption text-surface-400">
-          Start earning in as little as 24 hours
-        </p>
-      </div>
+      <p className="text-center text-sm text-surface-400 mt-8">
+        Don&apos;t have an account?{' '}
+        <Link href="/register" className="text-brand-400 font-medium hover:underline">
+          Sign up
+        </Link>
+      </p>
     </div>
   );
 }

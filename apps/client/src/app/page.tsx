@@ -2,64 +2,69 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { useAuth } from '@riderguy/auth';
-import { Button, Spinner } from '@riderguy/ui';
+import { Package, ArrowRight } from 'lucide-react';
+import { Button } from '@riderguy/ui';
 
-export default function HomePage() {
-  const { isAuthenticated, isLoading } = useAuth();
+export default function LandingPage() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace('/dashboard');
-    }
-  }, [isLoading, isAuthenticated, router]);
+    if (!isLoading && user) router.replace('/dashboard');
+  }, [user, isLoading, router]);
 
   if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <Spinner className="h-8 w-8 text-brand-500" />
-      </main>
+      <div className="min-h-[100dvh] flex items-center justify-center bg-white">
+        <div className="h-10 w-10 rounded-full border-3 border-brand-500 border-t-transparent animate-spin" />
+      </div>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
-      <div className="flex flex-col items-center gap-4">
-        <Image
-          src="/images/branding/logo-black-on-white.png"
-          alt="RiderGuy"
-          width={180}
-          height={60}
-          className="h-14 w-auto"
-          priority
-        />
-        <p className="text-lg text-surface-500">Send a Package</p>
-        <Image
-          src="/images/illustrations/handing-over.svg"
-          alt="Package delivery"
-          width={240}
-          height={240}
-          className="mt-2 h-48 w-auto"
-        />
+    <div className="min-h-[100dvh] flex flex-col bg-white relative overflow-hidden animate-page-enter">
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-80 h-80 bg-brand-500/5 rounded-full -translate-y-1/2 translate-x-1/3" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent-500/5 rounded-full translate-y-1/2 -translate-x-1/3" />
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
+        {/* Logo */}
+        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg mb-6 animate-bounce-in">
+          <Package className="h-10 w-10 text-white" />
+        </div>
+
+        <h1 className="text-3xl font-bold text-surface-900 mb-2 text-center">
+          Rider<span className="text-brand-500">Guy</span>
+        </h1>
+        <p className="text-surface-500 text-center max-w-xs mb-10">
+          Send packages across the city. Fast, reliable, with real-time tracking.
+        </p>
+
+        <div className="w-full max-w-sm space-y-3">
+          <Button
+            size="xl"
+            className="w-full bg-brand-500 hover:bg-brand-600 text-white"
+            onClick={() => router.push('/login')}
+          >
+            Sign In
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+
+          <Button
+            size="xl"
+            variant="outline"
+            className="w-full border-surface-200 text-surface-700 hover:bg-surface-50"
+            onClick={() => router.push('/register')}
+          >
+            Create Account
+          </Button>
+        </div>
       </div>
 
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        <Button size="lg" className="w-full" onClick={() => router.push('/register')}>
-          Get Started
-        </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          className="w-full"
-          onClick={() => router.push('/login')}
-        >
-          Sign In
-        </Button>
-      </div>
-
-      <p className="text-sm text-surface-400">Fast. Reliable. Trackable.</p>
-    </main>
+      <p className="text-center text-xs text-surface-400 pb-8 safe-area-bottom">
+        &copy; {new Date().getFullYear()} RiderGuy Global
+      </p>
+    </div>
   );
 }

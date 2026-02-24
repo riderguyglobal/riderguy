@@ -1,5 +1,5 @@
 import { PageLoadingSkeleton } from '@riderguy/ui';
 
-export default function ClientLoading() {
-  return <PageLoadingSkeleton rows={4} />;
+export default function DashboardLoading() {
+  return <PageLoadingSkeleton />;
 }
