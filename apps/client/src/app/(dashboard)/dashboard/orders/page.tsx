@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Badge, Skeleton } from '@riderguy/ui';
-import { Package, MapPin, Clock, ChevronRight, Send } from 'lucide-react';
+import { Package, MapPin, Clock, ChevronRight, Send, Navigation } from 'lucide-react';
 
 const TABS = [
   { key: 'all', label: 'All' },
@@ -33,20 +33,21 @@ export default function OrdersPage() {
   });
 
   return (
-    <div className="min-h-[100dvh] bg-surface-50 animate-page-enter">
+    <div className="min-h-[100dvh] bg-white animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-white/80 backdrop-blur-xl sticky top-0 z-20 border-b border-surface-100">
+      <div className="safe-area-top bg-white sticky top-0 z-20 border-b border-surface-100">
         <div className="px-5 pt-4 pb-3">
-          <h1 className="text-xl font-extrabold text-surface-900">My Orders</h1>
+          <h1 className="text-xl font-bold text-surface-900">My Orders</h1>
         </div>
 
-        {/* Sliding tab bar */}
+        {/* Tab bar — Uber-style */}
         <div className="relative flex mx-5 mb-3 bg-surface-100 rounded-xl p-1">
           <div
-            className="absolute top-1 bottom-1 rounded-lg bg-white shadow-card transition-all duration-300"
+            className="absolute top-1 bottom-1 rounded-lg bg-white transition-all duration-300"
             style={{
               width: `${100 / TABS.length}%`,
               left: `${(TABS.findIndex(t => t.key === tab) / TABS.length) * 100}%`,
+              boxShadow: '0 1px 3px rgba(0,0,0,.08)',
             }}
           />
           {TABS.map(({ key, label }) => (
@@ -54,7 +55,7 @@ export default function OrdersPage() {
               key={key}
               onClick={() => setTab(key)}
               className={`relative flex-1 py-2 text-sm font-semibold transition-colors z-10 ${
-                tab === key ? 'text-brand-600' : 'text-surface-500'
+                tab === key ? 'text-surface-900' : 'text-surface-400'
               }`}
             >
               {label}
@@ -63,27 +64,24 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="px-5 py-4 space-y-3">
+      <div className="px-5 py-4 space-y-2">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+            <Skeleton key={i} className="h-[76px] w-full rounded-2xl" />
           ))
         ) : !orders?.length ? (
           <div className="py-16 text-center">
-            <div className="relative inline-flex mb-4">
-              <div className="absolute inset-0 bg-brand-500/10 rounded-full blur-2xl scale-150" />
-              <div className="relative h-14 w-14 rounded-2xl bg-surface-100 flex items-center justify-center">
-                <Package className="h-7 w-7 text-surface-300" />
-              </div>
+            <div className="h-14 w-14 rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-3">
+              <Package className="h-6 w-6 text-surface-300" />
             </div>
-            <p className="text-sm font-semibold text-surface-600">No orders found</p>
+            <p className="text-sm font-semibold text-surface-700">No orders found</p>
             <p className="text-xs text-surface-400 mt-1">
               {tab === 'all' ? 'Send your first package!' : `No ${tab} orders`}
             </p>
             {tab === 'all' && (
               <button
                 onClick={() => router.push('/dashboard/send')}
-                className="mt-4 h-10 px-6 rounded-xl brand-gradient text-white text-sm font-semibold shadow-brand btn-press inline-flex items-center gap-1.5"
+                className="mt-4 h-11 px-6 rounded-xl bg-surface-900 text-white text-sm font-semibold btn-press inline-flex items-center gap-1.5 hover:bg-surface-800 transition-colors"
               >
                 <Send className="h-3.5 w-3.5" /> Send Package
               </button>
@@ -99,49 +97,41 @@ export default function OrdersPage() {
               <button
                 key={id}
                 onClick={() => router.push(`/dashboard/orders/${id}/${isActive ? 'tracking' : 'rate'}`)}
-                className="card-interactive w-full text-left p-4 group"
+                className="w-full flex items-center gap-3 px-3 py-4 rounded-2xl hover:bg-surface-50 transition-colors text-left btn-press group"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-surface-100 flex items-center justify-center group-hover:bg-brand-50 transition-colors">
-                      <Package className="h-4 w-4 text-surface-500 group-hover:text-brand-500 transition-colors" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-surface-900">
-                        #{id.slice(-6).toUpperCase()}
-                      </p>
-                      <p className="text-[11px] text-surface-400 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {timeAgo(new Date(order.createdAt as string))}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge className={`${status.bg} ${status.color} text-[11px] font-semibold`}>
-                    {status.label}
-                  </Badge>
-                </div>
-
-                {/* Route dots */}
-                <div className="flex items-start gap-2 mb-3">
-                  <div className="flex flex-col items-center gap-0.5 pt-1.5 shrink-0">
-                    <div className="h-2.5 w-2.5 rounded-full brand-gradient" />
-                    <div className="w-px h-3 bg-gradient-to-b from-brand-300 to-accent-300" />
-                    <div className="h-2.5 w-2.5 rounded-full accent-gradient" />
-                  </div>
-                  <div className="text-xs space-y-1.5 min-w-0">
-                    <p className="text-surface-600 truncate">{(order.pickupAddress as string) || 'Pickup'}</p>
-                    <p className="text-surface-600 truncate">{(order.dropoffAddress as string) || 'Dropoff'}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2.5 border-t border-surface-100">
-                  {order.totalPrice ? (
-                    <span className="text-sm font-bold text-surface-900">{formatCurrency(order.totalPrice as number)}</span>
+                <div className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 group-hover:bg-surface-200 transition-colors">
+                  {isActive ? (
+                    <Navigation className="h-4 w-4 text-brand-500" />
                   ) : (
-                    <span className="text-xs text-surface-400">Estimating...</span>
+                    <Package className="h-4 w-4 text-surface-400" />
                   )}
-                  <ChevronRight className="h-4 w-4 text-surface-300 group-hover:translate-x-0.5 transition-transform" />
                 </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-bold text-surface-900">
+                      #{id.slice(-6).toUpperCase()}
+                    </p>
+                    <Badge className={`${status.bg} ${status.color} text-[10px] font-semibold px-1.5 py-0`}>
+                      {status.label}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-surface-500 truncate flex items-center gap-1">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    {(order.dropoffAddress as string) || 'Delivery'}
+                  </p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[11px] text-surface-400 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {timeAgo(new Date(order.createdAt as string))}
+                    </span>
+                    {Boolean(order.totalPrice) && (
+                      <span className="text-xs font-bold text-surface-900">{formatCurrency(order.totalPrice as number)}</span>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight className="h-4 w-4 text-surface-300 shrink-0" />
               </button>
             );
           })

@@ -6,8 +6,8 @@ import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
-import { connectSocket, subscribeToOrder, unsubscribeFromOrder } from '@/hooks/use-socket';
-import { Badge, Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
+import { connectSocket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } from '@/hooks/use-socket';
+import { Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
 import {
   ArrowLeft,
   Phone,
@@ -18,31 +18,40 @@ import {
   Truck,
   Navigation,
   Copy,
-  X,
   AlertTriangle,
   Star,
+  Send,
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
+  Shield,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const TrackingMap = dynamic(() => import('@/components/tracking-map'), { ssr: false });
-const OrderChat = dynamic(() => import('@/components/order-chat'), { ssr: false });
 
 const STATUS_STEPS = [
-  { key: 'PENDING', label: 'Finding Rider', icon: Clock },
-  { key: 'ASSIGNED', label: 'Rider Assigned', icon: CheckCircle },
-  { key: 'PICKUP_EN_ROUTE', label: 'Rider En Route', icon: Truck },
-  { key: 'AT_PICKUP', label: 'At Pickup', icon: Navigation },
-  { key: 'PICKED_UP', label: 'Picked Up', icon: Package },
-  { key: 'IN_TRANSIT', label: 'On The Way', icon: Truck },
-  { key: 'AT_DROPOFF', label: 'Arrived', icon: Navigation },
-  { key: 'DELIVERED', label: 'Delivered', icon: CheckCircle },
+  { key: 'PENDING', label: 'Finding a rider for you...', icon: Clock },
+  { key: 'SEARCHING_RIDER', label: 'Finding a rider for you...', icon: Clock },
+  { key: 'ASSIGNED', label: 'Rider is assigned', icon: CheckCircle },
+  { key: 'PICKUP_EN_ROUTE', label: 'Rider is on the way to pickup', icon: Truck },
+  { key: 'AT_PICKUP', label: 'Rider arrived at pickup', icon: Navigation },
+  { key: 'PICKED_UP', label: 'Package picked up', icon: Package },
+  { key: 'IN_TRANSIT', label: 'Your package is on the way', icon: Truck },
+  { key: 'AT_DROPOFF', label: 'Rider has arrived', icon: Navigation },
+  { key: 'DELIVERED', label: 'Package delivered!', icon: CheckCircle },
 ];
 
 export default function TrackingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { api } = useAuth();
+  const { api, user } = useAuth();
   const [riderCoords, setRiderCoords] = useState<[number, number] | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [msgInput, setMsgInput] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [messages, setMessages] = useState<Array<{ id: string; content: string; senderId: string; createdAt: string }>>([]);
+  const [typing, setTyping] = useState(false);
 
   const { data: order, isLoading, refetch } = useQuery({
     queryKey: ['order', id],
@@ -59,37 +68,58 @@ export default function TrackingPage() {
     const socket = connectSocket();
     subscribeToOrder(id);
 
-    socket.on('order:updated', (data: Record<string, unknown>) => {
+    const onUpdate = (data: Record<string, unknown>) => {
       if (data.orderId === id) refetch();
-    });
-
-    socket.on('rider:location', (data: { lat: number; lng: number }) => {
+    };
+    const onLocation = (data: { lat: number; lng: number }) => {
       setRiderCoords([data.lng, data.lat]);
-    });
+    };
+    const onMessage = (msg: { id: string; content: string; senderId: string; createdAt: string }) => {
+      setMessages((prev) => [...prev, msg]);
+    };
+    const onTyping = (data: { userId: string }) => {
+      if (data.userId !== user?.id) {
+        setTyping(true);
+        setTimeout(() => setTyping(false), 2000);
+      }
+    };
+
+    socket.on('order:updated', onUpdate);
+    socket.on('rider:location', onLocation);
+    socket.on('message:new', onMessage);
+    socket.on('message:typing', onTyping);
 
     return () => {
       unsubscribeFromOrder(id);
-      socket.off('order:updated');
-      socket.off('rider:location');
+      socket.off('order:updated', onUpdate);
+      socket.off('rider:location', onLocation);
+      socket.off('message:new', onMessage);
+      socket.off('message:typing', onTyping);
     };
-  }, [id, refetch]);
+  }, [id, refetch, user?.id]);
+
+  const handleSendMessage = () => {
+    if (!msgInput.trim()) return;
+    sendMessage(id, msgInput.trim());
+    setMsgInput('');
+  };
 
   if (isLoading || !order) {
     return (
       <div className="min-h-[100dvh] bg-surface-50 p-5 space-y-4">
         <Skeleton className="h-10 w-40 rounded-xl" />
-        <Skeleton className="h-52 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
         <Skeleton className="h-20 w-full rounded-2xl" />
         <Skeleton className="h-32 w-full rounded-2xl" />
-        <Skeleton className="h-24 w-full rounded-2xl" />
       </div>
     );
   }
 
-  const statusConfig = ORDER_STATUS_CONFIG[order.status] ?? { label: order.status, color: 'text-surface-600', bg: 'bg-surface-100', icon: 'clock' };
-  const currentStepIndex = STATUS_STEPS.findIndex((s) => s.key === order.status);
+  const statusConfig = ORDER_STATUS_CONFIG[order.status] ?? { label: order.status, color: 'text-surface-600', bg: 'bg-surface-100' };
+  const currentStep = STATUS_STEPS.find((s) => s.key === order.status) || STATUS_STEPS[0];
   const isComplete = order.status === 'DELIVERED';
   const isCancelled = order.status.startsWith('CANCELLED') || order.status === 'FAILED';
+  const hasRider = !!(order as Record<string, unknown>).rider;
 
   const pickupCoords: [number, number] | null = order.pickupLongitude && order.pickupLatitude ? [order.pickupLongitude, order.pickupLatitude] : null;
   const dropoffCoords: [number, number] | null = order.dropoffLongitude && order.dropoffLatitude ? [order.dropoffLongitude, order.dropoffLatitude] : null;
@@ -98,30 +128,10 @@ export default function TrackingPage() {
   const deliveryPin = order.deliveryPinCode;
 
   return (
-    <div className="min-h-[100dvh] bg-surface-50 animate-page-enter">
-      {/* Header */}
-      <div className="safe-area-top bg-white/80 backdrop-blur-xl sticky top-0 z-20 border-b border-surface-100">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/dashboard/orders')} className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center btn-press">
-              <ArrowLeft className="h-5 w-5 text-surface-600" />
-            </button>
-            <div>
-              <h1 className="text-base font-extrabold text-surface-900">Order #{id?.slice(-6).toUpperCase()}</h1>
-              <Badge className={`${statusConfig.bg} ${statusConfig.color} text-[11px] font-semibold`}>{statusConfig.label}</Badge>
-            </div>
-          </div>
-          {isCancelled && (
-            <div className="h-9 w-9 rounded-xl bg-danger-50 flex items-center justify-center">
-              <X className="h-4 w-4 text-danger-500" />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="px-4 py-5 space-y-4">
-        {/* Map */}
-        <div className="h-56 rounded-2xl overflow-hidden shadow-elevated">
+    <div className="h-[100dvh] flex flex-col bg-surface-50">
+      {/* ─── Full-bleed Map ─── */}
+      <div className="relative flex-1 min-h-0">
+        <div className="absolute inset-0">
           <TrackingMap
             pickupCoords={pickupCoords}
             dropoffCoords={dropoffCoords}
@@ -130,135 +140,245 @@ export default function TrackingPage() {
           />
         </div>
 
-        {/* Status stepper */}
-        {!isCancelled && (
-          <div className="card-elevated p-4">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-              {STATUS_STEPS.map((s, i) => {
-                const done = i <= currentStepIndex;
-                const active = i === currentStepIndex;
-                const Icon = s.icon;
-                return (
-                  <div key={s.key} className="flex items-center gap-1 shrink-0">
-                    <div className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all ${
-                      done ? 'brand-gradient shadow-brand' : 'bg-surface-100'
-                    } ${active ? 'ring-2 ring-brand-200 scale-110' : ''}`}>
-                      <Icon className={`h-3.5 w-3.5 ${done ? 'text-white' : 'text-surface-400'}`} />
-                    </div>
-                    {i < STATUS_STEPS.length - 1 && (
-                      <div className={`w-4 h-0.5 rounded-full ${done ? 'bg-brand-500' : 'bg-surface-200'}`} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-xs font-semibold text-brand-600 mt-3 text-center">
-              {STATUS_STEPS[currentStepIndex]?.label || order.status}
-            </p>
-          </div>
-        )}
+        {/* Floating back button */}
+        <div className="absolute top-0 left-0 right-0 safe-area-top z-10">
+          <div className="flex items-center justify-between px-4 pt-3">
+            <button
+              onClick={() => router.push('/dashboard/orders')}
+              className="h-10 w-10 rounded-full bg-white flex items-center justify-center shadow-elevated btn-press"
+            >
+              <ArrowLeft className="h-5 w-5 text-surface-900" />
+            </button>
 
-        {/* Delivery PIN */}
-        {deliveryPin && !isComplete && !isCancelled && (
-          <div className="card-elevated p-4 bg-gradient-to-r from-amber-50 to-amber-100/50 border-amber-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Delivery PIN</p>
-                <p className="text-xs text-amber-500 mt-0.5">Share with rider at delivery</p>
+            {/* Floating status badge */}
+            <div className={`px-3 py-1.5 rounded-full ${statusConfig.bg} shadow-elevated`}>
+              <span className={`text-xs font-semibold ${statusConfig.color}`}>{statusConfig.label}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Bottom Sheet ─── */}
+      <div className={`bottom-sheet transition-all duration-500 ease-out ${expanded ? 'max-h-[75dvh]' : 'max-h-[45dvh]'} overflow-y-auto`}>
+        {/* Drag handle + expand toggle */}
+        <div className="sticky top-0 bg-white pt-3 pb-2 z-10 rounded-t-[1.75rem]">
+          <button onClick={() => setExpanded(!expanded)} className="w-full flex flex-col items-center">
+            <div className="drag-handle" />
+            <div className="flex items-center gap-1 mt-2">
+              {expanded ? <ChevronDown className="h-3.5 w-3.5 text-surface-400" /> : <ChevronUp className="h-3.5 w-3.5 text-surface-400" />}
+            </div>
+          </button>
+        </div>
+
+        <div className="px-5 pb-6 space-y-4">
+          {/* Status text */}
+          {currentStep && (
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+              isComplete ? 'bg-accent-50' : isCancelled ? 'bg-danger-50' : 'bg-brand-50'
+            }`}>
+              <currentStep.icon className={`h-5 w-5 ${
+                isComplete ? 'text-accent-500' : isCancelled ? 'text-danger-500' : 'text-brand-500'
+              }`} />
+            </div>
+            <div className="flex-1">
+              <p className="text-[15px] font-bold text-surface-900">{currentStep.label}</p>
+              <p className="text-xs text-surface-400">Order #{id?.slice(-6).toUpperCase()}</p>
+            </div>
+          </div>
+          )}
+
+          {/* Delivery PIN */}
+          {deliveryPin && !isComplete && !isCancelled && (
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-amber-50">
+              <Shield className="h-5 w-5 text-amber-600 shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-amber-700">Delivery PIN</p>
+                <p className="text-[11px] text-amber-500">Share with rider at delivery</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-extrabold tracking-[0.3em] text-amber-700">{deliveryPin}</span>
+                <span className="text-lg font-extrabold tracking-[0.25em] text-amber-700">{deliveryPin}</span>
                 <button
                   onClick={() => navigator.clipboard?.writeText(deliveryPin)}
-                  className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center btn-press"
+                  className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center btn-press"
                 >
                   <Copy className="h-3.5 w-3.5 text-amber-600" />
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Rider card */}
-        {rider && (
-          <div className="card-elevated p-4">
-            <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Your Rider</p>
-            <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12 ring-2 ring-brand-100">
+          {/* Rider card — Uber-style */}
+          {rider && (
+            <div className="flex items-center gap-3 py-3 border-t border-b border-surface-100">
+              <Avatar className="h-12 w-12 ring-2 ring-surface-100">
                 {rider.avatarUrl ? <AvatarImage src={rider.avatarUrl as string} alt={String(rider.firstName ?? '')} /> : null}
-                <AvatarFallback className="bg-brand-50 text-brand-600 text-sm font-bold">
+                <AvatarFallback className="bg-surface-100 text-surface-600 text-sm font-bold">
                   {String(rider.firstName ?? '')[0] || ''}{String(rider.lastName ?? '')[0] || ''}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-surface-900">{String(rider.firstName ?? '')} {String(rider.lastName ?? '')}</p>
-                {rider.vehiclePlate ? <p className="text-xs text-surface-400 font-medium">{String(rider.vehiclePlate)}</p> : null}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-surface-900">
+                  {String(rider.firstName ?? '')} {String(rider.lastName ?? '')}
+                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {Boolean(rider.vehiclePlate) && (
+                    <span className="text-xs font-semibold text-surface-500 px-1.5 py-0.5 bg-surface-100 rounded">
+                      {String(rider.vehiclePlate)}
+                    </span>
+                  )}
+                  {Boolean(rider.rating) && (
+                    <span className="text-xs text-surface-400 flex items-center gap-0.5">
+                      <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                      {String(rider.rating)}
+                    </span>
+                  )}
+                </div>
               </div>
-              {rider.phone ? (
-                <a href={`tel:${String(rider.phone)}`} className="h-11 w-11 rounded-xl accent-gradient flex items-center justify-center shadow-accent btn-press">
-                  <Phone className="h-4 w-4 text-white" />
+              {Boolean(rider.phone) && (
+                <a
+                  href={`tel:${String(rider.phone)}`}
+                  className="h-10 w-10 rounded-full bg-surface-100 flex items-center justify-center btn-press hover:bg-surface-200 transition-colors"
+                >
+                  <Phone className="h-4 w-4 text-surface-900" />
                 </a>
-              ) : null}
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Route details */}
-        <div className="card-elevated p-4 space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="flex flex-col items-center gap-0.5 pt-1.5">
-              <div className="h-3.5 w-3.5 rounded-full brand-gradient shadow-brand" />
-              <div className="w-0.5 h-6 bg-gradient-to-b from-brand-300 to-accent-300 rounded-full" />
-              <div className="h-3.5 w-3.5 rounded-full accent-gradient shadow-accent" />
-            </div>
-            <div className="flex-1 space-y-2">
-              <div>
-                <p className="text-[10px] font-semibold text-brand-500 uppercase tracking-wider">Pickup</p>
-                <p className="text-sm text-surface-900 font-medium">{order.pickupAddress || 'N/A'}</p>
+          {/* Inline "Send a message" bar — Uber-style */}
+          {rider && !isComplete && !isCancelled && !showChat && (
+            <button
+              onClick={() => setShowChat(true)}
+              className="w-full flex items-center gap-3 h-12 px-4 bg-surface-100 rounded-xl text-left btn-press hover:bg-surface-200/70 transition-colors"
+            >
+              <MessageCircle className="h-4 w-4 text-surface-400" />
+              <span className="text-sm text-surface-400">Send a message</span>
+              {typing && (
+                <span className="text-xs text-brand-500 font-medium ml-auto animate-pulse">typing...</span>
+              )}
+            </button>
+          )}
+
+          {/* Expanded chat */}
+          {showChat && rider && !isComplete && !isCancelled && (
+            <div className="animate-slide-up">
+              {/* Messages */}
+              <div className="max-h-48 overflow-y-auto space-y-2 mb-3 px-1">
+                {messages.length === 0 && (
+                  <p className="text-xs text-surface-400 text-center py-4">Start a conversation with your rider</p>
+                )}
+                {messages.map((msg) => {
+                  const isMe = msg.senderId === user?.id;
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] px-3.5 py-2.5 text-sm ${
+                        isMe
+                          ? 'bg-surface-900 text-white rounded-2xl rounded-br-md'
+                          : 'bg-surface-100 text-surface-900 rounded-2xl rounded-bl-md'
+                      }`}>
+                        <p className="leading-relaxed">{msg.content}</p>
+                        <p className={`text-[10px] mt-1 ${isMe ? 'text-white/50' : 'text-surface-400'}`}>
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                {typing && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface-100 rounded-2xl rounded-bl-md">
+                      <div className="h-1.5 w-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0s' }} />
+                      <div className="h-1.5 w-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0.15s' }} />
+                      <div className="h-1.5 w-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="text-[10px] font-semibold text-accent-500 uppercase tracking-wider">Dropoff</p>
-                <p className="text-sm text-surface-900 font-medium">{order.dropoffAddress || 'N/A'}</p>
+
+              {/* Input */}
+              <div className="flex items-center gap-2">
+                <input
+                  value={msgInput}
+                  onChange={(e) => { setMsgInput(e.target.value); sendTyping(id); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Type a message..."
+                  className="flex-1 h-11 px-4 bg-surface-100 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!msgInput.trim()}
+                  className="h-11 w-11 rounded-xl bg-surface-900 text-white flex items-center justify-center disabled:opacity-30 btn-press hover:bg-surface-800 transition-colors"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
+
+              <button onClick={() => setShowChat(false)} className="text-xs text-surface-400 mt-2 hover:text-surface-600 transition-colors">
+                Close chat
+              </button>
             </div>
-          </div>
+          )}
+
+          {/* Route details (expandable) */}
+          {expanded && (
+            <div className="space-y-4 animate-slide-up">
+              {/* Route */}
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex flex-col items-center gap-0.5 pt-1.5">
+                    <div className="h-3 w-3 rounded-full bg-surface-900" />
+                    <div className="w-0.5 h-6 bg-surface-200 rounded-full" />
+                    <div className="h-3 w-3 rounded-full bg-surface-900 ring-2 ring-surface-200" />
+                  </div>
+                  <div className="flex-1 space-y-2.5">
+                    <div>
+                      <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Pickup</p>
+                      <p className="text-sm text-surface-900 font-medium">{order.pickupAddress || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Dropoff</p>
+                      <p className="text-sm text-surface-900 font-medium">{order.dropoffAddress || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price */}
+              {order.totalPrice && (
+                <div className="flex items-center justify-between py-3 border-t border-surface-100">
+                  <span className="text-sm text-surface-500">Total</span>
+                  <span className="text-lg font-bold text-surface-900">{formatCurrency(order.totalPrice)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          {isComplete && (
+            <button
+              onClick={() => router.push(`/dashboard/orders/${id}/rate`)}
+              className="w-full h-13 rounded-2xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press flex items-center justify-center gap-2"
+            >
+              <Star className="h-4 w-4" /> Rate Delivery
+            </button>
+          )}
+
+          {!isComplete && !isCancelled && order.status === 'PENDING' && (
+            <button
+              onClick={async () => {
+                try {
+                  await api!.patch(`${API_BASE_URL}/orders/${id}/cancel`);
+                  refetch();
+                } catch { /* ignored */ }
+              }}
+              className="w-full h-12 rounded-2xl border border-surface-200 text-surface-500 font-medium text-sm hover:bg-surface-50 transition-all btn-press flex items-center justify-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" /> Cancel Order
+            </button>
+          )}
         </div>
-
-        {/* Price */}
-        {order.totalPrice && (
-          <div className="card-elevated p-4 flex items-center justify-between">
-            <span className="text-sm text-surface-500 font-medium">Total</span>
-            <span className="text-lg font-extrabold text-surface-900">{formatCurrency(order.totalPrice)}</span>
-          </div>
-        )}
-
-        {/* Actions */}
-        {isComplete && (
-          <button
-            onClick={() => router.push(`/dashboard/orders/${id}/rate`)}
-            className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press flex items-center justify-center gap-2"
-          >
-            <Star className="h-4 w-4" /> Rate Delivery
-          </button>
-        )}
-
-        {!isComplete && !isCancelled && order.status === 'PENDING' && (
-          <button
-            onClick={async () => {
-              try {
-                await api!.patch(`${API_BASE_URL}/orders/${id}/cancel`);
-                refetch();
-              } catch { /* ignored */ }
-            }}
-            className="w-full h-13 rounded-2xl border-2 border-danger-200 text-danger-600 font-semibold text-sm hover:bg-danger-50 transition-all btn-press flex items-center justify-center gap-2"
-          >
-            <AlertTriangle className="h-4 w-4" /> Cancel Order
-          </button>
-        )}
       </div>
-
-      {/* Chat */}
-      {rider && !isComplete && !isCancelled && <OrderChat orderId={id} />}
     </div>
   );
 }

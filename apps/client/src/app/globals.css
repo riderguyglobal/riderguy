@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════
-   RiderGuy Client — Premium Light Design System
-   Bolt/Uber-inspired customer experience
+   RiderGuy Client — Uber-Level Design System
+   Map-first, bottom-sheet, premium mobile UX
    ═══════════════════════════════════════════════ */
 
 /* ─── Base ───────────────────────────────────── */
@@ -23,6 +23,8 @@
   body {
     @apply bg-white text-surface-900 antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
@@ -36,11 +38,11 @@
 
 /* ─── Keyframes ──────────────────────────────── */
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(28px); }
+  from { opacity: 0; transform: translateY(24px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes slide-down {
@@ -81,7 +83,7 @@
 }
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
+  50%      { transform: translateY(-6px); }
 }
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
@@ -103,17 +105,21 @@
 @keyframes ping-soft {
   75%, 100% { transform: scale(1.6); opacity: 0; }
 }
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
 
 /* ─── Animation Utilities ────────────────────── */
 @layer utilities {
-  .animate-page-enter  { animation: page-enter 0.45s ease-out both; }
-  .animate-slide-up    { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-page-enter  { animation: page-enter 0.4s ease-out both; }
+  .animate-slide-up    { animation: slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .animate-slide-down  { animation: slide-down 0.4s ease-out both; }
-  .animate-fade-in     { animation: fade-in 0.35s ease-out both; }
-  .animate-scale-in    { animation: scale-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .animate-fade-in     { animation: fade-in 0.3s ease-out both; }
+  .animate-scale-in    { animation: scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
   .animate-shake       { animation: shake 0.4s ease-in-out; }
   .animate-float       { animation: float 4s ease-in-out infinite; }
-  .animate-bounce-in   { animation: bounce-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .animate-bounce-in   { animation: bounce-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
   .animate-pulse-ring  { animation: pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
   .animate-pulse-glow  { animation: pulse-glow 2s ease-in-out infinite; }
   .animate-shimmer     { animation: shimmer 2s linear infinite; background-size: 200% 100%; }
@@ -121,6 +127,7 @@
   .animate-gradient    { animation: gradient-shift 6s ease infinite; background-size: 200% 200%; }
   .animate-slide-in-right { animation: slide-in-right 0.4s ease-out both; }
   .animate-ping-soft   { animation: ping-soft 1.5s cubic-bezier(0,0,.2,1) infinite; }
+  .animate-sheet-up    { animation: sheet-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
   /* Stagger delays */
   .stagger-1 { animation-delay: 0.05s; }
@@ -136,30 +143,46 @@
   .safe-area-top    { padding-top: env(safe-area-inset-top, 0px); }
   .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-  /* ─── Card System ────────────────────────── */
+  /* ─── Card System (Uber-subtle) ──────────── */
   .card {
-    @apply bg-white rounded-2xl border border-surface-100/80;
-    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.03);
+    @apply bg-white rounded-2xl;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
   }
   .card-elevated {
-    @apply bg-white rounded-2xl border border-surface-100/60;
-    box-shadow: 0 4px 12px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
+    @apply bg-white rounded-2xl;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 0 1px rgba(0,0,0,.08);
   }
   .card-interactive {
-    @apply bg-white rounded-2xl border border-surface-100/60 transition-all duration-200;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.03);
+    @apply bg-white rounded-2xl transition-all duration-200;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 0 1px rgba(0,0,0,.06);
   }
   .card-interactive:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.04);
-    @apply border-surface-200/80;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08), 0 0 1px rgba(0,0,0,.08);
   }
   .card-interactive:active {
-    @apply scale-[0.98];
+    @apply scale-[0.985];
+  }
+
+  /* ─── Bottom Sheet ───────────────────────── */
+  .bottom-sheet {
+    @apply bg-white rounded-t-[1.75rem];
+    box-shadow: 0 -4px 24px rgba(0,0,0,.08), 0 -1px 4px rgba(0,0,0,.04);
+  }
+
+  /* ─── Drag Handle ────────────────────────── */
+  .drag-handle {
+    @apply w-10 h-1 rounded-full bg-surface-200 mx-auto;
   }
 
   /* ─── Button Press Effect ────────────────── */
   .btn-press {
     @apply transition-all duration-150 active:scale-[0.97];
+  }
+
+  /* ─── Solid Brand Button (Uber-style) ────── */
+  .btn-brand {
+    @apply bg-surface-900 text-white font-semibold;
+    @apply hover:bg-surface-800 active:scale-[0.98] transition-all;
   }
 
   /* ─── Premium Brand Gradient ─────────────── */
@@ -181,8 +204,8 @@
 
   /* ─── Frosted Glass (light) ──────────────── */
   .glass-light {
-    @apply bg-white/80 backdrop-blur-xl border border-white/60;
-    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+    @apply bg-white/85 backdrop-blur-xl;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
   }
 
   /* ─── Status Dot ─────────────────────────── */
@@ -206,38 +229,47 @@
 
   /* ─── Route Connector Line ───────────────── */
   .route-line {
-    @apply w-0.5 bg-gradient-to-b from-brand-400 to-accent-400;
+    @apply w-0.5 bg-surface-300;
   }
 
-  /* ─── Floating Shadow ────────────────────── */
+  /* ─── Shadows (Uber-subtle) ──────────────── */
   .shadow-float {
-    box-shadow: 0 12px 40px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.06);
+    box-shadow: 0 8px 30px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
   }
   .shadow-brand {
-    box-shadow: 0 8px 24px rgba(14,165,233,.2), 0 2px 8px rgba(14,165,233,.1);
+    box-shadow: 0 4px 14px rgba(14,165,233,.18);
   }
   .shadow-accent {
-    box-shadow: 0 8px 24px rgba(34,197,94,.2), 0 2px 8px rgba(34,197,94,.1);
+    box-shadow: 0 4px 14px rgba(34,197,94,.18);
+  }
+  .shadow-elevated {
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 0 1px rgba(0,0,0,.08);
+  }
+
+  /* ─── Uber-style Input ───────────────────── */
+  .input-uber {
+    @apply w-full h-14 rounded-xl bg-surface-100 px-4 text-sm text-surface-900 placeholder:text-surface-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all;
   }
 }
 
 /* ─── Mapbox Overrides (Light) ───────────────── */
 .mapboxgl-ctrl-logo    { display: none !important; }
 .mapboxgl-ctrl-attrib  { display: none !important; }
-.mapboxgl-ctrl-group   { @apply !rounded-2xl !shadow-elevated !border-0; }
+.mapboxgl-ctrl-group   { @apply !rounded-2xl !border-0; box-shadow: 0 2px 8px rgba(0,0,0,.08) !important; }
 .mapboxgl-ctrl-group button { @apply !border-surface-100/50; }
-.mapboxgl-popup-content { @apply !rounded-2xl !shadow-elevated !p-0; }
+.mapboxgl-popup-content { @apply !rounded-2xl !p-0; box-shadow: 0 2px 12px rgba(0,0,0,.1) !important; }
 .mapboxgl-popup-tip     { display: none !important; }
 .mapboxgl-canvas        { outline: none !important; }
 .mapboxgl-map           { font: inherit !important; }
 
 /* ─── Scrollbar ──────────────────────────────── */
-::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar       { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { @apply bg-surface-200 rounded-full; }
 ::-webkit-scrollbar-thumb:hover { @apply bg-surface-300; }
 
 /* ─── Focus Ring ─────────────────────────────── */
 *:focus-visible {
-  @apply outline-none ring-2 ring-brand-500/30 ring-offset-2 ring-offset-white;
+  @apply outline-none ring-2 ring-surface-900/10 ring-offset-2 ring-offset-white;
 }

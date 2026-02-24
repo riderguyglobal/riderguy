@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
 import { getSocket, connectSocket, sendMessage, sendTyping } from '@/hooks/use-socket';
-import { MessageCircle, X, Send, ChevronDown } from 'lucide-react';
+import { MessageCircle, X, Send, ArrowLeft } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -68,16 +68,14 @@ export default function OrderChat({ orderId }: { orderId: string }) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-2xl brand-gradient text-white shadow-brand flex items-center justify-center hover:shadow-lg transition-all btn-press group"
+          className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-surface-900 text-white shadow-elevated flex items-center justify-center hover:bg-surface-800 transition-all btn-press"
         >
-          <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
+          <MessageCircle className="h-5 w-5" />
           {unread > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 h-6 min-w-6 px-1 rounded-full bg-danger-500 text-white text-xs flex items-center justify-center font-bold animate-bounce-in border-2 border-white shadow-md">
+            <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-danger-500 text-white text-[10px] flex items-center justify-center font-bold border-2 border-white">
               {unread}
             </span>
           )}
-          {/* Glow ring */}
-          <div className="absolute inset-0 rounded-2xl bg-brand-400/20 animate-pulse pointer-events-none" style={{ inset: '-4px', borderRadius: '20px' }} />
         </button>
       )}
 
@@ -86,33 +84,28 @@ export default function OrderChat({ orderId }: { orderId: string }) {
         <div className="fixed inset-0 z-50 bg-white flex flex-col animate-slide-up">
           {/* Header */}
           <div className="safe-area-top bg-white border-b border-surface-100">
-            <div className="flex items-center justify-between px-5 py-3.5">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl brand-gradient flex items-center justify-center shadow-brand">
-                  <MessageCircle className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-surface-900">Chat with Rider</h3>
-                  {typing && (
-                    <p className="text-[11px] text-brand-500 font-medium animate-pulse">typing...</p>
-                  )}
-                </div>
-              </div>
+            <div className="flex items-center gap-3 px-4 py-3">
               <button
                 onClick={() => setOpen(false)}
-                className="h-9 w-9 rounded-xl bg-surface-100 flex items-center justify-center hover:bg-surface-200 transition-colors btn-press"
+                className="h-10 w-10 rounded-full bg-surface-100 flex items-center justify-center hover:bg-surface-200 transition-colors btn-press"
               >
-                <X className="h-4 w-4 text-surface-600" />
+                <ArrowLeft className="h-5 w-5 text-surface-900" />
               </button>
+              <div className="flex-1">
+                <h3 className="text-[15px] font-bold text-surface-900">Chat with Rider</h3>
+                {typing && (
+                  <p className="text-xs text-brand-500 font-medium animate-pulse">typing...</p>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Messages area */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-surface-50/50">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-2.5 bg-surface-50">
             {messages.length === 0 && (
               <div className="text-center py-16">
-                <div className="h-16 w-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-                  <MessageCircle className="h-8 w-8 text-brand-300" />
+                <div className="h-14 w-14 rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-3">
+                  <MessageCircle className="h-6 w-6 text-surface-300" />
                 </div>
                 <p className="text-sm font-semibold text-surface-700 mb-1">No messages yet</p>
                 <p className="text-xs text-surface-400">Send a message to your rider</p>
@@ -123,13 +116,13 @@ export default function OrderChat({ orderId }: { orderId: string }) {
               const isMe = msg.senderId === user?.id;
               return (
                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-slide-up`}>
-                  <div className={`max-w-[78%] px-4 py-3 ${
+                  <div className={`max-w-[78%] px-4 py-3 text-sm ${
                     isMe
-                      ? 'brand-gradient text-white rounded-2xl rounded-br-lg shadow-brand/20 shadow-md'
-                      : 'bg-white text-surface-900 rounded-2xl rounded-bl-lg shadow-card border border-surface-100'
+                      ? 'bg-surface-900 text-white rounded-2xl rounded-br-md'
+                      : 'bg-white text-surface-900 rounded-2xl rounded-bl-md shadow-elevated'
                   }`}>
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                    <p className={`text-[10px] mt-1.5 ${isMe ? 'text-white/60' : 'text-surface-400'}`}>
+                    <p className="leading-relaxed">{msg.content}</p>
+                    <p className={`text-[10px] mt-1.5 ${isMe ? 'text-white/50' : 'text-surface-400'}`}>
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
@@ -140,10 +133,10 @@ export default function OrderChat({ orderId }: { orderId: string }) {
             {/* Typing indicator */}
             {typing && (
               <div className="flex justify-start animate-slide-up">
-                <div className="flex items-center gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-bl-lg shadow-card border border-surface-100">
-                  <div className="h-2 w-2 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: '0s' }} />
-                  <div className="h-2 w-2 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: '0.15s' }} />
-                  <div className="h-2 w-2 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                <div className="flex items-center gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-bl-md shadow-elevated">
+                  <div className="h-1.5 w-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0s' }} />
+                  <div className="h-1.5 w-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0.15s' }} />
+                  <div className="h-1.5 w-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0.3s' }} />
                 </div>
               </div>
             )}
@@ -151,7 +144,7 @@ export default function OrderChat({ orderId }: { orderId: string }) {
 
           {/* Input bar */}
           <div className="bg-white border-t border-surface-100 px-4 py-3 safe-area-bottom">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <input
                 value={input}
                 onChange={(e) => {
@@ -160,14 +153,14 @@ export default function OrderChat({ orderId }: { orderId: string }) {
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Type a message..."
-                className="flex-1 h-12 px-5 bg-surface-50 rounded-2xl border border-surface-200 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
+                className="flex-1 h-11 px-4 bg-surface-100 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim()}
-                className="h-12 w-12 rounded-2xl brand-gradient text-white flex items-center justify-center disabled:opacity-30 disabled:shadow-none shadow-brand hover:shadow-lg transition-all btn-press"
+                className="h-11 w-11 rounded-xl bg-surface-900 text-white flex items-center justify-center disabled:opacity-30 disabled:shadow-none hover:bg-surface-800 transition-all btn-press"
               >
-                <Send className="h-5 w-5" />
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </div>

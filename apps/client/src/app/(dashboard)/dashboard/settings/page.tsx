@@ -35,21 +35,21 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-surface-50 animate-page-enter">
+    <div className="min-h-[100dvh] bg-white animate-page-enter">
       {/* Profile header */}
       <div className="safe-area-top bg-white border-b border-surface-100">
         <div className="px-5 pt-4 pb-6">
-          <h1 className="text-xl font-extrabold text-surface-900 mb-5">Account</h1>
+          <h1 className="text-xl font-bold text-surface-900 mb-5">Account</h1>
 
           <div className="flex items-center gap-4">
             <div className="relative">
-              <Avatar className="h-16 w-16 ring-2 ring-brand-100">
+              <Avatar className="h-16 w-16 ring-2 ring-surface-100">
                 {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user?.firstName} />}
-                <AvatarFallback className="bg-brand-50 text-brand-600 text-xl font-extrabold">
+                <AvatarFallback className="bg-surface-100 text-surface-600 text-xl font-bold">
                   {(user?.firstName?.[0] || '')}{(user?.lastName?.[0] || '')}
                 </AvatarFallback>
               </Avatar>
-              <button className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full brand-gradient flex items-center justify-center shadow-brand border-2 border-white">
+              <button className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-surface-900 flex items-center justify-center border-2 border-white">
                 <Camera className="h-3 w-3 text-white" />
               </button>
             </div>
@@ -68,18 +68,18 @@ export default function SettingsPage() {
 
       <div className="px-5 py-4 space-y-3">
         {/* Menu items */}
-        <div className="card-elevated overflow-hidden divide-y divide-surface-100">
+        <div className="bg-white overflow-hidden">
           {MENU_ITEMS.map(({ icon: Icon, label, color }) => (
             <button
               key={label}
               onClick={() => {}}
-              className="w-full flex items-center gap-3 px-4 py-4 hover:bg-surface-50 transition-colors text-left btn-press group"
+              className="w-full flex items-center gap-3 px-3 py-4 hover:bg-surface-50 transition-colors text-left btn-press group rounded-2xl"
             >
-              <div className={`h-10 w-10 rounded-xl ${color.split(' ')[0]} flex items-center justify-center group-hover:scale-105 transition-transform`}>
+              <div className={`h-10 w-10 rounded-xl ${color.split(' ')[0]} flex items-center justify-center`}>
                 <Icon className={`h-5 w-5 ${color.split(' ')[1]}`} />
               </div>
               <span className="flex-1 text-sm font-medium text-surface-900">{label}</span>
-              <ChevronRight className="h-4 w-4 text-surface-300 group-hover:translate-x-0.5 transition-transform" />
+              <ChevronRight className="h-4 w-4 text-surface-300" />
             </button>
           ))}
         </div>
@@ -92,7 +92,7 @@ export default function SettingsPage() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-full h-13 rounded-2xl border-2 border-danger-200 text-danger-600 font-semibold text-sm hover:bg-danger-50 transition-all btn-press flex items-center justify-center gap-2 mt-2"
+          className="w-full h-12 rounded-xl border border-surface-200 text-surface-500 font-medium text-sm hover:bg-surface-50 transition-all btn-press flex items-center justify-center gap-2 mt-2"
         >
           <LogOut className="h-4 w-4" />
           Sign Out
