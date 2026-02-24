@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 const RiderMap = dynamic(() => import('@/components/rider-map').then(mod => mod.RiderMap), { ssr: false });
+import type { RiderMapStatus } from '@/components/rider-map';
 
 interface WalletData {
   balance: number;
@@ -61,11 +62,14 @@ export default function DashboardPage() {
 
   const firstName = user?.firstName || 'Rider';
 
+  // Derive map marker status: offline → gray, online (no rides) → green, on-route → red
+  const mapStatus: RiderMapStatus = !isOnline ? 'offline' : orders.length > 0 ? 'on-route' : 'online';
+
   return (
     <div className="relative min-h-[100dvh]">
       {/* ── Full-bleed Map ── */}
       <div className="absolute inset-0 h-[52dvh]">
-        <RiderMap className="w-full h-full" />
+        <RiderMap className="w-full h-full" status={mapStatus} />
         {/* Gradient fade at bottom */}
         <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-[#0a0e17] to-transparent" />
       </div>
