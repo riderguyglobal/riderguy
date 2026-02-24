@@ -14,8 +14,6 @@ export default function ClientMap() {
     let cancelled = false;
     (async () => {
       const mapboxgl = (await import('mapbox-gl')).default;
-      // @ts-ignore css import
-      await import('mapbox-gl/dist/mapbox-gl.css');
       if (cancelled || !containerRef.current) return;
 
       mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -28,6 +26,9 @@ export default function ClientMap() {
         interactive: false,
         fadeDuration: 0,
       });
+
+      // Ensure map fills container after render
+      map.once('idle', () => map.resize());
 
       mapRef.current = map;
 

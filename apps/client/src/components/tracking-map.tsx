@@ -23,8 +23,6 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     let cancelled = false;
     (async () => {
       const mapboxgl = (await import('mapbox-gl')).default;
-      // @ts-ignore css import
-      await import('mapbox-gl/dist/mapbox-gl.css');
       if (cancelled || !containerRef.current) return;
 
       mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -36,6 +34,9 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
         zoom: 13,
         attributionControl: false,
       });
+
+      // Ensure map fills container after render
+      map.once('idle', () => map.resize());
 
       mapRef.current = map;
 

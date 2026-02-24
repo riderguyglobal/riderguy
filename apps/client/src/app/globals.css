@@ -228,6 +228,8 @@
 .mapboxgl-ctrl-group button { @apply !border-surface-100/50; }
 .mapboxgl-popup-content { @apply !rounded-2xl !shadow-elevated !p-0; }
 .mapboxgl-popup-tip     { display: none !important; }
+.mapboxgl-canvas        { outline: none !important; }
+.mapboxgl-map           { font: inherit !important; }
 
 /* ─── Scrollbar ──────────────────────────────── */
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
