@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 // Use globalThis.crypto (available in Node 19+ and all modern browsers)
-// Falls back to node:crypto for older Node versions (server-side only)
+// Falls back to 'crypto' module for older Node versions (server-side only).
+// NOTE: We use 'crypto' (not 'node:crypto') because webpack treats the
+// 'node:' prefix as an unhandled URI scheme. The unprefixed 'crypto' is
+// properly intercepted by webpack's resolve.fallback configuration.
 let _nodeCrypto: typeof import('crypto') | null = null;
 function getNodeCrypto(): typeof import('crypto') {
   if (!_nodeCrypto) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    _nodeCrypto = require('node:crypto');
+    _nodeCrypto = require('crypto');
   }
   return _nodeCrypto!;
 }
