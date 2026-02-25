@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRiderIdentity } from '@/hooks/use-rider-identity';
-import { useAuth } from '@riderguy/auth';
 import {
   ArrowLeft,
   User,
@@ -75,11 +74,15 @@ export default function RiderProfilePage() {
 
   const handleCopyLink = () => {
     if (identity?.publicProfileUrl) {
-      navigator.clipboard.writeText(
-        `${window.location.origin}/rider/${identity.publicProfileUrl}`,
-      );
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        navigator.clipboard.writeText(
+          `${window.location.origin}/rider/${identity.publicProfileUrl}`,
+        );
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard API may not be available
+      }
     }
   };
 
@@ -105,7 +108,7 @@ export default function RiderProfilePage() {
       <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/settings" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <h1 className="text-lg font-semibold text-white">My Profile</h1>
@@ -124,11 +127,11 @@ export default function RiderProfilePage() {
         <div className="p-5 rounded-2xl bg-gradient-to-br from-brand-500/10 to-purple-500/10 border border-white/[0.06]">
           <div className="flex items-center gap-4 mb-4">
             <div className="h-16 w-16 rounded-2xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
-              {identity.user.avatar ? (
-                <img src={identity.user.avatar} alt="" className="h-16 w-16 rounded-2xl object-cover" />
+              {identity.user.avatarUrl ? (
+                <img src={identity.user.avatarUrl} alt="" className="h-16 w-16 rounded-2xl object-cover" />
               ) : (
                 <span className="text-brand-400 text-2xl font-bold">
-                  {identity.user.firstName.charAt(0)}
+                  {identity.user.firstName?.charAt(0) || '?'}
                 </span>
               )}
             </div>
@@ -249,14 +252,14 @@ export default function RiderProfilePage() {
               Badges
             </h2>
             <div className="grid grid-cols-2 gap-2">
-              {identity.badges.map((b, i) => (
+              {identity.badges.map((b) => (
                 <div
-                  key={i}
+                  key={b.badge.name}
                   className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-2.5"
                 >
                   <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                    {b.badge.imageUrl ? (
-                      <img src={b.badge.imageUrl} alt="" className="h-8 w-8" />
+                    {b.badge.icon ? (
+                      <span className="text-xl">{b.badge.icon}</span>
                     ) : (
                       <Award className="h-5 w-5 text-amber-400" />
                     )}

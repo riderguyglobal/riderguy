@@ -24,6 +24,22 @@ export async function createEvent(
     capacity?: number;
   },
 ) {
+  // Validate date is in the future
+  const eventDate = new Date(data.date);
+  if (eventDate <= new Date()) {
+    throw ApiError.badRequest('Event date must be in the future');
+  }
+
+  // Validate endDate > date if provided
+  if (data.endDate && new Date(data.endDate) <= eventDate) {
+    throw ApiError.badRequest('End date must be after start date');
+  }
+
+  // Validate capacity > 0 if provided
+  if (data.capacity !== undefined && data.capacity !== null && data.capacity < 1) {
+    throw ApiError.badRequest('Capacity must be at least 1');
+  }
+
   const event = await prisma.event.create({
     data: {
       title: data.title,
@@ -73,6 +89,27 @@ export async function updateEvent(
   if (!event) throw ApiError.notFound('Event not found');
   if (!isAdmin && event.createdById !== userId) {
     throw ApiError.forbidden('Only the event creator or an admin can update this event');
+  }
+
+  // Validate status transitions
+  if (data.status) {
+    const validTransitions: Record<string, string[]> = {
+      UPCOMING: ['ONGOING', 'CANCELLED'],
+      ONGOING: ['COMPLETED', 'CANCELLED'],
+      COMPLETED: [],
+      CANCELLED: [],
+    };
+    const allowed = validTransitions[event.status] || [];
+    if (!allowed.includes(data.status)) {
+      throw ApiError.badRequest(
+        `Cannot transition from ${event.status} to ${data.status}`,
+      );
+    }
+  }
+
+  // Validate endDate > date if provided
+  if (data.endDate && data.date && new Date(data.endDate) <= new Date(data.date)) {
+    throw ApiError.badRequest('End date must be after start date');
   }
 
   const updated = await prisma.event.update({
@@ -176,6 +213,11 @@ export async function rsvpToEvent(eventId: string, userId: string) {
   if (!event) throw ApiError.notFound('Event not found');
   if (event.status === 'CANCELLED') throw ApiError.badRequest('Event is cancelled');
   if (event.status === 'COMPLETED') throw ApiError.badRequest('Event has already ended');
+
+  // Block RSVP to past events
+  if (new Date(event.date) < new Date()) {
+    throw ApiError.badRequest('Cannot RSVP to a past event');
+  }
 
   // Check capacity
   if (event.capacity) {

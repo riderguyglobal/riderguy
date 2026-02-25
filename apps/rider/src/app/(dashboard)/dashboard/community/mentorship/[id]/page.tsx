@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMentorship } from '@/hooks/use-mentorship';
 import {
@@ -17,7 +17,6 @@ import {
 
 export default function MentorshipDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const {
     currentMentorship,
     checkIns,
@@ -131,11 +130,11 @@ export default function MentorshipDetailPage() {
           {m.mentor && (
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-xl bg-brand-500/20 flex items-center justify-center">
-                {m.mentor.user?.avatar ? (
-                  <img src={m.mentor.user.avatar} alt="" className="h-10 w-10 rounded-xl object-cover" />
+                {m.mentor.user?.avatarUrl ? (
+                  <img src={m.mentor.user.avatarUrl} alt="" className="h-10 w-10 rounded-xl object-cover" />
                 ) : (
                   <span className="text-brand-400 font-bold text-sm">
-                    {m.mentor.user?.firstName?.charAt(0)}
+                    {m.mentor.user?.firstName?.charAt(0) || '?'}
                   </span>
                 )}
               </div>
@@ -154,11 +153,11 @@ export default function MentorshipDetailPage() {
           {m.mentee && (
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                {m.mentee.user?.avatar ? (
-                  <img src={m.mentee.user.avatar} alt="" className="h-10 w-10 rounded-xl object-cover" />
+                {m.mentee.user?.avatarUrl ? (
+                  <img src={m.mentee.user.avatarUrl} alt="" className="h-10 w-10 rounded-xl object-cover" />
                 ) : (
                   <span className="text-emerald-400 font-bold text-sm">
-                    {m.mentee.user?.firstName?.charAt(0)}
+                    {m.mentee.user?.firstName?.charAt(0) || '?'}
                   </span>
                 )}
               </div>

@@ -25,13 +25,13 @@ export interface CommunityEvent {
   imageUrl: string | null;
   zoneId: string | null;
   capacity: number | null;
-  createdBy: { firstName: string; lastName: string; avatar: string | null };
+  createdBy: { firstName: string; lastName: string; avatarUrl: string | null };
   zone: { id: string; name: string } | null;
   _count: { rsvps: number };
   hasRsvp?: boolean;
   rsvps?: Array<{
     id: string;
-    user: { firstName: string; lastName: string; avatar: string | null };
+    user: { firstName: string; lastName: string; avatarUrl: string | null };
     createdAt: string;
   }>;
   createdAt: string;
@@ -99,10 +99,15 @@ export function useEvents() {
       capacity?: number;
     }) => {
       if (!api) return null;
-      const res = await api.post(BASE, data);
-      const event = res.data.data;
-      setEvents((prev) => [event, ...prev]);
-      return event;
+      try {
+        const res = await api.post(BASE, data);
+        const event = res.data.data;
+        setEvents((prev) => [event, ...prev]);
+        return event;
+      } catch (err) {
+        console.error('Failed to create event:', err);
+        throw err;
+      }
     },
     [api],
   );
@@ -110,19 +115,24 @@ export function useEvents() {
   const rsvp = useCallback(
     async (eventId: string) => {
       if (!api) return;
-      await api.post(`${BASE}/${eventId}/rsvp`);
-      // Update local state
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === eventId
-            ? { ...e, hasRsvp: true, _count: { rsvps: e._count.rsvps + 1 } }
-            : e,
-        ),
-      );
-      if (currentEvent?.id === eventId) {
-        setCurrentEvent((prev) =>
-          prev ? { ...prev, hasRsvp: true, _count: { rsvps: prev._count.rsvps + 1 } } : prev,
+      try {
+        await api.post(`${BASE}/${eventId}/rsvp`);
+        // Update local state
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === eventId
+              ? { ...e, hasRsvp: true, _count: { rsvps: e._count.rsvps + 1 } }
+              : e,
+          ),
         );
+        if (currentEvent?.id === eventId) {
+          setCurrentEvent((prev) =>
+            prev ? { ...prev, hasRsvp: true, _count: { rsvps: prev._count.rsvps + 1 } } : prev,
+          );
+        }
+      } catch (err) {
+        console.error('Failed to RSVP:', err);
+        throw err;
       }
     },
     [api, currentEvent?.id],
@@ -131,20 +141,25 @@ export function useEvents() {
   const cancelRsvp = useCallback(
     async (eventId: string) => {
       if (!api) return;
-      await api.delete(`${BASE}/${eventId}/rsvp`);
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === eventId
-            ? { ...e, hasRsvp: false, _count: { rsvps: Math.max(0, e._count.rsvps - 1) } }
-            : e,
-        ),
-      );
-      if (currentEvent?.id === eventId) {
-        setCurrentEvent((prev) =>
-          prev
-            ? { ...prev, hasRsvp: false, _count: { rsvps: Math.max(0, prev._count.rsvps - 1) } }
-            : prev,
+      try {
+        await api.delete(`${BASE}/${eventId}/rsvp`);
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === eventId
+              ? { ...e, hasRsvp: false, _count: { rsvps: Math.max(0, e._count.rsvps - 1) } }
+              : e,
+          ),
         );
+        if (currentEvent?.id === eventId) {
+          setCurrentEvent((prev) =>
+            prev
+              ? { ...prev, hasRsvp: false, _count: { rsvps: Math.max(0, prev._count.rsvps - 1) } }
+              : prev,
+          );
+        }
+      } catch (err) {
+        console.error('Failed to cancel RSVP:', err);
+        throw err;
       }
     },
     [api, currentEvent?.id],

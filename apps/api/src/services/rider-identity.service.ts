@@ -16,6 +16,13 @@ export async function updateRiderIdentity(
   const rider = await prisma.riderProfile.findUnique({ where: { userId } });
   if (!rider) throw ApiError.notFound('Rider profile not found');
 
+  // Validate slug format
+  if (data.publicProfileUrl) {
+    if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(data.publicProfileUrl)) {
+      throw ApiError.badRequest('Profile URL must be 3-40 chars, lowercase alphanumeric and hyphens, cannot start or end with a hyphen');
+    }
+  }
+
   // Check uniqueness of publicProfileUrl
   if (data.publicProfileUrl) {
     const existing = await prisma.riderProfile.findUnique({
@@ -128,6 +135,14 @@ export async function createSpotlight(data: {
   // Check rider exists
   const rider = await prisma.riderProfile.findUnique({ where: { id: data.riderId } });
   if (!rider) throw ApiError.notFound('Rider not found');
+
+  // Validate month and year
+  if (data.month < 1 || data.month > 12) {
+    throw ApiError.badRequest('Month must be between 1 and 12');
+  }
+  if (data.year < 2020 || data.year > new Date().getFullYear() + 1) {
+    throw ApiError.badRequest('Year is out of valid range');
+  }
 
   // Check if spotlight for this month already exists
   const existing = await prisma.riderSpotlight.findUnique({

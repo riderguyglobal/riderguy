@@ -149,8 +149,8 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
     >
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
-          {other?.user?.avatar ? (
-            <img src={other.user.avatar} alt="" className="h-11 w-11 rounded-xl object-cover" />
+          {other?.user?.avatarUrl ? (
+            <img src={other.user.avatarUrl} alt="" className="h-11 w-11 rounded-xl object-cover" />
           ) : (
             <span className="text-brand-400 text-sm font-bold">
               {other?.user?.firstName?.charAt(0) || '?'}
@@ -171,7 +171,7 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
             <span>Level {other?.currentLevel}</span>
             <span>•</span>
             <span>{other?.totalDeliveries} deliveries</span>
-            {record._count && (
+            {record._count && record._count.checkIns > 0 && (
               <>
                 <span>•</span>
                 <span>{record._count.checkIns} check-ins</span>
@@ -189,14 +189,12 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
 
 function FindMentorTab() {
   const { mentors, loading, pagination, searchMentors } = useMentorship();
-  const [searched, setSearched] = useState(false);
 
   useEffect(() => {
     searchMentors();
-    setSearched(true);
   }, [searchMentors]);
 
-  if (loading && !searched) {
+  if (loading && mentors.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
@@ -205,7 +203,7 @@ function FindMentorTab() {
     );
   }
 
-  if (searched && mentors.length === 0 && !loading) {
+  if (!loading && mentors.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="h-16 w-16 rounded-2xl bg-surface-500/10 flex items-center justify-center mb-4">
@@ -267,11 +265,11 @@ function MentorCard({ mentor }: { mentor: Mentor }) {
     <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
-          {mentor.user.avatar ? (
-            <img src={mentor.user.avatar} alt="" className="h-12 w-12 rounded-xl object-cover" />
+          {mentor.user.avatarUrl ? (
+            <img src={mentor.user.avatarUrl} alt="" className="h-12 w-12 rounded-xl object-cover" />
           ) : (
             <span className="text-brand-400 font-bold text-lg">
-              {mentor.user.firstName.charAt(0)}
+              {mentor.user.firstName?.charAt(0) || '?'}
             </span>
           )}
         </div>
@@ -294,7 +292,7 @@ function MentorCard({ mentor }: { mentor: Mentor }) {
           )}
           <div className="flex items-center gap-2 mt-1 text-[10px] text-surface-500">
             {mentor.currentZone && <span>{mentor.currentZone.name}</span>}
-            <span>•</span>
+            {mentor.currentZone && <span>•</span>}
             <span>{mentor.activeMenteeCount}/5 mentees</span>
           </div>
         </div>

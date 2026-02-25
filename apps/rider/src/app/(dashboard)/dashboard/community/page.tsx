@@ -196,6 +196,7 @@ function ChatTab() {
 
 function ForumTab() {
   const { posts, loading, fetchPosts, vote } = useForum();
+  const [activeSort, setActiveSort] = useState('newest');
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
@@ -225,8 +226,12 @@ function ForumTab() {
         {['newest', 'trending', 'top'].map(s => (
           <button
             key={s}
-            onClick={() => fetchPosts({ sort: s })}
-            className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border border-white/[0.06] transition-colors"
+            onClick={() => { setActiveSort(s); fetchPosts({ sort: s }); }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
+              activeSort === s
+                ? 'bg-brand-500/20 text-brand-400 border-brand-500/30'
+                : 'bg-white/[0.04] text-surface-300 hover:bg-white/[0.08] border-white/[0.06]'
+            }`}
           >
             {s === 'trending' && <TrendingUp className="h-3 w-3 inline mr-1" />}
             {s.charAt(0).toUpperCase() + s.slice(1)}

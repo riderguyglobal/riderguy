@@ -120,27 +120,39 @@ export async function toggleUpvote(featureRequestId: string, userId: string) {
   });
 
   if (existing) {
-    // Remove upvote
-    await prisma.featureRequestUpvote.delete({
-      where: { featureRequestId_userId: { featureRequestId, userId } },
-    });
-    await prisma.featureRequest.update({
-      where: { id: featureRequestId },
-      data: { upvoteCount: { decrement: 1 } },
-    });
+    // Remove upvote atomically
+    const [, updated] = await prisma.$transaction([
+      prisma.featureRequestUpvote.delete({
+        where: { featureRequestId_userId: { featureRequestId, userId } },
+      }),
+      prisma.featureRequest.update({
+        where: { id: featureRequestId },
+        data: { upvoteCount: { decrement: 1 } },
+      }),
+    ]);
     logger.info(`User ${userId} removed upvote from feature request ${featureRequestId}`);
-    return { upvoted: false, newCount: request.upvoteCount - 1 };
+    return { upvoted: false, newCount: updated.upvoteCount };
   } else {
-    // Add upvote
-    await prisma.featureRequestUpvote.create({
-      data: { featureRequestId, userId },
-    });
-    await prisma.featureRequest.update({
-      where: { id: featureRequestId },
-      data: { upvoteCount: { increment: 1 } },
-    });
-    logger.info(`User ${userId} upvoted feature request ${featureRequestId}`);
-    return { upvoted: true, newCount: request.upvoteCount + 1 };
+    // Add upvote atomically
+    try {
+      const [, updated] = await prisma.$transaction([
+        prisma.featureRequestUpvote.create({
+          data: { featureRequestId, userId },
+        }),
+        prisma.featureRequest.update({
+          where: { id: featureRequestId },
+          data: { upvoteCount: { increment: 1 } },
+        }),
+      ]);
+      logger.info(`User ${userId} upvoted feature request ${featureRequestId}`);
+      return { upvoted: true, newCount: updated.upvoteCount };
+    } catch (err: any) {
+      // Handle concurrent duplicate upvote (P2002)
+      if (err.code === 'P2002') {
+        throw ApiError.conflict('Already upvoted');
+      }
+      throw err;
+    }
   }
 }
 
@@ -151,6 +163,11 @@ export async function updateFeatureRequestStatus(
   status: string,
   adminNote?: string,
 ) {
+  const validStatuses = ['SUBMITTED', 'REVIEWED', 'PLANNED', 'IN_PROGRESS', 'SHIPPED', 'DECLINED'];
+  if (!validStatuses.includes(status)) {
+    throw ApiError.badRequest(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+
   const request = await prisma.featureRequest.findUnique({ where: { id } });
   if (!request) throw ApiError.notFound('Feature request not found');
 

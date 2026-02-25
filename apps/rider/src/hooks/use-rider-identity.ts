@@ -24,11 +24,11 @@ export interface RiderIdentity {
   completionRate: number;
   onTimeRate: number;
   createdAt: string;
-  user: { firstName: string; lastName: string; avatar: string | null };
+  user: { firstName: string; lastName: string; avatarUrl: string | null };
   currentZone: { id: string; name: string } | null;
   badges: Array<{
-    badge: { name: string; description: string; imageUrl: string | null };
-    earnedAt: string;
+    badge: { name: string; description: string; icon: string };
+    awardedAt: string;
   }>;
 }
 
@@ -43,10 +43,10 @@ export interface PublicRiderCard {
   completionRate: number;
   onTimeRate: number;
   createdAt: string;
-  user: { firstName: string; lastName: string; avatar: string | null };
+  user: { firstName: string; lastName: string; avatarUrl: string | null };
   currentZone: { id: string; name: string } | null;
   badges: Array<{
-    badge: { name: string; description: string; imageUrl: string | null };
+    badge: { name: string; description: string; icon: string };
   }>;
   spotlights: Array<{ title: string; month: number; year: number }>;
 }
@@ -62,7 +62,7 @@ export interface Spotlight {
   rider: {
     id: string;
     publicProfileUrl: string | null;
-    user: { firstName: string; lastName: string; avatar: string | null };
+    user: { firstName: string; lastName: string; avatarUrl: string | null };
     currentLevel: number;
     totalDeliveries: number;
     averageRating: number;
@@ -97,57 +97,62 @@ export function useRiderIdentity() {
   const updateIdentity = useCallback(
     async (data: { bio?: string; publicProfileUrl?: string }) => {
       if (!api) return null;
-      const res = await api.patch(`${BASE}/me`, data);
-      const updated = res.data.data;
-      setIdentity((prev) => (prev ? { ...prev, ...updated } : prev));
-      return updated;
+      try {
+        const res = await api.patch(`${BASE}/me`, data);
+        const updated = res.data.data;
+        setIdentity((prev) => (prev ? { ...prev, ...updated } : prev));
+        return updated;
+      } catch (err) {
+        console.error('Failed to update identity:', err);
+        throw err;
+      }
     },
     [api],
   );
 
   const fetchPublicCard = useCallback(
     async (slug: string) => {
-      if (!api) return;
       setLoading(true);
       try {
-        const res = await api.get(`${BASE}/card/${slug}`);
-        setPublicCard(res.data.data);
+        const res = await fetch(`${BASE}/card/${slug}`);
+        const json = await res.json();
+        if (json.success) setPublicCard(json.data);
       } catch (err) {
         console.error('Failed to fetch public card:', err);
       } finally {
         setLoading(false);
       }
     },
-    [api],
+    [],
   );
 
   const fetchSpotlights = useCallback(
     async (page?: number) => {
-      if (!api) return;
       setLoading(true);
       try {
         const params = new URLSearchParams();
         if (page) params.set('page', String(page));
-        const res = await api.get(`${BASE}/spotlights?${params}`);
-        setSpotlights(res.data.data.spotlights);
+        const res = await fetch(`${BASE}/spotlights?${params}`);
+        const json = await res.json();
+        if (json.success) setSpotlights(json.data.spotlights);
       } catch (err) {
         console.error('Failed to fetch spotlights:', err);
       } finally {
         setLoading(false);
       }
     },
-    [api],
+    [],
   );
 
   const fetchLatestSpotlight = useCallback(async () => {
-    if (!api) return;
     try {
-      const res = await api.get(`${BASE}/spotlights/latest`);
-      setLatestSpotlight(res.data.data);
+      const res = await fetch(`${BASE}/spotlights/latest`);
+      const json = await res.json();
+      if (json.success) setLatestSpotlight(json.data);
     } catch (err) {
       console.error('Failed to fetch latest spotlight:', err);
     }
-  }, [api]);
+  }, []);
 
   return {
     identity,

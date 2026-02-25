@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Loader2,
   Clock,
-  Filter,
 } from 'lucide-react';
 
 type StatusFilter = '' | 'UPCOMING' | 'ONGOING' | 'COMPLETED';
@@ -108,7 +107,12 @@ export default function EventsPage() {
       </div>
 
       {/* Create Event Sheet */}
-      {showCreate && <CreateEventSheet onClose={() => setShowCreate(false)} />}
+      {showCreate && (
+        <CreateEventSheet
+          onClose={() => setShowCreate(false)}
+          onCreated={() => fetchEvents({ status: filter || undefined })}
+        />
+      )}
     </div>
   );
 }
@@ -183,7 +187,7 @@ function EventCard({ event }: { event: CommunityEvent }) {
   );
 }
 
-function CreateEventSheet({ onClose }: { onClose: () => void }) {
+function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { createEvent } = useEvents();
   const [form, setForm] = useState({
     title: '',
@@ -207,8 +211,9 @@ function CreateEventSheet({ onClose }: { onClose: () => void }) {
         date: new Date(form.date).toISOString(),
         location: form.location || undefined,
         virtualLink: form.virtualLink || undefined,
-        capacity: form.capacity ? parseInt(form.capacity) : undefined,
+        capacity: form.capacity ? (parseInt(form.capacity, 10) || undefined) : undefined,
       });
+      onCreated();
       onClose();
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to create event');
@@ -218,8 +223,8 @@ function CreateEventSheet({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end">
-      <div className="w-full max-h-[90dvh] bg-[#0f1420] border-t border-white/[0.06] rounded-t-3xl overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end" onClick={onClose}>
+      <div className="w-full max-h-[90dvh] bg-[#0f1420] border-t border-white/[0.06] rounded-t-3xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-white font-semibold text-lg">Create Event</h2>

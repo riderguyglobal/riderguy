@@ -19,7 +19,7 @@ export interface FeatureRequest {
   status: 'SUBMITTED' | 'REVIEWED' | 'PLANNED' | 'IN_PROGRESS' | 'SHIPPED' | 'DECLINED';
   adminNote: string | null;
   upvoteCount: number;
-  author: { firstName: string; lastName: string; avatar: string | null };
+  author: { firstName: string; lastName: string; avatarUrl: string | null };
   hasUpvoted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -75,10 +75,15 @@ export function useFeatureRequests() {
   const createRequest = useCallback(
     async (title: string, description: string) => {
       if (!api) return null;
-      const res = await api.post(BASE, { title, description });
-      const request = res.data.data;
-      setRequests((prev) => [{ ...request, hasUpvoted: false }, ...prev]);
-      return request;
+      try {
+        const res = await api.post(BASE, { title, description });
+        const request = res.data.data;
+        setRequests((prev) => [{ ...request, hasUpvoted: false }, ...prev]);
+        return request;
+      } catch (err) {
+        console.error('Failed to create feature request:', err);
+        throw err;
+      }
     },
     [api],
   );
@@ -86,18 +91,23 @@ export function useFeatureRequests() {
   const toggleUpvote = useCallback(
     async (id: string) => {
       if (!api) return;
-      const res = await api.post(`${BASE}/${id}/upvote`);
-      const { upvoted, newCount } = res.data.data;
-      // Update local state
-      setRequests((prev) =>
-        prev.map((r) =>
-          r.id === id ? { ...r, hasUpvoted: upvoted, upvoteCount: newCount } : r,
-        ),
-      );
-      if (currentRequest?.id === id) {
-        setCurrentRequest((prev) =>
-          prev ? { ...prev, hasUpvoted: upvoted, upvoteCount: newCount } : prev,
+      try {
+        const res = await api.post(`${BASE}/${id}/upvote`);
+        const { upvoted, newCount } = res.data.data;
+        // Update local state
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.id === id ? { ...r, hasUpvoted: upvoted, upvoteCount: newCount } : r,
+          ),
         );
+        if (currentRequest?.id === id) {
+          setCurrentRequest((prev) =>
+            prev ? { ...prev, hasUpvoted: upvoted, upvoteCount: newCount } : prev,
+          );
+        }
+      } catch (err) {
+        console.error('Failed to toggle upvote:', err);
+        throw err;
       }
     },
     [api, currentRequest?.id],
@@ -106,8 +116,13 @@ export function useFeatureRequests() {
   const deleteRequest = useCallback(
     async (id: string) => {
       if (!api) return;
-      await api.delete(`${BASE}/${id}`);
-      setRequests((prev) => prev.filter((r) => r.id !== id));
+      try {
+        await api.delete(`${BASE}/${id}`);
+        setRequests((prev) => prev.filter((r) => r.id !== id));
+      } catch (err) {
+        console.error('Failed to delete feature request:', err);
+        throw err;
+      }
     },
     [api],
   );

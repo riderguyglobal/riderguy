@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRiderIdentity } from '@/hooks/use-rider-identity';
 import type { Spotlight } from '@/hooks/use-rider-identity';
@@ -24,10 +24,12 @@ const MONTH_NAMES = [
 export default function SpotlightsPage() {
   const { spotlights, latestSpotlight, loading, fetchSpotlights, fetchLatestSpotlight } =
     useRiderIdentity();
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   useEffect(() => {
-    fetchLatestSpotlight();
-    fetchSpotlights();
+    Promise.all([fetchLatestSpotlight(), fetchSpotlights()]).finally(() =>
+      setInitialLoaded(true),
+    );
   }, [fetchLatestSpotlight, fetchSpotlights]);
 
   return (
@@ -46,7 +48,7 @@ export default function SpotlightsPage() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
-        {loading && !latestSpotlight ? (
+        {!initialLoaded ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
           </div>
@@ -74,15 +76,15 @@ export default function SpotlightsPage() {
 
                 <div className="flex items-center gap-3 mb-3">
                   <div className="h-14 w-14 rounded-2xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                    {latestSpotlight.rider.user.avatar ? (
+                    {latestSpotlight.rider.user.avatarUrl ? (
                       <img
-                        src={latestSpotlight.rider.user.avatar}
+                        src={latestSpotlight.rider.user.avatarUrl}
                         alt=""
                         className="h-14 w-14 rounded-2xl object-cover"
                       />
                     ) : (
                       <span className="text-amber-400 text-xl font-bold">
-                        {latestSpotlight.rider.user.firstName.charAt(0)}
+                        {latestSpotlight.rider.user.firstName?.charAt(0) || '?'}
                       </span>
                     )}
                   </div>
@@ -147,10 +149,10 @@ function SpotlightCard({ spotlight }: { spotlight: Spotlight }) {
     <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-          {spotlight.rider.user.avatar ? (
-            <img src={spotlight.rider.user.avatar} alt="" className="h-11 w-11 rounded-xl object-cover" />
+          {spotlight.rider.user.avatarUrl ? (
+            <img src={spotlight.rider.user.avatarUrl} alt="" className="h-11 w-11 rounded-xl object-cover" />
           ) : (
-            <span className="text-amber-400 font-bold">{spotlight.rider.user.firstName.charAt(0)}</span>
+            <span className="text-amber-400 font-bold">{spotlight.rider.user.firstName?.charAt(0) || '?'}</span>
           )}
         </div>
         <div className="flex-1 min-w-0">

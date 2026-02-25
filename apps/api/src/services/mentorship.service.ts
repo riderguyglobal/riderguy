@@ -20,15 +20,14 @@ export async function searchMentors(opts: {
   const { zoneId, minLevel, minDeliveries, page, limit, excludeRiderId } = opts;
   const skip = (page - 1) * limit;
 
+  const effectiveMinLevel = Math.max(minLevel ?? 3, 3); // Mentors must be level 3+
   const where: any = {
     isVerified: true,
     onboardingStatus: 'COMPLETED',
     ...(zoneId && { currentZoneId: zoneId }),
-    ...(minLevel && { currentLevel: { gte: minLevel } }),
     ...(minDeliveries && { totalDeliveries: { gte: minDeliveries } }),
     ...(excludeRiderId && { id: { not: excludeRiderId } }),
-    // Only riders level 3+ can be mentors
-    currentLevel: { gte: minLevel ?? 3 },
+    currentLevel: { gte: effectiveMinLevel },
   };
 
   const [mentors, total] = await Promise.all([
@@ -84,7 +83,7 @@ export async function requestMentorship(menteeRiderId: string, mentorRiderId: st
   if (!mentor) throw ApiError.notFound('Mentor not found');
   if (mentor.currentLevel < 3) throw ApiError.badRequest('Mentor must be level 3 or above');
 
-  // Check for existing active/pending mentorship between these two
+  // Check for existing mentorship between these two
   const existing = await prisma.mentorship.findUnique({
     where: { mentorId_menteeId: { mentorId: mentorRiderId, menteeId: menteeRiderId } },
   });
@@ -106,12 +105,21 @@ export async function requestMentorship(menteeRiderId: string, mentorRiderId: st
     select: { currentZoneId: true },
   });
 
-  const mentorship = await prisma.mentorship.create({
-    data: {
+  // Use upsert to handle re-requesting after CANCELLED/COMPLETED
+  const mentorship = await prisma.mentorship.upsert({
+    where: { mentorId_menteeId: { mentorId: mentorRiderId, menteeId: menteeRiderId } },
+    create: {
       mentorId: mentorRiderId,
       menteeId: menteeRiderId,
       zoneId: mentee?.currentZoneId ?? null,
       status: 'PENDING',
+    },
+    update: {
+      status: 'PENDING',
+      zoneId: mentee?.currentZoneId ?? null,
+      startedAt: null,
+      completedAt: null,
+      completionNote: null,
     },
     include: {
       mentor: {
@@ -169,6 +177,9 @@ export async function updateMentorshipStatus(
   if (status === 'CANCELLED' && mentorship.status === 'COMPLETED') {
     throw ApiError.badRequest('Cannot cancel a completed mentorship');
   }
+  if (status === 'CANCELLED' && mentorship.status === 'CANCELLED') {
+    throw ApiError.badRequest('Mentorship is already cancelled');
+  }
 
   const updated = await prisma.mentorship.update({
     where: { id: mentorshipId },
@@ -204,6 +215,7 @@ export async function getMyMentorships(riderId: string) {
   const [asMentor, asMentee] = await Promise.all([
     prisma.mentorship.findMany({
       where: { mentorId: riderId },
+      take: 50,
       orderBy: { createdAt: 'desc' },
       include: {
         mentee: {
@@ -220,6 +232,7 @@ export async function getMyMentorships(riderId: string) {
     }),
     prisma.mentorship.findMany({
       where: { menteeId: riderId },
+      take: 50,
       orderBy: { createdAt: 'desc' },
       include: {
         mentor: {
@@ -262,6 +275,10 @@ export async function createCheckIn(
     mentorship.mentor.userId === authorUserId || mentorship.mentee.userId === authorUserId;
   if (!isParticipant) throw ApiError.forbidden('Not a participant');
 
+  if (rating !== undefined && (rating < 1 || rating > 5)) {
+    throw ApiError.badRequest('Rating must be between 1 and 5');
+  }
+
   const checkIn = await prisma.mentorCheckIn.create({
     data: {
       mentorshipId,
@@ -291,6 +308,7 @@ export async function getCheckIns(mentorshipId: string, userId: string) {
 
   return prisma.mentorCheckIn.findMany({
     where: { mentorshipId },
+    take: 100,
     orderBy: { createdAt: 'desc' },
   });
 }

@@ -16,7 +16,6 @@ import {
   Rocket,
   XCircle,
   Search,
-  SortDesc,
 } from 'lucide-react';
 
 type SortMode = 'most_upvoted' | 'newest' | 'oldest';
@@ -134,8 +133,9 @@ function FeatureRequestCard({
   onUpvote,
 }: {
   request: FeatureRequest;
-  onUpvote: () => void;
+  onUpvote: () => Promise<void>;
 }) {
+  const [upvoting, setUpvoting] = useState(false);
   const statusIcons: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
     SUBMITTED: { icon: <Clock className="h-3 w-3" />, color: 'text-surface-400', bg: 'bg-surface-400/10' },
     REVIEWED: { icon: <Search className="h-3 w-3" />, color: 'text-amber-400', bg: 'bg-amber-400/10' },
@@ -150,8 +150,19 @@ function FeatureRequestCard({
     <div className="flex gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
       {/* Upvote */}
       <button
-        onClick={onUpvote}
-        className={`flex flex-col items-center gap-0.5 pt-0.5 ${
+        onClick={async () => {
+          if (upvoting) return;
+          setUpvoting(true);
+          try {
+            await onUpvote();
+          } catch {
+            // handled in hook
+          } finally {
+            setUpvoting(false);
+          }
+        }}
+        disabled={upvoting}
+        className={`flex flex-col items-center gap-0.5 pt-0.5 transition-opacity ${upvoting ? 'opacity-50' : ''} ${
           request.hasUpvoted ? 'text-brand-400' : 'text-surface-500'
         }`}
       >
@@ -211,8 +222,8 @@ function CreateFeatureRequestSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end">
-      <div className="w-full max-h-[80dvh] bg-[#0f1420] border-t border-white/[0.06] rounded-t-3xl overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end" onClick={onClose}>
+      <div className="w-full max-h-[80dvh] bg-[#0f1420] border-t border-white/[0.06] rounded-t-3xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-semibold text-lg">Suggest a Feature</h2>

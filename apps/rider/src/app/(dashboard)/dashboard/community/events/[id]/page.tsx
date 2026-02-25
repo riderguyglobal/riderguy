@@ -34,11 +34,11 @@ export default function EventDetailPage() {
       } else {
         await rsvp(id);
       }
-      // Refresh event data
-      await fetchEvent(id);
     } catch (err: any) {
       alert(err?.response?.data?.message || 'RSVP failed');
     } finally {
+      // Always refresh to get accurate data from server
+      await fetchEvent(id);
       setRsvpLoading(false);
     }
   };
@@ -201,10 +201,10 @@ export default function EventDetailPage() {
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06]"
                 >
                   <div className="h-6 w-6 rounded-full bg-brand-500/20 flex items-center justify-center">
-                    {r.user.avatar ? (
-                      <img src={r.user.avatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+                    {r.user.avatarUrl ? (
+                      <img src={r.user.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
                     ) : (
-                      <span className="text-brand-400 text-[10px] font-bold">{r.user.firstName.charAt(0)}</span>
+                      <span className="text-brand-400 text-[10px] font-bold">{r.user.firstName?.charAt(0) || '?'}</span>
                     )}
                   </div>
                   <span className="text-surface-300 text-xs">{r.user.firstName}</span>

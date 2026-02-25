@@ -15,7 +15,7 @@ const BASE = `${API_BASE_URL}/mentorship`;
 export interface Mentor {
   id: string;
   userId: string;
-  user: { firstName: string; lastName: string; avatar: string | null };
+  user: { firstName: string; lastName: string; avatarUrl: string | null };
   currentLevel: number;
   totalDeliveries: number;
   averageRating: number;
@@ -37,14 +37,14 @@ export interface MentorshipRecord {
   updatedAt: string;
   mentor?: {
     id: string;
-    user: { firstName: string; lastName: string; avatar: string | null };
+    user: { firstName: string; lastName: string; avatarUrl: string | null };
     currentLevel: number;
     totalDeliveries: number;
     averageRating?: number;
   };
   mentee?: {
     id: string;
-    user: { firstName: string; lastName: string; avatar: string | null };
+    user: { firstName: string; lastName: string; avatarUrl: string | null };
     currentLevel: number;
     totalDeliveries: number;
   };
@@ -100,8 +100,13 @@ export function useMentorship() {
   const requestMentorship = useCallback(
     async (mentorId: string) => {
       if (!api) return null;
-      const res = await api.post(`${BASE}/request`, { mentorId });
-      return res.data.data;
+      try {
+        const res = await api.post(`${BASE}/request`, { mentorId });
+        return res.data.data;
+      } catch (err) {
+        console.error('Failed to request mentorship:', err);
+        throw err;
+      }
     },
     [api],
   );
@@ -138,10 +143,15 @@ export function useMentorship() {
   const updateStatus = useCallback(
     async (id: string, status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED', completionNote?: string) => {
       if (!api) return null;
-      const res = await api.patch(`${BASE}/${id}/status`, { status, completionNote });
-      const updated = res.data.data;
-      setCurrentMentorship(updated);
-      return updated;
+      try {
+        const res = await api.patch(`${BASE}/${id}/status`, { status, completionNote });
+        const updated = res.data.data;
+        setCurrentMentorship(updated);
+        return updated;
+      } catch (err) {
+        console.error('Failed to update mentorship status:', err);
+        throw err;
+      }
     },
     [api],
   );
@@ -149,10 +159,15 @@ export function useMentorship() {
   const addCheckIn = useCallback(
     async (mentorshipId: string, note: string, rating?: number) => {
       if (!api) return null;
-      const res = await api.post(`${BASE}/${mentorshipId}/check-ins`, { note, rating });
-      const checkIn = res.data.data;
-      setCheckIns((prev) => [checkIn, ...prev]);
-      return checkIn;
+      try {
+        const res = await api.post(`${BASE}/${mentorshipId}/check-ins`, { note, rating });
+        const checkIn = res.data.data;
+        setCheckIns((prev) => [checkIn, ...prev]);
+        return checkIn;
+      } catch (err) {
+        console.error('Failed to add check-in:', err);
+        throw err;
+      }
     },
     [api],
   );

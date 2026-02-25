@@ -51,9 +51,10 @@ router.get(
   }),
 );
 
-/** POST /events — Create event (admin or rider level 3+) */
+/** POST /events — Create event (rider or admin) */
 router.post(
   '/',
+  requireRole(UserRole.RIDER, UserRole.ADMIN),
   validate(createEventSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await EventService.createEvent(req.user!.userId, req.body);
@@ -64,6 +65,7 @@ router.post(
 /** PATCH /events/:id — Update event */
 router.patch(
   '/:id',
+  requireRole(UserRole.RIDER, UserRole.ADMIN),
   validate(updateEventSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const isAdmin = req.user!.role === UserRole.ADMIN;
@@ -80,6 +82,7 @@ router.patch(
 /** POST /events/:id/rsvp — RSVP to event */
 router.post(
   '/:id/rsvp',
+  requireRole(UserRole.RIDER),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await EventService.rsvpToEvent(
       req.params.id as string,
@@ -92,6 +95,7 @@ router.post(
 /** DELETE /events/:id/rsvp — Cancel RSVP */
 router.delete(
   '/:id/rsvp',
+  requireRole(UserRole.RIDER),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await EventService.cancelRsvp(
       req.params.id as string,
