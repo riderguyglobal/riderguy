@@ -255,7 +255,7 @@ export class AuthService {
     });
 
     // ---- 5. Post-transaction side-effects (fire-and-forget) ----
-    SmsService.sendWelcome(user.phone, user.firstName).catch((err) => {
+    SmsService.sendWelcome(user.phone, user.firstName, input.role as any).catch((err) => {
       logger.error({ err, phone: user.phone }, 'Failed to send welcome SMS');
     });
 

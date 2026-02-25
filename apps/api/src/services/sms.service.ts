@@ -153,10 +153,25 @@ export class SmsService {
   }
 
   // ---- Welcome SMS ----
-  static async sendWelcome(phone: string, firstName: string): Promise<boolean> {
-    return this.send({
-      to: phone,
-      message: `Welcome to RiderGuy, ${firstName}! Your account is ready. Download the app and start sending packages across Ghana.`,
-    });
+  static async sendWelcome(
+    phone: string,
+    firstName: string,
+    role: 'RIDER' | 'CLIENT' | 'BUSINESS_CLIENT' | 'PARTNER' | 'ADMIN' = 'CLIENT',
+  ): Promise<boolean> {
+    const isRider = role === 'RIDER';
+    const appUrl = isRider
+      ? 'https://riderguy-rider.vercel.app'
+      : 'https://riderguy-client.vercel.app';
+    const roleAction = isRider
+      ? 'start earning by delivering packages'
+      : 'start sending packages across Ghana';
+
+    const message =
+      `Welcome to RiderGuy, ${firstName}! 🎉 ` +
+      `Your account is ready. Visit ${appUrl} in your browser to ${roleAction}. ` +
+      `RiderGuy is a web app — no app store needed! ` +
+      `Tap "Add to Home Screen" in your browser menu to install it like a regular app for quick access.`;
+
+    return this.send({ to: phone, message });
   }
 }
