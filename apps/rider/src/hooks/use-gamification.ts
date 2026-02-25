@@ -142,7 +142,13 @@ export function useGamification() {
     if (!api) return;
     try {
       const res = await api.get(`${API_BASE_URL}/gamification/profile`);
-      setProfile(res.data.data);
+      const data = res.data.data;
+      // Ensure arrays are never undefined (API may omit them for new users)
+      if (data) {
+        data.badges = data.badges ?? [];
+        data.recentXpEvents = data.recentXpEvents ?? [];
+      }
+      setProfile(data);
       setError(null);
     } catch {
       setError('Failed to load gamification data');
@@ -290,7 +296,7 @@ export function useGamification() {
     fetchBonusEvents();
   }, [fetchProfile, fetchStreak, fetchBonusEvents]);
 
-  const unseenBadges = profile?.badges.filter(b => b.awardedAt && !b.seenAt) ?? [];
+  const unseenBadges = (profile?.badges ?? []).filter(b => b.awardedAt && !b.seenAt);
 
   return {
     // Sprint 9

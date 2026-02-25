@@ -180,8 +180,10 @@ export default function GamificationPage() {
     );
   }
 
-  const earnedBadges = profile.badges.filter(b => b.awardedAt);
-  const badgesByCategory = profile.badges.reduce<Record<string, typeof profile.badges>>((acc, b) => {
+  const badges = profile.badges ?? [];
+  const recentXpEvents = profile.recentXpEvents ?? [];
+  const earnedBadges = badges.filter(b => b.awardedAt);
+  const badgesByCategory = badges.reduce<Record<string, typeof badges>>((acc, b) => {
     const cat = b.category || 'achievement';
     (acc[cat] ??= []).push(b);
     return acc;
@@ -462,14 +464,14 @@ export default function GamificationPage() {
             )}
 
             {/* Recent XP */}
-            {profile.recentXpEvents.length > 0 && (
+            {recentXpEvents.length > 0 && (
               <section>
                 <h2 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
                   <Zap className="h-4 w-4 text-accent-400" />
                   Recent XP
                 </h2>
                 <div className="glass rounded-2xl divide-y divide-white/[0.04] overflow-hidden">
-                  {profile.recentXpEvents.slice(0, 8).map((evt) => {
+                  {recentXpEvents.slice(0, 8).map((evt) => {
                     const actionInfo = XP_ACTION_LABELS[evt.action] ?? { label: evt.action, icon: '✨' };
                     const date = new Date(evt.createdAt);
                     const timeStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
