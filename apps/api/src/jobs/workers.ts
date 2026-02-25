@@ -139,7 +139,7 @@ export function startWorkers(): void {
                 walletId: wallet.id,
                 type: 'REFUND',
                 amount: amount,
-                balanceAfter: wallet.balance + amount,
+                balanceAfter: Number(wallet.balance) + amount,
                 description: `Refund for failed withdrawal #${withdrawalId.slice(0, 8)}`,
                 referenceId: withdrawalId,
                 referenceType: 'withdrawal',
@@ -205,14 +205,14 @@ export function startWorkers(): void {
         packageType: order.packageType,
         distance: `${order.distanceKm.toFixed(1)} km`,
         lineItems: [
-          { label: 'Base fare', amount: order.baseFare },
-          { label: 'Distance charge', amount: order.distanceCharge },
-          ...(order.surgeMultiplier > 1
+          { label: 'Base fare', amount: Number(order.baseFare) },
+          { label: 'Distance charge', amount: Number(order.distanceCharge) },
+          ...(Number(order.surgeMultiplier) > 1
             ? [{ label: `Surge (${order.surgeMultiplier}x)`, amount: 0 }]
             : []),
-          { label: 'Service fee', amount: order.serviceFee },
-          ...(order.tipAmount > 0
-            ? [{ label: 'Tip', amount: order.tipAmount }]
+          { label: 'Service fee', amount: Number(order.serviceFee) },
+          ...(Number(order.tipAmount) > 0
+            ? [{ label: 'Tip', amount: Number(order.tipAmount) }]
             : []),
         ],
         total: { amount: totalPrice, currency },

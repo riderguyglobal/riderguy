@@ -306,7 +306,7 @@ export async function transitionStatus(
       });
 
       // Credit rider wallet
-      const earnings = updatedOrder.riderEarnings ?? (updatedOrder.totalPrice * 0.85);
+      const earnings = updatedOrder.riderEarnings ? Number(updatedOrder.riderEarnings) : (Number(updatedOrder.totalPrice) * 0.85);
       const riderProfile = await tx.riderProfile.findUnique({
         where: { id: updatedOrder.riderId },
         select: { id: true, userId: true, currentLevel: true },
@@ -351,7 +351,7 @@ export async function transitionStatus(
             ? (await tx.zone.findUnique({ where: { id: updatedOrder.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
             : 15;
           if (riderLevelCommRate < zoneRate) {
-            const bonus = Math.round(updatedOrder.totalPrice * ((zoneRate - riderLevelCommRate) / 100));
+            const bonus = Math.round(Number(updatedOrder.totalPrice) * ((Number(zoneRate) - riderLevelCommRate) / 100));
             if (bonus > 0) {
               await tx.wallet.update({
                 where: { id: wallet.id },
@@ -366,7 +366,7 @@ export async function transitionStatus(
                   walletId: wallet.id,
                   type: 'DELIVERY_EARNING',
                   amount: bonus,
-                  balanceAfter: walletAfterBonus?.balance ?? (earningBalance + bonus),
+                  balanceAfter: walletAfterBonus?.balance ? Number(walletAfterBonus.balance) : (Number(earningBalance) + bonus),
                   description: `Level ${riderProfile.currentLevel} commission bonus for order ${updatedOrder.orderNumber}`,
                   referenceId: updatedOrder.id,
                   referenceType: 'level_bonus',
@@ -377,7 +377,7 @@ export async function transitionStatus(
         }
 
         // Collect commission data for enqueuing AFTER transaction commits
-        if (updatedOrder.platformCommission && updatedOrder.platformCommission > 0) {
+        if (updatedOrder.platformCommission && Number(updatedOrder.platformCommission) > 0) {
           const zoneCommRate = updatedOrder.zoneId
             ? (await tx.zone.findUnique({ where: { id: updatedOrder.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
             : 15;
@@ -386,9 +386,9 @@ export async function transitionStatus(
             orderId: updatedOrder.id,
             riderId: riderProfile.id,
             riderUserId: riderProfile.userId,
-            orderAmount: updatedOrder.totalPrice,
-            commissionRate: zoneCommRate,
-            platformCommission: updatedOrder.platformCommission,
+            orderAmount: Number(updatedOrder.totalPrice),
+            commissionRate: Number(zoneCommRate),
+            platformCommission: Number(updatedOrder.platformCommission),
           };
         }
       }
@@ -418,7 +418,7 @@ export async function transitionStatus(
       orderId: updated.id,
       clientId: updated.clientId,
       orderNumber: updated.orderNumber,
-      totalPrice: updated.totalPrice,
+      totalPrice: Number(updated.totalPrice),
       currency: updated.currency,
     }).catch(() => {});
 

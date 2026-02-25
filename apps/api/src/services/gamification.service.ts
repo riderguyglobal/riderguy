@@ -144,7 +144,7 @@ export async function awardXp(
           userId: rider.userId,
           title: '🎉 Level Up!',
           body: `Congratulations! You've reached ${RIDER_LEVEL_NAMES[newLevel]} (Level ${newLevel})!`,
-          type: 'gamification',
+          type: 'GAMIFICATION',
           data: { type: 'level_up', level: newLevel, levelName: RIDER_LEVEL_NAMES[newLevel] },
         },
       });
@@ -245,7 +245,7 @@ async function checkAndAwardBadges(
               userId: rider.userId,
               title: `${badge.icon} New Badge!`,
               body: `You earned "${badge.name}" — ${badge.description}`,
-              type: 'gamification',
+              type: 'GAMIFICATION',
               data: { type: 'badge_earned', badgeId: badge.id, badgeSlug: badge.slug },
             },
           }).catch(() => {});

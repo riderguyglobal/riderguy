@@ -189,8 +189,8 @@ router.get(
         bucket.orders++;
         if (order.status === 'DELIVERED') {
           bucket.deliveries++;
-          bucket.revenue += order.totalPrice;
-          bucket.commission += order.platformCommission ?? 0;
+          bucket.revenue += Number(order.totalPrice);
+          bucket.commission += Number(order.platformCommission ?? 0);
         }
       }
     }
@@ -211,7 +211,7 @@ router.get(
       const bucket = dailyMap.get(key);
       if (bucket) {
         bucket.withdrawals++;
-        if (w.status === 'COMPLETED') bucket.withdrawalAmount += w.amount;
+        if (w.status === 'COMPLETED') bucket.withdrawalAmount += Number(w.amount);
       }
     }
 

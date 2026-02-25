@@ -7,7 +7,7 @@
 // ============================================================
 
 import { prisma } from '@riderguy/database';
-import type { Prisma } from '@riderguy/database';
+import type { Prisma, NotificationType } from '@riderguy/database';
 import { PushService } from './push.service';
 import { SmsService } from './sms.service';
 import { logger } from '../lib/logger';
@@ -18,7 +18,7 @@ export interface CreateNotificationInput {
   userId: string;
   title: string;
   body: string;
-  type: string;         // 'document_review' | 'onboarding' | 'order' | etc.
+  type: NotificationType;
   data?: Record<string, unknown>;
 }
 
@@ -77,7 +77,7 @@ export class NotificationService {
           userId: admin.id,
           title: 'New Rider Application',
           body: `${rider.firstName} ${rider.lastName} has submitted documents for review.`,
-          type: 'rider_application',
+          type: 'SYSTEM',
           data: { riderUserId },
         }),
       ),
@@ -100,7 +100,7 @@ export class NotificationService {
       body: isApproved
         ? `Your ${friendlyType} has been approved.`
         : `Your ${friendlyType} was rejected${rejectionReason ? `: ${rejectionReason}` : '. Please re-upload.'}`,
-      type: 'document_review',
+      type: 'SYSTEM',
       data: { documentType, status, rejectionReason },
     });
   }
@@ -179,7 +179,7 @@ export async function createOrderNotification(
     userId,
     title,
     body,
-    type: 'order',
+    type: 'ORDER',
     data: { orderId },
   });
 }

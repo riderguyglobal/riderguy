@@ -142,7 +142,7 @@ export async function redeemItem(riderId: string, itemId: string) {
       userId: rider.userId,
       title: `${item.icon} Reward Redeemed!`,
       body: `You redeemed "${item.name}" for ${item.pointsCost} points. We'll process it shortly!`,
-      type: 'gamification',
+      type: 'GAMIFICATION',
       data: { type: 'reward_redeemed', redemptionId: redemption.id, itemId },
     },
   }).catch(() => {});

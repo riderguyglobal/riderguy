@@ -336,9 +336,9 @@ function sendOfferToNextRider(
     dropoffLongitude: number;
     distanceKm: number;
     estimatedDurationMinutes: number;
-    totalPrice: number;
-    serviceFee: number;
-    riderEarnings: number | null;
+    totalPrice: number | { toNumber(): number };
+    serviceFee: number | { toNumber(): number };
+    riderEarnings: number | { toNumber(): number } | null;
     packageType: string;
     packageDescription: string | null;
     currency: string;
@@ -360,7 +360,10 @@ function sendOfferToNextRider(
   }
 
   const expiresAt = new Date(Date.now() + OFFER_TIMEOUT_MS).toISOString();
-  const earnings = order.riderEarnings ?? (order.totalPrice - order.serviceFee);
+  const totalPriceNum = typeof order.totalPrice === 'number' ? order.totalPrice : Number(order.totalPrice);
+  const serviceFeeNum = typeof order.serviceFee === 'number' ? order.serviceFee : Number(order.serviceFee);
+  const riderEarningsNum = order.riderEarnings != null ? (typeof order.riderEarnings === 'number' ? order.riderEarnings : Number(order.riderEarnings)) : null;
+  const earnings = riderEarningsNum ?? (totalPriceNum - serviceFeeNum);
 
   const offerPayload: JobOffer = {
     orderId: order.id,
@@ -373,8 +376,8 @@ function sendOfferToNextRider(
     dropoffLng: order.dropoffLongitude,
     distanceKm: order.distanceKm,
     estimatedDurationMinutes: order.estimatedDurationMinutes,
-    totalPrice: order.totalPrice,
-    serviceFee: order.serviceFee,
+    totalPrice: totalPriceNum,
+    serviceFee: serviceFeeNum,
     riderEarnings: earnings,
     packageType: order.packageType,
     packageDescription: order.packageDescription ?? undefined,

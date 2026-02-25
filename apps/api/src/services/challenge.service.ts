@@ -262,7 +262,7 @@ export async function incrementChallengeProgress(
             userId: rider.userId,
             title: `${p.challenge.icon} Challenge Complete!`,
             body: `You completed "${p.challenge.title}"! +${p.challenge.xpReward} XP${p.challenge.pointsReward > 0 ? `, +${p.challenge.pointsReward} points` : ''}`,
-            type: 'gamification',
+            type: 'GAMIFICATION',
             data: { type: 'challenge_complete', challengeId: p.challengeId },
           },
         }).catch(() => {});

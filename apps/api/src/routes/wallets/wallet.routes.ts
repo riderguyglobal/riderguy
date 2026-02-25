@@ -135,7 +135,7 @@ router.post(
           walletId: freshWallet.id,
           type: 'WITHDRAWAL',
           amount: -amount,
-          balanceAfter: freshWallet.balance - amount,
+          balanceAfter: Number(freshWallet.balance) - amount,
           description: `Withdrawal to ${destinationName}`,
           referenceId: w.id,
           referenceType: 'withdrawal',

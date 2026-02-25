@@ -414,7 +414,7 @@ router.patch(
       userId: riderId,
       title: 'Application Approved!',
       body: 'Your rider application has been approved. You can now start accepting deliveries.',
-      type: 'onboarding',
+      type: 'TRAINING',
       data: { status: 'ACTIVATED' },
     });
 
@@ -439,7 +439,7 @@ router.patch(
       userId: riderId,
       title: 'Application Not Approved',
       body: reason || 'Your application was not approved at this time. Please check your documents.',
-      type: 'onboarding',
+      type: 'TRAINING',
       data: { status: 'DOCUMENTS_REJECTED', reason },
     });
 

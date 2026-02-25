@@ -97,7 +97,7 @@ router.post(
 
     const result = await paystackService.initializeTransaction({
       email: user?.email ?? `user-${userId}@riderguy.com`,
-      amount: Math.round(order.totalPrice * 100), // Convert to pesewas
+      amount: Math.round(Number(order.totalPrice) * 100), // Convert to pesewas
       reference,
       callbackUrl: callbackUrl ?? undefined,
       metadata: {
@@ -169,7 +169,7 @@ router.get(
 
       if (verification.status === 'success') {
         // Verify amount matches (in pesewas)
-        const expectedPesewas = Math.round(order.totalPrice * 100);
+        const expectedPesewas = Math.round(Number(order.totalPrice) * 100);
         if (verification.amount !== expectedPesewas) {
           logger.warn(
             { reference, expected: expectedPesewas, received: verification.amount },
@@ -327,7 +327,7 @@ router.post(
                   walletId: wallet.id,
                   type: 'REFUND',
                   amount: failedWithdrawal.amount,
-                  balanceAfter: wallet.balance + failedWithdrawal.amount,
+                  balanceAfter: Number(wallet.balance) + Number(failedWithdrawal.amount),
                   description: `Refund for failed withdrawal`,
                   referenceId: failedWithdrawal.id,
                   referenceType: 'withdrawal',
@@ -515,7 +515,7 @@ router.post(
     await enqueuePayoutJob({
       withdrawalId: withdrawal.id,
       userId: withdrawal.userId,
-      amount: withdrawal.amount,
+      amount: Number(withdrawal.amount),
       method: withdrawal.method,
       destination: withdrawal.destination,
       destinationName: withdrawal.destinationName,
@@ -574,7 +574,7 @@ router.post(
             walletId: wallet.id,
             type: 'REFUND',
             amount: withdrawal.amount,
-            balanceAfter: wallet.balance + withdrawal.amount,
+            balanceAfter: Number(wallet.balance) + Number(withdrawal.amount),
             description: `Refund for rejected withdrawal: ${reason}`,
             referenceId: withdrawal.id,
             referenceType: 'withdrawal',
