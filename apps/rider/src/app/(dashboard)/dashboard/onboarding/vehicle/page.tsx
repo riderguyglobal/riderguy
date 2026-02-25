@@ -28,6 +28,7 @@ export default function VehiclePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [existing, setExisting] = useState(false);
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!api) return;
@@ -35,6 +36,7 @@ export default function VehiclePage() {
       const vehicles = res.data.data ?? [];
       if (vehicles.length > 0) {
         const v = vehicles[0];
+        setVehicleId(v.id);
         setVehicleType(v.type);
         setMake(v.make ?? '');
         setModel(v.model ?? '');
@@ -64,10 +66,8 @@ export default function VehiclePage() {
         color: color.trim() || undefined,
       };
 
-      if (existing) {
-        const res = await api?.get(`${API_BASE_URL}/riders/vehicles`);
-        const vid = res?.data.data?.[0]?.id;
-        if (vid) await api?.patch(`${API_BASE_URL}/riders/vehicles/${vid}`, body);
+      if (existing && vehicleId) {
+        await api?.patch(`${API_BASE_URL}/riders/vehicles/${vehicleId}`, body);
       } else {
         await api?.post(`${API_BASE_URL}/riders/vehicles`, body);
       }

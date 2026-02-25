@@ -12,7 +12,7 @@ type PhoneStage = 'input' | 'otp';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginWithPassword, requestOtp, verifyOtp } = useAuth();
+  const { loginWithPassword, loginWithOtp, requestOtp } = useAuth();
   const [method, setMethod] = useState<Method>('phone');
   const [phone, setPhone] = useState('');
   const [phoneStage, setPhoneStage] = useState<PhoneStage>('input');
@@ -42,7 +42,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await verifyOtp(phone, otp, 'LOGIN');
+      await loginWithOtp(phone, otp);
       router.replace('/dashboard');
     } catch {
       setError('Invalid verification code.');

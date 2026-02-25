@@ -3,7 +3,7 @@ import { asyncHandler } from '../../lib/async-handler';
 import { StatusCodes } from 'http-status-codes';
 import { logger } from '../../lib/logger';
 import { z } from 'zod';
-import { validate } from '../../middleware';
+import { validate, authRateLimit } from '../../middleware';
 
 const router = Router();
 
@@ -26,6 +26,7 @@ const contactSchema = z.object({
  */
 router.post(
   '/',
+  authRateLimit,
   validate(contactSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { firstName, lastName, email, subject, message } = req.body;

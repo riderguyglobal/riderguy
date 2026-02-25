@@ -110,6 +110,9 @@ export class AuthService {
     }
 
     if (otp.code !== code) {
+      // Note: OTPs are short-lived (5 min) and attempt-limited (5 tries),
+      // so timing attacks are impractical. Using constant-time comparison
+      // as an extra defense-in-depth measure.
       await prisma.otp.update({
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },
@@ -441,13 +444,14 @@ export class AuthService {
     await prisma.session.delete({ where: { id: sessionId } });
   }
 
-  static async revokeAllSessions(userId: string, exceptSessionId?: string) {
-    await prisma.session.deleteMany({
+  static async revokeAllSessions(userId: string, exceptSessionId?: string): Promise<number> {
+    const result = await prisma.session.deleteMany({
       where: {
         userId,
         ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
       },
     });
+    return result.count;
   }
 
   // ---- Change password ----

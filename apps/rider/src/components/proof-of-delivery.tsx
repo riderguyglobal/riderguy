@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Button, Textarea } from '@riderguy/ui';
-import { Camera, Upload, ImageIcon, X, Check } from 'lucide-react';
+import { Button } from '@riderguy/ui';
+import { Camera, ImageIcon, X, Check } from 'lucide-react';
 
-type ProofType = 'PHOTO' | 'SIGNATURE' | 'PIN' | 'RECIPIENT_NAME';
+type ProofType = 'PHOTO' | 'SIGNATURE' | 'PIN_CODE';
 
 interface ProofOfDeliveryProps {
   orderId: string;
@@ -16,7 +16,6 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
   const [proofType, setProofType] = useState<ProofType>('PHOTO');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [pin, setPin] = useState('');
-  const [recipientName, setRecipientName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -44,12 +43,9 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
       const canvas = canvasRef.current;
       if (!canvas) return;
       data = canvas.toDataURL('image/png');
-    } else if (proofType === 'PIN') {
+    } else if (proofType === 'PIN_CODE') {
       if (pin.length < 4) { setError('Enter the delivery PIN'); return; }
       data = pin;
-    } else if (proofType === 'RECIPIENT_NAME') {
-      if (!recipientName.trim()) { setError('Enter recipient name'); return; }
-      data = recipientName.trim();
     }
 
     setSubmitting(true);
@@ -105,8 +101,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
   const proofTypes: { type: ProofType; label: string; icon: React.ReactNode }[] = [
     { type: 'PHOTO', label: 'Photo', icon: <Camera className="h-4 w-4" /> },
     { type: 'SIGNATURE', label: 'Signature', icon: <span className="text-sm">✍️</span> },
-    { type: 'PIN', label: 'PIN', icon: <span className="text-sm">#</span> },
-    { type: 'RECIPIENT_NAME', label: 'Name', icon: <span className="text-sm">👤</span> },
+    { type: 'PIN_CODE', label: 'PIN', icon: <span className="text-sm">#</span> },
   ];
 
   return (
@@ -193,7 +188,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
           </div>
         )}
 
-        {proofType === 'PIN' && (
+        {proofType === 'PIN_CODE' && (
           <div>
             <p className="text-xs text-surface-400 mb-2">
               {deliveryPin ? `Ask the recipient for their delivery PIN` : 'Enter the delivery PIN'}
@@ -206,19 +201,6 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               placeholder="Enter PIN"
               className="w-full text-center text-2xl font-mono tracking-[0.5em] py-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-surface-600 outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all"
-            />
-          </div>
-        )}
-
-        {proofType === 'RECIPIENT_NAME' && (
-          <div>
-            <p className="text-xs text-surface-400 mb-2">Name of person who received the package</p>
-            <input
-              type="text"
-              value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
-              placeholder="Enter recipient's name"
-              className="w-full py-3 px-4 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-surface-500 outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all"
             />
           </div>
         )}

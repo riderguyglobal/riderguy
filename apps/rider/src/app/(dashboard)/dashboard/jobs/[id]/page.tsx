@@ -123,7 +123,7 @@ export default function JobDetailPage() {
 
   const handleProofSubmit = async (proof: { type: string; data: string }) => {
     if (!api || !id) return;
-    await api.post(`${API_BASE_URL}/orders/${id}/proof`, proof);
+    await api.post(`${API_BASE_URL}/orders/${id}/proof`, { proofType: proof.type, proofData: proof.data });
     await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: 'DELIVERED' });
     setOrder((prev) => prev ? { ...prev, status: 'DELIVERED' as Order['status'] } : prev);
     setShowProof(false);

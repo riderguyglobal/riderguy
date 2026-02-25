@@ -5,6 +5,8 @@ import { Send, X, MessageCircle } from 'lucide-react';
 import { Button, Input } from '@riderguy/ui';
 import { timeAgo } from '@riderguy/utils';
 import { useSocket } from '@/hooks/use-socket';
+import { useAuth } from '@riderguy/auth';
+import { API_BASE_URL } from '@/lib/constants';
 
 interface Message {
   id: string;
@@ -20,6 +22,7 @@ interface DeliveryChatProps {
 
 export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
   const { socket, sendMessage, sendTyping } = useSocket();
+  const { api } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -27,6 +30,19 @@ export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
   const [peerTyping, setPeerTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const loadedRef = useRef(false);
+
+  // Load existing messages on first open
+  useEffect(() => {
+    if (!open || loadedRef.current || !api) return;
+    loadedRef.current = true;
+    api.get(`${API_BASE_URL}/orders/${orderId}/messages`)
+      .then((res) => {
+        const existing = res.data.data ?? [];
+        if (existing.length > 0) setMessages(existing);
+      })
+      .catch(() => {});
+  }, [open, api, orderId]);
 
   // Socket message listeners
   useEffect(() => {

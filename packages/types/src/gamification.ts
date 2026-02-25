@@ -189,3 +189,130 @@ export const DEFAULT_BADGES: BadgeSeedDefinition[] = [
   { slug: 'early_adopter', name: 'Early Adopter', description: 'Joined during the launch period', icon: '🎯', category: 'special', criteria: { action: 'special', threshold: 0 }, xpReward: 100, sortOrder: 50 },
   { slug: 'perfect_week', name: 'Perfect Week', description: 'All deliveries rated 5 stars in a week', icon: '💎', category: 'special', criteria: { action: 'perfect_week', threshold: 1 }, xpReward: 200, sortOrder: 51 },
 ];
+
+// ============================================================
+// Sprint 10 — Streaks, Challenges, Rewards Store, Bonus XP
+// ============================================================
+
+// ────── Streaks ──────
+
+export interface RiderStreak {
+  id: string;
+  riderId: string;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: Date | string | null;
+  streakStartDate: Date | string | null;
+}
+
+// ────── Challenges ──────
+
+export type ChallengeType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+export type ChallengeStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+
+export interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  type: ChallengeType;
+  status: ChallengeStatus;
+  icon: string;
+  criteriaAction: string;
+  criteriaCount: number;
+  xpReward: number;
+  pointsReward: number;
+  badgeRewardId: string | null;
+  zoneId: string | null;
+  minLevel: number | null;
+  maxLevel: number | null;
+  startsAt: Date | string;
+  endsAt: Date | string;
+  createdBy: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  // Enriched fields
+  participantCount?: number;
+  completionCount?: number;
+}
+
+export interface ChallengeParticipant {
+  id: string;
+  challengeId: string;
+  riderId: string;
+  progress: number;
+  completedAt: Date | string | null;
+  rewardClaimed: boolean;
+  joinedAt: Date | string;
+}
+
+export interface ChallengeWithProgress extends Challenge {
+  participation?: ChallengeParticipant | null;
+  progressPercent: number;
+  timeRemaining: string;
+  isJoined: boolean;
+  isCompleted: boolean;
+}
+
+// ────── Rewards Store ──────
+
+export type RewardCategory = 'merchandise' | 'voucher' | 'perk' | 'general';
+export type RedemptionStatus = 'PENDING' | 'APPROVED' | 'FULFILLED' | 'REJECTED' | 'CANCELLED';
+
+export interface RewardStoreItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  imageUrl: string | null;
+  category: string;
+  pointsCost: number;
+  inventory: number; // -1 = unlimited
+  isFeatured: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  redemptionCount?: number;
+}
+
+export interface RewardRedemption {
+  id: string;
+  riderId: string;
+  itemId: string;
+  item?: RewardStoreItem;
+  pointsSpent: number;
+  status: RedemptionStatus;
+  notes: string | null;
+  fulfilledAt: Date | string | null;
+  createdAt: Date | string;
+}
+
+// ────── Bonus XP Events ──────
+
+export interface BonusXpEvent {
+  id: string;
+  title: string;
+  description: string;
+  multiplier: number;
+  targetActions: string[];
+  zoneId: string | null;
+  startsAt: Date | string;
+  endsAt: Date | string;
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: Date | string;
+}
+
+// ────── Enhanced Leaderboard ──────
+
+export type LeaderboardTimeRange = 'today' | 'week' | 'month' | 'alltime';
+export type LeaderboardCategory = 'xp' | 'deliveries' | 'rating' | 'streak';
+
+export interface LeaderboardQuery {
+  zoneId?: string;
+  cityId?: string;
+  timeRange?: LeaderboardTimeRange;
+  category?: LeaderboardCategory;
+  limit?: number;
+  currentUserId?: string;
+}

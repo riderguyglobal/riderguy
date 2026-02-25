@@ -20,8 +20,8 @@ export class AuthController {
 
   /** POST /auth/otp/verify */
   static async verifyOtp(req: Request, res: Response) {
-    const { phone, code, purpose } = req.body;
-    await AuthService.verifyOtp(phone, code, purpose);
+    const { phone, otp, purpose } = req.body;
+    await AuthService.verifyOtp(phone, otp, purpose);
     res.status(StatusCodes.OK).json({
       success: true,
       data: { message: 'OTP verified successfully', verified: true },

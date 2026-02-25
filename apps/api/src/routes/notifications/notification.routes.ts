@@ -25,6 +25,19 @@ router.get(
   }),
 );
 
+/** PATCH /notifications/read-all — mark all notifications as read (must be before /:id/read) */
+router.patch(
+  '/read-all',
+  asyncHandler(async (req, res) => {
+    const result = await NotificationService.markAllRead(req.user!.userId);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { message: `${result.count} notifications marked as read` },
+    });
+  }),
+);
+
 /** PATCH /notifications/:id/read — mark a single notification as read */
 router.patch(
   '/:id/read',
@@ -39,19 +52,6 @@ router.patch(
     res.status(StatusCodes.OK).json({
       success: true,
       data: { message: 'Notification marked as read' },
-    });
-  }),
-);
-
-/** PATCH /notifications/read-all — mark all notifications as read */
-router.patch(
-  '/read-all',
-  asyncHandler(async (req, res) => {
-    const result = await NotificationService.markAllRead(req.user!.userId);
-
-    res.status(StatusCodes.OK).json({
-      success: true,
-      data: { message: `${result.count} notifications marked as read` },
     });
   }),
 );

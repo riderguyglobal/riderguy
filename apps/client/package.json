@@ -18,7 +18,6 @@
     "@riderguy/validators": "*",
     "@serwist/next": "^9.5.6",
     "@tanstack/react-query": "^5.62.0",
-    "@types/mapbox-gl": "^3.4.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "mapbox-gl": "^3.18.1",
@@ -31,6 +30,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@types/mapbox-gl": "^3.4.1",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",

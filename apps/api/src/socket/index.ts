@@ -67,9 +67,24 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     // Auto-join the user's own room for direct notifications
     socket.join(`user:${userId}`);
 
+    // Auto-join role-based room for targeted broadcasts (e.g., job:new to riders only)
+    socket.join(`role:${role}`);
+
+    // Throttle map: track last location update time per rider
+    let lastLocationUpdate = 0;
+    const LOCATION_THROTTLE_MS = 3000; // Minimum 3 seconds between location updates
+
     // ── Rider location updates ──
     socket.on('rider:updateLocation', async (data, ack) => {
       try {
+        // Throttle: reject updates that come too fast
+        const now = Date.now();
+        if (now - lastLocationUpdate < LOCATION_THROTTLE_MS) {
+          ack?.({ success: true }); // Silently accept but don't process
+          return;
+        }
+        lastLocationUpdate = now;
+
         const { latitude, longitude, heading, speed } = data;
 
         // Update rider's current position in DB
@@ -126,10 +141,34 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
       }
     });
 
-    // ── Subscribe to order updates ──
-    socket.on('order:subscribe', ({ orderId }) => {
-      socket.join(`order:${orderId}`);
-      logger.debug({ socketId: socket.id, orderId }, 'Subscribed to order room');
+    // ── Subscribe to order updates (with access control) ──
+    socket.on('order:subscribe', async ({ orderId }) => {
+      try {
+        // Verify the user is part of this order (client, assigned rider, or admin)
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          select: {
+            clientId: true,
+            rider: { select: { userId: true } },
+          },
+        });
+
+        if (!order) return;
+
+        const isClient = order.clientId === userId;
+        const isRider = order.rider?.userId === userId;
+        const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DISPATCHER';
+
+        if (!isClient && !isRider && !isAdmin) {
+          logger.warn({ socketId: socket.id, userId, orderId }, 'Unauthorized order:subscribe attempt');
+          return;
+        }
+
+        socket.join(`order:${orderId}`);
+        logger.debug({ socketId: socket.id, orderId }, 'Subscribed to order room');
+      } catch (err) {
+        logger.error({ err, userId, orderId }, 'Failed to authorize order:subscribe');
+      }
     });
 
     socket.on('order:unsubscribe', ({ orderId }) => {
@@ -273,6 +312,11 @@ export function emitNewJob(zoneId: string | null, data: {
   packageType: string;
 }) {
   if (!io) return;
-  // Broadcast to all connected riders — they filter client-side by zone
-  io.emit('job:new', data);
+  if (zoneId) {
+    // Emit only to riders in the specific zone room
+    io.to(`zone:${zoneId}`).emit('job:new', data);
+  } else {
+    // Fallback: emit to the global riders room (not all connected users)
+    io.to('role:RIDER').emit('job:new', data);
+  }
 }

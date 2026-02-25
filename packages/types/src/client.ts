@@ -31,7 +31,7 @@ export interface BusinessAccount {
 /** Saved address for clients */
 export interface SavedAddress {
   id: string;
-  userId: string;
+  clientId: string;
   label: string; // e.g., "Home", "Office"
   address: string;
   latitude: number;

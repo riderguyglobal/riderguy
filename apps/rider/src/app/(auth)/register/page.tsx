@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@riderguy/auth';
-import { Button, Input, OtpInput, PhoneInput, StepIndicator } from '@riderguy/ui';
+import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
 import { AlertCircle, CheckCircle2, Bike, Sparkles } from 'lucide-react';
 
 const STEPS = [{ label: 'Phone' }, { label: 'Verify' }, { label: 'Details' }];
@@ -36,7 +36,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     setError('');
     try {
-      await requestOtp(phone, 'RIDER');
+      await requestOtp(phone, 'REGISTRATION');
       setStep(1);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send OTP');

@@ -2,6 +2,15 @@
 
 // Use globalThis.crypto (available in Node 19+ and all modern browsers)
 // Falls back to node:crypto for older Node versions (server-side only)
+let _nodeCrypto: typeof import('crypto') | null = null;
+function getNodeCrypto(): typeof import('crypto') {
+  if (!_nodeCrypto) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    _nodeCrypto = require('node:crypto');
+  }
+  return _nodeCrypto!;
+}
+
 function getRandomBytes(n: number): Uint8Array {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
     const buf = new Uint8Array(n);
@@ -9,8 +18,7 @@ function getRandomBytes(n: number): Uint8Array {
     return buf;
   }
   // Server-side fallback
-  const nodeCrypto = require('crypto');
-  return new Uint8Array(nodeCrypto.randomBytes(n));
+  return new Uint8Array(getNodeCrypto().randomBytes(n));
 }
 
 function getRandomInt(min: number, max: number): number {
@@ -20,9 +28,7 @@ function getRandomInt(min: number, max: number): number {
     globalThis.crypto.getRandomValues(arr);
     return min + (arr[0]! % range);
   }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const nodeCrypto = require('crypto');
-  return nodeCrypto.randomInt(min, max);
+  return getNodeCrypto().randomInt(min, max);
 }
 
 function bytesToHex(bytes: Uint8Array): string {

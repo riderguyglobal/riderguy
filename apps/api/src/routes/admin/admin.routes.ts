@@ -317,7 +317,20 @@ router.get(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        role: true,
+        status: true,
+        phoneVerified: true,
+        emailVerified: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
         riderProfile: {
           include: {
             vehicles: true,

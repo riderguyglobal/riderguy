@@ -39,8 +39,11 @@ export const coordinatesSchema = z.object({
   longitude: longitudeSchema,
 });
 
-/** UUID */
-export const uuidSchema = z.string().uuid('Invalid ID format');
+/** ID (CUID format used by Prisma) */
+export const idSchema = z.string().min(1, 'Invalid ID format').max(30, 'Invalid ID format');
+
+/** UUID (for external system IDs) */
+export const uuidSchema = z.string().uuid('Invalid UUID format');
 
 /** Non-empty trimmed string */
 export const requiredStringSchema = z.string().trim().min(1, 'This field is required');

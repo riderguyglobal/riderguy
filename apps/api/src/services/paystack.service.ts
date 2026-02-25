@@ -318,7 +318,12 @@ export class PaystackService {
       .update(payload)
       .digest('hex');
 
-    return hash === signature;
+    // Use timing-safe comparison to prevent timing attacks
+    try {
+      return crypto.timingSafeEqual(Buffer.from(hash, 'utf8'), Buffer.from(signature, 'utf8'));
+    } catch {
+      return false; // Buffers must be same length; if not, signature is invalid
+    }
   }
 
   /**

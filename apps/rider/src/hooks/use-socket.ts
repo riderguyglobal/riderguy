@@ -12,9 +12,8 @@ let listenerCount = 0;
 function getOrCreateSocket(): Socket {
   if (sharedSocket?.connected) return sharedSocket;
 
-  const token = tokenStorage.getAccessToken();
   sharedSocket = io(API_WS_URL, {
-    auth: { token },
+    auth: (cb) => cb({ token: tokenStorage.getAccessToken() }),
     transports: ['websocket', 'polling'],
     reconnectionAttempts: 15,
     reconnectionDelay: 2_000,
@@ -72,8 +71,8 @@ export function useSocket() {
     socketRef.current?.emit('message:typing', { orderId });
   }, []);
 
-  const respondToOffer = useCallback((offerId: string, accepted: boolean) => {
-    socketRef.current?.emit('job:offer:respond', { offerId, accepted });
+  const respondToOffer = useCallback((orderId: string, accepted: boolean) => {
+    socketRef.current?.emit('job:offer:respond', { orderId, accepted });
   }, []);
 
   return {

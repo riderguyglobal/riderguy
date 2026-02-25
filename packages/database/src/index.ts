@@ -30,6 +30,14 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
+// Graceful shutdown — disconnect from DB on process exit
+const shutdown = async () => {
+  await prisma.$disconnect();
+};
+process.on('beforeExit', shutdown);
+process.on('SIGINT', async () => { await shutdown(); process.exit(0); });
+process.on('SIGTERM', async () => { await shutdown(); process.exit(0); });
+
 // Re-export everything from @prisma/client so consumers
 // only need to import from @riderguy/database.
 export * from '@prisma/client';

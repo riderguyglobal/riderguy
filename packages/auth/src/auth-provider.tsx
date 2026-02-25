@@ -63,7 +63,17 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
-  const store = useAuthStore();
+  // Use individual selectors to avoid re-render loops from object reference changes
+  const user = useAuthStore((s) => s.user);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const error = useAuthStore((s) => s.error);
+  const setUser = useAuthStore((s) => s.setUser);
+  const setLoading = useAuthStore((s) => s.setLoading);
+  const setError = useAuthStore((s) => s.setError);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const storeLogin = useAuthStore((s) => s.login);
+  const storeLogout = useAuthStore((s) => s.logout);
 
   // Initialise the API client once
   const api = useMemo(() => initApiClient(apiBaseUrl), [apiBaseUrl]);
@@ -72,17 +82,17 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
   const refreshUser = useCallback(async () => {
     try {
       const { data } = await api.get('/auth/me');
-      store.setUser(data.data as AuthUser);
+      setUser(data.data as AuthUser);
     } catch {
-      store.clearAuth();
+      clearAuth();
     }
-  }, [api, store]);
+  }, [api, setUser, clearAuth]);
 
   useEffect(() => {
     if (tokenStorage.hasTokens()) {
-      refreshUser().finally(() => store.setLoading(false));
+      refreshUser().finally(() => setLoading(false));
     } else {
-      store.setLoading(false);
+      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -90,46 +100,46 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
   // ---------- Auth actions ----------
   const loginWithOtp = useCallback(
     async (phone: string, otp: string) => {
-      store.setLoading(true);
-      store.setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const { data } = await api.post('/auth/login', { phone, otp });
-        store.login(
+        storeLogin(
           { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
           data.data.user
         );
       } catch (err: any) {
         const message =
           err.response?.data?.error?.message ?? 'Login failed. Please try again.';
-        store.setError(message);
+        setError(message);
         throw err;
       } finally {
-        store.setLoading(false);
+        setLoading(false);
       }
     },
-    [api, store]
+    [api, setLoading, setError, storeLogin]
   );
 
   const loginWithPassword = useCallback(
     async (email: string, password: string) => {
-      store.setLoading(true);
-      store.setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const { data } = await api.post('/auth/login/password', { email, password });
-        store.login(
+        storeLogin(
           { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
           data.data.user
         );
       } catch (err: any) {
         const message =
           err.response?.data?.error?.message ?? 'Login failed. Please try again.';
-        store.setError(message);
+        setError(message);
         throw err;
       } finally {
-        store.setLoading(false);
+        setLoading(false);
       }
     },
-    [api, store]
+    [api, setLoading, setError, storeLogin]
   );
 
   const register = useCallback(
@@ -142,24 +152,24 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       password?: string;
       otpCode: string;
     }) => {
-      store.setLoading(true);
-      store.setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const { data } = await api.post('/auth/register', payload);
-        store.login(
+        storeLogin(
           { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
           data.data.user
         );
       } catch (err: any) {
         const message =
           err.response?.data?.error?.message ?? 'Registration failed. Please try again.';
-        store.setError(message);
+        setError(message);
         throw err;
       } finally {
-        store.setLoading(false);
+        setLoading(false);
       }
     },
-    [api, store]
+    [api, setLoading, setError, storeLogin]
   );
 
   const requestOtp = useCallback(
@@ -171,12 +181,8 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
 
   const verifyOtp = useCallback(
     async (phone: string, code: string, purpose: string): Promise<boolean> => {
-      try {
-        await api.post('/auth/otp/verify', { phone, code, purpose });
-        return true;
-      } catch {
-        return false;
-      }
+      const { data } = await api.post('/auth/otp/verify', { phone, otp: code, purpose });
+      return data?.data?.verified ?? true;
     },
     [api]
   );
@@ -187,15 +193,15 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     } catch {
       // Server may already have expired the session — still clear locally
     }
-    store.logout();
-  }, [api, store]);
+    storeLogout();
+  }, [api, storeLogout]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: store.user,
-      isLoading: store.isLoading,
-      isAuthenticated: store.isAuthenticated,
-      error: store.error,
+      user,
+      isLoading,
+      isAuthenticated,
+      error,
       api,
       accessToken: tokenStorage.getAccessToken(),
       loginWithOtp,
@@ -207,10 +213,10 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       refreshUser,
     }),
     [
-      store.user,
-      store.isLoading,
-      store.isAuthenticated,
-      store.error,
+      user,
+      isLoading,
+      isAuthenticated,
+      error,
       api,
       loginWithOtp,
       loginWithPassword,

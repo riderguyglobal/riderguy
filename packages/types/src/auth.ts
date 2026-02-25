@@ -34,19 +34,20 @@ export interface RegisterInput {
   password?: string;
   role: UserRole;
   referralCode?: string;
+  otpCode: string;
 }
 
 /** OTP request */
 export interface RequestOtpInput {
   phone: string;
-  purpose: 'registration' | 'login' | 'password_reset';
+  purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET';
 }
 
 /** OTP verification */
 export interface VerifyOtpInput {
   phone: string;
   otp: string;
-  purpose: 'registration' | 'login' | 'password_reset';
+  purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET';
 }
 
 /** Auth tokens response */

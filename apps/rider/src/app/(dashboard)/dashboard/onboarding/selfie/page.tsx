@@ -14,6 +14,7 @@ export default function SelfiePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
+  const facingModeRef = useRef<'user' | 'environment'>('user');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -25,7 +26,7 @@ export default function SelfiePage() {
       stream?.getTracks().forEach((t) => t.stop());
 
       const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: facingModeRef.current, width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
       setStream(newStream);
@@ -37,7 +38,7 @@ export default function SelfiePage() {
     } catch {
       setError('Camera access denied. Please allow camera permissions.');
     }
-  }, [facingMode, stream]);
+  }, [stream]);
 
   const capture = () => {
     const video = videoRef.current;
@@ -68,8 +69,9 @@ export default function SelfiePage() {
   };
 
   const flipCamera = () => {
-    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
-    // Will re-trigger via startCamera
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    facingModeRef.current = next;
+    setFacingMode(next);
     setTimeout(startCamera, 100);
   };
 

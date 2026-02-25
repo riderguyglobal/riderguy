@@ -20,10 +20,13 @@ import type {
   LeaderboardEntry,
   Badge,
   BadgeCriteria,
+  LeaderboardCategory,
+  LeaderboardTimeRange,
 } from '@riderguy/types';
 import { logger } from '../lib/logger';
 import { ApiError } from '../lib/api-error';
 import type { Prisma } from '@prisma/client';
+import * as BonusXpService from './bonus-xp.service';
 
 // ────── Level Calculation ──────
 
@@ -80,7 +83,7 @@ export async function awardXp(
   points?: number,
   metadata?: Record<string, unknown>,
 ): Promise<XpAwardResult> {
-  const xpAmount = points ?? XP_VALUES[action as XpAction] ?? 0;
+  let xpAmount = points ?? XP_VALUES[action as XpAction] ?? 0;
   if (xpAmount <= 0 && action !== XpAction.BONUS) {
     return {
       action,
@@ -95,9 +98,15 @@ export async function awardXp(
 
   const rider = await prisma.riderProfile.findUnique({
     where: { id: riderId },
-    select: { id: true, totalXp: true, currentLevel: true, userId: true },
+    select: { id: true, totalXp: true, currentLevel: true, userId: true, currentZoneId: true },
   });
   if (!rider) throw ApiError.notFound('Rider profile not found');
+
+  // Apply bonus XP multiplier if any active events
+  const multiplier = await BonusXpService.getXpMultiplier(action, rider.currentZoneId);
+  if (multiplier > 1) {
+    xpAmount = Math.round(xpAmount * multiplier);
+  }
 
   const previousLevel = rider.currentLevel as RiderLevel;
   const newTotalXp = rider.totalXp + xpAmount;
@@ -353,24 +362,103 @@ export async function getXpHistory(
 }
 
 /**
- * Get leaderboard (top riders by XP).
+ * Get leaderboard (top riders by XP, deliveries, rating, or streak).
+ * Supports time-range filtering and category selection.
  */
 export async function getLeaderboard(
   options: {
     zoneId?: string;
     limit?: number;
     currentUserId?: string;
+    category?: LeaderboardCategory;
+    timeRange?: LeaderboardTimeRange;
   } = {},
 ): Promise<LeaderboardEntry[]> {
-  const { zoneId, limit = 20, currentUserId } = options;
+  const { zoneId, limit = 20, currentUserId, category = 'xp', timeRange = 'alltime' } = options;
+
+  // For time-based XP leaderboard, we aggregate xpEvents within the time range
+  if (category === 'xp' && timeRange !== 'alltime') {
+    return getTimeRangeXpLeaderboard({ zoneId, limit, currentUserId, timeRange });
+  }
+
+  // Determine sort field based on category
+  const orderBy: Record<string, string> =
+    category === 'deliveries'
+      ? { totalDeliveries: 'desc' }
+      : category === 'rating'
+        ? { averageRating: 'desc' }
+        : { totalXp: 'desc' };
 
   const riders = await prisma.riderProfile.findMany({
     where: {
       onboardingStatus: 'ACTIVATED',
       ...(zoneId ? { currentZoneId: zoneId } : {}),
     },
-    orderBy: { totalXp: 'desc' },
+    orderBy: orderBy as any,
     take: limit,
+    select: {
+      id: true,
+      userId: true,
+      currentLevel: true,
+      totalXp: true,
+      totalDeliveries: true,
+      averageRating: true,
+      user: {
+        select: { firstName: true, lastName: true, avatarUrl: true },
+      },
+      streak: { select: { currentStreak: true } },
+    },
+  });
+
+  // For streak category sort manually since it's a relation
+  let sorted = riders;
+  if (category === 'streak') {
+    sorted = [...riders].sort(
+      (a, b) => (b.streak?.currentStreak ?? 0) - (a.streak?.currentStreak ?? 0),
+    );
+  }
+
+  return sorted.map((r, i) => ({
+    rank: i + 1,
+    riderId: r.id,
+    riderName: `${r.user.firstName ?? ''} ${r.user.lastName ?? ''}`.trim() || 'Rider',
+    avatarUrl: r.user.avatarUrl,
+    level: r.currentLevel as RiderLevel,
+    totalXp: r.totalXp,
+    totalDeliveries: r.totalDeliveries,
+    isCurrentUser: r.userId === currentUserId,
+  }));
+}
+
+/** Time-range XP leaderboard using xpEvent aggregation */
+async function getTimeRangeXpLeaderboard(options: {
+  zoneId?: string;
+  limit: number;
+  currentUserId?: string;
+  timeRange: LeaderboardTimeRange;
+}): Promise<LeaderboardEntry[]> {
+  const { zoneId, limit, currentUserId, timeRange } = options;
+  const since = getTimeRangeStart(timeRange);
+
+  // Aggregate XP events within time range
+  const topRiders = await prisma.xpEvent.groupBy({
+    by: ['riderId'],
+    where: {
+      createdAt: { gte: since },
+      ...(zoneId
+        ? { rider: { currentZoneId: zoneId } }
+        : {}),
+    },
+    _sum: { points: true },
+    orderBy: { _sum: { points: 'desc' } },
+    take: limit,
+  });
+
+  if (topRiders.length === 0) return [];
+
+  const riderIds = topRiders.map((r) => r.riderId);
+  const riders = await prisma.riderProfile.findMany({
+    where: { id: { in: riderIds } },
     select: {
       id: true,
       userId: true,
@@ -383,16 +471,42 @@ export async function getLeaderboard(
     },
   });
 
-  return riders.map((r, i) => ({
-    rank: i + 1,
-    riderId: r.id,
-    riderName: `${r.user.firstName ?? ''} ${r.user.lastName ?? ''}`.trim() || 'Rider',
-    avatarUrl: r.user.avatarUrl,
-    level: r.currentLevel as RiderLevel,
-    totalXp: r.totalXp,
-    totalDeliveries: r.totalDeliveries,
-    isCurrentUser: r.userId === currentUserId,
-  }));
+  const riderMap = new Map(riders.map((r) => [r.id, r]));
+
+  return topRiders
+    .map((tr, i) => {
+      const r = riderMap.get(tr.riderId);
+      if (!r) return null;
+      return {
+        rank: i + 1,
+        riderId: r.id,
+        riderName: `${r.user.firstName ?? ''} ${r.user.lastName ?? ''}`.trim() || 'Rider',
+        avatarUrl: r.user.avatarUrl,
+        level: r.currentLevel as RiderLevel,
+        totalXp: tr._sum.points ?? 0,
+        totalDeliveries: r.totalDeliveries,
+        isCurrentUser: r.userId === currentUserId,
+      };
+    })
+    .filter(Boolean) as LeaderboardEntry[];
+}
+
+function getTimeRangeStart(timeRange: LeaderboardTimeRange): Date {
+  const now = new Date();
+  switch (timeRange) {
+    case 'today':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    case 'week': {
+      const d = new Date(now);
+      d.setDate(d.getDate() - d.getDay()); // start of week (Sunday)
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    case 'month':
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    default:
+      return new Date(0);
+  }
 }
 
 // ────── Admin Operations ──────

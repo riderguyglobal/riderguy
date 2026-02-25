@@ -53,9 +53,9 @@ export default function DashboardPage() {
   // Fetch data
   useEffect(() => {
     if (!api) return;
-    api.get(`${API_BASE_URL}/wallet`).then(r => setWallet(r.data.data)).catch(() => {});
+    api.get(`${API_BASE_URL}/wallets`).then(r => setWallet(r.data.data)).catch(() => {});
     api.get(`${API_BASE_URL}/orders?role=rider&status=ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF&limit=5`)
-      .then(r => setOrders(r.data.data?.orders ?? []))
+      .then(r => setOrders(r.data.data ?? []))
       .catch(() => {});
     api.get(`${API_BASE_URL}/riders/profile`)
       .then(r => {

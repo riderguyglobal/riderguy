@@ -8,12 +8,12 @@
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "lint": "echo 'no lint configured'",
-    "clean": "rm -rf dist .turbo"
+    "clean": "rimraf dist .turbo"
   },
   "dependencies": {
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0"
+    "typescript": "^5.7.0"
   }
 }

@@ -52,6 +52,7 @@ router.post(
 
 router.post(
   '/refresh',
+  authRateLimit,
   validate(refreshTokenSchema),
   asyncHandler(AuthController.refresh)
 );

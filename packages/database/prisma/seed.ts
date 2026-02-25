@@ -30,7 +30,9 @@ function cuid(): string {
 }
 
 function orderNumber(): string {
-  return `RG-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const year = new Date().getFullYear();
+  const random = crypto.randomBytes(4).toString('hex').substring(0, 6).toUpperCase();
+  return `RG-${year}-${random}`;
 }
 
 // ---- Accra zone polygons (simplified) ----
@@ -125,6 +127,17 @@ async function main() {
   await prisma.favoriteRider.deleteMany();
   await prisma.savedAddress.deleteMany();
   await prisma.document.deleteMany();
+  // Gamification tables
+  await prisma.rewardRedemption.deleteMany();
+  await prisma.challengeParticipant.deleteMany();
+  await prisma.challenge.deleteMany();
+  await prisma.rewardStoreItem.deleteMany();
+  await prisma.bonusXpEvent.deleteMany();
+  await prisma.riderBadge.deleteMany();
+  await prisma.badge.deleteMany();
+  await prisma.xpEvent.deleteMany();
+  await prisma.riderStreak.deleteMany();
+  // Partner & profiles
   await prisma.partnerRecruitment.deleteMany();
   await prisma.partnerProfile.deleteMany();
   await prisma.riderProfile.deleteMany();

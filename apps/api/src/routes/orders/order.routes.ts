@@ -373,6 +373,20 @@ router.post(
       throw ApiError.badRequest('proofType and proofData are required');
     }
 
+    // Validate proofType against allowed values
+    const ALLOWED_PROOF_TYPES = ['PHOTO', 'SIGNATURE', 'PIN_CODE'];
+    if (!ALLOWED_PROOF_TYPES.includes(proofType)) {
+      throw ApiError.badRequest(`proofType must be one of: ${ALLOWED_PROOF_TYPES.join(', ')}`);
+    }
+
+    // Validate base64 payload size (max 5MB decoded)
+    const MAX_PROOF_SIZE = 5 * 1024 * 1024;
+    const base64Data = proofData.replace(/^data:image\/\w+;base64,/, '');
+    const estimatedSize = Math.ceil(base64Data.length * 0.75);
+    if (estimatedSize > MAX_PROOF_SIZE) {
+      throw ApiError.badRequest('Proof image exceeds maximum size of 5MB');
+    }
+
     // Verify rider is assigned
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw ApiError.notFound('Order not found');
@@ -391,8 +405,7 @@ router.post(
     const uploadsDir = path.resolve(process.cwd(), 'uploads', 'proofs');
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // proofData expected as base64 data URL
-    const base64Data = proofData.replace(/^data:image\/\w+;base64,/, '');
+    // base64Data already extracted and size-validated above
     const filePath = path.join(uploadsDir, fileName);
     await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
 
@@ -434,12 +447,19 @@ router.post(
     // Save failure photo if provided
     let failurePhotoUrl: string | undefined;
     if (photoData) {
+      // Validate base64 payload size (max 5MB decoded)
+      const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+      const base64Data = photoData.replace(/^data:image\/\w+;base64,/, '');
+      const estimatedSize = Math.ceil(base64Data.length * 0.75);
+      if (estimatedSize > MAX_PHOTO_SIZE) {
+        throw ApiError.badRequest('Failure photo exceeds maximum size of 5MB');
+      }
+
       const fileName = `fail-${orderId}-${Date.now()}.png`;
       const fs = await import('fs/promises');
       const pathMod = await import('path');
       const uploadsDir = pathMod.resolve(process.cwd(), 'uploads', 'failures');
       await fs.mkdir(uploadsDir, { recursive: true });
-      const base64Data = photoData.replace(/^data:image\/\w+;base64,/, '');
       await fs.writeFile(pathMod.join(uploadsDir, fileName), Buffer.from(base64Data, 'base64'));
       failurePhotoUrl = `/api/v1/uploads/failures/${fileName}`;
     }

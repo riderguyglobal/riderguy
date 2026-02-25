@@ -38,12 +38,12 @@ app.use(
 // ---------- Body parsing ----------
 // Capture raw body buffer for Paystack webhook HMAC verification
 app.use(express.json({
-  limit: '10mb',
+  limit: '2mb',
   verify: (req: express.Request & { rawBody?: Buffer }, _res, buf) => {
     req.rawBody = buf;
   },
 }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 
 // ---------- Compression ----------
@@ -63,8 +63,10 @@ app.get('/health', (_req, res) => {
   res.status(StatusCodes.OK).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: config.nodeEnv,
+    ...(config.nodeEnv !== 'production' && {
+      uptime: process.uptime(),
+      environment: config.nodeEnv,
+    }),
   });
 });
 

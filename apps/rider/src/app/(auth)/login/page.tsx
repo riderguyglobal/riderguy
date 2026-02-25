@@ -36,7 +36,7 @@ export default function LoginPage() {
     setSubmitting(true);
     setError('');
     try {
-      await requestOtp(phone, 'RIDER');
+      await requestOtp(phone, 'LOGIN');
       setPhoneStage('otp');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to send OTP';
