@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [method, setMethod] = useState<Method>('phone');
   const [phoneStage, setPhoneStage] = useState<PhoneStage>('input');
   const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -144,7 +145,16 @@ export default function LoginPage() {
                   Change number
                 </button>
               </div>
-              <OtpInput ref={otpRef} length={6} onComplete={handleOtpComplete} disabled={submitting} />
+              <OtpInput ref={otpRef} length={6} onChange={(code) => setOtp(code)} onComplete={handleOtpComplete} disabled={submitting} />
+              <Button
+                size="xl"
+                className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+                onClick={() => handleOtpComplete(otp)}
+                loading={submitting}
+                disabled={submitting || otp.length < 6}
+              >
+                Verify & Sign In
+              </Button>
               <div className="text-center mt-4">
                 <button
                   onClick={handleRequestOtp}

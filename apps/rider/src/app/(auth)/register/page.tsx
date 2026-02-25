@@ -169,7 +169,16 @@ export default function RegisterPage() {
               Change number
             </button>
           </div>
-          <OtpInput ref={otpRef} length={6} onComplete={handleVerifyOtp} disabled={submitting} />
+          <OtpInput ref={otpRef} length={6} onChange={setOtp} onComplete={handleVerifyOtp} disabled={submitting} />
+          <Button
+            size="xl"
+            className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+            onClick={() => handleVerifyOtp(otp)}
+            loading={submitting}
+            disabled={submitting || otp.length < 6}
+          >
+            Verify & Continue
+          </Button>
           <div className="text-center">
             <button onClick={handleSendOtp} disabled={submitting} className="text-sm text-surface-400 hover:text-brand-400 font-medium transition-colors">
               Resend code

@@ -107,20 +107,38 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
 
   const handleChange = useCallback(
     (index: number, digit: string) => {
-      if (!/^\d?$/.test(digit)) return; // only digits
+      // Handle multi-character input (mobile paste that bypasses onPaste)
+      const cleaned = digit.replace(/\D/g, '');
+      if (cleaned.length > 1) {
+        const next = [...values];
+        for (let i = 0; i < cleaned.length && index + i < length; i++) {
+          next[index + i] = cleaned[i]!;
+        }
+        setValues(next);
+        const code = next.join('');
+        onChange?.(code);
+        const focusIdx = Math.min(index + cleaned.length, length - 1);
+        inputRefs.current[focusIdx]?.focus();
+        if (code.length === length && !next.includes('')) {
+          onComplete?.(code);
+        }
+        return;
+      }
+
+      if (!/^\d?$/.test(cleaned)) return; // only digits
 
       const next = [...values];
-      next[index] = digit;
+      next[index] = cleaned;
       setValues(next);
 
       const code = next.join('');
       onChange?.(code);
 
-      if (digit && index < length - 1) {
+      if (cleaned && index < length - 1) {
         inputRefs.current[index + 1]?.focus();
       }
 
-      if (code.length === length && !code.includes('')) {
+      if (code.length === length && !next.includes('')) {
         onComplete?.(code);
       }
     },
@@ -147,25 +165,25 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
   );
 
   const handlePaste = useCallback(
-    (e: ClipboardEvent<HTMLInputElement>) => {
+    (index: number, e: ClipboardEvent<HTMLInputElement>) => {
       e.preventDefault();
-      const text = e.clipboardData.getData('text/plain').replace(/\D/g, '').slice(0, length);
+      const text = e.clipboardData.getData('text/plain').replace(/\D/g, '').slice(0, length - index);
       if (!text) return;
 
       const next = [...values];
       for (let i = 0; i < text.length; i++) {
-        next[i] = text[i]!;
+        next[index + i] = text[i]!;
       }
       setValues(next);
 
       const code = next.join('');
       onChange?.(code);
 
-      if (code.length === length) {
+      if (code.length === length && !next.includes('')) {
         onComplete?.(code);
         inputRefs.current[length - 1]?.focus();
       } else {
-        inputRefs.current[text.length]?.focus();
+        inputRefs.current[Math.min(index + text.length, length - 1)]?.focus();
       }
     },
     [values, length, onChange, onComplete]
@@ -208,7 +226,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           aria-label={`Digit ${i + 1}`}
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
-          onPaste={i === 0 ? handlePaste : undefined}
+          onPaste={(e) => handlePaste(i, e)}
           onFocus={(e) => e.target.select()}
           className={cn(
             'h-12 w-10 sm:h-14 sm:w-12 rounded-xl border text-center text-lg font-bold',
