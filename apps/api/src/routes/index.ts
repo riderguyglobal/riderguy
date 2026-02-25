@@ -13,6 +13,7 @@ import { paymentRouter } from './payments/payment.routes';
 import { adminRouter } from './admin/admin.routes';
 import { contactRouter } from './contact/contact.routes';
 import { gamificationRouter } from './gamification/gamification.routes';
+import { communityRouter } from './community/community.routes';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../lib/async-handler';
 import { ApiError } from '../lib/api-error';
@@ -31,6 +32,7 @@ router.use('/payments', paymentRouter);
 router.use('/admin', adminRouter);
 router.use('/contact', contactRouter);
 router.use('/gamification', gamificationRouter);
+router.use('/community', communityRouter);
 
 // ────── Authenticated file serving (protects PII uploads) ──────
 router.get(

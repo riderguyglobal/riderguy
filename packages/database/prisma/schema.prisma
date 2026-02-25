@@ -215,6 +215,16 @@ model User {
   notifications  Notification[]
   pushTokens     PushToken[]
 
+  // Community relations (Sprint 11)
+  chatMembers       ChatMember[]
+  chatMessages      ChatMessage[]
+  forumPosts        ForumPost[]
+  forumComments     ForumComment[]
+  forumVotes        ForumVote[]
+  announcements     Announcement[]     @relation("AnnouncementAuthor")
+  contentReports    ContentReport[]    @relation("ContentReporter")
+  pollVotes         PollVote[]
+
   @@index([phone])
   @@index([email])
   @@index([role, status])
@@ -962,6 +972,289 @@ model BonusXpEvent {
 
   @@index([isActive, startsAt, endsAt])
   @@map("bonus_xp_events")
+}
+
+// ============================================================
+// COMMUNITY — Chat, Forums, Polls, Announcements (Sprint 11)
+// ============================================================
+
+enum ChatRoomType {
+  ZONE        // Zone-based group chat for riders in the same area
+  DIRECT      // 1:1 direct messages between riders
+  ANNOUNCEMENT // Admin announcement channel (read-only for riders)
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  VOICE
+  SYSTEM      // e.g., "User joined", "Room created"
+}
+
+enum ForumPostCategory {
+  GENERAL
+  TIPS_TRICKS
+  ROUTES
+  VEHICLE_MAINTENANCE
+  EARNINGS
+  SAFETY
+  EVENTS
+  FEATURE_REQUESTS
+  OFF_TOPIC
+}
+
+enum ContentReportReason {
+  SPAM
+  HARASSMENT
+  HATE_SPEECH
+  MISINFORMATION
+  INAPPROPRIATE
+  SCAM
+  OTHER
+}
+
+enum ContentReportStatus {
+  PENDING
+  REVIEWED
+  ACTION_TAKEN
+  DISMISSED
+}
+
+enum ModerationAction {
+  WARNING
+  MUTE_1H
+  MUTE_24H
+  MUTE_7D
+  BAN_FROM_ROOM
+  BAN_FROM_COMMUNITY
+}
+
+// ── Chat Rooms ──
+
+model ChatRoom {
+  id          String       @id @default(cuid())
+  name        String       // e.g., "Accra Central Riders", or auto-generated for DMs
+  type        ChatRoomType
+  zoneId      String?      // For ZONE type rooms — links to zone
+  description String?
+  avatarUrl   String?
+  isActive    Boolean      @default(true)
+  createdBy   String?      // Admin or system
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  members     ChatMember[]
+  messages    ChatMessage[]
+
+  @@unique([type, zoneId], name: "unique_zone_room") // One room per zone
+  @@index([type])
+  @@index([zoneId])
+  @@index([isActive])
+  @@map("chat_rooms")
+}
+
+model ChatMember {
+  id         String    @id @default(cuid())
+  roomId     String
+  room       ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isMuted    Boolean   @default(false)
+  mutedUntil DateTime?
+  lastReadAt DateTime  @default(now())
+  joinedAt   DateTime  @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@index([roomId])
+  @@map("chat_members")
+}
+
+model ChatMessage {
+  id        String          @id @default(cuid())
+  roomId    String
+  room      ChatRoom        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  type      ChatMessageType @default(TEXT)
+  content   String
+  mediaUrl  String?         // For image/voice messages
+  replyToId String?         // Reply thread reference
+  isEdited  Boolean         @default(false)
+  isDeleted Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  // Reactions stored as JSON: { "👍": ["userId1","userId2"], "😂": ["userId3"] }
+  reactions Json?
+
+  @@index([roomId, createdAt])
+  @@index([senderId])
+  @@map("chat_messages")
+}
+
+// ── Forums ──
+
+model ForumPost {
+  id         String            @id @default(cuid())
+  authorId   String
+  author     User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title      String
+  body       String            @db.Text
+  category   ForumPostCategory @default(GENERAL)
+  isPinned   Boolean           @default(false)
+  isLocked   Boolean           @default(false) // No new comments
+  isDeleted  Boolean           @default(false)
+  viewCount  Int               @default(0)
+  upvotes    Int               @default(0)
+  downvotes  Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  // Relations
+  comments   ForumComment[]
+  votes      ForumVote[]
+  poll       Poll?
+
+  @@index([authorId])
+  @@index([category])
+  @@index([isPinned, createdAt])
+  @@index([upvotes])
+  @@index([createdAt])
+  @@map("forum_posts")
+}
+
+model ForumComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentId  String?  // For nested replies
+  body      String   @db.Text
+  isDeleted Boolean  @default(false)
+  upvotes   Int      @default(0)
+  downvotes Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Self-relation for nested replies
+  parent    ForumComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   ForumComment[] @relation("CommentReplies")
+  votes     ForumVote[]
+
+  @@index([postId, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+  @@map("forum_comments")
+}
+
+model ForumVote {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId     String?
+  post       ForumPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId  String?
+  comment    ForumComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  value      Int           // +1 upvote, -1 downvote
+  createdAt  DateTime      @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+  @@map("forum_votes")
+}
+
+// ── Polls (attached to forum posts) ──
+
+model Poll {
+  id        String       @id @default(cuid())
+  postId    String       @unique
+  post      ForumPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  question  String
+  expiresAt DateTime?
+  createdAt DateTime     @default(now())
+
+  options   PollOption[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id        String     @id @default(cuid())
+  pollId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text      String
+  position  Int        @default(0) // Display order
+  createdAt DateTime   @default(now())
+
+  votes     PollVote[]
+
+  @@index([pollId])
+  @@map("poll_options")
+}
+
+model PollVote {
+  id        String     @id @default(cuid())
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([optionId, userId]) // One vote per user per option
+  @@index([userId])
+  @@map("poll_votes")
+}
+
+// ── Announcements ──
+
+model Announcement {
+  id          String   @id @default(cuid())
+  authorId    String
+  author      User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title       String
+  body        String   @db.Text
+  priority    Int      @default(0) // 0=normal, 1=important, 2=urgent
+  targetZones String[] @default([]) // Empty = global, otherwise zone IDs
+  targetRoles UserRole[] @default([RIDER]) // Which roles see it
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, publishedAt])
+  @@index([priority])
+  @@map("announcements")
+}
+
+// ── Content Moderation ──
+
+model ContentReport {
+  id           String              @id @default(cuid())
+  reporterId   String
+  reporter     User                @relation("ContentReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reason       ContentReportReason
+  description  String?
+  // What was reported (polymorphic via entityType + entityId)
+  entityType   String              // 'chat_message', 'forum_post', 'forum_comment'
+  entityId     String
+  status       ContentReportStatus @default(PENDING)
+  moderatorId  String?             // Admin who reviewed
+  moderatorNote String?
+  actionTaken  ModerationAction?
+  resolvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([reporterId])
+  @@index([createdAt])
+  @@map("content_reports")
 }
 
 // ============================================================

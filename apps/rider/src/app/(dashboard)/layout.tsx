@@ -4,12 +4,13 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
-import { Home, Package, DollarSign, User } from 'lucide-react';
+import { Home, Package, DollarSign, User, Users } from 'lucide-react';
 import { IncomingRequest } from '@/components/incoming-request';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/dashboard/jobs', label: 'Jobs', icon: Package },
+  { href: '/dashboard/community', label: 'Community', icon: Users },
   { href: '/dashboard/earnings', label: 'Earnings', icon: DollarSign },
   { href: '/dashboard/settings', label: 'Account', icon: User },
 ];
@@ -20,7 +21,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const hideNav =
     pathname.startsWith('/dashboard/jobs/') ||
     pathname.startsWith('/dashboard/onboarding') ||
-    pathname.startsWith('/dashboard/gamification');
+    pathname.startsWith('/dashboard/gamification') ||
+    pathname.startsWith('/dashboard/community/chat/') ||
+    pathname.startsWith('/dashboard/community/forum/') ||
+    pathname.startsWith('/dashboard/community/zones');
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.RIDER]}>

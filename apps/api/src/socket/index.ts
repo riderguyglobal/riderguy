@@ -9,6 +9,7 @@ import type {
 } from '@riderguy/types';
 import { prisma } from '@riderguy/database';
 import { handleOfferResponse } from '../services/auto-dispatch.service';
+import * as ChatService from '../services/chat.service';
 
 // ============================================================
 // Socket.IO Server — real-time layer for RiderGuy
@@ -261,6 +262,72 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         logger.error({ err, userId }, 'Failed to process job offer response');
         ack?.({ success: false, error: 'Internal error' });
       }
+    });
+
+    // ── Community Chat — Sprint 11 ──
+
+    // Join a community chat room (for real-time messages)
+    socket.on('community:join', async (data, ack) => {
+      try {
+        socket.join(`community:${data.roomId}`);
+        logger.debug({ socketId: socket.id, roomId: data.roomId }, 'Joined community chat room');
+        ack?.({ success: true });
+      } catch (err) {
+        logger.error({ err, userId }, 'Failed to join community room');
+        ack?.({ success: false });
+      }
+    });
+
+    // Leave a community chat room
+    socket.on('community:leave', (data) => {
+      socket.leave(`community:${data.roomId}`);
+    });
+
+    // Send a message in a community chat room
+    socket.on('community:send', async (data, ack) => {
+      try {
+        const message = await ChatService.sendMessage({
+          roomId: data.roomId,
+          senderId: userId,
+          content: data.content,
+          type: (data.type as any) ?? 'TEXT',
+          mediaUrl: data.mediaUrl,
+          replyToId: data.replyToId,
+        });
+
+        // Broadcast to everyone in the room
+        io.to(`community:${data.roomId}`).emit('community:message', {
+          id: message.id,
+          roomId: message.roomId,
+          senderId: message.senderId,
+          senderName: message.senderName,
+          senderAvatar: message.senderAvatar ?? null,
+          type: message.type as any,
+          content: message.content,
+          mediaUrl: message.mediaUrl,
+          replyToId: message.replyToId,
+          reactions: message.reactions as any,
+          createdAt: message.createdAt,
+        });
+
+        ack?.({ success: true, messageId: message.id });
+      } catch (err) {
+        logger.error({ err, userId }, 'Failed to send community message');
+        ack?.({ success: false });
+      }
+    });
+
+    // Community chat typing indicator
+    socket.on('community:typing', async (data) => {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true },
+      });
+      socket.to(`community:${data.roomId}`).emit('community:typing', {
+        roomId: data.roomId,
+        userId,
+        firstName: user?.firstName ?? 'Someone',
+      });
     });
 
     // ── Disconnect ──

@@ -26,6 +26,12 @@ export interface ServerToClientEvents {
   // ── Generic notification ──
   'notification': (data: { title: string; body: string; orderId?: string }) => void;
 
+  // ── Community Chat (Sprint 11) ──
+  'community:message': (data: CommunityChatMessage) => void;
+  'community:typing': (data: CommunityTypingIndicator) => void;
+  'community:memberJoined': (data: { roomId: string; userId: string; firstName: string }) => void;
+  'community:memberLeft': (data: { roomId: string; userId: string; firstName: string }) => void;
+
   // ── Connection / errors ──
   'error': (data: { code: string; message: string }) => void;
 }
@@ -54,6 +60,18 @@ export interface ClientToServerEvents {
     data: { orderId: string; response: 'accept' | 'decline' },
     ack?: (response: { success: boolean; error?: string }) => void,
   ) => void;
+
+  // ── Community Chat (Sprint 11) ──
+  'community:join': (
+    data: { roomId: string },
+    ack?: (response: { success: boolean }) => void,
+  ) => void;
+  'community:leave': (data: { roomId: string }) => void;
+  'community:send': (
+    data: { roomId: string; content: string; type?: string; mediaUrl?: string; replyToId?: string },
+    ack?: (response: { success: boolean; messageId?: string }) => void,
+  ) => void;
+  'community:typing': (data: { roomId: string }) => void;
 }
 
 /** Data shapes */
@@ -124,4 +142,26 @@ export interface JobOffer {
   currency: string;
   distanceToPickup: number; // km from rider to pickup
   expiresAt: string;        // ISO timestamp — 30s window
+}
+
+// ── Community Chat Data Shapes (Sprint 11) ──
+
+export interface CommunityChatMessage {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string | null;
+  type: 'TEXT' | 'IMAGE' | 'VOICE' | 'SYSTEM';
+  content: string;
+  mediaUrl?: string | null;
+  replyToId?: string | null;
+  reactions?: Record<string, string[]>;
+  createdAt: string;
+}
+
+export interface CommunityTypingIndicator {
+  roomId: string;
+  userId: string;
+  firstName: string;
 }

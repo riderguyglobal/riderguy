@@ -8,3 +8,4 @@ export * from './wallet';
 export * from './zone';
 export * from './common';
 export * from './gamification';
+export * from './community';
