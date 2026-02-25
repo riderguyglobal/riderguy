@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { prisma } from '@riderguy/database';
+import { prisma, Prisma } from '@riderguy/database';
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
@@ -109,10 +109,14 @@ export class AuthService {
       throw ApiError.badRequest('OTP has expired. Please request a new code.', 'OTP_EXPIRED');
     }
 
-    if (otp.code !== code) {
-      // Note: OTPs are short-lived (5 min) and attempt-limited (5 tries),
-      // so timing attacks are impractical. Using constant-time comparison
-      // as an extra defense-in-depth measure.
+    // Constant-time comparison to mitigate timing attacks.
+    // OTPs are short-lived (5 min) and attempt-limited (5 tries),
+    // so timing attacks are impractical — but defence in depth.
+    const codeMatch =
+      otp.code.length === code.length &&
+      crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(code));
+
+    if (!codeMatch) {
       await prisma.otp.update({
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },
@@ -140,7 +144,29 @@ export class AuthService {
     pin?: string;
     role: UserRole;
   }) {
-    // Check if phone already exists
+    // ---- 1. Verify that the phone was OTP-verified for REGISTRATION ----
+    const verifiedOtp = await prisma.otp.findFirst({
+      where: { phone: input.phone, purpose: 'REGISTRATION', verified: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!verifiedOtp) {
+      throw ApiError.badRequest(
+        'Phone number not verified. Please complete OTP verification first.',
+        'OTP_NOT_VERIFIED',
+      );
+    }
+
+    // Reject if the verified OTP is older than 15 minutes (generous window)
+    const otpAge = Date.now() - verifiedOtp.createdAt.getTime();
+    if (otpAge > 15 * 60 * 1000) {
+      throw ApiError.badRequest(
+        'OTP verification has expired. Please verify your phone number again.',
+        'OTP_EXPIRED',
+      );
+    }
+
+    // ---- 2. Uniqueness checks ----
     const existing = await prisma.user.findUnique({ where: { phone: input.phone } });
     if (existing) {
       throw ApiError.conflict('A user with this phone number already exists', 'PHONE_EXISTS');
@@ -153,62 +179,77 @@ export class AuthService {
       }
     }
 
-    // Hash either password or PIN (both stored in passwordHash)
+    // ---- 3. Credential hashing ----
     const credential = input.password || input.pin;
-    const passwordHash = credential
-      ? await this.hashPassword(credential)
-      : null;
+    if (!credential) {
+      throw ApiError.badRequest(
+        'A password or PIN is required',
+        'CREDENTIAL_REQUIRED',
+      );
+    }
+    const passwordHash = await this.hashPassword(credential);
 
-    const user = await prisma.user.create({
-      data: {
-        phone: input.phone,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        email: input.email ?? null,
-        passwordHash,
-        role: input.role as PrismaUserRole,
-        phoneVerified: true, // They verified OTP before calling register
-        status: 'ACTIVE',
-      },
-    });
-
-    // Create role-specific profiles
-    if (input.role === 'RIDER') {
-      await prisma.riderProfile.create({
-        data: { userId: user.id },
-      });
-    } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
-      await prisma.clientProfile.create({
-        data: { userId: user.id },
-      });
-    } else if (input.role === 'PARTNER') {
-      const { generateReferralCode } = await import('@riderguy/utils');
-      await prisma.partnerProfile.create({
+    // ---- 4. Create user + profile + wallet + session atomically ----
+    const { user, session } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
         data: {
-          userId: user.id,
-          referralCode: generateReferralCode(),
+          phone: input.phone,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: input.email ?? null,
+          passwordHash,
+          role: input.role as PrismaUserRole,
+          phoneVerified: true, // They verified OTP before calling register
+          status: 'ACTIVE',
         },
       });
-    }
 
-    // Create wallet
-    await prisma.wallet.create({
-      data: { userId: user.id },
+      // Create role-specific profiles
+      if (input.role === 'RIDER') {
+        await tx.riderProfile.create({
+          data: { userId: user.id },
+        });
+      } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
+        await tx.clientProfile.create({
+          data: { userId: user.id },
+        });
+      } else if (input.role === 'PARTNER') {
+        const { generateReferralCode } = await import('@riderguy/utils');
+        await tx.partnerProfile.create({
+          data: {
+            userId: user.id,
+            referralCode: generateReferralCode(),
+          },
+        });
+      }
+
+      // Create wallet
+      await tx.wallet.create({
+        data: { userId: user.id },
+      });
+
+      // Create session
+      const session = await tx.session.create({
+        data: {
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        },
+      });
+
+      return { user, session };
     });
 
-    // Send welcome SMS (fire-and-forget)
+    // ---- 5. Post-transaction side-effects (fire-and-forget) ----
     SmsService.sendWelcome(user.phone, user.firstName).catch((err) => {
       logger.error({ err, phone: user.phone }, 'Failed to send welcome SMS');
     });
 
-    // Create session + tokens
-    const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
+    // Clean up used REGISTRATION OTPs for this phone
+    prisma.otp
+      .deleteMany({ where: { phone: input.phone, purpose: 'REGISTRATION' } })
+      .catch(() => {});
 
+    // ---- 6. Generate tokens ----
     const accessToken = this.generateAccessToken({
       userId: user.id,
       role: user.role as UserRole,
@@ -219,6 +260,8 @@ export class AuthService {
       userId: user.id,
       sessionId: session.id,
     });
+
+    logger.info({ userId: user.id, role: user.role, phone: user.phone }, 'User registered');
 
     return {
       user: {
@@ -256,7 +299,12 @@ export class AuthService {
       throw ApiError.badRequest('OTP has expired. Please request a new code.', 'OTP_EXPIRED');
     }
 
-    if (otp.code !== otpCode) {
+    // Constant-time comparison
+    const codeMatch =
+      otp.code.length === otpCode.length &&
+      crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(otpCode));
+
+    if (!codeMatch) {
       await prisma.otp.update({
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },
