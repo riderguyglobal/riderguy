@@ -7,3 +7,4 @@ export * from './document';
 export * from './wallet';
 export * from './zone';
 export * from './common';
+export * from './gamification';

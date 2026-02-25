@@ -275,11 +275,14 @@ model RiderProfile {
   vehicles           Vehicle[]
   ordersAsRider      Order[]              @relation("RiderOrders")
   partnerRecruitments PartnerRecruitment[] @relation("RecruitedRider")
+  badges             RiderBadge[]
+  xpEvents           XpEvent[]
 
   @@index([availability])
   @@index([currentZoneId])
   @@index([onboardingStatus])
   @@index([currentLatitude, currentLongitude])
+  @@index([totalXp])
   @@map("rider_profiles")
 }
 
@@ -726,6 +729,61 @@ model PushToken {
   @@unique([userId, token])
   @@index([userId, isActive])
   @@map("push_tokens")
+}
+
+// ============================================================
+// GAMIFICATION — XP Events, Badges, Rider Badges
+// ============================================================
+
+model XpEvent {
+  id          String       @id @default(cuid())
+  riderId     String
+  rider       RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  action      String       // e.g., "delivery_complete", "five_star_rating", "on_time", "referral", "streak"
+  points      Int
+  metadata    Json?        // arbitrary context (orderId, streak count, etc.)
+  createdAt   DateTime     @default(now())
+
+  @@index([riderId])
+  @@index([riderId, action])
+  @@index([createdAt])
+  @@map("xp_events")
+}
+
+model Badge {
+  id          String       @id @default(cuid())
+  slug        String       @unique // machine-readable key, e.g., "first_delivery"
+  name        String       // display name
+  description String       // what it means
+  icon        String       // emoji or icon key
+  category    String       @default("achievement") // "achievement", "milestone", "special"
+  criteria    Json?        // rule definition: { action: "delivery_complete", threshold: 1 }
+  xpReward    Int          @default(0) // bonus XP on earning this badge
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  riders      RiderBadge[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("badges")
+}
+
+model RiderBadge {
+  id        String       @id @default(cuid())
+  riderId   String
+  rider     RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  badgeId   String
+  badge     Badge        @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  awardedAt DateTime     @default(now())
+  seenAt    DateTime?    // null until rider dismisses the celebration
+
+  @@unique([riderId, badgeId])
+  @@index([riderId])
+  @@index([badgeId])
+  @@map("rider_badges")
 }
 
 // ============================================================

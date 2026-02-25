@@ -19,7 +19,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const hideNav =
     pathname.startsWith('/dashboard/jobs/') ||
-    pathname.startsWith('/dashboard/onboarding');
+    pathname.startsWith('/dashboard/onboarding') ||
+    pathname.startsWith('/dashboard/gamification');
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.RIDER]}>

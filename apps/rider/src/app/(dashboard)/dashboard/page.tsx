@@ -18,6 +18,7 @@ import {
   Navigation,
   Zap,
   Clock,
+  Trophy,
 } from 'lucide-react';
 
 const RiderMap = dynamic(() => import('@/components/rider-map').then(mod => mod.RiderMap), { ssr: false });
@@ -35,6 +36,10 @@ export default function DashboardPage() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<{ completedDeliveries: number; rating: number } | null>(null);
+  const [gamification, setGamification] = useState<{
+    totalXp: number; currentLevel: number; levelName: string;
+    progressPercent: number; isMaxLevel: boolean; nextLevelXp: number;
+  } | null>(null);
   const [greeting, setGreeting] = useState('Good morning');
 
   const isOnline = availability === RiderAvailability.ONLINE;
@@ -56,6 +61,19 @@ export default function DashboardPage() {
       .then(r => {
         const d = r.data.data;
         setProfile({ completedDeliveries: d?.completedDeliveries ?? 0, rating: d?.rating ?? 0 });
+      })
+      .catch(() => {});
+    api.get(`${API_BASE_URL}/gamification/profile`)
+      .then(r => {
+        const d = r.data.data;
+        if (d) setGamification({
+          totalXp: d.totalXp ?? 0,
+          currentLevel: d.currentLevel ?? 1,
+          levelName: d.levelName ?? 'Rookie',
+          progressPercent: d.progressPercent ?? 0,
+          isMaxLevel: d.isMaxLevel ?? false,
+          nextLevelXp: d.nextLevelXp ?? 500,
+        });
       })
       .catch(() => {});
   }, [api]);
@@ -154,6 +172,49 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* ── XP & Level Card ── */}
+        {gamification && (
+          <Link href="/dashboard/gamification" className="block glass-elevated rounded-2xl p-4 btn-press transition-transform hover:scale-[1.01]">
+            <div className="flex items-center gap-3">
+              {/* Level badge */}
+              <div className="relative flex-shrink-0">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-brand-500/20 to-accent-500/20 flex items-center justify-center">
+                  <span className="text-2xl">{['🏁','🏃','🔥','⚡','🎯','👑','🌟'][gamification.currentLevel - 1] ?? '🏁'}</span>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-sm font-bold">{gamification.levelName}</span>
+                    <span className="text-surface-500 text-[10px]">Lvl {gamification.currentLevel}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Zap className="h-3 w-3 text-accent-400" />
+                    <span className="text-accent-400 text-xs font-bold tabular-nums">{gamification.totalXp.toLocaleString()} XP</span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                {!gamification.isMaxLevel && (
+                  <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-700"
+                      style={{ width: `${Math.min(gamification.progressPercent, 100)}%` }}
+                    />
+                  </div>
+                )}
+                {gamification.isMaxLevel && (
+                  <div className="h-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400" />
+                )}
+              </div>
+
+              <ChevronRight className="h-4 w-4 text-surface-500 flex-shrink-0" />
+            </div>
+          </Link>
+        )}
 
         {/* ── Active Orders ── */}
         {orders.length > 0 && (
@@ -255,30 +316,40 @@ export default function DashboardPage() {
         )}
 
         {/* ── Quick Actions ── */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Link
             href="/dashboard/earnings"
-            className="glass rounded-2xl p-4 flex items-center gap-3 btn-press group transition-transform hover:scale-[1.02]"
+            className="glass rounded-2xl p-4 flex flex-col items-center gap-2 btn-press group transition-transform hover:scale-[1.02]"
           >
             <div className="h-10 w-10 rounded-xl bg-accent-500/10 flex items-center justify-center group-hover:bg-accent-500/20 transition-colors">
               <TrendingUp className="h-5 w-5 text-accent-400" />
             </div>
-            <div>
-              <p className="text-white text-sm font-semibold">Earnings</p>
-              <p className="text-surface-400 text-[10px]">View & withdraw</p>
+            <div className="text-center">
+              <p className="text-white text-xs font-semibold">Earnings</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/gamification"
+            className="glass rounded-2xl p-4 flex flex-col items-center gap-2 btn-press group transition-transform hover:scale-[1.02]"
+          >
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+              <Trophy className="h-5 w-5 text-amber-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-white text-xs font-semibold">Rank & XP</p>
             </div>
           </Link>
 
           <Link
             href="/dashboard/jobs"
-            className="glass rounded-2xl p-4 flex items-center gap-3 btn-press group transition-transform hover:scale-[1.02]"
+            className="glass rounded-2xl p-4 flex flex-col items-center gap-2 btn-press group transition-transform hover:scale-[1.02]"
           >
             <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center group-hover:bg-brand-500/20 transition-colors">
               <Clock className="h-5 w-5 text-brand-400" />
             </div>
-            <div>
-              <p className="text-white text-sm font-semibold">Job History</p>
-              <p className="text-surface-400 text-[10px]">Past deliveries</p>
+            <div className="text-center">
+              <p className="text-white text-xs font-semibold">History</p>
             </div>
           </Link>
         </div>

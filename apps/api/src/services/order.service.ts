@@ -1,6 +1,8 @@
 import { prisma } from '@riderguy/database';
 import { generateOrderNumber, generateDeliveryPin } from '@riderguy/utils';
+import { XpAction } from '@riderguy/types';
 import { calculatePrice } from './pricing.service';
+import { awardXp, getCommissionRate } from './gamification.service';
 import { ApiError } from '../lib/api-error';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
@@ -307,7 +309,7 @@ export async function transitionStatus(
       const earnings = updatedOrder.riderEarnings ?? (updatedOrder.totalPrice * 0.85);
       const riderProfile = await tx.riderProfile.findUnique({
         where: { id: updatedOrder.riderId },
-        select: { id: true, userId: true },
+        select: { id: true, userId: true, currentLevel: true },
       });
 
       if (riderProfile) {
@@ -341,6 +343,38 @@ export async function transitionStatus(
         });
 
         // Tips are handled exclusively in rateOrder() to avoid double-credit
+
+        // Level perk: reduced commission for higher-level riders
+        if (riderProfile.currentLevel > 1) {
+          const riderLevelCommRate = getCommissionRate(riderProfile.currentLevel);
+          const zoneRate = updatedOrder.zoneId
+            ? (await tx.zone.findUnique({ where: { id: updatedOrder.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
+            : 15;
+          if (riderLevelCommRate < zoneRate) {
+            const bonus = Math.round(updatedOrder.totalPrice * ((zoneRate - riderLevelCommRate) / 100));
+            if (bonus > 0) {
+              await tx.wallet.update({
+                where: { id: wallet.id },
+                data: {
+                  balance: { increment: bonus },
+                  totalEarned: { increment: bonus },
+                },
+              });
+              const walletAfterBonus = await tx.wallet.findUnique({ where: { id: wallet.id } });
+              await tx.transaction.create({
+                data: {
+                  walletId: wallet.id,
+                  type: 'DELIVERY_EARNING',
+                  amount: bonus,
+                  balanceAfter: walletAfterBonus?.balance ?? (earningBalance + bonus),
+                  description: `Level ${riderProfile.currentLevel} commission bonus for order ${updatedOrder.orderNumber}`,
+                  referenceId: updatedOrder.id,
+                  referenceType: 'level_bonus',
+                },
+              });
+            }
+          }
+        }
 
         // Collect commission data for enqueuing AFTER transaction commits
         if (updatedOrder.platformCommission && updatedOrder.platformCommission > 0) {
@@ -387,6 +421,14 @@ export async function transitionStatus(
       totalPrice: updated.totalPrice,
       currency: updated.currency,
     }).catch(() => {});
+
+    // Award XP for completed delivery (fire-and-forget)
+    if (updated.riderId) {
+      awardXp(updated.riderId, XpAction.DELIVERY_COMPLETE, undefined, {
+        orderId: updated.id,
+        orderNumber: updated.orderNumber,
+      }).catch(() => {});
+    }
   }
 
   return updated;
@@ -487,6 +529,21 @@ export async function rateOrder(
 
     return updatedOrder;
   });
+
+  // Award XP for high ratings (fire-and-forget, outside transaction)
+  if (updated.riderId) {
+    if (rating === 5) {
+      awardXp(updated.riderId, XpAction.FIVE_STAR_RATING, undefined, {
+        orderId: updated.id,
+        orderNumber: updated.orderNumber,
+      }).catch(() => {});
+    } else if (rating === 4) {
+      awardXp(updated.riderId, XpAction.FOUR_STAR_RATING, undefined, {
+        orderId: updated.id,
+        orderNumber: updated.orderNumber,
+      }).catch(() => {});
+    }
+  }
 
   return updated;
 }
