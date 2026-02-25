@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { phoneSchema, emailSchema, passwordSchema, requiredStringSchema } from './common';
+import { phoneSchema, emailSchema, passwordSchema, pinSchema, requiredStringSchema } from './common';
 
 export const registerSchema = z.object({
   phone: phoneSchema,
@@ -7,6 +7,7 @@ export const registerSchema = z.object({
   lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters'),
   email: emailSchema.optional(),
   password: passwordSchema.optional(),
+  pin: pinSchema.optional(),
   role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
   referralCode: z.string().max(20).optional(),
 });

@@ -59,7 +59,8 @@ export default function RegisterPage() {
       await register({ firstName, lastName, email, password, phone, role: 'CLIENT', otpCode: otp });
       setStep(3);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Registration failed.');
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Registration failed.'));
     } finally {
       setLoading(false);
     }

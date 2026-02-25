@@ -19,6 +19,12 @@ export const passwordSchema = z
   .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
   .regex(/[0-9]/, 'Password must contain at least one number');
 
+/** Reusable 6-digit PIN validation */
+export const pinSchema = z
+  .string()
+  .length(6, 'PIN must be exactly 6 digits')
+  .regex(/^\d{6}$/, 'PIN must be numeric');
+
 /** Pagination query params */
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

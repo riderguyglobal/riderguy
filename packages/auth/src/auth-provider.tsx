@@ -38,6 +38,7 @@ interface AuthContextValue {
     email?: string;
     role?: string;
     password?: string;
+    pin?: string;
     otpCode: string;
   }) => Promise<void>;
   /** Request an OTP */
@@ -150,6 +151,7 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       email?: string;
       role?: string;
       password?: string;
+      pin?: string;
       otpCode: string;
     }) => {
       setLoading(true);

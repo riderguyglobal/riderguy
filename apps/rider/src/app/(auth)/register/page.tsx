@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
-import { AlertCircle, CheckCircle2, Bike, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Bike, Sparkles, Lock } from 'lucide-react';
 
 const STEPS = [{ label: 'Phone' }, { label: 'Verify' }, { label: 'Details' }];
 
@@ -19,7 +19,7 @@ export default function RegisterPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
@@ -39,7 +39,8 @@ export default function RegisterPage() {
       await requestOtp(phone, 'REGISTRATION');
       setStep(1);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to send OTP');
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));
     } finally {
       setSubmitting(false);
     }
@@ -53,7 +54,8 @@ export default function RegisterPage() {
       await verifyOtp(phone, code, 'REGISTRATION');
       setStep(2);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid OTP');
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Invalid OTP'));
       otpRef.current?.clear();
       otpRef.current?.focus();
     } finally {
@@ -67,17 +69,18 @@ export default function RegisterPage() {
       setError('Enter your full name');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (pin.length !== 6) {
+      setError('Please set a 6-digit PIN');
       return;
     }
     setSubmitting(true);
     setError('');
     try {
-      await register({ phone, otpCode: otp, firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim() || undefined, password, role: 'RIDER' });
+      await register({ phone, otpCode: otp, firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim() || undefined, pin, role: 'RIDER' });
       setStep(3);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Registration failed'));
     } finally {
       setSubmitting(false);
     }
@@ -204,8 +207,12 @@ export default function RegisterPage() {
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2.5">Password</label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 8 characters" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+            <label className="block text-sm font-medium text-surface-300 mb-3">
+              <Lock className="inline h-4 w-4 mr-1.5 -mt-0.5 text-surface-400" />
+              Set a 6-digit PIN
+            </label>
+            <p className="text-xs text-surface-500 mb-3">You&apos;ll use this PIN to confirm transactions</p>
+            <OtpInput length={6} onChange={setPin} onComplete={setPin} />
           </div>
           <Button type="submit" size="xl" className="w-full gradient-accent text-white shadow-lg glow-accent btn-press rounded-2xl font-semibold" loading={submitting}>
             Create Account

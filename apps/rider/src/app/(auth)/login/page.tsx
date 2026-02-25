@@ -40,8 +40,8 @@ export default function LoginPage() {
       await requestOtp(phone, 'LOGIN');
       setPhoneStage('otp');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send OTP';
-      setError(msg);
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));
     } finally {
       setSubmitting(false);
     }
@@ -54,8 +54,8 @@ export default function LoginPage() {
       await loginWithOtp(phone, code);
       router.replace('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid OTP';
-      setError(msg);
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Invalid OTP'));
       otpRef.current?.clear();
       otpRef.current?.focus();
     } finally {
@@ -75,8 +75,8 @@ export default function LoginPage() {
       await loginWithPassword(email, password);
       router.replace('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid credentials';
-      setError(msg);
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Invalid credentials'));
     } finally {
       setSubmitting(false);
     }

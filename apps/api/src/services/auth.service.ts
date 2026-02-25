@@ -137,6 +137,7 @@ export class AuthService {
     lastName: string;
     email?: string;
     password?: string;
+    pin?: string;
     role: UserRole;
   }) {
     // Check if phone already exists
@@ -152,8 +153,10 @@ export class AuthService {
       }
     }
 
-    const passwordHash = input.password
-      ? await this.hashPassword(input.password)
+    // Hash either password or PIN (both stored in passwordHash)
+    const credential = input.password || input.pin;
+    const passwordHash = credential
+      ? await this.hashPassword(credential)
       : null;
 
     const user = await prisma.user.create({
