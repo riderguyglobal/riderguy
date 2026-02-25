@@ -122,21 +122,16 @@ export async function getPublishedAnnouncements(options: {
 
   const where: any = {
     isPublished: true,
-    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-  };
-
-  // Role filtering — show announcements that include this role, or have no role filter
-  if (role) {
-    where.OR = [
-      { targetRoles: { isEmpty: true } },
-      { targetRoles: { has: role } },
-    ];
-    // Re-add the expires filter
-    where.AND = [
-      { isPublished: true },
+    AND: [
       { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
-    ];
-  }
+      ...(role
+        ? [{ OR: [{ targetRoles: { isEmpty: true } }, { targetRoles: { has: role } }] }]
+        : []),
+      ...(zoneId
+        ? [{ OR: [{ targetZones: { isEmpty: true } }, { targetZones: { has: zoneId } }] }]
+        : []),
+    ],
+  };
 
   const [announcements, total] = await Promise.all([
     prisma.announcement.findMany({

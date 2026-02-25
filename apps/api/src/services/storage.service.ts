@@ -231,7 +231,12 @@ export class StorageService {
     _mimeType: string,
   ): Promise<UploadResult> {
     const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-    const fullPath = path.join(uploadsRoot, key);
+    const fullPath = path.resolve(uploadsRoot, key);
+
+    if (!fullPath.startsWith(uploadsRoot)) {
+      throw new Error('Invalid upload path');
+    }
+
     const dir = path.dirname(fullPath);
 
     await fs.mkdir(dir, { recursive: true });

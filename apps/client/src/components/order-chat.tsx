@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
-import { getSocket, connectSocket, sendMessage, sendTyping } from '@/hooks/use-socket';
+import { getSocket, connectSocket, disconnectSocket, sendMessage, sendTyping } from '@/hooks/use-socket';
 import { MessageCircle, X, Send, ArrowLeft } from 'lucide-react';
 
 interface Message {
@@ -46,6 +46,7 @@ export default function OrderChat({ orderId }: { orderId: string }) {
     return () => {
       socket.off('message:new', onMessage);
       socket.off('message:typing', onTyping);
+      disconnectSocket();
     };
   }, [open, user?.id]);
 

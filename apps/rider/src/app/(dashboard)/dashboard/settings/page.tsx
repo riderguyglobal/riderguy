@@ -11,13 +11,13 @@ import {
 } from 'lucide-react';
 
 const MENU_ITEMS = [
-  { icon: User, label: 'Edit Profile', href: '/dashboard/settings/profile', color: 'text-brand-400', bg: 'bg-brand-500/10' },
-  { icon: Shield, label: 'Security', href: '/dashboard/settings/security', color: 'text-accent-400', bg: 'bg-accent-500/10' },
-  { icon: Bell, label: 'Notifications', href: '/dashboard/settings/notifications', color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  { icon: FileText, label: 'Documents', href: '/dashboard/onboarding/documents', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  { icon: Bike, label: 'Vehicle Info', href: '/dashboard/onboarding/vehicle', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/settings/help', color: 'text-surface-400', bg: 'bg-surface-500/10' },
-] as const;
+  { icon: User, label: 'Edit Profile', href: '/dashboard/settings/profile', color: 'text-brand-400', bg: 'bg-brand-500/10', disabled: true },
+  { icon: Shield, label: 'Security', href: '/dashboard/settings/security', color: 'text-accent-400', bg: 'bg-accent-500/10', disabled: true },
+  { icon: Bell, label: 'Notifications', href: '/dashboard/settings/notifications', color: 'text-amber-400', bg: 'bg-amber-500/10', disabled: true },
+  { icon: FileText, label: 'Documents', href: '/dashboard/onboarding/documents', color: 'text-purple-400', bg: 'bg-purple-500/10', disabled: false },
+  { icon: Bike, label: 'Vehicle Info', href: '/dashboard/onboarding/vehicle', color: 'text-cyan-400', bg: 'bg-cyan-500/10', disabled: false },
+  { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/settings/help', color: 'text-surface-400', bg: 'bg-surface-500/10', disabled: true },
+];
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -64,17 +64,20 @@ export default function SettingsPage() {
 
         {/* Menu items */}
         <div className="glass-elevated rounded-2xl overflow-hidden">
-          {MENU_ITEMS.map(({ icon: Icon, label, href, color, bg }, idx) => (
+          {MENU_ITEMS.map(({ icon: Icon, label, href, color, bg, disabled }, idx) => (
             <button
               key={href}
-              onClick={() => router.push(href)}
-              className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04] last:border-b-0 btn-press animate-slide-up"
+              onClick={() => disabled ? alert('Coming soon') : router.push(href)}
+              className={`w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04] last:border-b-0 btn-press animate-slide-up ${disabled ? 'opacity-50 cursor-default' : ''}`}
               style={{ animationDelay: `${idx * 40}ms` }}
             >
               <div className={`h-9 w-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
                 <Icon className={`h-4.5 w-4.5 ${color}`} />
               </div>
-              <span className="text-sm text-white font-medium flex-1 text-left">{label}</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-white font-medium text-left block">{label}</span>
+                {disabled && <span className="text-[10px] text-surface-500">Coming soon</span>}
+              </div>
               <ChevronRight className="h-4 w-4 text-surface-600" />
             </button>
           ))}

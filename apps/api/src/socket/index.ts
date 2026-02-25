@@ -59,7 +59,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
   });
 
   // ── Connection handler ──
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const userId = (socket.data as any).userId as string;
     const role = (socket.data as any).role as string;
 
@@ -70,6 +70,10 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
     // Auto-join role-based room for targeted broadcasts (e.g., job:new to riders only)
     socket.join(`role:${role}`);
+
+    // Cache user firstName to avoid DB queries on typing events
+    const connectedUser = await prisma.user.findUnique({ where: { id: userId }, select: { firstName: true } });
+    (socket as any).data = { ...(socket as any).data, firstName: connectedUser?.firstName ?? 'Someone' };
 
     // Throttle map: track last location update time per rider
     let lastLocationUpdate = 0;
@@ -88,19 +92,14 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
         const { latitude, longitude, heading, speed } = data;
 
-        // Update rider's current position in DB
-        await prisma.riderProfile.updateMany({
+        // Update rider's current position and get profile in a single query
+        const riderProfile = await prisma.riderProfile.update({
           where: { userId },
           data: {
             currentLatitude: latitude,
             currentLongitude: longitude,
             lastLocationUpdate: new Date(),
           },
-        });
-
-        // Find rider's active orders and broadcast to those rooms
-        const riderProfile = await prisma.riderProfile.findUnique({
-          where: { userId },
           select: { id: true },
         });
 
@@ -241,14 +240,11 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
     // ── Typing indicator ──
     socket.on('message:typing', async ({ orderId }) => {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { firstName: true },
-      });
+      if (!socket.rooms.has(`order:${orderId}`)) return;
       socket.to(`order:${orderId}`).emit('message:typing', {
         orderId,
         senderId: userId,
-        senderName: user?.firstName ?? 'Someone',
+        senderName: (socket as any).data.firstName ?? 'Someone',
       });
     });
 
@@ -269,6 +265,13 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     // Join a community chat room (for real-time messages)
     socket.on('community:join', async (data, ack) => {
       try {
+        const member = await prisma.chatMember.findFirst({
+          where: { roomId: data.roomId, userId },
+        });
+        if (!member) {
+          ack?.({ success: false });
+          return;
+        }
         socket.join(`community:${data.roomId}`);
         logger.debug({ socketId: socket.id, roomId: data.roomId }, 'Joined community chat room');
         ack?.({ success: true });
@@ -318,15 +321,11 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     });
 
     // Community chat typing indicator
-    socket.on('community:typing', async (data) => {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { firstName: true },
-      });
+    socket.on('community:typing', (data) => {
       socket.to(`community:${data.roomId}`).emit('community:typing', {
         roomId: data.roomId,
         userId,
-        firstName: user?.firstName ?? 'Someone',
+        firstName: (socket as any).data.firstName ?? 'Someone',
       });
     });
 

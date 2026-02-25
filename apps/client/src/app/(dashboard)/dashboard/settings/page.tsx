@@ -17,12 +17,12 @@ import {
 } from 'lucide-react';
 
 const MENU_ITEMS = [
-  { icon: User, label: 'Edit Profile', color: 'bg-brand-50 text-brand-500' },
-  { icon: MapPin, label: 'Saved Addresses', color: 'bg-accent-50 text-accent-500' },
-  { icon: CreditCard, label: 'Payment Methods', color: 'bg-violet-50 text-violet-500' },
-  { icon: Bell, label: 'Notifications', color: 'bg-amber-50 text-amber-500' },
-  { icon: Shield, label: 'Privacy & Security', color: 'bg-sky-50 text-sky-500' },
-  { icon: HelpCircle, label: 'Help & Support', color: 'bg-emerald-50 text-emerald-500' },
+  { icon: User, label: 'Edit Profile', color: 'bg-brand-50 text-brand-500', disabled: true },
+  { icon: MapPin, label: 'Saved Addresses', color: 'bg-accent-50 text-accent-500', disabled: true },
+  { icon: CreditCard, label: 'Payment Methods', color: 'bg-violet-50 text-violet-500', disabled: true },
+  { icon: Bell, label: 'Notifications', color: 'bg-amber-50 text-amber-500', disabled: true },
+  { icon: Shield, label: 'Privacy & Security', color: 'bg-sky-50 text-sky-500', disabled: true },
+  { icon: HelpCircle, label: 'Help & Support', color: 'bg-emerald-50 text-emerald-500', disabled: true },
 ];
 
 export default function SettingsPage() {
@@ -69,16 +69,19 @@ export default function SettingsPage() {
       <div className="px-5 py-4 space-y-3">
         {/* Menu items */}
         <div className="bg-white overflow-hidden">
-          {MENU_ITEMS.map(({ icon: Icon, label, color }) => (
+          {MENU_ITEMS.map(({ icon: Icon, label, color, disabled }) => (
             <button
               key={label}
-              onClick={() => {}}
-              className="w-full flex items-center gap-3 px-3 py-4 hover:bg-surface-50 transition-colors text-left btn-press group rounded-2xl"
+              onClick={() => { if (disabled) alert('Coming soon'); }}
+              className={`w-full flex items-center gap-3 px-3 py-4 hover:bg-surface-50 transition-colors text-left btn-press group rounded-2xl ${disabled ? 'opacity-60 cursor-default' : ''}`}
             >
               <div className={`h-10 w-10 rounded-xl ${color.split(' ')[0]} flex items-center justify-center`}>
                 <Icon className={`h-5 w-5 ${color.split(' ')[1]}`} />
               </div>
-              <span className="flex-1 text-sm font-medium text-surface-900">{label}</span>
+              <div className="flex-1">
+                <span className="text-sm font-medium text-surface-900 block">{label}</span>
+                {disabled && <span className="text-[10px] text-surface-400">Coming soon</span>}
+              </div>
               <ChevronRight className="h-4 w-4 text-surface-300" />
             </button>
           ))}

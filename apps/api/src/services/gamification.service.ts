@@ -113,24 +113,22 @@ export async function awardXp(
   const newLevel = calculateLevel(newTotalXp);
   const leveledUp = newLevel > previousLevel;
 
-  // Update rider XP + level, create XP event
-  await prisma.$transaction(async (tx) => {
-    await tx.riderProfile.update({
-      where: { id: riderId },
-      data: {
-        totalXp: newTotalXp,
-        currentLevel: newLevel,
-      },
-    });
+  // Update rider XP + level, create XP event (sequential — no interactive tx for PgBouncer)
+  await prisma.riderProfile.update({
+    where: { id: riderId },
+    data: {
+      totalXp: newTotalXp,
+      currentLevel: newLevel,
+    },
+  });
 
-    await tx.xpEvent.create({
-      data: {
-        riderId,
-        action,
-        points: xpAmount,
-        metadata: (metadata ?? undefined) as Prisma.InputJsonValue | undefined,
-      },
-    });
+  await prisma.xpEvent.create({
+    data: {
+      riderId,
+      action,
+      points: xpAmount,
+      metadata: (metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+    },
   });
 
   // Check for new badges
@@ -207,28 +205,27 @@ async function checkAndAwardBadges(
     const count = actionCounts[criteria.action] ?? 0;
     if (count >= criteria.threshold) {
       try {
-        await prisma.$transaction(async (tx) => {
-          await tx.riderBadge.create({
-            data: { riderId, badgeId: badge.id },
+        // Sequential writes — no interactive tx for PgBouncer
+        await prisma.riderBadge.create({
+          data: { riderId, badgeId: badge.id },
+        });
+
+        // Award badge XP bonus
+        if (badge.xpReward > 0) {
+          await prisma.riderProfile.update({
+            where: { id: riderId },
+            data: { totalXp: { increment: badge.xpReward } },
           });
 
-          // Award badge XP bonus
-          if (badge.xpReward > 0) {
-            await tx.riderProfile.update({
-              where: { id: riderId },
-              data: { totalXp: { increment: badge.xpReward } },
-            });
-
-            await tx.xpEvent.create({
-              data: {
-                riderId,
-                action: 'badge_xp_bonus',
-                points: badge.xpReward,
-                metadata: { badgeSlug: badge.slug, badgeName: badge.name },
-              },
-            });
-          }
-        });
+          await prisma.xpEvent.create({
+            data: {
+              riderId,
+              action: 'badge_xp_bonus',
+              points: badge.xpReward,
+              metadata: { badgeSlug: badge.slug, badgeName: badge.name },
+            },
+          });
+        }
 
         newlyAwarded.push({
           badge: badge as unknown as Badge,
@@ -539,20 +536,19 @@ export async function adminAdjustXp(
   const newTotalXp = Math.max(0, rider.totalXp + points);
   const newLevel = calculateLevel(newTotalXp);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.riderProfile.update({
-      where: { id: riderId },
-      data: { totalXp: newTotalXp, currentLevel: newLevel },
-    });
+  // Sequential writes — no interactive tx for PgBouncer
+  await prisma.riderProfile.update({
+    where: { id: riderId },
+    data: { totalXp: newTotalXp, currentLevel: newLevel },
+  });
 
-    await tx.xpEvent.create({
-      data: {
-        riderId,
-        action: 'admin_adjustment',
-        points,
-        metadata: { reason, adjustedBy: 'admin' },
-      },
-    });
+  await prisma.xpEvent.create({
+    data: {
+      riderId,
+      action: 'admin_adjustment',
+      points,
+      metadata: { reason, adjustedBy: 'admin' },
+    },
   });
 
   return { totalXp: newTotalXp, currentLevel: newLevel };
@@ -570,24 +566,23 @@ export async function adminAwardBadge(riderId: string, badgeId: string): Promise
   });
   if (existing) throw ApiError.badRequest('Rider already has this badge');
 
-  await prisma.$transaction(async (tx) => {
-    await tx.riderBadge.create({ data: { riderId, badgeId } });
+  // Sequential writes — no interactive tx for PgBouncer
+  await prisma.riderBadge.create({ data: { riderId, badgeId } });
 
-    if (badge.xpReward > 0) {
-      await tx.riderProfile.update({
-        where: { id: riderId },
-        data: { totalXp: { increment: badge.xpReward } },
-      });
-      await tx.xpEvent.create({
-        data: {
-          riderId,
-          action: 'badge_xp_bonus',
-          points: badge.xpReward,
-          metadata: { badgeSlug: badge.slug, manual: true },
-        },
-      });
-    }
-  });
+  if (badge.xpReward > 0) {
+    await prisma.riderProfile.update({
+      where: { id: riderId },
+      data: { totalXp: { increment: badge.xpReward } },
+    });
+    await prisma.xpEvent.create({
+      data: {
+        riderId,
+        action: 'badge_xp_bonus',
+        points: badge.xpReward,
+        metadata: { badgeSlug: badge.slug, manual: true },
+      },
+    });
+  }
 }
 
 /**

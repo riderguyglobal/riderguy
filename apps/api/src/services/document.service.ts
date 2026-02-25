@@ -58,24 +58,22 @@ export class DocumentService {
       'documents',
     );
 
-    // If replacing, delete old file & record atomically, then create new
-    const doc = await prisma.$transaction(async (tx) => {
-      if (existing) {
-        await StorageService.delete(existing.fileUrl).catch(() => {});
-        await tx.document.delete({ where: { id: existing.id } });
-      }
+    // If replacing, delete old file & record first, then create new
+    if (existing) {
+      await StorageService.delete(existing.fileUrl).catch(() => {});
+      await prisma.document.delete({ where: { id: existing.id } });
+    }
 
-      return tx.document.create({
-        data: {
-          userId: input.userId,
-          type: input.type,
-          fileUrl: uploadResult.url,
-          fileName: input.originalName,
-          fileSizeBytes: uploadResult.sizeBytes,
-          mimeType: input.mimeType,
-          status: 'PENDING',
-        },
-      });
+    const doc = await prisma.document.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        fileUrl: uploadResult.url,
+        fileName: input.originalName,
+        fileSizeBytes: uploadResult.sizeBytes,
+        mimeType: input.mimeType,
+        status: 'PENDING',
+      },
     });
 
     // Update rider onboarding status if appropriate

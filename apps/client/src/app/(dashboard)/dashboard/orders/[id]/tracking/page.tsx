@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
-import { connectSocket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } from '@/hooks/use-socket';
+import { connectSocket, disconnectSocket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } from '@/hooks/use-socket';
 import { Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
 import {
   ArrowLeft,
@@ -53,6 +53,8 @@ export default function TrackingPage() {
   const [messages, setMessages] = useState<Array<{ id: string; content: string; senderId: string; createdAt: string }>>([]);
   const [typing, setTyping] = useState(false);
 
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
   const { data: order, isLoading, refetch } = useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
@@ -80,7 +82,8 @@ export default function TrackingPage() {
     const onTyping = (data: { userId: string }) => {
       if (data.userId !== user?.id) {
         setTyping(true);
-        setTimeout(() => setTyping(false), 2000);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setTyping(false), 2000);
       }
     };
 
@@ -95,6 +98,8 @@ export default function TrackingPage() {
       socket.off('rider:location', onLocation);
       socket.off('message:new', onMessage);
       socket.off('message:typing', onTyping);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      disconnectSocket();
     };
   }, [id, refetch, user?.id]);
 
@@ -103,6 +108,17 @@ export default function TrackingPage() {
     sendMessage(id, msgInput.trim());
     setMsgInput('');
   };
+
+  const pickupCoords = useMemo<[number, number] | null>(
+    () => order?.pickupLongitude && order?.pickupLatitude
+      ? [order.pickupLongitude, order.pickupLatitude] : null,
+    [order?.pickupLongitude, order?.pickupLatitude]
+  );
+  const dropoffCoords = useMemo<[number, number] | null>(
+    () => order?.dropoffLongitude && order?.dropoffLatitude
+      ? [order.dropoffLongitude, order.dropoffLatitude] : null,
+    [order?.dropoffLongitude, order?.dropoffLatitude]
+  );
 
   if (isLoading || !order) {
     return (
@@ -120,9 +136,6 @@ export default function TrackingPage() {
   const isComplete = order.status === 'DELIVERED';
   const isCancelled = order.status.startsWith('CANCELLED') || order.status === 'FAILED';
   const hasRider = !!(order as Record<string, unknown>).rider;
-
-  const pickupCoords: [number, number] | null = order.pickupLongitude && order.pickupLatitude ? [order.pickupLongitude, order.pickupLatitude] : null;
-  const dropoffCoords: [number, number] | null = order.dropoffLongitude && order.dropoffLatitude ? [order.dropoffLongitude, order.dropoffLatitude] : null;
 
   const rider = (order as Record<string, unknown>).rider as Record<string, unknown> | undefined;
   const deliveryPin = order.deliveryPinCode;

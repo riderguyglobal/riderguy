@@ -207,17 +207,15 @@ export class VehicleService {
       throw ApiError.forbidden('You do not own this vehicle');
     }
 
-    // Atomically unset all others and set new primary
-    return prisma.$transaction(async (tx) => {
-      await tx.vehicle.updateMany({
-        where: { riderId, id: { not: vehicleId } },
-        data: { isPrimary: false },
-      });
+    // Clear all other vehicles, then set new primary
+    await prisma.vehicle.updateMany({
+      where: { riderId, id: { not: vehicleId } },
+      data: { isPrimary: false },
+    });
 
-      return tx.vehicle.update({
-        where: { id: vehicleId },
-        data: { isPrimary: true },
-      });
+    return prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { isPrimary: true },
     });
   }
 }

@@ -101,49 +101,57 @@ router.post(
       return;
     }
 
-    // Create withdrawal + debit wallet in a serializable transaction to prevent race conditions
-    const [withdrawal] = await prisma.$transaction(async (tx) => {
-      // Re-read wallet inside transaction with latest balance
-      const freshWallet = await tx.wallet.findUniqueOrThrow({
-        where: { id: wallet.id },
+    // Re-read wallet and debit with optimistic balance guard to prevent race conditions
+    const freshWallet = await prisma.wallet.findUniqueOrThrow({
+      where: { id: wallet.id },
+    });
+
+    if (freshWallet.balance < amount) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance' },
       });
+      return;
+    }
 
-      if (freshWallet.balance < amount) {
-        throw new Error('INSUFFICIENT_BALANCE');
-      }
+    // Optimistic debit: only succeeds if balance hasn't dropped below amount
+    const debitResult = await prisma.wallet.updateMany({
+      where: { id: wallet.id, balance: { gte: amount } },
+      data: { balance: { decrement: amount } },
+    });
 
-      const w = await tx.withdrawal.create({
-        data: {
-          walletId: freshWallet.id,
-          userId: req.user!.userId,
-          amount,
-          method: method as PrismaPaymentMethod,
-          destination,
-          destinationName,
-          bankCode,
-          status: 'PENDING',
-        },
+    if (debitResult.count === 0) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance (concurrent update)' },
       });
+      return;
+    }
 
-      await tx.wallet.update({
-        where: { id: freshWallet.id },
-        data: { balance: { decrement: amount } },
-      });
+    const withdrawal = await prisma.withdrawal.create({
+      data: {
+        walletId: freshWallet.id,
+        userId: req.user!.userId,
+        amount,
+        method: method as PrismaPaymentMethod,
+        destination,
+        destinationName,
+        bankCode,
+        status: 'PENDING',
+      },
+    });
 
-      await tx.transaction.create({
-        data: {
-          walletId: freshWallet.id,
-          type: 'WITHDRAWAL',
-          amount: -amount,
-          balanceAfter: Number(freshWallet.balance) - amount,
-          description: `Withdrawal to ${destinationName}`,
-          referenceId: w.id,
-          referenceType: 'withdrawal',
-        },
-      });
-
-      return [w];
-    }, { isolationLevel: 'Serializable' });
+    await prisma.transaction.create({
+      data: {
+        walletId: freshWallet.id,
+        type: 'WITHDRAWAL',
+        amount: -amount,
+        balanceAfter: Number(freshWallet.balance) - amount,
+        description: `Withdrawal to ${destinationName}`,
+        referenceId: withdrawal.id,
+        referenceType: 'withdrawal',
+      },
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: withdrawal });
   })

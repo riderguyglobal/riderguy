@@ -294,7 +294,7 @@ export function useGamification() {
     fetchProfile();
     fetchStreak();
     fetchBonusEvents();
-  }, [fetchProfile, fetchStreak, fetchBonusEvents]);
+  }, [api, fetchProfile, fetchStreak, fetchBonusEvents]);
 
   const unseenBadges = (profile?.badges ?? []).filter(b => b.awardedAt && !b.seenAt);
 

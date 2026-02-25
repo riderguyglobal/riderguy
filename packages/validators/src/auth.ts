@@ -8,6 +8,7 @@ export const registerSchema = z.object({
   email: emailSchema.optional(),
   password: passwordSchema.optional(),
   pin: pinSchema.optional(),
+  otpCode: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
   role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
   referralCode: z.string().max(20).optional(),
 });

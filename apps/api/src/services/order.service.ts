@@ -268,145 +268,152 @@ export async function transitionStatus(
   if (newStatus === 'DELIVERED') timestampUpdates.deliveredAt = new Date();
   if (newStatus.startsWith('CANCELLED')) timestampUpdates.cancelledAt = new Date();
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const updatedOrder = await tx.order.update({
-      where: { id: orderId },
+  // Optimistic concurrency: only succeeds if order still has the expected status
+  const updateResult = await prisma.order.updateMany({
+    where: { id: orderId, status: order.status },
+    data: {
+      status: newStatus,
+      ...timestampUpdates,
+      ...(newStatus === 'FAILED' && note ? { failureReason: note } : {}),
+    },
+  });
+
+  if (updateResult.count === 0) {
+    throw ApiError.badRequest(
+      'Order status changed concurrently, please retry',
+      'CONCURRENT_STATUS_CHANGE',
+    );
+  }
+
+  // Re-read the updated order
+  const updated = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+
+  await prisma.orderStatusHistory.create({
+    data: {
+      orderId,
+      status: newStatus,
+      actor,
+      note: note ?? `Status changed to ${newStatus}`,
+    },
+  });
+
+  // If the rider cancels, set them back to ONLINE
+  if (newStatus === 'CANCELLED_BY_RIDER' && updated.riderId) {
+    await prisma.riderProfile.update({
+      where: { id: updated.riderId },
+      data: { availability: 'ONLINE' },
+    });
+  }
+
+  // If delivered, update rider stats + credit wallet
+  if (newStatus === 'DELIVERED' && updated.riderId) {
+    await prisma.riderProfile.update({
+      where: { id: updated.riderId },
       data: {
-        status: newStatus,
-        ...timestampUpdates,
-        ...(newStatus === 'FAILED' && note ? { failureReason: note } : {}),
+        totalDeliveries: { increment: 1 },
+        availability: 'ONLINE',
       },
     });
 
-    await tx.orderStatusHistory.create({
-      data: {
-        orderId,
-        status: newStatus,
-        actor,
-        note: note ?? `Status changed to ${newStatus}`,
-      },
+    // Credit rider wallet
+    const earnings = updated.riderEarnings ? Number(updated.riderEarnings) : (Number(updated.totalPrice) * 0.85);
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { id: updated.riderId },
+      select: { id: true, userId: true, currentLevel: true },
     });
 
-    // If the rider cancels, set them back to ONLINE
-    if (newStatus === 'CANCELLED_BY_RIDER' && updatedOrder.riderId) {
-      await tx.riderProfile.update({
-        where: { id: updatedOrder.riderId },
-        data: { availability: 'ONLINE' },
-      });
-    }
-
-    // If delivered, update rider stats + credit wallet
-    if (newStatus === 'DELIVERED' && updatedOrder.riderId) {
-      await tx.riderProfile.update({
-        where: { id: updatedOrder.riderId },
-        data: {
-          totalDeliveries: { increment: 1 },
-          availability: 'ONLINE',
+    if (riderProfile) {
+      const wallet = await prisma.wallet.upsert({
+        where: { userId: riderProfile.userId },
+        create: {
+          userId: riderProfile.userId,
+          balance: earnings,
+          totalEarned: earnings,
+        },
+        update: {
+          balance: { increment: earnings },
+          totalEarned: { increment: earnings },
         },
       });
 
-      // Credit rider wallet
-      const earnings = updatedOrder.riderEarnings ? Number(updatedOrder.riderEarnings) : (Number(updatedOrder.totalPrice) * 0.85);
-      const riderProfile = await tx.riderProfile.findUnique({
-        where: { id: updatedOrder.riderId },
-        select: { id: true, userId: true, currentLevel: true },
+      // Re-read wallet to get accurate post-increment balance
+      const walletAfterEarning = await prisma.wallet.findUnique({ where: { id: wallet.id } });
+      const earningBalance = walletAfterEarning?.balance ?? wallet.balance;
+
+      await prisma.transaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'DELIVERY_EARNING',
+          amount: earnings,
+          balanceAfter: earningBalance,
+          description: `Earnings from order ${updated.orderNumber}`,
+          referenceId: updated.id,
+          referenceType: 'order',
+        },
       });
 
-      if (riderProfile) {
-        const wallet = await tx.wallet.upsert({
-          where: { userId: riderProfile.userId },
-          create: {
-            userId: riderProfile.userId,
-            balance: earnings,
-            totalEarned: earnings,
-          },
-          update: {
-            balance: { increment: earnings },
-            totalEarned: { increment: earnings },
-          },
-        });
+      // Tips are handled exclusively in rateOrder() to avoid double-credit
 
-        // Re-read wallet to get accurate post-increment balance
-        const walletAfterEarning = await tx.wallet.findUnique({ where: { id: wallet.id } });
-        const earningBalance = walletAfterEarning?.balance ?? wallet.balance;
-
-        await tx.transaction.create({
-          data: {
-            walletId: wallet.id,
-            type: 'DELIVERY_EARNING',
-            amount: earnings,
-            balanceAfter: earningBalance,
-            description: `Earnings from order ${updatedOrder.orderNumber}`,
-            referenceId: updatedOrder.id,
-            referenceType: 'order',
-          },
-        });
-
-        // Tips are handled exclusively in rateOrder() to avoid double-credit
-
-        // Level perk: reduced commission for higher-level riders
-        if (riderProfile.currentLevel > 1) {
-          const riderLevelCommRate = getCommissionRate(riderProfile.currentLevel);
-          const zoneRate = updatedOrder.zoneId
-            ? (await tx.zone.findUnique({ where: { id: updatedOrder.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
-            : 15;
-          if (riderLevelCommRate < zoneRate) {
-            const bonus = Math.round(Number(updatedOrder.totalPrice) * ((Number(zoneRate) - riderLevelCommRate) / 100));
-            if (bonus > 0) {
-              await tx.wallet.update({
-                where: { id: wallet.id },
-                data: {
-                  balance: { increment: bonus },
-                  totalEarned: { increment: bonus },
-                },
-              });
-              const walletAfterBonus = await tx.wallet.findUnique({ where: { id: wallet.id } });
-              await tx.transaction.create({
-                data: {
-                  walletId: wallet.id,
-                  type: 'DELIVERY_EARNING',
-                  amount: bonus,
-                  balanceAfter: walletAfterBonus?.balance ? Number(walletAfterBonus.balance) : (Number(earningBalance) + bonus),
-                  description: `Level ${riderProfile.currentLevel} commission bonus for order ${updatedOrder.orderNumber}`,
-                  referenceId: updatedOrder.id,
-                  referenceType: 'level_bonus',
-                },
-              });
-            }
+      // Level perk: reduced commission for higher-level riders
+      if (riderProfile.currentLevel > 1) {
+        const riderLevelCommRate = getCommissionRate(riderProfile.currentLevel);
+        const zoneRate = updated.zoneId
+          ? (await prisma.zone.findUnique({ where: { id: updated.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
+          : 15;
+        if (riderLevelCommRate < zoneRate) {
+          const bonus = Math.round(Number(updated.totalPrice) * ((Number(zoneRate) - riderLevelCommRate) / 100));
+          if (bonus > 0) {
+            await prisma.wallet.update({
+              where: { id: wallet.id },
+              data: {
+                balance: { increment: bonus },
+                totalEarned: { increment: bonus },
+              },
+            });
+            const walletAfterBonus = await prisma.wallet.findUnique({ where: { id: wallet.id } });
+            await prisma.transaction.create({
+              data: {
+                walletId: wallet.id,
+                type: 'DELIVERY_EARNING',
+                amount: bonus,
+                balanceAfter: walletAfterBonus?.balance ? Number(walletAfterBonus.balance) : (Number(earningBalance) + bonus),
+                description: `Level ${riderProfile.currentLevel} commission bonus for order ${updated.orderNumber}`,
+                referenceId: updated.id,
+                referenceType: 'level_bonus',
+              },
+            });
           }
-        }
-
-        // Collect commission data for enqueuing AFTER transaction commits
-        if (updatedOrder.platformCommission && Number(updatedOrder.platformCommission) > 0) {
-          const zoneCommRate = updatedOrder.zoneId
-            ? (await tx.zone.findUnique({ where: { id: updatedOrder.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
-            : 15;
-
-          (updatedOrder as Record<string, unknown>).__commissionEnqueue = {
-            orderId: updatedOrder.id,
-            riderId: riderProfile.id,
-            riderUserId: riderProfile.userId,
-            orderAmount: Number(updatedOrder.totalPrice),
-            commissionRate: Number(zoneCommRate),
-            platformCommission: Number(updatedOrder.platformCommission),
-          };
         }
       }
 
-      // Update client stats
-      await tx.clientProfile.updateMany({
-        where: { userId: updatedOrder.clientId },
-        data: {
-          totalOrders: { increment: 1 },
-          totalSpent: { increment: updatedOrder.totalPrice },
-        },
-      });
+      // Collect commission data for enqueuing AFTER writes complete
+      if (updated.platformCommission && Number(updated.platformCommission) > 0) {
+        const zoneCommRate = updated.zoneId
+          ? (await prisma.zone.findUnique({ where: { id: updated.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
+          : 15;
+
+        (updated as Record<string, unknown>).__commissionEnqueue = {
+          orderId: updated.id,
+          riderId: riderProfile.id,
+          riderUserId: riderProfile.userId,
+          orderAmount: Number(updated.totalPrice),
+          commissionRate: Number(zoneCommRate),
+          platformCommission: Number(updated.platformCommission),
+        };
+      }
     }
 
-    return updatedOrder;
-  });
+    // Update client stats
+    await prisma.clientProfile.updateMany({
+      where: { userId: updated.clientId },
+      data: {
+        totalOrders: { increment: 1 },
+        totalSpent: { increment: updated.totalPrice },
+      },
+    });
+  }
 
-  // Enqueue background jobs AFTER transaction has committed successfully
+  // Enqueue background jobs AFTER writes have completed successfully
   if (newStatus === 'DELIVERED') {
     const commData = (updated as Record<string, unknown>).__commissionEnqueue as CommissionJobData | undefined;
     if (commData) {
@@ -467,70 +474,74 @@ export async function rateOrder(
   if (order.status !== 'DELIVERED') throw ApiError.badRequest('Can only rate delivered orders');
   if (order.clientRating !== null) throw ApiError.badRequest('Order already rated');
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const updatedOrder = await tx.order.update({
-      where: { id: orderId },
-      data: {
-        clientRating: rating,
-        clientReview: review,
-        tipAmount: tipAmount ?? 0,
-      },
-    });
+  // Optimistic concurrency: only succeeds if order hasn't been rated yet
+  const updateResult = await prisma.order.updateMany({
+    where: { id: orderId, clientRating: null },
+    data: {
+      clientRating: rating,
+      clientReview: review ?? null,
+      tipAmount: tipAmount ?? 0,
+    },
+  });
 
-    // Update rider's average rating
-    if (updatedOrder.riderId) {
-      const riderProfile = await tx.riderProfile.findUnique({
-        where: { id: updatedOrder.riderId },
+  if (updateResult.count === 0) {
+    throw ApiError.badRequest('Order already rated (concurrent request)');
+  }
+
+  // Re-read the updated order
+  const updated = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+
+  // Update rider's average rating
+  if (updated.riderId) {
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { id: updated.riderId },
+    });
+    if (riderProfile) {
+      const newTotalRatings = riderProfile.totalRatings + 1;
+      const newAvgRating =
+        (riderProfile.averageRating * riderProfile.totalRatings + rating) / newTotalRatings;
+      await prisma.riderProfile.update({
+        where: { id: updated.riderId },
+        data: {
+          averageRating: Math.round(newAvgRating * 100) / 100,
+          totalRatings: newTotalRatings,
+        },
       });
-      if (riderProfile) {
-        const newTotalRatings = riderProfile.totalRatings + 1;
-        const newAvgRating =
-          (riderProfile.averageRating * riderProfile.totalRatings + rating) / newTotalRatings;
-        await tx.riderProfile.update({
-          where: { id: updatedOrder.riderId },
-          data: {
-            averageRating: Math.round(newAvgRating * 100) / 100,
-            totalRatings: newTotalRatings,
+
+      // Credit tip to rider wallet if tip was given
+      if (tipAmount && tipAmount > 0) {
+        const wallet = await prisma.wallet.upsert({
+          where: { userId: riderProfile.userId },
+          create: {
+            userId: riderProfile.userId,
+            balance: tipAmount,
+            totalTips: tipAmount,
+          },
+          update: {
+            balance: { increment: tipAmount },
+            totalTips: { increment: tipAmount },
           },
         });
 
-        // Credit tip to rider wallet if tip was given
-        if (tipAmount && tipAmount > 0) {
-          const wallet = await tx.wallet.upsert({
-            where: { userId: riderProfile.userId },
-            create: {
-              userId: riderProfile.userId,
-              balance: tipAmount,
-              totalTips: tipAmount,
-            },
-            update: {
-              balance: { increment: tipAmount },
-              totalTips: { increment: tipAmount },
-            },
-          });
+        // Re-read wallet to get accurate post-increment balance
+        const walletAfterTip = await prisma.wallet.findUnique({ where: { id: wallet.id } });
 
-          // Re-read wallet to get accurate post-increment balance
-          const walletAfterTip = await tx.wallet.findUnique({ where: { id: wallet.id } });
-
-          await tx.transaction.create({
-            data: {
-              walletId: wallet.id,
-              type: 'TIP',
-              amount: tipAmount,
-              balanceAfter: walletAfterTip?.balance ?? wallet.balance,
-              description: `Tip from order ${updatedOrder.orderNumber}`,
-              referenceId: updatedOrder.id,
-              referenceType: 'order',
-            },
-          });
-        }
+        await prisma.transaction.create({
+          data: {
+            walletId: wallet.id,
+            type: 'TIP',
+            amount: tipAmount,
+            balanceAfter: walletAfterTip?.balance ?? wallet.balance,
+            description: `Tip from order ${updated.orderNumber}`,
+            referenceId: updated.id,
+            referenceType: 'order',
+          },
+        });
       }
     }
+  }
 
-    return updatedOrder;
-  });
-
-  // Award XP for high ratings (fire-and-forget, outside transaction)
+  // Award XP for high ratings (fire-and-forget)
   if (updated.riderId) {
     if (rating === 5) {
       awardXp(updated.riderId, XpAction.FIVE_STAR_RATING, undefined, {

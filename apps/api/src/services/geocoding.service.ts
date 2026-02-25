@@ -41,7 +41,7 @@ export async function forwardGeocode(
     return mockForwardGeocode(address);
   }
 
-  const country = options.country ?? 'ng';
+  const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
   const encoded = encodeURIComponent(address);
   const url = `${MAPBOX_BASE}/${encoded}.json?access_token=${token}&country=${country}&limit=${limit}&types=address,poi,place`;
@@ -112,7 +112,7 @@ export async function autocomplete(
     return mockAutocomplete(query);
   }
 
-  const country = options.country ?? 'ng';
+  const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
   const encoded = encodeURIComponent(query);
   let url = `${MAPBOX_BASE}/${encoded}.json?access_token=${token}&country=${country}&limit=${limit}&types=address,poi,place&autocomplete=true`;

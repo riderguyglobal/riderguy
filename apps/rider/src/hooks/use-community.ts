@@ -131,27 +131,12 @@ export interface Announcement {
   updatedAt: string;
 }
 
-// ────── Helpers ──────
-
-async function apiFetch<T>(path: string, token: string | null, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers ?? {}),
-    },
-  });
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.message ?? `Request failed (${res.status})`);
-  return json.data as T;
-}
+// ────── Helpers removed — hooks now use api from useAuth ──────
 
 // ────── Chat Hook ──────
 
 export function useCommunityChat() {
-  const { accessToken, user } = useAuth();
+  const { api, user } = useAuth();
   const { socket, connected } = useSocket();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -162,28 +147,26 @@ export function useCommunityChat() {
 
   // Fetch user rooms
   const fetchRooms = useCallback(async () => {
-    if (!accessToken) return;
+    if (!api) return;
     setLoading(true);
     try {
-      const data = await apiFetch<ChatRoom[]>('/chat/rooms', accessToken);
-      setRooms(data);
+      const res = await api.get(`${BASE}/chat/rooms`);
+      setRooms(res.data.data);
     } catch (err) {
       console.error('Failed to fetch rooms:', err);
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [api]);
 
   // Fetch messages for a room
   const fetchMessages = useCallback(async (roomId: string, cursor?: string) => {
-    if (!accessToken) return { messages: [], nextCursor: null };
+    if (!api) return { messages: [], nextCursor: null };
     try {
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
-      const data = await apiFetch<{ messages: ChatMsg[]; nextCursor: string | null }>(
-        `/chat/rooms/${roomId}/messages?${params}`,
-        accessToken,
-      );
+      const res = await api.get(`${BASE}/chat/rooms/${roomId}/messages?${params}`);
+      const data = res.data.data as { messages: ChatMsg[]; nextCursor: string | null };
       if (!cursor) {
         setMessages(data.messages.reverse());
       } else {
@@ -194,41 +177,33 @@ export function useCommunityChat() {
       console.error('Failed to fetch messages:', err);
       return { messages: [], nextCursor: null };
     }
-  }, [accessToken]);
+  }, [api]);
 
   // Join a zone room
   const joinZoneRoom = useCallback(async (zoneId: string) => {
-    if (!accessToken) return;
-    const data = await apiFetch<{ roomId: string }>(`/chat/zones/${zoneId}/join`, accessToken, {
-      method: 'POST',
-    });
+    if (!api) return;
+    const res = await api.post(`${BASE}/chat/zones/${zoneId}/join`);
     await fetchRooms();
-    return data.roomId;
-  }, [accessToken, fetchRooms]);
+    return (res.data.data as { roomId: string }).roomId;
+  }, [api, fetchRooms]);
 
   // Create or get DM
   const openDM = useCallback(async (userId: string) => {
-    if (!accessToken) return null;
-    const data = await apiFetch<any>('/chat/direct', accessToken, {
-      method: 'POST',
-      body: JSON.stringify({ userId }),
-    });
+    if (!api) return null;
+    const res = await api.post(`${BASE}/chat/direct`, { userId });
     await fetchRooms();
-    return data;
-  }, [accessToken, fetchRooms]);
+    return res.data.data;
+  }, [api, fetchRooms]);
 
   // Send message via REST (fallback) or socket
   const sendMessage = useCallback(async (roomId: string, content: string, type?: string) => {
     if (socket && connected) {
       socket.emit('community:send', { roomId, content, type });
-    } else if (accessToken) {
-      const msg = await apiFetch<ChatMsg>(`/chat/rooms/${roomId}/messages`, accessToken, {
-        method: 'POST',
-        body: JSON.stringify({ content, type }),
-      });
-      setMessages(prev => [...prev, msg]);
+    } else if (api) {
+      const res = await api.post(`${BASE}/chat/rooms/${roomId}/messages`, { content, type });
+      setMessages(prev => [...prev, res.data.data]);
     }
-  }, [socket, connected, accessToken]);
+  }, [socket, connected, api]);
 
   // Send typing indicator
   const sendTyping = useCallback((roomId: string) => {
@@ -237,10 +212,10 @@ export function useCommunityChat() {
 
   // Mark messages as read
   const markAsRead = useCallback(async (roomId: string) => {
-    if (!accessToken) return;
-    await apiFetch<void>(`/chat/rooms/${roomId}/read`, accessToken, { method: 'PUT' });
+    if (!api) return;
+    await api.put(`${BASE}/chat/rooms/${roomId}/read`);
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, hasUnread: false } : r));
-  }, [accessToken]);
+  }, [api]);
 
   // Enter/leave room (socket)
   const enterRoom = useCallback((roomId: string) => {
@@ -338,7 +313,7 @@ export function useCommunityChat() {
 // ────── Forum Hook ──────
 
 export function useForum() {
-  const { accessToken } = useAuth();
+  const { api } = useAuth();
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(false);
@@ -348,17 +323,15 @@ export function useForum() {
     sort?: string;
     page?: number;
   }) => {
-    if (!accessToken) return;
+    if (!api) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (options?.category) params.set('category', options.category);
       if (options?.sort) params.set('sort', options.sort);
       if (options?.page) params.set('page', String(options.page));
-      const data = await apiFetch<{ posts: ForumPost[]; pagination: any }>(
-        `/forum/posts?${params}`,
-        accessToken,
-      );
+      const res = await api.get(`${BASE}/forum/posts?${params}`);
+      const data = res.data.data as { posts: ForumPost[]; pagination: any };
       setPosts(data.posts);
       setPagination(data.pagination);
     } catch (err) {
@@ -366,32 +339,29 @@ export function useForum() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [api]);
 
   const getPost = useCallback(async (postId: string) => {
-    if (!accessToken) return null;
-    return apiFetch<ForumPost>(`/forum/posts/${postId}`, accessToken);
-  }, [accessToken]);
+    if (!api) return null;
+    const res = await api.get(`${BASE}/forum/posts/${postId}`);
+    return res.data.data as ForumPost;
+  }, [api]);
 
-  const createPost = useCallback(async (data: {
+  const createPost = useCallback(async (payload: {
     title: string;
     body: string;
     category?: string;
     poll?: { question: string; options: string[]; expiresAt?: string };
   }) => {
-    if (!accessToken) return null;
-    return apiFetch<ForumPost>('/forum/posts', accessToken, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }, [accessToken]);
+    if (!api) return null;
+    const res = await api.post(`${BASE}/forum/posts`, payload);
+    return res.data.data as ForumPost;
+  }, [api]);
 
   const vote = useCallback(async (postId: string, value: number) => {
-    if (!accessToken) return;
-    const result = await apiFetch<{ value: number }>(`/forum/posts/${postId}/vote`, accessToken, {
-      method: 'POST',
-      body: JSON.stringify({ value }),
-    });
+    if (!api) return;
+    const res = await api.post(`${BASE}/forum/posts/${postId}/vote`, { value });
+    const result = res.data.data as { value: number };
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
       const oldVote = p.userVote ?? 0;
@@ -404,39 +374,37 @@ export function useForum() {
       };
     }));
     return result;
-  }, [accessToken]);
+  }, [api]);
 
   const getComments = useCallback(async (postId: string) => {
-    if (!accessToken) return [];
-    return apiFetch<ForumComment[]>(`/forum/posts/${postId}/comments`, accessToken);
-  }, [accessToken]);
+    if (!api) return [];
+    const res = await api.get(`${BASE}/forum/posts/${postId}/comments`);
+    return res.data.data as ForumComment[];
+  }, [api]);
 
   const addComment = useCallback(async (postId: string, body: string, parentId?: string) => {
-    if (!accessToken) return null;
-    return apiFetch<ForumComment>(`/forum/posts/${postId}/comments`, accessToken, {
-      method: 'POST',
-      body: JSON.stringify({ body, parentId }),
-    });
-  }, [accessToken]);
+    if (!api) return null;
+    const res = await api.post(`${BASE}/forum/posts/${postId}/comments`, { body, parentId });
+    return res.data.data as ForumComment;
+  }, [api]);
 
   const voteComment = useCallback(async (commentId: string, value: number) => {
-    if (!accessToken) return;
-    return apiFetch<{ value: number }>(`/forum/comments/${commentId}/vote`, accessToken, {
-      method: 'POST',
-      body: JSON.stringify({ value }),
-    });
-  }, [accessToken]);
+    if (!api) return;
+    const res = await api.post(`${BASE}/forum/comments/${commentId}/vote`, { value });
+    return res.data.data as { value: number };
+  }, [api]);
 
   const votePoll = useCallback(async (optionId: string) => {
-    if (!accessToken) return null;
-    return apiFetch<PollData>(`/forum/polls/${optionId}/vote`, accessToken, { method: 'POST' });
-  }, [accessToken]);
+    if (!api) return null;
+    const res = await api.post(`${BASE}/forum/polls/${optionId}/vote`);
+    return res.data.data as PollData;
+  }, [api]);
 
   const deletePost = useCallback(async (postId: string) => {
-    if (!accessToken) return;
-    await apiFetch<void>(`/forum/posts/${postId}`, accessToken, { method: 'DELETE' });
+    if (!api) return;
+    await api.delete(`${BASE}/forum/posts/${postId}`);
     setPosts(prev => prev.filter(p => p.id !== postId));
-  }, [accessToken]);
+  }, [api]);
 
   return {
     posts,
@@ -457,33 +425,29 @@ export function useForum() {
 // ────── Announcements Hook ──────
 
 export function useAnnouncements() {
-  const { accessToken } = useAuth();
+  const { api } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetch = useCallback(async (page = 1) => {
-    if (!accessToken) return;
+    if (!api) return;
     setLoading(true);
     try {
-      const data = await apiFetch<{ announcements: Announcement[]; pagination: any }>(
-        `/announcements?page=${page}`,
-        accessToken,
-      );
+      const res = await api.get(`${BASE}/announcements?page=${page}`);
+      const data = res.data.data as { announcements: Announcement[]; pagination: any };
       setAnnouncements(data.announcements);
     } catch (err) {
       console.error('Failed to fetch announcements:', err);
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [api]);
 
   const report = useCallback(async (entityType: string, entityId: string, reason: string, description?: string) => {
-    if (!accessToken) return;
-    return apiFetch<any>('/reports', accessToken, {
-      method: 'POST',
-      body: JSON.stringify({ entityType, entityId, reason, description }),
-    });
-  }, [accessToken]);
+    if (!api) return;
+    const res = await api.post(`${BASE}/reports`, { entityType, entityId, reason, description });
+    return res.data.data;
+  }, [api]);
 
   return { announcements, loading, fetch, report };
 }

@@ -48,36 +48,42 @@ export async function assignRider(
     );
   }
 
-  // Assign within a transaction
-  const updated = await prisma.$transaction(async (tx) => {
-    // Update order
-    const updatedOrder = await tx.order.update({
-      where: { id: orderId },
-      data: {
-        riderId: riderProfileId,
-        status: 'ASSIGNED',
-        assignedAt: new Date(),
-      },
-    });
-
-    // Status history
-    await tx.orderStatusHistory.create({
-      data: {
-        orderId,
-        status: 'ASSIGNED',
-        actor,
-        note: `Assigned to rider ${rider.user.firstName} ${rider.user.lastName}`,
-      },
-    });
-
-    // Set rider to ON_DELIVERY
-    await tx.riderProfile.update({
-      where: { id: riderProfileId },
-      data: { availability: 'ON_DELIVERY' },
-    });
-
-    return updatedOrder;
+  // Sequential writes (interactive $transaction not supported on Neon/PgBouncer)
+  // Use updateMany with a WHERE guard to prevent double-assignment
+  const { count } = await prisma.order.updateMany({
+    where: { id: orderId, status: { in: ['PENDING', 'SEARCHING_RIDER'] }, riderId: null },
+    data: {
+      riderId: riderProfileId,
+      status: 'ASSIGNED',
+      assignedAt: new Date(),
+    },
   });
+
+  if (count === 0) {
+    throw ApiError.conflict(
+      'Order was already assigned or status changed — please retry',
+      'ASSIGN_RACE',
+    );
+  }
+
+  // Status history
+  await prisma.orderStatusHistory.create({
+    data: {
+      orderId,
+      status: 'ASSIGNED',
+      actor,
+      note: `Assigned to rider ${rider.user.firstName} ${rider.user.lastName}`,
+    },
+  });
+
+  // Set rider to ON_DELIVERY
+  await prisma.riderProfile.update({
+    where: { id: riderProfileId },
+    data: { availability: 'ON_DELIVERY' },
+  });
+
+  // Fetch the updated order for the return value
+  const updated = await prisma.order.findUnique({ where: { id: orderId } });
 
   // Emit real-time status update via WebSocket
   emitOrderStatusUpdate({
@@ -138,32 +144,29 @@ export async function unassignRider(orderId: string, actor: string) {
 
   const prevRiderId = order.riderId;
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const updatedOrder = await tx.order.update({
-      where: { id: orderId },
-      data: {
-        riderId: null,
-        status: 'PENDING',
-        assignedAt: null,
-      },
-    });
+  // Sequential writes (interactive $transaction not supported on Neon/PgBouncer)
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      riderId: null,
+      status: 'PENDING',
+      assignedAt: null,
+    },
+  });
 
-    await tx.orderStatusHistory.create({
-      data: {
-        orderId,
-        status: 'PENDING',
-        actor,
-        note: 'Rider unassigned by admin',
-      },
-    });
+  await prisma.orderStatusHistory.create({
+    data: {
+      orderId,
+      status: 'PENDING',
+      actor,
+      note: 'Rider unassigned by admin',
+    },
+  });
 
-    // Set rider back to ONLINE
-    await tx.riderProfile.update({
-      where: { id: prevRiderId },
-      data: { availability: 'ONLINE' },
-    });
-
-    return updatedOrder;
+  // Set rider back to ONLINE
+  await prisma.riderProfile.update({
+    where: { id: prevRiderId },
+    data: { availability: 'ONLINE' },
   });
 
   return updated;

@@ -108,32 +108,35 @@ export async function redeemItem(riderId: string, itemId: string) {
     );
   }
 
-  // Atomic transaction: deduct points, decrement inventory, create redemption
-  const redemption = await prisma.$transaction(async (tx) => {
-    // Deduct points
-    await tx.riderProfile.update({
-      where: { id: riderId },
-      data: { rewardPoints: { decrement: item.pointsCost } },
-    });
+  // Sequential writes: deduct points with optimistic guard, decrement inventory, create redemption
+  const deducted = await prisma.riderProfile.updateMany({
+    where: { id: riderId, rewardPoints: { gte: item.pointsCost } },
+    data: { rewardPoints: { decrement: item.pointsCost } },
+  });
 
-    // Decrement inventory (if not unlimited)
-    if (item.inventory > 0) {
-      await tx.rewardStoreItem.update({
-        where: { id: itemId },
-        data: { inventory: { decrement: 1 } },
-      });
-    }
+  if (deducted.count === 0) {
+    throw ApiError.badRequest(
+      `Not enough points. You need ${item.pointsCost} but have insufficient balance.`,
+    );
+  }
 
-    // Create redemption record
-    return tx.rewardRedemption.create({
-      data: {
-        riderId,
-        itemId,
-        pointsSpent: item.pointsCost,
-        status: 'PENDING',
-      },
-      include: { item: true },
+  // Decrement inventory (if not unlimited)
+  if (item.inventory > 0) {
+    await prisma.rewardStoreItem.update({
+      where: { id: itemId },
+      data: { inventory: { decrement: 1 } },
     });
+  }
+
+  // Create redemption record
+  const redemption = await prisma.rewardRedemption.create({
+    data: {
+      riderId,
+      itemId,
+      pointsSpent: item.pointsCost,
+      status: 'PENDING',
+    },
+    include: { item: true },
   });
 
   // Notify rider
@@ -219,8 +222,8 @@ export async function updateRedemptionStatus(
   const data: Record<string, unknown> = { status, notes: notes ?? undefined };
   if (status === 'FULFILLED') data.fulfilledAt = new Date();
 
-  // If rejecting, refund points
-  if (status === 'REJECTED' || status === 'CANCELLED') {
+  // If rejecting, refund points — only if still PENDING to prevent double-refund
+  if ((status === 'REJECTED' || status === 'CANCELLED') && redemption.status === 'PENDING') {
     await prisma.riderProfile.update({
       where: { id: redemption.riderId },
       data: { rewardPoints: { increment: redemption.pointsSpent } },

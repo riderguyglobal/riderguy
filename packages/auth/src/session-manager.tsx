@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useAuth } from '@riderguy/auth';
+import { useAuth } from './auth-provider';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Spinner } from '@riderguy/ui';
 
 // ============================================================

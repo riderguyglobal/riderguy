@@ -1,7 +1,7 @@
 /* eslint-disable turbo/no-undeclared-env-vars */
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'https://riderguy-api.onrender.com/api/v1';
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 const RAW_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 

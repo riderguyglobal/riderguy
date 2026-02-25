@@ -25,6 +25,8 @@ export interface RiderProfile {
   currentLatitude: number | null;
   currentLongitude: number | null;
   lastLocationUpdate: Date | null;
+  rewardPoints: number;
+  referredByPartnerId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

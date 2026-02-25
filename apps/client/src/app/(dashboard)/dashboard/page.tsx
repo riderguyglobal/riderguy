@@ -150,11 +150,13 @@ export default function DashboardPage() {
               {recentOrders.map((order: Record<string, unknown>) => {
                 const id = order.id as string;
                 const status = ORDER_STATUS_CONFIG[(order.status as string)] ?? { label: order.status as string, color: 'text-surface-600', bg: 'bg-surface-100' };
-                const isActive = ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(order.status as string);
+                const statusStr = order.status as string;
+                const isActive = ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(statusStr);
+                const isCancelledOrFailed = statusStr.startsWith('CANCELLED') || statusStr === 'FAILED';
                 return (
                   <button
                     key={id}
-                    onClick={() => router.push(`/dashboard/orders/${id}/${isActive ? 'tracking' : 'rate'}`)}
+                    onClick={() => router.push(isActive ? `/dashboard/orders/${id}/tracking` : isCancelledOrFailed ? '/dashboard/orders' : `/dashboard/orders/${id}/rate`)}
                     className="w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl hover:bg-surface-50 transition-colors text-left btn-press group"
                   >
                     <div className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 group-hover:bg-surface-200 transition-colors">

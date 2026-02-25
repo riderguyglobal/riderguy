@@ -303,26 +303,26 @@ router.post(
         });
 
         if (failedWithdrawal && !['COMPLETED', 'CANCELLED'].includes(failedWithdrawal.status)) {
-          // Refund the money back to the wallet
-          await prisma.$transaction(async (tx) => {
-            await tx.withdrawal.update({
-              where: { id: failedWithdrawal.id },
-              data: {
-                status: 'FAILED',
-                failureReason: event.data?.reason ?? `Transfer ${event.event.split('.')[1]}`,
-              },
-            });
+          // Refund the money back to the wallet — sequential writes with optimistic guard
+          const failUpdate = await prisma.withdrawal.updateMany({
+            where: { id: failedWithdrawal.id, status: { notIn: ['COMPLETED', 'CANCELLED', 'FAILED'] } },
+            data: {
+              status: 'FAILED',
+              failureReason: event.data?.reason ?? `Transfer ${event.event.split('.')[1]}`,
+            },
+          });
 
-            const wallet = await tx.wallet.findUnique({
+          if (failUpdate.count > 0) {
+            const wallet = await prisma.wallet.findUnique({
               where: { id: failedWithdrawal.walletId },
             });
             if (wallet) {
-              await tx.wallet.update({
+              await prisma.wallet.update({
                 where: { id: wallet.id },
                 data: { balance: { increment: failedWithdrawal.amount } },
               });
 
-              await tx.transaction.create({
+              await prisma.transaction.create({
                 data: {
                   walletId: wallet.id,
                   type: 'REFUND',
@@ -334,7 +334,7 @@ router.post(
                 },
               });
             }
-          });
+          }
 
           logger.info(
             { withdrawalId: failedWithdrawal.id },
@@ -555,33 +555,40 @@ router.post(
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.withdrawal.update({
-        where: { id },
-        data: { status: 'CANCELLED', failureReason: reason },
+    // Optimistic guard: only reject if still PENDING
+    const rejectUpdate = await prisma.withdrawal.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'CANCELLED', failureReason: reason },
+    });
+
+    if (rejectUpdate.count === 0) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Withdrawal is no longer in PENDING status' },
+      });
+      return;
+    }
+
+    // Refund the amount
+    const wallet = await prisma.wallet.findUnique({ where: { id: withdrawal.walletId } });
+    if (wallet) {
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: { increment: withdrawal.amount } },
       });
 
-      // Refund the amount
-      const wallet = await tx.wallet.findUnique({ where: { id: withdrawal.walletId } });
-      if (wallet) {
-        await tx.wallet.update({
-          where: { id: wallet.id },
-          data: { balance: { increment: withdrawal.amount } },
-        });
-
-        await tx.transaction.create({
-          data: {
-            walletId: wallet.id,
-            type: 'REFUND',
-            amount: withdrawal.amount,
-            balanceAfter: Number(wallet.balance) + Number(withdrawal.amount),
-            description: `Refund for rejected withdrawal: ${reason}`,
-            referenceId: withdrawal.id,
-            referenceType: 'withdrawal',
-          },
-        });
-      }
-    });
+      await prisma.transaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'REFUND',
+          amount: withdrawal.amount,
+          balanceAfter: Number(wallet.balance) + Number(withdrawal.amount),
+          description: `Refund for rejected withdrawal: ${reason}`,
+          referenceId: withdrawal.id,
+          referenceType: 'withdrawal',
+        },
+      });
+    }
 
     res.status(StatusCodes.OK).json({ success: true, message: 'Withdrawal rejected and refunded' });
   }),

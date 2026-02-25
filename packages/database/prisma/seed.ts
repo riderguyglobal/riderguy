@@ -127,6 +127,18 @@ async function main() {
   await prisma.favoriteRider.deleteMany();
   await prisma.savedAddress.deleteMany();
   await prisma.document.deleteMany();
+  // Community tables
+  await prisma.contentReport.deleteMany();
+  await prisma.pollVote.deleteMany();
+  await prisma.pollOption.deleteMany();
+  await prisma.poll.deleteMany();
+  await prisma.forumVote.deleteMany();
+  await prisma.forumComment.deleteMany();
+  await prisma.forumPost.deleteMany();
+  await prisma.chatMessage.deleteMany();
+  await prisma.chatMember.deleteMany();
+  await prisma.chatRoom.deleteMany();
+  await prisma.announcement.deleteMany();
   // Gamification tables
   await prisma.rewardRedemption.deleteMany();
   await prisma.challengeParticipant.deleteMany();
@@ -313,7 +325,7 @@ async function main() {
       { type: 'BONUS' as const, amount: 500, desc: 'Completion bonus' },
     ];
 
-    let runningBalance = wallet.balance;
+    let runningBalance = Number(wallet.balance);
     for (const tx of txTypes) {
       runningBalance += tx.amount;
       await prisma.transaction.create({
@@ -562,11 +574,11 @@ async function main() {
   // ══════════════════════════════════════════════════════════════
   console.log('  Creating notifications...');
   const notificationTemplates = [
-    { title: 'Welcome to RiderGuy!', body: 'Your account has been created. Complete your profile to get started.', type: 'system' },
-    { title: 'New Delivery Available', body: 'A new delivery request is waiting near you. Open the job feed to accept.', type: 'order' },
-    { title: 'Document Approved', body: 'Your national ID has been verified successfully.', type: 'document_review' },
-    { title: 'Delivery Complete', body: 'Your package has been delivered. Rate your experience!', type: 'order' },
-    { title: 'Payout Processed', body: 'Your withdrawal of GH₵50 has been sent to your bank account.', type: 'payment' },
+    { title: 'Welcome to RiderGuy!', body: 'Your account has been created. Complete your profile to get started.', type: 'SYSTEM' as const },
+    { title: 'New Delivery Available', body: 'A new delivery request is waiting near you. Open the job feed to accept.', type: 'ORDER' as const },
+    { title: 'Document Approved', body: 'Your national ID has been verified successfully.', type: 'SYSTEM' as const },
+    { title: 'Delivery Complete', body: 'Your package has been delivered. Rate your experience!', type: 'ORDER' as const },
+    { title: 'Payout Processed', body: 'Your withdrawal of GH₵50 has been sent to your bank account.', type: 'PAYMENT' as const },
   ];
 
   let notifCount = 0;
@@ -594,7 +606,7 @@ async function main() {
         userId: clients[i].userId,
         title: 'Order Delivered',
         body: 'Your delivery has been completed. Thank you for using RiderGuy!',
-        type: 'order',
+        type: 'ORDER',
         isRead: false,
         createdAt: new Date(Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000),
       },
@@ -607,7 +619,7 @@ async function main() {
       userId: superAdmin.id,
       title: 'New Rider Application',
       body: 'Kwabena Adu has submitted documents for review.',
-      type: 'rider_application',
+      type: 'SYSTEM',
       isRead: false,
     },
   });
