@@ -14,6 +14,10 @@ import { adminRouter } from './admin/admin.routes';
 import { contactRouter } from './contact/contact.routes';
 import { gamificationRouter } from './gamification/gamification.routes';
 import { communityRouter } from './community/community.routes';
+import { mentorshipRouter } from './mentorship/mentorship.routes';
+import { eventRouter } from './events/events.routes';
+import { featureRequestRouter } from './feature-requests/feature-requests.routes';
+import { riderIdentityRouter } from './rider-identity/rider-identity.routes';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../lib/async-handler';
 import { ApiError } from '../lib/api-error';
@@ -33,6 +37,10 @@ router.use('/admin', adminRouter);
 router.use('/contact', contactRouter);
 router.use('/gamification', gamificationRouter);
 router.use('/community', communityRouter);
+router.use('/mentorship', mentorshipRouter);
+router.use('/events', eventRouter);
+router.use('/feature-requests', featureRequestRouter);
+router.use('/rider-identity', riderIdentityRouter);
 
 // ────── Authenticated file serving (protects PII uploads) ──────
 router.get(

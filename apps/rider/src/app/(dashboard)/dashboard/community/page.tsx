@@ -15,6 +15,11 @@ import {
   Pin,
   ArrowLeft,
   Plus,
+  Handshake,
+  Calendar,
+  Lightbulb,
+  Trophy,
+  User,
 } from 'lucide-react';
 
 type Tab = 'chat' | 'forum' | 'announcements';
@@ -58,6 +63,30 @@ export default function CommunityPage() {
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Sprint 12: Quick links */}
+      <div className="px-4 pt-4 pb-2">
+        <div className="grid grid-cols-5 gap-2">
+          {[
+            { href: '/dashboard/community/mentorship', icon: <Handshake className="h-5 w-5" />, label: 'Mentors', color: 'text-emerald-400 bg-emerald-400/10' },
+            { href: '/dashboard/community/events', icon: <Calendar className="h-5 w-5" />, label: 'Events', color: 'text-brand-400 bg-brand-400/10' },
+            { href: '/dashboard/community/feature-requests', icon: <Lightbulb className="h-5 w-5" />, label: 'Ideas', color: 'text-amber-400 bg-amber-400/10' },
+            { href: '/dashboard/community/spotlights', icon: <Trophy className="h-5 w-5" />, label: 'Spotlight', color: 'text-orange-400 bg-orange-400/10' },
+            { href: '/dashboard/community/profile', icon: <User className="h-5 w-5" />, label: 'Profile', color: 'text-purple-400 bg-purple-400/10' },
+          ].map(link => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors"
+            >
+              <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${link.color}`}>
+                {link.icon}
+              </div>
+              <span className="text-surface-300 text-[10px] font-medium">{link.label}</span>
+            </Link>
+          ))}
         </div>
       </div>
 

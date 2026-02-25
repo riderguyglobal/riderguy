@@ -9,3 +9,4 @@ export * from './zone';
 export * from './common';
 export * from './gamification';
 export * from './community';
+export * from './sprint12';

@@ -24,7 +24,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     pathname.startsWith('/dashboard/gamification') ||
     pathname.startsWith('/dashboard/community/chat/') ||
     pathname.startsWith('/dashboard/community/forum/') ||
-    pathname.startsWith('/dashboard/community/zones');
+    pathname.startsWith('/dashboard/community/zones') ||
+    pathname.startsWith('/dashboard/community/mentorship') ||
+    pathname.startsWith('/dashboard/community/events') ||
+    pathname.startsWith('/dashboard/community/feature-requests') ||
+    pathname.startsWith('/dashboard/community/spotlights') ||
+    pathname.startsWith('/dashboard/community/profile');
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.RIDER]}>

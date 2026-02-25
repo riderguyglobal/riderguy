@@ -225,6 +225,12 @@ model User {
   contentReports    ContentReport[]    @relation("ContentReporter")
   pollVotes         PollVote[]
 
+  // Sprint 12 relations
+  events                Event[]              @relation("EventCreator")
+  eventRsvps            EventRsvp[]
+  featureRequests       FeatureRequest[]      @relation("FeatureRequestAuthor")
+  featureRequestUpvotes FeatureRequestUpvote[]
+
   @@index([phone])
   @@index([email])
   @@index([role, status])
@@ -302,6 +308,13 @@ model RiderProfile {
   rewardRedemptions  RewardRedemption[]
   rewardPoints       Int                  @default(0) // Reward store points balance
   favoritedByClients FavoriteRider[]
+
+  // Sprint 12 — Identity & Mentorship
+  bio                String?              @db.Text
+  publicProfileUrl   String?              @unique
+  mentorships        Mentorship[]         @relation("MentorRelation")
+  menteeships        Mentorship[]         @relation("MenteeRelation")
+  spotlights         RiderSpotlight[]
 
   @@index([availability])
   @@index([currentZoneId])
@@ -665,8 +678,10 @@ model Zone {
   updatedAt       DateTime   @updatedAt
 
   // Relations
-  riders RiderProfile[]
-  orders Order[]
+  riders      RiderProfile[]
+  orders      Order[]
+  mentorships Mentorship[]
+  events      Event[]
 
   @@map("zones")
 }
@@ -1255,6 +1270,175 @@ model ContentReport {
   @@index([reporterId])
   @@index([createdAt])
   @@map("content_reports")
+}
+
+// ============================================================
+// SPRINT 12 — MENTORSHIP, EVENTS & RIDER IDENTITY
+// ============================================================
+
+enum MentorshipStatus {
+  PENDING     // Awaiting mentee/mentor acceptance
+  ACTIVE      // Ongoing mentorship
+  COMPLETED   // Successfully completed
+  CANCELLED   // Cancelled by either party
+}
+
+enum EventType {
+  IN_PERSON
+  VIRTUAL
+  HYBRID
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum FeatureRequestStatus {
+  SUBMITTED
+  REVIEWED
+  PLANNED
+  IN_PROGRESS
+  SHIPPED
+  DECLINED
+}
+
+// ── Mentorship ──
+
+model Mentorship {
+  id           String           @id @default(cuid())
+  mentorId     String
+  mentor       RiderProfile     @relation("MentorRelation", fields: [mentorId], references: [id], onDelete: Cascade)
+  menteeId     String
+  mentee       RiderProfile     @relation("MenteeRelation", fields: [menteeId], references: [id], onDelete: Cascade)
+  status       MentorshipStatus @default(PENDING)
+  zoneId       String?
+  zone         Zone?            @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  completionNote String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  checkIns     MentorCheckIn[]
+
+  @@unique([mentorId, menteeId]) // No duplicate pairings
+  @@index([mentorId, status])
+  @@index([menteeId, status])
+  @@index([zoneId])
+  @@map("mentorships")
+}
+
+model MentorCheckIn {
+  id           String     @id @default(cuid())
+  mentorshipId String
+  mentorship   Mentorship @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
+  authorId     String     // Who wrote this check-in (mentor or mentee)
+  note         String     @db.Text
+  rating       Int?       // 1-5 how the check-in went
+  createdAt    DateTime   @default(now())
+
+  @@index([mentorshipId])
+  @@map("mentor_check_ins")
+}
+
+// ── Events ──
+
+model Event {
+  id           String      @id @default(cuid())
+  title        String
+  description  String      @db.Text
+  type         EventType   @default(IN_PERSON)
+  status       EventStatus @default(UPCOMING)
+  date         DateTime
+  endDate      DateTime?
+  location     String?     // Physical address for in-person
+  virtualLink  String?     // URL for virtual/hybrid
+  imageUrl     String?
+  zoneId       String?
+  zone         Zone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  capacity     Int?        // Max attendees (null = unlimited)
+  createdById  String
+  createdBy    User        @relation("EventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  rsvps        EventRsvp[]
+
+  @@index([status, date])
+  @@index([zoneId])
+  @@map("events")
+}
+
+model EventRsvp {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId]) // One RSVP per user per event
+  @@index([userId])
+  @@map("event_rsvps")
+}
+
+// ── Rider Profile / Identity ──
+
+model RiderSpotlight {
+  id          String   @id @default(cuid())
+  riderId     String
+  rider       RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  title       String          // e.g. "Rider of the Month — January 2026"
+  story       String   @db.Text
+  imageUrl    String?
+  month       Int              // 1-12
+  year        Int
+  isFeatured  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([month, year])    // One spotlight per month
+  @@index([riderId])
+  @@index([year, month])
+  @@map("rider_spotlights")
+}
+
+// ── Feature Request Board ──
+
+model FeatureRequest {
+  id          String               @id @default(cuid())
+  authorId    String
+  author      User                 @relation("FeatureRequestAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title       String
+  description String               @db.Text
+  status      FeatureRequestStatus @default(SUBMITTED)
+  adminNote   String?
+  upvoteCount Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  upvotes     FeatureRequestUpvote[]
+
+  @@index([status])
+  @@index([upvoteCount])
+  @@index([authorId])
+  @@map("feature_requests")
+}
+
+model FeatureRequestUpvote {
+  id               String         @id @default(cuid())
+  featureRequestId String
+  featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+
+  @@unique([featureRequestId, userId]) // One upvote per user
+  @@index([userId])
+  @@map("feature_request_upvotes")
 }
 
 // ============================================================
