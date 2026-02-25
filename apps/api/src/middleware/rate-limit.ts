@@ -14,9 +14,8 @@ import { logger } from '../lib/logger';
 
 function isRedisConfigured(): boolean {
   const url = config.redis.url;
-  if (!url || url === 'redis://localhost:6379') {
-    if (config.nodeEnv === 'production') return false;
-  }
+  // Skip Redis if not configured or using default localhost in production
+  if (!url || url === 'redis://localhost:6379') return false;
   return true;
 }
 
@@ -31,11 +30,13 @@ if (isRedisConfigured()) {
     const Redis = require('ioredis');
     const redisClient = new Redis(config.redis.url, {
       enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
+      maxRetriesPerRequest: 0,  // Fail immediately — insurance limiter takes over
       lazyConnect: true,
+      connectTimeout: 3000,     // 3s max to connect
+      commandTimeout: 2000,     // 2s max per command
       retryStrategy: (times: number) => {
-        if (times > 3) return null; // Stop retrying after 3 attempts
-        return Math.min(times * 200, 1000);
+        if (times > 2) return null; // Stop retrying after 2 attempts
+        return Math.min(times * 100, 500);
       },
     });
 

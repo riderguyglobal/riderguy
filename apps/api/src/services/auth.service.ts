@@ -60,20 +60,19 @@ export class AuthService {
   }
 
   static async createOtp(phone: string, purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET') {
-    // Invalidate existing OTPs for this phone+purpose
-    await prisma.otp.updateMany({
-      where: { phone, purpose, verified: false },
-      data: { verified: true }, // mark old ones as used
-    });
-
     const code = this.generateOtpCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    const otp = await prisma.otp.create({
-      data: { phone, code, purpose, expiresAt },
-    });
+    // Create new OTP (critical path — only DB call we await)
+    const otp = await prisma.otp.create({ data: { phone, code, purpose, expiresAt } });
 
-    // Send OTP via mNotify SMS
+    // Invalidate old OTPs in background (fire-and-forget, excludes new OTP)
+    prisma.otp.updateMany({
+      where: { phone, purpose, verified: false, id: { not: otp.id } },
+      data: { verified: true },
+    }).catch(() => {});
+
+    // Send OTP via mNotify SMS (fire-and-forget)
     SmsService.sendOtp(phone, code).catch((err) => {
       logger.error({ err, phone, purpose }, 'Failed to send OTP SMS');
     });
