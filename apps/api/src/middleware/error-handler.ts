@@ -72,7 +72,7 @@ export const errorHandler: ErrorRequestHandler = (
           error: {
             code: 'DATABASE_ERROR',
             message: config.isProduction
-              ? 'A database error occurred'
+              ? `A database error occurred (${err.code})`
               : `Prisma error ${err.code}: ${err.message}`,
           },
         });

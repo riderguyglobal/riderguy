@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { prisma, Prisma } from '@riderguy/database';
+import { prisma } from '@riderguy/database';
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
@@ -189,9 +189,14 @@ export class AuthService {
     }
     const passwordHash = await this.hashPassword(credential);
 
-    // ---- 4. Create user + profile + wallet + session atomically ----
-    const { user, session } = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
+    // ---- 4. Create user + profile + wallet + session sequentially ----
+    // NOTE: We avoid prisma.$transaction(async callback) because Neon's
+    // pooled connection (PgBouncer) doesn't support interactive transactions.
+    // Instead we do sequential writes with cleanup on failure.
+
+    let user;
+    try {
+      user = await prisma.user.create({
         data: {
           phone: input.phone,
           firstName: input.firstName,
@@ -199,23 +204,31 @@ export class AuthService {
           email: input.email ?? null,
           passwordHash,
           role: input.role as PrismaUserRole,
-          phoneVerified: true, // They verified OTP before calling register
+          phoneVerified: true,
           status: 'ACTIVE',
         },
       });
+    } catch (err: any) {
+      // Unique constraint → meaningful message
+      if (err?.code === 'P2002') {
+        throw ApiError.conflict('A user with this phone number already exists', 'PHONE_EXISTS');
+      }
+      throw err;
+    }
 
+    try {
       // Create role-specific profiles
       if (input.role === 'RIDER') {
-        await tx.riderProfile.create({
+        await prisma.riderProfile.create({
           data: { userId: user.id },
         });
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
-        await tx.clientProfile.create({
+        await prisma.clientProfile.create({
           data: { userId: user.id },
         });
       } else if (input.role === 'PARTNER') {
         const { generateReferralCode } = await import('@riderguy/utils');
-        await tx.partnerProfile.create({
+        await prisma.partnerProfile.create({
           data: {
             userId: user.id,
             referralCode: generateReferralCode(),
@@ -224,19 +237,22 @@ export class AuthService {
       }
 
       // Create wallet
-      await tx.wallet.create({
+      await prisma.wallet.create({
         data: { userId: user.id },
       });
+    } catch (profileOrWalletErr) {
+      // Cleanup the user we just created so the phone isn't stuck
+      logger.error({ err: profileOrWalletErr, userId: user.id }, 'Register failed after user.create — cleaning up');
+      await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+      throw profileOrWalletErr;
+    }
 
-      // Create session
-      const session = await tx.session.create({
-        data: {
-          userId: user.id,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        },
-      });
-
-      return { user, session };
+    // Create session (outside cleanup block — failing here is non-catastrophic)
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
     });
 
     // ---- 5. Post-transaction side-effects (fire-and-forget) ----
