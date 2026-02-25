@@ -29,6 +29,8 @@ export interface OtpInputProps {
   hasError?: boolean;
   /** Auto-focus the first input on mount */
   autoFocus?: boolean;
+  /** Visual variant: 'dark' (default) for dark backgrounds, 'light' for light backgrounds */
+  variant?: 'dark' | 'light';
   /** Additional className for the wrapper */
   className?: string;
 }
@@ -48,12 +50,14 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
     disabled = false,
     hasError = false,
     autoFocus = true,
+    variant = 'dark',
     className,
   },
   ref
 ) {
   const [values, setValues] = useState<string[]>(Array(length).fill(''));
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const hiddenRef = useRef<HTMLInputElement | null>(null);
 
   // Expose imperative handle
   useImperativeHandle(ref, () => ({
@@ -72,6 +76,34 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
       inputRefs.current[0]?.focus();
     }
   }, [autoFocus]);
+
+  // Web OTP API — auto-read SMS code on supported browsers (Android Chrome)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
+
+    const ac = new AbortController();
+
+    (navigator.credentials as any)
+      .get({ otp: { transport: ['sms'] }, signal: ac.signal })
+      .then((otp: any) => {
+        if (otp?.code) {
+          const digits = otp.code.replace(/\D/g, '').slice(0, length);
+          if (digits.length === length) {
+            const next = digits.split('');
+            setValues(next);
+            onChange?.(digits);
+            onComplete?.(digits);
+            inputRefs.current[length - 1]?.focus();
+          }
+        }
+      })
+      .catch(() => {
+        // User dismissed or API unavailable — ignore
+      });
+
+    return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = useCallback(
     (index: number, digit: string) => {
@@ -140,7 +172,27 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
   );
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex items-center justify-center gap-2 sm:gap-3', className)}>
+      {/* Hidden input for browser OTP autofill suggestions */}
+      <input
+        ref={hiddenRef}
+        type="text"
+        autoComplete="one-time-code"
+        inputMode="numeric"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, '').slice(0, length);
+          if (digits.length === length) {
+            const next = digits.split('');
+            setValues(next);
+            onChange?.(digits);
+            onComplete?.(digits);
+            inputRefs.current[length - 1]?.focus();
+          }
+        }}
+      />
       {Array.from({ length }).map((_, i) => (
         <input
           key={i}
@@ -149,6 +201,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           }}
           type="text"
           inputMode="numeric"
+          autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={1}
           value={values[i]}
           disabled={disabled}
@@ -156,13 +209,18 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={i === 0 ? handlePaste : undefined}
+          onFocus={(e) => e.target.select()}
           className={cn(
-            'h-12 w-10 rounded-lg border text-center text-lg font-semibold',
-            'transition-colors duration-150 outline-none',
-            'focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30',
+            'h-12 w-10 sm:h-14 sm:w-12 rounded-xl border text-center text-lg font-bold',
+            'transition-all duration-200 outline-none',
+            'focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:scale-105',
             hasError
-              ? 'border-red-500 bg-red-50 text-red-900'
-              : 'border-gray-300 bg-white text-gray-900',
+              ? variant === 'dark'
+                ? 'border-red-500/50 bg-red-500/10 text-red-300'
+                : 'border-red-500 bg-red-50 text-red-900'
+              : variant === 'dark'
+                ? 'border-white/[0.12] bg-white/[0.06] text-white'
+                : 'border-surface-200 bg-surface-50 text-surface-900',
             disabled && 'cursor-not-allowed opacity-50'
           )}
         />

@@ -36,12 +36,13 @@ export default function RegisterPage() {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (otp.length < 6) return;
+  const handleVerifyOtp = async (code?: string) => {
+    const otpCode = code ?? otp;
+    if (otpCode.length < 6) return;
     setLoading(true);
     setError('');
     try {
-      await verifyOtp(phone, otp, 'REGISTRATION');
+      await verifyOtp(phone, otpCode, 'REGISTRATION');
       setStep(2);
     } catch {
       setError('Invalid code. Try again.');
@@ -136,10 +137,10 @@ export default function RegisterPage() {
               <p className="text-sm font-semibold text-surface-900">Verification code</p>
               <p className="text-xs text-surface-400 mt-1">Sent to {phone}</p>
             </div>
-            <OtpInput length={6} onChange={setOtp} />
+            <OtpInput length={6} variant="light" onChange={setOtp} onComplete={(code) => { setOtp(code); handleVerifyOtp(code); }} />
           </div>
           <button
-            onClick={handleVerifyOtp}
+            onClick={() => handleVerifyOtp()}
             disabled={loading || otp.length < 6}
             className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press disabled:opacity-50 flex items-center justify-center gap-2"
           >

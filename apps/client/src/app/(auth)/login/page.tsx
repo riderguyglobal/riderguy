@@ -37,12 +37,13 @@ export default function LoginPage() {
     }
   };
 
-  const handleOtpSubmit = async () => {
-    if (otp.length < 6) return;
+  const handleOtpSubmit = async (code?: string) => {
+    const otpCode = code ?? otp;
+    if (otpCode.length < 6) return;
     setLoading(true);
     setError('');
     try {
-      await loginWithOtp(phone, otp);
+      await loginWithOtp(phone, otpCode);
       router.replace('/dashboard');
     } catch {
       setError('Invalid verification code.');
@@ -135,10 +136,10 @@ export default function LoginPage() {
                   <p className="text-sm font-semibold text-surface-900">Enter verification code</p>
                   <p className="text-xs text-surface-400 mt-1">Sent to {phone}</p>
                 </div>
-                <OtpInput length={6} onChange={setOtp} />
+                <OtpInput length={6} variant="light" onChange={setOtp} onComplete={(code) => { setOtp(code); handleOtpSubmit(code); }} />
               </div>
               <button
-                onClick={handleOtpSubmit}
+                onClick={() => handleOtpSubmit()}
                 disabled={loading || otp.length < 6}
                 className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press disabled:opacity-50 flex items-center justify-center gap-2"
               >
