@@ -142,20 +142,32 @@ export default function ClientMap() {
           if (cancelled) return;
           setLoaded(true);
 
-          // Center on user location
-          navigator.geolocation?.getCurrentPosition(
-            (pos) => {
-              const { longitude: lng, latitude: lat } = pos.coords;
-              userCoordsRef.current = [lng, lat];
-              map.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 });
-            },
-            (err) => {
-              console.warn('[ClientMap] Geolocation unavailable:', err.message);
-            },
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
+          // Resolve user location BEFORE fetching nearby riders so we
+          // send the real coordinates instead of DEFAULT_CENTER.
+          await new Promise<void>((resolve) => {
+            if (!navigator.geolocation) {
+              console.warn('[ClientMap] Geolocation API not available');
+              resolve();
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const { longitude: lng, latitude: lat } = pos.coords;
+                userCoordsRef.current = [lng, lat];
+                map.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 });
+                resolve();
+              },
+              (err) => {
+                console.warn('[ClientMap] Geolocation unavailable:', err.message);
+                resolve(); // fall back to DEFAULT_CENTER
+              },
+              { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
+            );
+          });
 
-          // Fetch real nearby riders immediately
+          if (cancelled) return;
+
+          // Fetch nearby riders using the (now-resolved) user coordinates
           const riders = await fetchNearbyRiders();
           updateRiderMarkers(riders);
 
