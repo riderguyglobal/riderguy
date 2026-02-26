@@ -6,6 +6,9 @@ export const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ??
   '';
 
+/** Dark navigation map style for rider app */
+export const MAP_STYLE = 'mapbox://styles/mapbox/navigation-night-v1';
+
 /** Default map center: Accra, Ghana */
 export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];
 

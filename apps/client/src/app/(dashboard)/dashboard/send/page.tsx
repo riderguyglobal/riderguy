@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL, MAPBOX_TOKEN, PACKAGE_TYPES } from '@/lib/constants';
+import { API_BASE_URL, PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
 import {
   ArrowLeft,
@@ -66,12 +66,12 @@ export default function SendPackagePage() {
     setSearching(true);
     try {
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=GH&limit=5&types=address,poi,place`
+        `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(query)}`
       );
       const json = await res.json();
-      setSearchResults(json.features?.map((f: { place_name: string; center: [number, number] }) => ({
-        place_name: f.place_name,
-        center: f.center,
+      setSearchResults(json.data?.map((s: { placeName: string; latitude: number; longitude: number }) => ({
+        place_name: s.placeName,
+        center: [s.longitude, s.latitude] as [number, number],
       })) || []);
     } catch {
       setSearchResults([]);
@@ -100,10 +100,10 @@ export default function SendPackagePage() {
         const [lng, lat] = [pos.coords.longitude, pos.coords.latitude];
         try {
           const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&limit=1`
+            `${API_BASE_URL}/orders/reverse-geocode?latitude=${lat}&longitude=${lng}`
           );
           const json = await res.json();
-          const name = json.features?.[0]?.place_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+          const name = json.data?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
           const setter = searchTarget === 'pickup' ? setPickup : setDropoff;
           setter((prev) => ({ ...prev, address: name, coordinates: [lng, lat] }));
         } catch { /* fallback ignored */ }

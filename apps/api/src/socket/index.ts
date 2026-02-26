@@ -104,6 +104,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         });
 
         if (riderProfile) {
+          // Broadcast to all order rooms this rider is handling
           const activeOrders = await prisma.order.findMany({
             where: {
               riderId: riderProfile.id,
@@ -132,6 +133,17 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
               timestamp: new Date().toISOString(),
             });
           }
+
+          // Also broadcast to all clients so the nearby-riders map updates in real-time
+          io.to('role:CLIENT').emit('rider:location', {
+            orderId: '',
+            riderId: riderProfile.id,
+            latitude,
+            longitude,
+            heading,
+            speed,
+            timestamp: new Date().toISOString(),
+          });
         }
 
         ack?.({ success: true });
@@ -376,13 +388,20 @@ export function emitNewJob(zoneId: string | null, data: {
   distanceKm: number;
   totalPrice: number;
   packageType: string;
+  isMultiStop?: boolean;
+  totalStops?: number;
+  isScheduled?: boolean;
 }) {
   if (!io) return;
+  const payload = {
+    ...data,
+    isMultiStop: data.isMultiStop ?? false,
+    totalStops: data.totalStops ?? 2,
+    isScheduled: data.isScheduled ?? false,
+  };
   if (zoneId) {
-    // Emit only to riders in the specific zone room
-    io.to(`zone:${zoneId}`).emit('job:new', data);
+    io.to(`zone:${zoneId}`).emit('job:new', payload);
   } else {
-    // Fallback: emit to the global riders room (not all connected users)
-    io.to('role:RIDER').emit('job:new', data);
+    io.to('role:RIDER').emit('job:new', payload);
   }
 }

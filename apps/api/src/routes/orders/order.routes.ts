@@ -74,6 +74,45 @@ router.get(
   }),
 );
 
+/** GET /orders/reverse-geocode — Reverse geocode coordinates to address */
+router.get(
+  '/reverse-geocode',
+  asyncHandler(async (req, res) => {
+    const latitude = parseFloat(req.query.latitude as string);
+    const longitude = parseFloat(req.query.longitude as string);
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw ApiError.badRequest('Valid latitude and longitude query parameters are required');
+    }
+    const result = await GeocodingService.reverseGeocode(latitude, longitude);
+    res.status(StatusCodes.OK).json({ success: true, data: result });
+  }),
+);
+
+/** GET /orders/directions — Proxy Mapbox Directions API (keeps token server-side) */
+router.get(
+  '/directions',
+  asyncHandler(async (req, res) => {
+    const { coordinates, profile: driveProfile } = req.query;
+    if (!coordinates || typeof coordinates !== 'string') {
+      throw ApiError.badRequest('coordinates query parameter is required (format: lng,lat;lng,lat;...)');
+    }
+
+    const mapboxToken = (await import('../../config')).config.mapbox?.accessToken;
+    if (!mapboxToken) throw ApiError.internal('Map service not configured');
+
+    const routeProfile = driveProfile === 'cycling' ? 'cycling' : 'driving';
+    const url = `https://api.mapbox.com/directions/v5/mapbox/${routeProfile}/${coordinates}?geometries=geojson&overview=full&access_token=${mapboxToken}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw ApiError.internal('Directions service unavailable');
+    }
+
+    const data = await response.json();
+    res.status(StatusCodes.OK).json({ success: true, data });
+  }),
+);
+
 // ─────────────────────────────────────────────────────────────
 // Available Jobs (Rider Feed)
 // ─────────────────────────────────────────────────────────────

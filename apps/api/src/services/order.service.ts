@@ -90,6 +90,16 @@ export async function createOrder(
     paymentMethod: PaymentMethod;
     isScheduled?: boolean;
     scheduledAt?: string;
+    stops?: Array<{
+      type: 'PICKUP' | 'DROPOFF';
+      sequence: number;
+      address: string;
+      latitude: number;
+      longitude: number;
+      contactName?: string;
+      contactPhone?: string;
+      instructions?: string;
+    }>;
   },
 ) {
   const price = await calculatePrice(
@@ -133,6 +143,7 @@ export async function createOrder(
       deliveryPinCode: generateDeliveryPin(),
       isScheduled: input.isScheduled ?? false,
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+      stops: input.stops && input.stops.length > 0 ? input.stops : undefined,
       status: 'PENDING',
       statusHistory: {
         create: {

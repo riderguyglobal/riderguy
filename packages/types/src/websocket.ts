@@ -94,6 +94,11 @@ export interface OrderStatusUpdate {
   actor: string;
   note?: string;
   timestamp: string;
+  // Multi-stop: which stop changed (null for order-level status changes)
+  stopId?: string;
+  stopSequence?: number;
+  stopType?: 'PICKUP' | 'DROPOFF';
+  stopStatus?: string;
 }
 
 export interface ChatMessage {
@@ -120,6 +125,10 @@ export interface NewJobNotification {
   distanceKm: number;
   totalPrice: number;
   packageType: string;
+  // Multi-stop info
+  isMultiStop: boolean;
+  totalStops?: number;
+  isScheduled?: boolean;
 }
 
 /** Targeted job offer sent to the best-matching rider */
@@ -142,6 +151,15 @@ export interface JobOffer {
   currency: string;
   distanceToPickup: number; // km from rider to pickup
   expiresAt: string;        // ISO timestamp — 30s window
+  // Multi-stop details
+  isMultiStop: boolean;
+  stops?: Array<{
+    type: 'PICKUP' | 'DROPOFF';
+    sequence: number;
+    address: string;
+    latitude: number;
+    longitude: number;
+  }>;
 }
 
 // ── Community Chat Data Shapes (Sprint 11) ──

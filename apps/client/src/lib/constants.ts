@@ -3,16 +3,10 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
-const RAW_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
-
-export const MAPBOX_TOKEN: string = (() => {
-  if (RAW_TOKEN.startsWith('pk.')) return RAW_TOKEN;
-  try {
-    const decoded = atob(RAW_TOKEN);
-    if (decoded.startsWith('pk.')) return decoded;
-  } catch { /* ignore */ }
-  return RAW_TOKEN;
-})();
+export const MAPBOX_TOKEN: string =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+  '';
 
 export const MAP_STYLE = 'mapbox://styles/mapbox/light-v11';
 

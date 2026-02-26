@@ -100,6 +100,36 @@ enum OrderStatus {
   CANCELLED_BY_ADMIN
 }
 
+enum StopType {
+  PICKUP
+  DROPOFF
+}
+
+enum StopStatus {
+  PENDING
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  SKIPPED
+  FAILED
+}
+
+enum ScheduleFrequency {
+  ONCE
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum ScheduledDeliveryStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
 enum PackageType {
   DOCUMENT
   SMALL_PARCEL
@@ -212,6 +242,7 @@ model User {
   sessions       Session[]
   wallet         Wallet?
   ordersAsClient Order[]       @relation("ClientOrders")
+  scheduledDeliveries ScheduledDelivery[] @relation("ClientScheduledDeliveries")
   notifications  Notification[]
   pushTokens     PushToken[]
 
@@ -534,6 +565,15 @@ model Order {
   isScheduled           Boolean            @default(false)
   scheduledAt           DateTime?
 
+  // Multi-stop support
+  isMultiStop           Boolean            @default(false)
+  stops                 OrderStop[]
+  stopsJson             Json?              // Legacy / denormalized snapshot
+
+  // Scheduled delivery link
+  scheduledDeliveryId   String?
+  scheduledDelivery     ScheduledDelivery? @relation(fields: [scheduledDeliveryId], references: [id], onDelete: SetNull)
+
   // Failure
   failureReason         String?
   failurePhotoUrl       String?
@@ -556,7 +596,122 @@ model Order {
   @@index([zoneId])
   @@index([paymentStatus])
   @@index([createdAt])
+  @@index([scheduledDeliveryId])
   @@map("orders")
+}
+
+// ============================================================
+// MULTI-STOP: Individual pickup/dropoff stops within an order
+// ============================================================
+
+model OrderStop {
+  id                String     @id @default(cuid())
+  orderId           String
+  order             Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  type              StopType   // PICKUP or DROPOFF
+  sequence          Int        // Order in the route (1, 2, 3...)
+  status            StopStatus @default(PENDING)
+
+  // Location
+  address           String
+  latitude          Float
+  longitude         Float
+  placeId           String?    // Google/Mapbox place ID for precision
+
+  // Contact
+  contactName       String?
+  contactPhone      String?
+  instructions      String?
+
+  // Proof
+  proofType         ProofOfDeliveryType?
+  proofUrl          String?
+  pinCode           String?
+
+  // Package info (each stop can have its own package)
+  packageType       PackageType?
+  packageDescription String?
+  packagePhotoUrl   String?
+
+  // Timestamps
+  arrivedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([orderId])
+  @@index([orderId, sequence])
+  @@map("order_stops")
+}
+
+// ============================================================
+// SCHEDULED & RECURRING DELIVERIES
+// ============================================================
+
+model ScheduledDelivery {
+  id                  String                   @id @default(cuid())
+  clientId            String
+  client              User                     @relation("ClientScheduledDeliveries", fields: [clientId], references: [id], onDelete: Cascade)
+  zoneId              String?
+
+  // Schedule configuration
+  title               String?                  // e.g. "Daily office supplies run"
+  frequency           ScheduleFrequency        @default(ONCE)
+  scheduledDate       DateTime?                // For one-time future deliveries
+  scheduledTime       String?                  // HH:mm format for recurring (e.g. "09:00")
+  daysOfWeek          Int[]                    // For WEEKLY: [1,3,5] = Mon/Wed/Fri (ISO day numbers)
+  dayOfMonth          Int?                     // For MONTHLY: 1-31
+  customCronExpression String?                  // For CUSTOM frequency
+  startDate           DateTime?                // When the recurrence begins
+  endDate             DateTime?                // When the recurrence ends (null = indefinite)
+  maxOccurrences      Int?                     // Stop after N deliveries
+  occurrenceCount     Int                      @default(0)
+
+  // Route template (reused for each generated order)
+  pickupAddress       String
+  pickupLatitude      Float
+  pickupLongitude     Float
+  pickupContactName   String?
+  pickupContactPhone  String?
+  pickupInstructions  String?
+
+  dropoffAddress      String
+  dropoffLatitude     Float
+  dropoffLongitude    Float
+  dropoffContactName  String?
+  dropoffContactPhone String?
+  dropoffInstructions String?
+
+  // Multi-stop template
+  isMultiStop         Boolean                  @default(false)
+  stopsTemplate       Json?                    // Array of stop templates for multi-stop scheduled orders
+
+  // Package defaults
+  packageType         PackageType?
+  packageDescription  String?
+
+  // Pricing & payment
+  estimatedPrice      Decimal?
+  currency            String                   @default("GHS")
+  paymentMethod       PaymentMethod?
+
+  // Status
+  status              ScheduledDeliveryStatus  @default(ACTIVE)
+  lastGeneratedAt     DateTime?
+  nextScheduledAt     DateTime?
+
+  // Timestamps
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  // Relations
+  generatedOrders     Order[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([nextScheduledAt])
+  @@map("scheduled_deliveries")
 }
 
 model OrderStatusHistory {

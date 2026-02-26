@@ -110,6 +110,61 @@ router.post(
   })
 );
 
+/** GET /riders/nearby — Get online riders near a given location (for client maps) */
+router.get(
+  '/nearby',
+  asyncHandler(async (req, res) => {
+    const latitude = parseFloat(req.query.latitude as string);
+    const longitude = parseFloat(req.query.longitude as string);
+    const radiusKm = Math.min(parseFloat(req.query.radius as string) || 5, 50);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw ApiError.badRequest('Valid latitude and longitude are required');
+    }
+
+    // Find riders who are ONLINE with recent GPS data (last 10 minutes)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+    const riders = await prisma.riderProfile.findMany({
+      where: {
+        availability: 'ONLINE',
+        onboardingStatus: 'ACTIVATED',
+        currentLatitude: { not: null },
+        currentLongitude: { not: null },
+        lastLocationUpdate: { gte: tenMinutesAgo },
+      },
+      select: {
+        id: true,
+        currentLatitude: true,
+        currentLongitude: true,
+        user: { select: { firstName: true } },
+      },
+    });
+
+    // Filter by distance (haversine approximation)
+    const DEG_TO_RAD = Math.PI / 180;
+    const nearbyRiders = riders
+      .map((r) => {
+        const rLat = r.currentLatitude!;
+        const rLng = r.currentLongitude!;
+        const dLat = (rLat - latitude) * DEG_TO_RAD;
+        const dLng = (rLng - longitude) * DEG_TO_RAD;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(latitude * DEG_TO_RAD) *
+            Math.cos(rLat * DEG_TO_RAD) *
+            Math.sin(dLng / 2) ** 2;
+        const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return { id: r.id, latitude: rLat, longitude: rLng, firstName: r.user?.firstName, distKm };
+      })
+      .filter((r) => r.distKm <= radiusKm)
+      .sort((a, b) => a.distKm - b.distKm)
+      .slice(0, 50); // cap at 50
+
+    res.status(StatusCodes.OK).json({ success: true, data: nearbyRiders });
+  })
+);
+
 /** GET /riders (admin only) — list all riders */
 router.get(
   '/',

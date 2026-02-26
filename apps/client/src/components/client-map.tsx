@@ -1,114 +1,80 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { MAPBOX_TOKEN, MAP_STYLE, DEFAULT_CENTER } from '@/lib/constants';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { MAPBOX_TOKEN, MAP_STYLE, DEFAULT_CENTER, API_BASE_URL } from '@/lib/constants';
+import { connectSocket } from '@/hooks/use-socket';
 
+interface NearbyRider {
+  id: string;
+  latitude: number;
+  longitude: number;
+  firstName?: string;
+}
+
+/**
+ * Client dashboard map — shows real nearby online riders.
+ * Fetches rider positions from the API and listens to WebSocket
+ * for live location updates.
+ */
 export default function ClientMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapboxglRef = useRef<any>(null);
+  const markerMapRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userCoordsRef = useRef<[number, number]>(DEFAULT_CENTER);
   const [loaded, setLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [riderCount, setRiderCount] = useState(0);
 
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-
-    let cancelled = false;
-    (async () => {
-      const mapboxgl = (await import('mapbox-gl')).default;
-      if (cancelled || !containerRef.current) return;
-
-      mapboxgl.accessToken = MAPBOX_TOKEN;
-      const map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: MAP_STYLE,
-        center: DEFAULT_CENTER,
-        zoom: 14,
-        attributionControl: false,
-        interactive: false,
-        fadeDuration: 0,
+  /** Fetch nearby riders from backend API */
+  const fetchNearbyRiders = useCallback(async (): Promise<NearbyRider[]> => {
+    try {
+      const [lng, lat] = userCoordsRef.current;
+      const url = `${API_BASE_URL}/riders/nearby?latitude=${lat}&longitude=${lng}&radius=5`;
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.data ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
 
-      // Ensure map fills container after render
-      map.once('idle', () => map.resize());
+  /** Update rider markers on the map */
+  const updateRiderMarkers = useCallback((riders: NearbyRider[]) => {
+    const map = mapRef.current;
+    const mapboxgl = mapboxglRef.current;
+    if (!map || !mapboxgl) return;
 
-      mapRef.current = map;
+    setRiderCount(riders.length);
+    const currentIds = new Set(riders.map((r) => r.id));
 
-      map.on('load', () => {
-        if (cancelled) return;
-        setLoaded(true);
+    // Remove markers that are no longer nearby
+    for (const [id, marker] of markerMapRef.current.entries()) {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        markerMapRef.current.delete(id);
+      }
+    }
 
-        // Center on user location
-        navigator.geolocation?.getCurrentPosition(
-          (pos) => {
-            map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14, duration: 1500 });
-          },
-          () => {},
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-
-        // Simulated nearby riders as bike icons
-        const center = map.getCenter();
-        const riders = Array.from({ length: 6 }, (_, i) => ({
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: [
-              center.lng + (Math.random() - 0.5) * 0.02,
-              center.lat + (Math.random() - 0.5) * 0.02,
-            ],
-          },
-          properties: { id: i },
-        }));
-
-        map.addSource('nearby-riders', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: riders },
-        });
-
-        // Glow ring
-        map.addLayer({
-          id: 'riders-glow',
-          type: 'circle',
-          source: 'nearby-riders',
-          paint: {
-            'circle-radius': 18,
-            'circle-color': '#0ea5e9',
-            'circle-opacity': 0.08,
-            'circle-blur': 1,
-          },
-        });
-
-        // Outer pulse ring
-        map.addLayer({
-          id: 'riders-pulse',
-          type: 'circle',
-          source: 'nearby-riders',
-          paint: {
-            'circle-radius': 12,
-            'circle-color': '#0ea5e9',
-            'circle-opacity': 0.15,
-          },
-        });
-
-        // Core dot
-        map.addLayer({
-          id: 'riders-dots',
-          type: 'circle',
-          source: 'nearby-riders',
-          paint: {
-            'circle-radius': 5,
-            'circle-color': '#0ea5e9',
-            'circle-opacity': 0.85,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
-          },
-        });
-
-        // Add bike icon markers via HTML
-        riders.forEach((rider) => {
-          const el = document.createElement('div');
-          el.className = 'rider-marker-wrapper';
-          el.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#0ea5e9,#38bdf8);box-shadow:0 2px 8px rgba(14,165,233,0.35);border:2px solid white;">
+    // Add or update markers
+    for (const rider of riders) {
+      const existing = markerMapRef.current.get(rider.id);
+      if (existing) {
+        existing.setLngLat([rider.longitude, rider.latitude]);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'rider-marker-wrapper';
+        el.innerHTML = `
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <div style="position:absolute;inset:-4px;border-radius:14px;background:rgba(34,197,94,0.12);animation:pulse-ring 2.5s ease-out infinite;"></div>
+            <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#4ade80);box-shadow:0 2px 8px rgba(34,197,94,0.35);border:2px solid white;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="18.5" cy="17.5" r="3.5"/>
                 <circle cx="5.5" cy="17.5" r="3.5"/>
@@ -116,19 +82,112 @@ export default function ClientMap() {
                 <path d="m12 17.5 2-4.5h3l1.5-5"/>
                 <path d="M5.5 17.5 8 12l4-1V7"/>
               </svg>
-            </div>`;
-          new mapboxgl.Marker({ element: el, anchor: 'center' })
-            .setLngLat(rider.geometry.coordinates as [number, number])
-            .addTo(map);
+            </div>
+          </div>`;
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([rider.longitude, rider.latitude])
+          .addTo(map);
+        markerMapRef.current.set(rider.id, marker);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    // Token guard
+    if (!MAPBOX_TOKEN) {
+      setMapError('Map service not configured');
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const mapboxgl = (await import('mapbox-gl')).default;
+        if (cancelled || !containerRef.current) return;
+        mapboxglRef.current = mapboxgl;
+
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+        const map = new mapboxgl.Map({
+          container: containerRef.current,
+          style: MAP_STYLE,
+          center: DEFAULT_CENTER,
+          zoom: 14,
+          attributionControl: false,
+          interactive: true,
+          fadeDuration: 0,
         });
-      });
+
+        mapRef.current = map;
+
+        // Error handler
+        map.on('error', (e) => {
+          console.error('[ClientMap] Mapbox error:', e.error?.message ?? e);
+        });
+
+        // Resize observer
+        resizeObserverRef.current = new ResizeObserver(() => {
+          mapRef.current?.resize();
+        });
+        resizeObserverRef.current.observe(containerRef.current);
+
+        map.on('load', async () => {
+          if (cancelled) return;
+          setLoaded(true);
+
+          // Center on user location
+          navigator.geolocation?.getCurrentPosition(
+            (pos) => {
+              const { longitude: lng, latitude: lat } = pos.coords;
+              userCoordsRef.current = [lng, lat];
+              map.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 });
+            },
+            (err) => {
+              console.warn('[ClientMap] Geolocation unavailable:', err.message);
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+
+          // Fetch real nearby riders immediately
+          const riders = await fetchNearbyRiders();
+          updateRiderMarkers(riders);
+
+          // Poll for updated positions every 15 seconds
+          pollIntervalRef.current = setInterval(async () => {
+            const updated = await fetchNearbyRiders();
+            updateRiderMarkers(updated);
+          }, 15_000);
+        });
+
+        // Listen for live rider location updates via WebSocket
+        try {
+          const socket = connectSocket();
+          socket.on('rider:location', (data: { riderId: string; latitude: number; longitude: number }) => {
+            const existing = markerMapRef.current.get(data.riderId);
+            if (existing) {
+              existing.setLngLat([data.longitude, data.latitude]);
+            }
+          });
+        } catch {
+          // WebSocket is optional — API polling still works
+        }
+      } catch (err) {
+        console.error('[ClientMap] Failed to initialise map:', err);
+        setMapError('Failed to load map');
+      }
     })();
 
     return () => {
       cancelled = true;
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      resizeObserverRef.current?.disconnect();
+      markerMapRef.current.forEach((m) => m.remove());
+      markerMapRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -136,9 +195,9 @@ export default function ClientMap() {
       <div ref={containerRef} className="absolute inset-0" />
 
       {/* Shimmer loading */}
-      {!loaded && (
+      {!loaded && !mapError && (
         <div className="absolute inset-0 bg-gradient-to-br from-surface-50 via-surface-100 to-surface-50 flex items-center justify-center overflow-hidden">
-          <div className="absolute inset-0 animate-shimmer" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(14,165,233,0.06) 50%, transparent 100%)', backgroundSize: '200% 100%' }} />
+          <div className="absolute inset-0 animate-shimmer" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(34,197,94,0.06) 50%, transparent 100%)', backgroundSize: '200% 100%' }} />
           <div className="flex flex-col items-center gap-3">
             <div className="h-10 w-10 rounded-2xl brand-gradient flex items-center justify-center shadow-brand animate-pulse">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -151,6 +210,20 @@ export default function ClientMap() {
             </div>
             <p className="text-xs font-medium text-surface-400">Finding nearby riders...</p>
           </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {mapError && (
+        <div className="absolute inset-0 bg-gradient-to-br from-surface-50 via-surface-100 to-surface-50 flex items-center justify-center">
+          <p className="text-sm text-surface-500">{mapError}</p>
+        </div>
+      )}
+
+      {/* Rider count badge */}
+      {loaded && riderCount > 0 && (
+        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm border border-surface-200">
+          <p className="text-xs font-semibold text-brand-600">{riderCount} rider{riderCount !== 1 ? 's' : ''} nearby</p>
         </div>
       )}
 

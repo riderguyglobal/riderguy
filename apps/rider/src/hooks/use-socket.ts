@@ -52,7 +52,7 @@ export function useSocket() {
   }, []);
 
   const emitLocation = useCallback((lat: number, lng: number, heading?: number) => {
-    socketRef.current?.emit('rider:location:update', { latitude: lat, longitude: lng, heading });
+    socketRef.current?.emit('rider:updateLocation', { latitude: lat, longitude: lng, heading });
   }, []);
 
   const subscribeToOrder = useCallback((orderId: string) => {
