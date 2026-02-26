@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { MAPBOX_TOKEN, MAP_STYLE, DEFAULT_CENTER, API_BASE_URL } from '@/lib/constants';
+import { tokenStorage } from '@riderguy/auth';
 import { connectSocket } from '@/hooks/use-socket';
 
 interface NearbyRider {
@@ -34,10 +35,10 @@ export default function ClientMap() {
     try {
       const [lng, lat] = userCoordsRef.current;
       const url = `${API_BASE_URL}/riders/nearby?latitude=${lat}&longitude=${lng}&radius=5`;
-      const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
+      const token = tokenStorage.getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(url, { headers, credentials: 'include' });
       if (!res.ok) return [];
       const json = await res.json();
       return json.data ?? [];
@@ -126,6 +127,11 @@ export default function ClientMap() {
           console.error('[ClientMap] Mapbox error:', e.error?.message ?? e);
         });
 
+        // Force resize after first idle to ensure canvas fills container
+        map.once('idle', () => {
+          map.resize();
+        });
+
         // Resize observer
         resizeObserverRef.current = new ResizeObserver(() => {
           mapRef.current?.resize();
@@ -191,8 +197,8 @@ export default function ClientMap() {
   }, []);
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="relative w-full h-full" style={{ minHeight: '300px' }}>
+      <div ref={containerRef} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
 
       {/* Shimmer loading */}
       {!loaded && !mapError && (

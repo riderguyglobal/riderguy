@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { MAPBOX_TOKEN, MAP_STYLE, API_BASE_URL } from '@/lib/constants';
+import { tokenStorage } from '@riderguy/auth';
 
 interface TrackingMapProps {
   pickupCoords: [number, number] | null;
@@ -30,7 +31,10 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     try {
       const coordinates = `${from.join(',')};${to.join(',')}`;
       const url = `${API_BASE_URL}/orders/directions?coordinates=${encodeURIComponent(coordinates)}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const token = tokenStorage.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(url, { headers, credentials: 'include' });
       if (!res.ok) return null;
       const json = await res.json();
       return json.data?.routes?.[0]?.geometry ?? null;

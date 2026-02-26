@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { MAPBOX_TOKEN, DEFAULT_CENTER, MAP_STYLE, API_BASE_URL } from '@/lib/constants';
+import { tokenStorage } from '@riderguy/auth';
 import { haversineDistance } from '@riderguy/utils';
 import { Crosshair, Maximize2 } from 'lucide-react';
 
@@ -77,7 +78,11 @@ export function NavigationMap({
     try {
       const coordinates = buildWaypointsCoords(from, to);
       const url = `${API_BASE_URL}/orders/directions?coordinates=${encodeURIComponent(coordinates)}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const token = tokenStorage.getAccessToken();
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) {
         console.warn('[NavigationMap] Directions API returned', res.status);
         return;
