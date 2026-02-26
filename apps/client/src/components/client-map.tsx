@@ -23,6 +23,7 @@ export default function ClientMap() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapboxglRef = useRef<any>(null);
   const markerMapRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userCoordsRef = useRef<[number, number]>(DEFAULT_CENTER);
@@ -155,6 +156,19 @@ export default function ClientMap() {
                 const { longitude: lng, latitude: lat } = pos.coords;
                 userCoordsRef.current = [lng, lat];
                 map.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 });
+
+                // Add "You are here" blue dot marker
+                if (!userMarkerRef.current && mapboxglRef.current) {
+                  const el = document.createElement('div');
+                  el.innerHTML = `
+                    <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+                      <div style="position:absolute;inset:-6px;border-radius:50%;background:rgba(59,130,246,0.15);animation:pulse-ring 2.5s ease-out infinite;"></div>
+                      <div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 8px rgba(59,130,246,0.5);"></div>
+                    </div>`;
+                  userMarkerRef.current = new mapboxglRef.current.Marker({ element: el, anchor: 'center' })
+                    .setLngLat([lng, lat])
+                    .addTo(map);
+                }
                 resolve();
               },
               (err) => {
@@ -185,6 +199,28 @@ export default function ClientMap() {
             const existing = markerMapRef.current.get(data.riderId);
             if (existing) {
               existing.setLngLat([data.longitude, data.latitude]);
+            } else if (mapRef.current && mapboxglRef.current) {
+              // New rider came online — create their marker immediately
+              const el = document.createElement('div');
+              el.className = 'rider-marker-wrapper';
+              el.innerHTML = `
+                <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+                  <div style="position:absolute;inset:-4px;border-radius:14px;background:rgba(34,197,94,0.12);animation:pulse-ring 2.5s ease-out infinite;"></div>
+                  <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#4ade80);box-shadow:0 2px 8px rgba(34,197,94,0.35);border:2px solid white;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="18.5" cy="17.5" r="3.5"/>
+                      <circle cx="5.5" cy="17.5" r="3.5"/>
+                      <circle cx="15" cy="5" r="1"/>
+                      <path d="m12 17.5 2-4.5h3l1.5-5"/>
+                      <path d="M5.5 17.5 8 12l4-1V7"/>
+                    </svg>
+                  </div>
+                </div>`;
+              const marker = new mapboxglRef.current.Marker({ element: el, anchor: 'center' })
+                .setLngLat([data.longitude, data.latitude])
+                .addTo(mapRef.current);
+              markerMapRef.current.set(data.riderId, marker);
+              setRiderCount((c) => c + 1);
             }
           });
         } catch {
@@ -200,6 +236,8 @@ export default function ClientMap() {
       cancelled = true;
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       resizeObserverRef.current?.disconnect();
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
       markerMapRef.current.forEach((m) => m.remove());
       markerMapRef.current.clear();
       mapRef.current?.remove();
