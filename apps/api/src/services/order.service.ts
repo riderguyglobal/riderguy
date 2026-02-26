@@ -143,7 +143,21 @@ export async function createOrder(
       deliveryPinCode: generateDeliveryPin(),
       isScheduled: input.isScheduled ?? false,
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
-      stops: input.stops && input.stops.length > 0 ? input.stops : undefined,
+      isMultiStop: !!(input.stops && input.stops.length > 0),
+      stops: input.stops && input.stops.length > 0
+        ? {
+            create: input.stops.map((s, i) => ({
+              type: s.type,
+              sequence: s.sequence ?? i,
+              address: s.address,
+              latitude: s.latitude,
+              longitude: s.longitude,
+              contactName: s.contactName,
+              contactPhone: s.contactPhone,
+              instructions: s.instructions,
+            })),
+          }
+        : undefined,
       status: 'PENDING',
       statusHistory: {
         create: {

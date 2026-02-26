@@ -172,6 +172,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
       packageType: true,
       packageDescription: true,
       currency: true,
+      isMultiStop: true,
       zoneId: true,
     },
   });
@@ -342,6 +343,7 @@ function sendOfferToNextRider(
     packageType: string;
     packageDescription: string | null;
     currency: string;
+    isMultiStop?: boolean;
   },
 ): void {
   if (state.resolved) return;
@@ -384,6 +386,7 @@ function sendOfferToNextRider(
     currency: order.currency,
     distanceToPickup: rider.distance,
     expiresAt,
+    isMultiStop: order.isMultiStop ?? false,
   };
 
   logger.info(
@@ -496,7 +499,7 @@ export async function handleOfferResponse(
           pickupLatitude: true, pickupLongitude: true, dropoffLatitude: true, dropoffLongitude: true,
           distanceKm: true, estimatedDurationMinutes: true, totalPrice: true,
           serviceFee: true, riderEarnings: true, packageType: true,
-          packageDescription: true, currency: true,
+          packageDescription: true, currency: true, isMultiStop: true,
         },
       });
 
@@ -523,7 +526,7 @@ export async function handleOfferResponse(
       pickupLatitude: true, pickupLongitude: true, dropoffLatitude: true, dropoffLongitude: true,
       distanceKm: true, estimatedDurationMinutes: true, totalPrice: true,
       serviceFee: true, riderEarnings: true, packageType: true,
-      packageDescription: true, currency: true,
+      packageDescription: true, currency: true, isMultiStop: true,
     },
   });
 
