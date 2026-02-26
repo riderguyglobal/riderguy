@@ -40,9 +40,14 @@ export default function ClientMap() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(url, { headers, credentials: 'include' });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.warn('[ClientMap] /riders/nearby returned', res.status);
+        return [];
+      }
       const json = await res.json();
-      return json.data ?? [];
+      const riders = json.data ?? [];
+      console.log(`[ClientMap] Found ${riders.length} nearby rider(s)`, riders);
+      return riders;
     } catch {
       return [];
     }

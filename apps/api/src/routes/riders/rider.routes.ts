@@ -122,16 +122,15 @@ router.get(
       throw ApiError.badRequest('Valid latitude and longitude are required');
     }
 
-    // Find riders who are ONLINE with recent GPS data (last 10 minutes)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    // Find riders who are ONLINE with recent GPS data (last 30 minutes)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
 
     const riders = await prisma.riderProfile.findMany({
       where: {
         availability: 'ONLINE',
-        onboardingStatus: 'ACTIVATED',
         currentLatitude: { not: null },
         currentLongitude: { not: null },
-        lastLocationUpdate: { gte: tenMinutesAgo },
+        lastLocationUpdate: { gte: thirtyMinutesAgo },
       },
       select: {
         id: true,
