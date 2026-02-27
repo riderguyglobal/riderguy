@@ -7,21 +7,29 @@ import { Avatar, AvatarImage, AvatarFallback } from '@riderguy/ui';
 import { getInitials } from '@riderguy/utils';
 import {
   User, Shield, Bell, HelpCircle, FileText, LogOut,
-  ChevronRight, Bike, Settings
+  ChevronRight, Bike, Settings, Sun, Moon, Monitor
 } from 'lucide-react';
+import { useTheme } from '@/lib/theme';
 
 const MENU_ITEMS = [
   { icon: User, label: 'Edit Profile', href: '/dashboard/settings/profile', color: 'text-brand-400', bg: 'bg-brand-500/10', disabled: true },
   { icon: Shield, label: 'Security', href: '/dashboard/settings/security', color: 'text-accent-400', bg: 'bg-accent-500/10', disabled: true },
   { icon: Bell, label: 'Notifications', href: '/dashboard/settings/notifications', color: 'text-amber-400', bg: 'bg-amber-500/10', disabled: true },
   { icon: FileText, label: 'Documents', href: '/dashboard/onboarding/documents', color: 'text-purple-400', bg: 'bg-purple-500/10', disabled: false },
-  { icon: Bike, label: 'Vehicle Info', href: '/dashboard/onboarding/vehicle', color: 'text-cyan-400', bg: 'bg-cyan-500/10', disabled: false },
-  { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/settings/help', color: 'text-surface-400', bg: 'bg-surface-500/10', disabled: true },
+  { icon: Bike, label: 'Vehicle Info', href: '/dashboard/onboarding/vehicle', color: 'text-brand-400', bg: 'bg-brand-500/10', disabled: false },
+  { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/settings/help', color: 'text-muted', bg: 'bg-surface-500/10', disabled: true },
 ];
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
+
+  const THEME_OPTIONS = [
+    { value: 'light' as const, icon: Sun, label: 'Light' },
+    { value: 'dark' as const, icon: Moon, label: 'Dark' },
+    { value: 'system' as const, icon: Monitor, label: 'Auto' },
+  ];
 
   const handleLogout = async () => {
     await logout();
@@ -31,8 +39,8 @@ export default function SettingsPage() {
   return (
     <div className="min-h-[100dvh] pb-24 animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-[#0a0e17]/95 backdrop-blur-xl px-5 pt-4 pb-3">
-        <h1 className="text-xl font-bold text-white">Account</h1>
+      <div className="safe-area-top bg-nav backdrop-blur-xl px-5 pt-4 pb-3">
+        <h1 className="text-xl font-bold text-primary">Account</h1>
       </div>
 
       <div className="px-4 space-y-4">
@@ -42,7 +50,7 @@ export default function SettingsPage() {
             {/* Avatar with gradient ring */}
             <div className="relative">
               <div className="absolute -inset-0.5 rounded-full bg-gradient-to-br from-brand-500 to-accent-500 animate-gradient" style={{ backgroundSize: '200% 200%' }} />
-              <Avatar className="relative h-16 w-16 ring-2 ring-[#0a0e17]">
+              <Avatar className="relative h-16 w-16 ring-2 ring-page">
                 {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.firstName} />}
                 <AvatarFallback className="bg-brand-500/20 text-brand-400 text-lg font-bold">
                   {getInitials(user?.firstName ?? '', user?.lastName ?? '')}
@@ -50,10 +58,10 @@ export default function SettingsPage() {
               </Avatar>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-white truncate">
+              <p className="text-lg font-bold text-primary truncate">
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="text-sm text-surface-400 truncate">{user?.phone ?? user?.email}</p>
+              <p className="text-sm text-muted truncate">{user?.phone ?? user?.email}</p>
               <div className="flex items-center gap-1.5 mt-1.5">
                 <div className="status-dot online" />
                 <span className="text-xs text-accent-400 font-medium">Verified Rider</span>
@@ -68,26 +76,54 @@ export default function SettingsPage() {
             <button
               key={href}
               onClick={() => disabled ? alert('Coming soon') : router.push(href)}
-              className={`w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04] last:border-b-0 btn-press animate-slide-up ${disabled ? 'opacity-50 cursor-default' : ''}`}
+              className={`w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-hover-themed transition-colors border-b border-themed-subtle last:border-b-0 btn-press animate-slide-up ${disabled ? 'opacity-50 cursor-default' : ''}`}
               style={{ animationDelay: `${idx * 40}ms` }}
             >
               <div className={`h-9 w-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
                 <Icon className={`h-4.5 w-4.5 ${color}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-sm text-white font-medium text-left block">{label}</span>
-                {disabled && <span className="text-[10px] text-surface-500">Coming soon</span>}
+                <span className="text-sm text-primary font-medium text-left block">{label}</span>
+                {disabled && <span className="text-[10px] text-subtle">Coming soon</span>}
               </div>
-              <ChevronRight className="h-4 w-4 text-surface-600" />
+              <ChevronRight className="h-4 w-4 text-subtle" />
             </button>
           ))}
         </div>
 
+        {/* Appearance */}
+        <div className="glass-elevated rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-themed">
+            <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+              <Sun className="h-4 w-4 text-muted" />
+              Appearance
+            </h3>
+          </div>
+          <div className="p-3">
+            <div className="flex gap-2">
+              {THEME_OPTIONS.map(({ value, icon: Icon, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setTheme(value)}
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all btn-press ${
+                    theme === value
+                      ? 'gradient-brand text-white shadow-lg glow-brand'
+                      : 'bg-card hover:bg-hover-themed text-secondary'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Session manager */}
         <div className="glass-elevated rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Settings className="h-4 w-4 text-surface-400" />
+          <div className="px-4 py-3 border-b border-themed">
+            <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+              <Settings className="h-4 w-4 text-muted" />
               Active Sessions
             </h3>
           </div>

@@ -120,7 +120,7 @@ export default function EarningsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-[#0a0e17]">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-page">
         <div className="relative">
           <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl scale-150 animate-pulse" />
           <div className="animate-spin-slow"><Wallet className="h-8 w-8 text-brand-400" /></div>
@@ -132,8 +132,8 @@ export default function EarningsPage() {
   return (
     <div className="min-h-[100dvh] pb-24 animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-[#0a0e17]/95 backdrop-blur-xl px-5 pt-4 pb-3">
-        <h1 className="text-xl font-bold text-white">Earnings</h1>
+      <div className="safe-area-top bg-nav backdrop-blur-xl px-5 pt-4 pb-3">
+        <h1 className="text-xl font-bold text-primary">Earnings</h1>
       </div>
 
       <div className="px-4 space-y-4">
@@ -158,7 +158,7 @@ export default function EarningsPage() {
             </p>
             <Button
               onClick={openWithdraw}
-              className="w-full bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm border border-white/10 font-semibold rounded-xl"
+              className="w-full bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm border border-themed font-semibold rounded-xl"
               size="lg"
             >
               <ArrowUpRight className="h-4 w-4 mr-2" />
@@ -173,22 +173,22 @@ export default function EarningsPage() {
             <div className="h-9 w-9 rounded-xl bg-accent-500/10 flex items-center justify-center mb-3">
               <TrendingUp className="h-4.5 w-4.5 text-accent-400" />
             </div>
-            <p className="text-lg font-bold text-white tabular-nums">{formatCurrency(wallet?.totalEarned ?? 0)}</p>
-            <p className="text-xs text-surface-500 mt-0.5">Total Earnings</p>
+            <p className="text-lg font-bold text-primary tabular-nums">{formatCurrency(wallet?.totalEarned ?? 0)}</p>
+            <p className="text-xs text-subtle mt-0.5">Total Earnings</p>
           </div>
           <div className="glass-elevated rounded-2xl p-4">
             <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center mb-3">
               <ArrowUpRight className="h-4.5 w-4.5 text-amber-400" />
             </div>
-            <p className="text-lg font-bold text-white tabular-nums">{formatCurrency(wallet?.totalWithdrawn ?? 0)}</p>
-            <p className="text-xs text-surface-500 mt-0.5">Withdrawn</p>
+            <p className="text-lg font-bold text-primary tabular-nums">{formatCurrency(wallet?.totalWithdrawn ?? 0)}</p>
+            <p className="text-xs text-subtle mt-0.5">Withdrawn</p>
           </div>
         </div>
 
         {/* Transaction history */}
         <div className="glass-elevated rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <h3 className="text-sm font-semibold text-white">Recent Transactions</h3>
+          <div className="px-4 py-3 border-b border-themed">
+            <h3 className="text-sm font-semibold text-primary">Recent Transactions</h3>
           </div>
 
           {transactions.length === 0 ? (
@@ -196,11 +196,11 @@ export default function EarningsPage() {
               <div className="relative inline-flex mb-3">
                 <div className="absolute inset-0 rounded-full bg-surface-500/10 blur-xl scale-150" />
                 <div className="relative h-12 w-12 rounded-xl glass flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-surface-500" />
+                  <DollarSign className="h-6 w-6 text-subtle" />
                 </div>
               </div>
-              <p className="text-surface-400 text-sm font-medium">No transactions yet</p>
-              <p className="text-surface-500 text-xs mt-1">Complete deliveries to start earning</p>
+              <p className="text-muted text-sm font-medium">No transactions yet</p>
+              <p className="text-subtle text-xs mt-1">Complete deliveries to start earning</p>
             </div>
           ) : (
             transactions.map((tx, idx) => {
@@ -208,7 +208,7 @@ export default function EarningsPage() {
               return (
                 <div
                   key={tx.id}
-                  className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.04] last:border-b-0 animate-slide-up"
+                  className="flex items-center gap-3 px-4 py-3.5 border-b border-themed-subtle last:border-b-0 animate-slide-up"
                   style={{ animationDelay: `${idx * 40}ms` }}
                 >
                   <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
@@ -220,10 +220,10 @@ export default function EarningsPage() {
                     }
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{tx.description ?? tx.type}</p>
-                    <p className="text-[10px] text-surface-500">{timeAgo(new Date(tx.createdAt))}</p>
+                    <p className="text-sm text-primary font-medium truncate">{tx.description ?? tx.type}</p>
+                    <p className="text-[10px] text-subtle">{timeAgo(new Date(tx.createdAt))}</p>
                   </div>
-                  <p className={`text-sm font-bold tabular-nums ${isCredit ? 'text-accent-400' : 'text-white'}`}>
+                  <p className={`text-sm font-bold tabular-nums ${isCredit ? 'text-accent-400' : 'text-primary'}`}>
                     {isCredit ? '+' : '-'}{formatCurrency(tx.amount)}
                   </p>
                 </div>
@@ -235,9 +235,9 @@ export default function EarningsPage() {
 
       {/* Withdrawal dialog */}
       <Dialog open={showWithdraw} onOpenChange={setShowWithdraw}>
-        <DialogContent className="bg-[#111827] border-white/[0.08] max-w-sm rounded-2xl">
+        <DialogContent className="bg-card-strong border-themed-strong max-w-sm rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-primary">
               {wSuccess ? 'Withdrawal Submitted' : 'Withdraw Funds'}
             </DialogTitle>
           </DialogHeader>
@@ -250,8 +250,8 @@ export default function EarningsPage() {
                   <CheckCircle className="h-8 w-8 text-accent-400" />
                 </div>
               </div>
-              <p className="text-white font-semibold mb-1">Request submitted!</p>
-              <p className="text-surface-400 text-sm">Your withdrawal is being processed.</p>
+              <p className="text-primary font-semibold mb-1">Request submitted!</p>
+              <p className="text-muted text-sm">Your withdrawal is being processed.</p>
               <Button className="mt-6 gradient-brand text-white rounded-xl font-semibold" onClick={() => setShowWithdraw(false)}>
                 Done
               </Button>
@@ -267,7 +267,7 @@ export default function EarningsPage() {
 
               {wStep === 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm text-surface-300">Choose withdrawal method</p>
+                  <p className="text-sm text-secondary">Choose withdrawal method</p>
                   {([
                     { method: 'MOBILE_MONEY' as WithdrawMethod, label: 'Mobile Money', icon: Smartphone, desc: 'MoMo, Vodafone Cash, AirtelTigo' },
                     { method: 'BANK_TRANSFER' as WithdrawMethod, label: 'Bank Transfer', icon: Building2, desc: 'Transfer to bank account' },
@@ -276,17 +276,17 @@ export default function EarningsPage() {
                       key={method}
                       onClick={() => { setWMethod(method); setWStep(1); }}
                       className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all btn-press ${
-                        wMethod === method ? 'border-brand-500 bg-brand-500/10 shadow-lg shadow-brand-500/10' : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]'
+                        wMethod === method ? 'border-brand-500 bg-brand-500/10 shadow-lg shadow-brand-500/10' : 'border-themed-strong bg-hover-themed hover:bg-skeleton'
                       }`}
                     >
                       <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
                         <Icon className="h-5 w-5 text-brand-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="text-sm font-semibold text-white">{label}</p>
-                        <p className="text-xs text-surface-500">{desc}</p>
+                        <p className="text-sm font-semibold text-primary">{label}</p>
+                        <p className="text-xs text-subtle">{desc}</p>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-surface-500" />
+                      <ChevronRight className="h-4 w-4 text-subtle" />
                     </button>
                   ))}
                 </div>
@@ -294,14 +294,14 @@ export default function EarningsPage() {
 
               {wStep === 1 && (
                 <div className="space-y-4">
-                  <p className="text-sm text-surface-300">Enter account details</p>
+                  <p className="text-sm text-secondary">Enter account details</p>
                   {wMethod === 'BANK_TRANSFER' && (
                     <div>
-                      <label className="block text-xs text-surface-400 mb-1.5">Bank</label>
+                      <label className="block text-xs text-muted mb-1.5">Bank</label>
                       <select
                         value={wBankCode}
                         onChange={(e) => setWBankCode(e.target.value)}
-                        className="w-full py-3 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white outline-none focus:border-brand-500 appearance-none transition-colors"
+                        className="w-full py-3 px-4 rounded-xl bg-card border border-themed-strong text-primary outline-none focus:border-brand-500 appearance-none transition-colors"
                       >
                         <option value="">Select bank</option>
                         {banks.map((b) => (
@@ -311,18 +311,18 @@ export default function EarningsPage() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs text-surface-400 mb-1.5">
+                    <label className="block text-xs text-muted mb-1.5">
                       {wMethod === 'MOBILE_MONEY' ? 'Phone Number' : 'Account Number'}
                     </label>
                     <Input
                       value={wAccountNumber}
                       onChange={(e) => setWAccountNumber(e.target.value)}
                       placeholder={wMethod === 'MOBILE_MONEY' ? '024XXXXXXX' : 'Enter account number'}
-                      className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl"
+                      className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl"
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 border-white/10 text-surface-300 rounded-xl" onClick={() => setWStep(0)}>
+                    <Button variant="outline" className="flex-1 border-themed text-secondary rounded-xl" onClick={() => setWStep(0)}>
                       Back
                     </Button>
                     <Button className="flex-1 gradient-brand text-white rounded-xl font-semibold" onClick={resolveAccount} loading={wSubmitting}>
@@ -335,21 +335,21 @@ export default function EarningsPage() {
               {wStep === 2 && (
                 <div className="space-y-4">
                   <div className="p-3 rounded-xl bg-accent-500/10 border border-accent-500/20">
-                    <p className="text-xs text-surface-400">Account verified</p>
-                    <p className="text-sm font-semibold text-white">{wAccountName}</p>
-                    <p className="text-xs text-surface-500">{wAccountNumber}</p>
+                    <p className="text-xs text-muted">Account verified</p>
+                    <p className="text-sm font-semibold text-primary">{wAccountName}</p>
+                    <p className="text-xs text-subtle">{wAccountNumber}</p>
                   </div>
                   <div>
-                    <label className="block text-xs text-surface-400 mb-1.5">Amount (GH₵)</label>
+                    <label className="block text-xs text-muted mb-1.5">Amount (GH₵)</label>
                     <Input
                       type="number"
                       inputMode="decimal"
                       value={wAmount}
                       onChange={(e) => setWAmount(e.target.value)}
                       placeholder="0.00"
-                      className="bg-white/[0.04] border-white/[0.08] text-white text-xl font-bold placeholder:text-surface-500 rounded-xl"
+                      className="bg-card border-themed-strong text-primary text-xl font-bold placeholder:text-subtle rounded-xl"
                     />
-                    <p className="text-xs text-surface-500 mt-1">
+                    <p className="text-xs text-subtle mt-1">
                       Available: {formatCurrency(wallet?.balance ?? 0)} · Min: GH₵5
                     </p>
                   </div>
@@ -359,7 +359,7 @@ export default function EarningsPage() {
                       <button
                         key={amt}
                         onClick={() => setWAmount(String(amt))}
-                        className="flex-1 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white font-medium hover:bg-white/[0.08] transition-colors btn-press"
+                        className="flex-1 py-2.5 rounded-xl bg-card border border-themed-strong text-sm text-primary font-medium hover:bg-active-themed transition-colors btn-press"
                       >
                         GH₵{amt}
                       </button>
@@ -372,7 +372,7 @@ export default function EarningsPage() {
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 border-white/10 text-surface-300 rounded-xl" onClick={() => setWStep(1)}>
+                    <Button variant="outline" className="flex-1 border-themed text-secondary rounded-xl" onClick={() => setWStep(1)}>
                       Back
                     </Button>
                     <Button className="flex-1 gradient-accent text-white rounded-xl font-semibold shadow-lg shadow-accent-500/20" onClick={submitWithdrawal} loading={wSubmitting}>

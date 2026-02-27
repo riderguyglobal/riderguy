@@ -24,15 +24,15 @@ export default function MentorshipPage() {
   const [tab, setTab] = useState<Tab>('my');
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/community" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community" className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white">Mentorship</h1>
+            <h1 className="text-lg font-semibold text-primary">Mentorship</h1>
             <div className="w-9" />
           </div>
           <div className="flex gap-1 pb-3">
@@ -45,8 +45,8 @@ export default function MentorshipPage() {
                 onClick={() => setTab(t.id)}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   tab === t.id
-                    ? 'bg-brand-500/20 text-brand-400 shadow-[0_0_12px_rgba(14,165,233,0.15)]'
-                    : 'text-surface-400 hover:text-surface-200 hover:bg-white/[0.04]'
+                    ? 'bg-brand-500/20 text-brand-400 shadow-[0_0_12px_rgba(34,197,94,0.15)]'
+                    : 'text-muted hover:text-secondary hover:bg-hover-themed'
                 }`}
               >
                 {t.icon}
@@ -78,7 +78,7 @@ function MyMentorshipsTab() {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
-        <p className="text-surface-400 text-sm mt-3">Loading...</p>
+        <p className="text-muted text-sm mt-3">Loading...</p>
       </div>
     );
   }
@@ -91,8 +91,8 @@ function MyMentorshipsTab() {
         <div className="h-16 w-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
           <Users className="h-8 w-8 text-brand-500" />
         </div>
-        <h3 className="text-white font-semibold mb-1">No mentorships yet</h3>
-        <p className="text-surface-400 text-sm max-w-[260px]">
+        <h3 className="text-primary font-semibold mb-1">No mentorships yet</h3>
+        <p className="text-muted text-sm max-w-[260px]">
           Find an experienced rider to guide you, or mentor newer riders
         </p>
       </div>
@@ -103,7 +103,7 @@ function MyMentorshipsTab() {
     <div className="space-y-6">
       {myMentorships.asMentee.length > 0 && (
         <div>
-          <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+          <h2 className="text-primary font-semibold mb-3 flex items-center gap-2">
             <Award className="h-4 w-4 text-brand-400" />
             My Mentors
           </h2>
@@ -117,7 +117,7 @@ function MyMentorshipsTab() {
 
       {myMentorships.asMentor.length > 0 && (
         <div>
-          <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+          <h2 className="text-primary font-semibold mb-3 flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-emerald-400" />
             My Mentees
           </h2>
@@ -138,14 +138,14 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
     PENDING: { icon: <Clock className="h-3.5 w-3.5" />, color: 'text-amber-400', bg: 'bg-amber-400/10' },
     ACTIVE: { icon: <CheckCircle className="h-3.5 w-3.5" />, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
     COMPLETED: { icon: <Star className="h-3.5 w-3.5" />, color: 'text-brand-400', bg: 'bg-brand-400/10' },
-    CANCELLED: { icon: <XCircle className="h-3.5 w-3.5" />, color: 'text-surface-500', bg: 'bg-surface-500/10' },
+    CANCELLED: { icon: <XCircle className="h-3.5 w-3.5" />, color: 'text-subtle', bg: 'bg-surface-500/10' },
   };
   const s = (statusConfig[record.status] ?? statusConfig.PENDING)!;
 
   return (
     <Link
       href={`/dashboard/community/mentorship/${record.id}`}
-      className="block p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors"
+      className="block p-4 rounded-2xl bg-hover-themed border border-themed hover:bg-active-themed transition-colors"
     >
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
@@ -159,7 +159,7 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-white font-semibold text-sm truncate">
+            <span className="text-primary font-semibold text-sm truncate">
               {other?.user?.firstName} {other?.user?.lastName}
             </span>
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${s.color} ${s.bg}`}>
@@ -167,7 +167,7 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
               {record.status}
             </span>
           </div>
-          <div className="flex items-center gap-2 mt-1 text-xs text-surface-400">
+          <div className="flex items-center gap-2 mt-1 text-xs text-muted">
             <span>Level {other?.currentLevel}</span>
             <span>•</span>
             <span>{other?.totalDeliveries} deliveries</span>
@@ -179,7 +179,7 @@ function MentorshipCard({ record, role }: { record: MentorshipRecord; role: 'men
             )}
           </div>
         </div>
-        <ChevronRight className="h-4 w-4 text-surface-500 flex-shrink-0" />
+        <ChevronRight className="h-4 w-4 text-subtle flex-shrink-0" />
       </div>
     </Link>
   );
@@ -198,7 +198,7 @@ function FindMentorTab() {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
-        <p className="text-surface-400 text-sm mt-3">Finding mentors...</p>
+        <p className="text-muted text-sm mt-3">Finding mentors...</p>
       </div>
     );
   }
@@ -207,10 +207,10 @@ function FindMentorTab() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="h-16 w-16 rounded-2xl bg-surface-500/10 flex items-center justify-center mb-4">
-          <Search className="h-8 w-8 text-surface-500" />
+          <Search className="h-8 w-8 text-subtle" />
         </div>
-        <h3 className="text-white font-semibold mb-1">No mentors available</h3>
-        <p className="text-surface-400 text-sm max-w-[260px]">
+        <h3 className="text-primary font-semibold mb-1">No mentors available</h3>
+        <p className="text-muted text-sm max-w-[260px]">
           Riders at Level 3+ can mentor. Check back later!
         </p>
       </div>
@@ -219,7 +219,7 @@ function FindMentorTab() {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-white font-semibold mb-3">Available Mentors</h2>
+      <h2 className="text-primary font-semibold mb-3">Available Mentors</h2>
       {mentors.map((m) => (
         <MentorCard key={m.id} mentor={m} />
       ))}
@@ -232,7 +232,7 @@ function FindMentorTab() {
               className={`h-8 w-8 rounded-lg text-xs font-medium transition-colors ${
                 p === pagination.page
                   ? 'bg-brand-500 text-white'
-                  : 'bg-white/[0.04] text-surface-400 hover:bg-white/[0.08]'
+                  : 'bg-card text-muted hover:bg-active-themed'
               }`}
             >
               {p}
@@ -262,7 +262,7 @@ function MentorCard({ mentor }: { mentor: Mentor }) {
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+    <div className="p-4 rounded-2xl bg-hover-themed border border-themed">
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
           {mentor.user.avatarUrl ? (
@@ -274,10 +274,10 @@ function MentorCard({ mentor }: { mentor: Mentor }) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-sm">
+          <h3 className="text-primary font-semibold text-sm">
             {mentor.user.firstName} {mentor.user.lastName}
           </h3>
-          <div className="flex items-center gap-2 mt-0.5 text-xs text-surface-400">
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-muted">
             <span className="text-brand-400 font-medium">Lvl {mentor.currentLevel}</span>
             <span>•</span>
             <span>{mentor.totalDeliveries} deliveries</span>
@@ -288,9 +288,9 @@ function MentorCard({ mentor }: { mentor: Mentor }) {
             </span>
           </div>
           {mentor.bio && (
-            <p className="text-surface-300 text-xs mt-1 line-clamp-2">{mentor.bio}</p>
+            <p className="text-secondary text-xs mt-1 line-clamp-2">{mentor.bio}</p>
           )}
-          <div className="flex items-center gap-2 mt-1 text-[10px] text-surface-500">
+          <div className="flex items-center gap-2 mt-1 text-[10px] text-subtle">
             {mentor.currentZone && <span>{mentor.currentZone.name}</span>}
             {mentor.currentZone && <span>•</span>}
             <span>{mentor.activeMenteeCount}/5 mentees</span>
@@ -304,7 +304,7 @@ function MentorCard({ mentor }: { mentor: Mentor }) {
           requested
             ? 'bg-emerald-500/20 text-emerald-400'
             : mentor.activeMenteeCount >= 5
-              ? 'bg-white/[0.03] text-surface-500 cursor-not-allowed'
+              ? 'bg-hover-themed text-subtle cursor-not-allowed'
               : 'bg-brand-500 text-white shadow-lg shadow-brand-500/20 active:scale-[0.98]'
         }`}
       >

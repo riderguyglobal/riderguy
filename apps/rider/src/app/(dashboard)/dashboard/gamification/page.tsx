@@ -160,7 +160,7 @@ export default function GamificationPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
         <div className="h-8 w-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -168,10 +168,10 @@ export default function GamificationPage() {
 
   if (error || !profile) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center p-6">
         <div className="glass rounded-2xl p-6 text-center max-w-sm">
-          <Trophy className="h-8 w-8 text-surface-500 mx-auto mb-3" />
-          <p className="text-surface-400 text-sm">{error ?? 'Could not load gamification data'}</p>
+          <Trophy className="h-8 w-8 text-subtle mx-auto mb-3" />
+          <p className="text-muted text-sm">{error ?? 'Could not load gamification data'}</p>
           <Link href="/dashboard" className="text-brand-400 text-sm font-medium mt-3 inline-block">
             Back to Dashboard
           </Link>
@@ -190,16 +190,16 @@ export default function GamificationPage() {
   }, {});
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* ── Header ── */}
       <header className="relative overflow-hidden">
         <div className={`absolute inset-0 bg-gradient-to-br ${LEVEL_GRADIENTS[profile.currentLevel] ?? LEVEL_GRADIENTS[1]} opacity-20`} />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#0a0e17]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-page" />
 
         <div className="relative px-5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6">
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-2 text-surface-400 text-sm font-medium mb-6 btn-press"
+            className="inline-flex items-center gap-2 text-muted text-sm font-medium mb-6 btn-press"
           >
             <ArrowLeft className="h-4 w-4" />
             Dashboard
@@ -221,7 +221,7 @@ export default function GamificationPage() {
                   />
                   <defs>
                     <linearGradient id="levelGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#0ea5e9" />
+                      <stop offset="0%" stopColor="#22c55e" />
                       <stop offset="100%" stopColor="#22c55e" />
                     </linearGradient>
                   </defs>
@@ -234,7 +234,7 @@ export default function GamificationPage() {
 
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-surface-400 text-xs font-medium uppercase tracking-widest">Level {profile.currentLevel}</span>
+                <span className="text-muted text-xs font-medium uppercase tracking-widest">Level {profile.currentLevel}</span>
                 {profile.isMaxLevel && (
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">MAX</span>
                 )}
@@ -245,11 +245,11 @@ export default function GamificationPage() {
 
               {!profile.isMaxLevel && (
                 <div className="mt-2">
-                  <div className="flex items-center justify-between text-[10px] text-surface-500 mb-1">
+                  <div className="flex items-center justify-between text-[10px] text-subtle mb-1">
                     <span>{profile.totalXp.toLocaleString()} XP</span>
                     <span>{profile.nextLevelXp.toLocaleString()} XP</span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-2 rounded-full bg-skeleton overflow-hidden">
                     <div
                       className={`h-full rounded-full bg-gradient-to-r ${LEVEL_GRADIENTS[profile.currentLevel] ?? LEVEL_GRADIENTS[1]} transition-all duration-1000 ease-out`}
                       style={{ width: `${Math.min(profile.progressPercent, 100)}%` }}
@@ -258,7 +258,7 @@ export default function GamificationPage() {
                 </div>
               )}
               {profile.isMaxLevel && (
-                <p className="text-surface-400 text-xs mt-1">{profile.totalXp.toLocaleString()} XP total</p>
+                <p className="text-muted text-xs mt-1">{profile.totalXp.toLocaleString()} XP total</p>
               )}
             </div>
           </div>
@@ -267,23 +267,23 @@ export default function GamificationPage() {
           <div className="grid grid-cols-4 gap-2.5 mt-5">
             <div className="glass rounded-xl p-2.5 text-center">
               <Zap className="h-3.5 w-3.5 text-accent-400 mx-auto mb-1" />
-              <p className="text-white font-bold text-sm tabular-nums">{profile.totalXp.toLocaleString()}</p>
-              <p className="text-surface-500 text-[9px] uppercase tracking-wider">XP</p>
+              <p className="text-primary font-bold text-sm tabular-nums">{profile.totalXp.toLocaleString()}</p>
+              <p className="text-subtle text-[9px] uppercase tracking-wider">XP</p>
             </div>
             <div className="glass rounded-xl p-2.5 text-center">
               <Medal className="h-3.5 w-3.5 text-amber-400 mx-auto mb-1" />
-              <p className="text-white font-bold text-sm tabular-nums">{earnedBadges.length}</p>
-              <p className="text-surface-500 text-[9px] uppercase tracking-wider">Badges</p>
+              <p className="text-primary font-bold text-sm tabular-nums">{earnedBadges.length}</p>
+              <p className="text-subtle text-[9px] uppercase tracking-wider">Badges</p>
             </div>
             <div className="glass rounded-xl p-2.5 text-center">
               <Flame className="h-3.5 w-3.5 text-orange-400 mx-auto mb-1" />
-              <p className="text-white font-bold text-sm tabular-nums">{streak?.currentStreak ?? 0}</p>
-              <p className="text-surface-500 text-[9px] uppercase tracking-wider">Streak</p>
+              <p className="text-primary font-bold text-sm tabular-nums">{streak?.currentStreak ?? 0}</p>
+              <p className="text-subtle text-[9px] uppercase tracking-wider">Streak</p>
             </div>
             <div className="glass rounded-xl p-2.5 text-center">
               <Gift className="h-3.5 w-3.5 text-pink-400 mx-auto mb-1" />
-              <p className="text-white font-bold text-sm tabular-nums">{rewardBalance.toLocaleString()}</p>
-              <p className="text-surface-500 text-[9px] uppercase tracking-wider">Points</p>
+              <p className="text-primary font-bold text-sm tabular-nums">{rewardBalance.toLocaleString()}</p>
+              <p className="text-subtle text-[9px] uppercase tracking-wider">Points</p>
             </div>
           </div>
 
@@ -294,7 +294,7 @@ export default function GamificationPage() {
                 <Sparkles className="h-4 w-4 text-accent-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-accent-400 text-xs font-bold">{bonusEvents[0]?.title}</p>
-                  <p className="text-surface-400 text-[10px]">{bonusEvents[0]?.multiplier}x XP — {bonusEvents[0]?.description}</p>
+                  <p className="text-muted text-[10px]">{bonusEvents[0]?.multiplier}x XP — {bonusEvents[0]?.description}</p>
                 </div>
               </div>
             </div>
@@ -304,7 +304,7 @@ export default function GamificationPage() {
 
       {/* ── Tab navigation ── */}
       <div className="px-5 mb-4">
-        <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04]">
+        <div className="flex gap-1 p-1 rounded-xl bg-card">
           {([
             { key: 'overview' as MainTab, label: 'Overview', icon: Star },
             { key: 'leaderboard' as MainTab, label: 'Ranks', icon: Trophy },
@@ -319,7 +319,7 @@ export default function GamificationPage() {
                 className={`flex-1 py-2 rounded-lg text-[11px] font-semibold tracking-wide transition-all duration-200 flex flex-col items-center gap-1 ${
                   tab === t.key
                     ? 'bg-brand-500/20 text-brand-400 shadow-sm'
-                    : 'text-surface-500 hover:text-surface-300'
+                    : 'text-subtle hover:text-secondary'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -343,7 +343,7 @@ export default function GamificationPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="h-12 w-12 rounded-full bg-orange-500/10 flex items-center justify-center">
-                        <Flame className={`h-6 w-6 ${streak.currentStreak > 0 ? 'text-orange-400' : 'text-surface-600'}`} />
+                        <Flame className={`h-6 w-6 ${streak.currentStreak > 0 ? 'text-orange-400' : 'text-subtle'}`} />
                       </div>
                       {streak.isActiveToday && (
                         <div className="absolute -top-1 -right-1 h-4 w-4 bg-accent-500 rounded-full flex items-center justify-center">
@@ -352,13 +352,13 @@ export default function GamificationPage() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="text-white font-bold text-lg tabular-nums">{streak.currentStreak} Day{streak.currentStreak !== 1 ? 's' : ''}</p>
-                      <p className="text-surface-400 text-xs">
+                      <p className="text-primary font-bold text-lg tabular-nums">{streak.currentStreak} Day{streak.currentStreak !== 1 ? 's' : ''}</p>
+                      <p className="text-muted text-xs">
                         {streak.isActiveToday ? 'Active today!' : 'Complete a delivery to continue'}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-surface-500 text-[10px] uppercase tracking-wider">Best</p>
+                      <p className="text-subtle text-[10px] uppercase tracking-wider">Best</p>
                       <p className="text-amber-400 font-bold tabular-nums">{streak.longestStreak}</p>
                     </div>
                   </div>
@@ -369,7 +369,7 @@ export default function GamificationPage() {
                       return (
                         <div
                           key={i}
-                          className={`h-2 w-2 rounded-full ${isActive ? 'bg-orange-400' : 'bg-white/[0.06]'}`}
+                          className={`h-2 w-2 rounded-full ${isActive ? 'bg-orange-400' : 'bg-skeleton'}`}
                         />
                       );
                     })}
@@ -380,7 +380,7 @@ export default function GamificationPage() {
 
             {/* Level progression */}
             <section>
-              <h2 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+              <h2 className="text-primary text-sm font-semibold mb-3 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-brand-400" />
                 Level Progression
               </h2>
@@ -397,18 +397,18 @@ export default function GamificationPage() {
                       className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
                         isCurrentLevel ? 'glass-elevated border border-brand-500/20'
                           : isUnlocked ? 'glass'
-                          : 'bg-white/[0.02]'
+                          : 'bg-hover-themed'
                       }`}
                     >
                       <div className={`h-10 w-10 rounded-full flex items-center justify-center text-lg ${isUnlocked ? '' : 'opacity-30 grayscale'}`}>
-                        {isUnlocked ? <span>{LEVEL_ICONS[lvl - 1]}</span> : <Lock className="h-4 w-4 text-surface-600" />}
+                        {isUnlocked ? <span>{LEVEL_ICONS[lvl - 1]}</span> : <Lock className="h-4 w-4 text-subtle" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className={`text-sm font-semibold ${isUnlocked ? 'text-white' : 'text-surface-600'}`}>{name}</span>
+                          <span className={`text-sm font-semibold ${isUnlocked ? 'text-primary' : 'text-subtle'}`}>{name}</span>
                           {isCurrentLevel && <span className="text-[10px] font-bold uppercase text-brand-400 bg-brand-400/10 px-2 py-0.5 rounded-full">Current</span>}
                         </div>
-                        <p className={`text-[11px] ${isUnlocked ? 'text-surface-400' : 'text-surface-600'}`}>
+                        <p className={`text-[11px] ${isUnlocked ? 'text-muted' : 'text-subtle'}`}>
                           {threshold.toLocaleString()} XP required
                         </p>
                       </div>
@@ -421,7 +421,7 @@ export default function GamificationPage() {
 
             {/* Level perks */}
             <section>
-              <h2 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+              <h2 className="text-primary text-sm font-semibold mb-3 flex items-center gap-2">
                 <Crown className="h-4 w-4 text-amber-400" />
                 Level {profile.currentLevel} Perks
               </h2>
@@ -431,7 +431,7 @@ export default function GamificationPage() {
                     <div className="h-6 w-6 rounded-full bg-accent-500/10 flex items-center justify-center flex-shrink-0">
                       <Sparkles className="h-3 w-3 text-accent-400" />
                     </div>
-                    <p className="text-surface-300 text-sm">{perk}</p>
+                    <p className="text-secondary text-sm">{perk}</p>
                   </div>
                 ))}
               </div>
@@ -440,20 +440,20 @@ export default function GamificationPage() {
             {/* Badges */}
             {Object.keys(badgesByCategory).length > 0 && (
               <section>
-                <h2 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                <h2 className="text-primary text-sm font-semibold mb-3 flex items-center gap-2">
                   <Medal className="h-4 w-4 text-amber-400" />
                   Badges
                 </h2>
                 {Object.entries(badgesByCategory).map(([category, badges]) => (
                   <div key={category} className="mb-3">
-                    <p className="text-surface-500 text-[10px] uppercase tracking-wider mb-2">{BADGE_CATEGORY_LABELS[category]?.label ?? category}</p>
+                    <p className="text-subtle text-[10px] uppercase tracking-wider mb-2">{BADGE_CATEGORY_LABELS[category]?.label ?? category}</p>
                     <div className="grid grid-cols-4 gap-2">
                       {badges.map((badge) => {
                         const isEarned = !!badge.awardedAt;
                         return (
                           <div key={badge.id ?? badge.slug} className={`glass rounded-xl p-2 text-center transition-all ${isEarned ? '' : 'opacity-30 grayscale'}`}>
                             <span className="text-2xl block mb-1">{badge.icon}</span>
-                            <p className="text-white text-[9px] font-semibold leading-tight">{badge.name}</p>
+                            <p className="text-primary text-[9px] font-semibold leading-tight">{badge.name}</p>
                           </div>
                         );
                       })}
@@ -466,11 +466,11 @@ export default function GamificationPage() {
             {/* Recent XP */}
             {recentXpEvents.length > 0 && (
               <section>
-                <h2 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                <h2 className="text-primary text-sm font-semibold mb-3 flex items-center gap-2">
                   <Zap className="h-4 w-4 text-accent-400" />
                   Recent XP
                 </h2>
-                <div className="glass rounded-2xl divide-y divide-white/[0.04] overflow-hidden">
+                <div className="glass rounded-2xl divide-y divide-themed-subtle overflow-hidden">
                   {recentXpEvents.slice(0, 8).map((evt) => {
                     const actionInfo = XP_ACTION_LABELS[evt.action] ?? { label: evt.action, icon: '✨' };
                     const date = new Date(evt.createdAt);
@@ -479,8 +479,8 @@ export default function GamificationPage() {
                       <div key={evt.id} className="flex items-center gap-3 px-4 py-3">
                         <span className="text-lg">{actionInfo.icon}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm font-medium">{actionInfo.label}</p>
-                          <p className="text-surface-500 text-[11px]">{timeStr}</p>
+                          <p className="text-primary text-sm font-medium">{actionInfo.label}</p>
+                          <p className="text-subtle text-[11px]">{timeStr}</p>
                         </div>
                         <span className="text-accent-400 text-sm font-bold tabular-nums">+{evt.points}</span>
                       </div>
@@ -509,7 +509,7 @@ export default function GamificationPage() {
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     lbCategory === c.key
                       ? 'bg-brand-500/20 text-brand-400'
-                      : 'bg-white/[0.04] text-surface-500'
+                      : 'bg-card text-subtle'
                   }`}
                 >
                   <span>{c.icon}</span>
@@ -519,7 +519,7 @@ export default function GamificationPage() {
             </div>
 
             {/* Time range filter */}
-            <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04]">
+            <div className="flex gap-1 p-1 rounded-lg bg-card">
               {([
                 { key: 'today' as LeaderboardTimeRange, label: 'Today' },
                 { key: 'week' as LeaderboardTimeRange, label: 'Week' },
@@ -531,8 +531,8 @@ export default function GamificationPage() {
                   onClick={() => setLbTimeRange(t.key)}
                   className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${
                     lbTimeRange === t.key
-                      ? 'bg-white/[0.08] text-white'
-                      : 'text-surface-500'
+                      ? 'bg-input-themed text-primary'
+                      : 'text-subtle'
                   }`}
                 >
                   {t.label}
@@ -542,7 +542,7 @@ export default function GamificationPage() {
 
             {/* Leaderboard list */}
             {leaderboard.length > 0 ? (
-              <div className="glass rounded-2xl overflow-hidden divide-y divide-white/[0.04]">
+              <div className="glass rounded-2xl overflow-hidden divide-y divide-themed-subtle">
                 {leaderboard.map((entry, i) => {
                   const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
                   return (
@@ -554,22 +554,22 @@ export default function GamificationPage() {
                         {medalEmoji ? (
                           <span className="text-lg">{medalEmoji}</span>
                         ) : (
-                          <span className="text-surface-500 text-sm font-bold tabular-nums">#{entry.rank}</span>
+                          <span className="text-subtle text-sm font-bold tabular-nums">#{entry.rank}</span>
                         )}
                       </div>
-                      <div className="h-9 w-9 rounded-full bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                      <div className="h-9 w-9 rounded-full bg-skeleton flex items-center justify-center flex-shrink-0">
                         <span className="text-base">{LEVEL_ICONS[entry.currentLevel - 1] ?? '🏁'}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${entry.isCurrentUser ? 'text-brand-400' : 'text-white'}`}>
+                        <p className={`text-sm font-semibold truncate ${entry.isCurrentUser ? 'text-brand-400' : 'text-primary'}`}>
                           {entry.riderName}
                           {entry.isCurrentUser && <span className="text-[10px] text-brand-400/60 ml-1">(You)</span>}
                         </p>
-                        <p className="text-surface-500 text-[11px]">{entry.levelName}</p>
+                        <p className="text-subtle text-[11px]">{entry.levelName}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-white text-sm font-bold tabular-nums">{entry.totalXp.toLocaleString()}</p>
-                        <p className="text-surface-500 text-[10px]">
+                        <p className="text-primary text-sm font-bold tabular-nums">{entry.totalXp.toLocaleString()}</p>
+                        <p className="text-subtle text-[10px]">
                           {lbCategory === 'xp' ? 'XP' : lbCategory === 'deliveries' ? 'Deliveries' : lbCategory === 'rating' ? 'Rating' : 'Days'}
                         </p>
                       </div>
@@ -579,9 +579,9 @@ export default function GamificationPage() {
               </div>
             ) : (
               <div className="glass rounded-2xl p-6 text-center">
-                <Users className="h-8 w-8 text-surface-500 mx-auto mb-3" />
-                <p className="text-surface-400 text-sm">No riders on the leaderboard yet</p>
-                <p className="text-surface-500 text-xs mt-1">Start earning XP to appear here!</p>
+                <Users className="h-8 w-8 text-subtle mx-auto mb-3" />
+                <p className="text-muted text-sm">No riders on the leaderboard yet</p>
+                <p className="text-subtle text-xs mt-1">Start earning XP to appear here!</p>
               </div>
             )}
           </>
@@ -595,22 +595,22 @@ export default function GamificationPage() {
                 {challenges.map((challenge) => (
                   <div key={challenge.id} className={`glass rounded-2xl p-4 transition-all ${challenge.isCompleted ? 'border border-accent-500/20' : ''}`}>
                     <div className="flex items-start gap-3">
-                      <div className="h-11 w-11 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                      <div className="h-11 w-11 rounded-xl bg-skeleton flex items-center justify-center flex-shrink-0">
                         <span className="text-2xl">{challenge.icon}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-white text-sm font-semibold">{challenge.title}</h3>
+                          <h3 className="text-primary text-sm font-semibold">{challenge.title}</h3>
                           {challenge.isCompleted && (
                             <span className="text-[9px] font-bold uppercase text-accent-400 bg-accent-400/10 px-2 py-0.5 rounded-full">Done</span>
                           )}
                         </div>
-                        <p className="text-surface-400 text-xs mt-0.5">{challenge.description}</p>
+                        <p className="text-muted text-xs mt-0.5">{challenge.description}</p>
 
                         {/* Type & time remaining */}
                         <div className="flex items-center gap-3 mt-2">
-                          <span className="text-[10px] font-medium text-surface-500 bg-white/[0.04] px-2 py-0.5 rounded capitalize">{challenge.type.toLowerCase()}</span>
-                          <span className="text-[10px] text-surface-500 flex items-center gap-1">
+                          <span className="text-[10px] font-medium text-subtle bg-card px-2 py-0.5 rounded capitalize">{challenge.type.toLowerCase()}</span>
+                          <span className="text-[10px] text-subtle flex items-center gap-1">
                             <Timer className="h-3 w-3" />
                             {challenge.timeRemaining}
                           </span>
@@ -619,11 +619,11 @@ export default function GamificationPage() {
                         {/* Progress */}
                         {challenge.isJoined && (
                           <div className="mt-3">
-                            <div className="flex items-center justify-between text-[10px] text-surface-500 mb-1">
+                            <div className="flex items-center justify-between text-[10px] text-subtle mb-1">
                               <span>{challenge.participation?.progress ?? 0} / {challenge.criteriaCount} {CHALLENGE_ACTION_LABELS[challenge.criteriaAction] ?? challenge.criteriaAction}</span>
                               <span>{challenge.progressPercent}%</span>
                             </div>
-                            <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                            <div className="h-2 rounded-full bg-skeleton overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-500 ${
                                   challenge.isCompleted ? 'bg-accent-400' : 'bg-brand-400'
@@ -667,9 +667,9 @@ export default function GamificationPage() {
               </div>
             ) : (
               <div className="glass rounded-2xl p-6 text-center">
-                <Target className="h-8 w-8 text-surface-500 mx-auto mb-3" />
-                <p className="text-surface-400 text-sm">No active challenges right now</p>
-                <p className="text-surface-500 text-xs mt-1">Check back soon for new challenges!</p>
+                <Target className="h-8 w-8 text-subtle mx-auto mb-3" />
+                <p className="text-muted text-sm">No active challenges right now</p>
+                <p className="text-subtle text-xs mt-1">Check back soon for new challenges!</p>
               </div>
             )}
           </>
@@ -682,8 +682,8 @@ export default function GamificationPage() {
             <div className="glass-elevated rounded-2xl p-4 border border-pink-500/10">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-surface-400 text-xs uppercase tracking-wider">Reward Points</p>
-                  <p className="text-white text-2xl font-black tabular-nums mt-0.5">{rewardBalance.toLocaleString()}</p>
+                  <p className="text-muted text-xs uppercase tracking-wider">Reward Points</p>
+                  <p className="text-primary text-2xl font-black tabular-nums mt-0.5">{rewardBalance.toLocaleString()}</p>
                 </div>
                 <div className="h-12 w-12 rounded-full bg-pink-500/10 flex items-center justify-center">
                   <Gift className="h-6 w-6 text-pink-400" />
@@ -692,11 +692,11 @@ export default function GamificationPage() {
             </div>
 
             {/* Browse / History sub-tabs */}
-            <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04]">
+            <div className="flex gap-1 p-1 rounded-lg bg-card">
               <button
                 onClick={() => setRewardsTab('browse')}
                 className={`flex-1 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  rewardsTab === 'browse' ? 'bg-white/[0.08] text-white' : 'text-surface-500'
+                  rewardsTab === 'browse' ? 'bg-input-themed text-primary' : 'text-subtle'
                 }`}
               >
                 <ShoppingBag className="h-3.5 w-3.5" />
@@ -705,7 +705,7 @@ export default function GamificationPage() {
               <button
                 onClick={() => setRewardsTab('history')}
                 className={`flex-1 py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  rewardsTab === 'history' ? 'bg-white/[0.08] text-white' : 'text-surface-500'
+                  rewardsTab === 'history' ? 'bg-input-themed text-primary' : 'text-subtle'
                 }`}
               >
                 <Clock className="h-3.5 w-3.5" />
@@ -729,7 +729,7 @@ export default function GamificationPage() {
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                         rewardCategory === c.key
                           ? 'bg-pink-500/20 text-pink-400'
-                          : 'bg-white/[0.04] text-surface-500'
+                          : 'bg-card text-subtle'
                       }`}
                     >
                       {c.label}
@@ -753,19 +753,19 @@ export default function GamificationPage() {
                           <div className="text-center mb-3">
                             <span className="text-4xl">{item.icon}</span>
                           </div>
-                          <h3 className="text-white text-sm font-semibold text-center">{item.name}</h3>
-                          <p className="text-surface-500 text-[10px] text-center mt-1 flex-1">{item.description}</p>
-                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.04]">
+                          <h3 className="text-primary text-sm font-semibold text-center">{item.name}</h3>
+                          <p className="text-subtle text-[10px] text-center mt-1 flex-1">{item.description}</p>
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-themed-subtle">
                             <span className="text-pink-400 text-sm font-bold tabular-nums">{item.pointsCost.toLocaleString()} pts</span>
                             <button
                               onClick={() => handleRedeem(item.id)}
                               disabled={!canAfford || outOfStock || redeeming === item.id}
                               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
                                 outOfStock
-                                  ? 'bg-surface-700 text-surface-500 cursor-not-allowed'
+                                  ? 'bg-surface-700 text-subtle cursor-not-allowed'
                                   : canAfford
                                     ? 'bg-pink-500 text-white btn-press'
-                                    : 'bg-white/[0.04] text-surface-500 cursor-not-allowed'
+                                    : 'bg-card text-subtle cursor-not-allowed'
                               }`}
                             >
                               {redeeming === item.id ? '...' : outOfStock ? 'Out of Stock' : canAfford ? 'Redeem' : 'Need More'}
@@ -780,9 +780,9 @@ export default function GamificationPage() {
                   </div>
                 ) : (
                   <div className="glass rounded-2xl p-6 text-center">
-                    <ShoppingBag className="h-8 w-8 text-surface-500 mx-auto mb-3" />
-                    <p className="text-surface-400 text-sm">No rewards available yet</p>
-                    <p className="text-surface-500 text-xs mt-1">Rewards will appear here soon!</p>
+                    <ShoppingBag className="h-8 w-8 text-subtle mx-auto mb-3" />
+                    <p className="text-muted text-sm">No rewards available yet</p>
+                    <p className="text-subtle text-xs mt-1">Rewards will appear here soon!</p>
                   </div>
                 )}
               </>
@@ -791,27 +791,27 @@ export default function GamificationPage() {
             {rewardsTab === 'history' && (
               <>
                 {redemptionHistory.length > 0 ? (
-                  <div className="glass rounded-2xl divide-y divide-white/[0.04] overflow-hidden">
+                  <div className="glass rounded-2xl divide-y divide-themed-subtle overflow-hidden">
                     {redemptionHistory.map((r) => {
                       const statusColors: Record<string, string> = {
                         PENDING: 'text-amber-400 bg-amber-400/10',
-                        APPROVED: 'text-blue-400 bg-blue-400/10',
+                        APPROVED: 'text-brand-400 bg-brand-400/10',
                         FULFILLED: 'text-accent-400 bg-accent-400/10',
                         REJECTED: 'text-danger-400 bg-danger-400/10',
-                        CANCELLED: 'text-surface-500 bg-white/[0.04]',
+                        CANCELLED: 'text-subtle bg-card',
                       };
                       return (
                         <div key={r.id} className="flex items-center gap-3 px-4 py-3">
                           <span className="text-xl">{r.item?.icon ?? '🎁'}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-white text-sm font-medium truncate">{r.item?.name ?? 'Reward'}</p>
-                            <p className="text-surface-500 text-[11px]">{new Date(r.createdAt).toLocaleDateString()}</p>
+                            <p className="text-primary text-sm font-medium truncate">{r.item?.name ?? 'Reward'}</p>
+                            <p className="text-subtle text-[11px]">{new Date(r.createdAt).toLocaleDateString()}</p>
                           </div>
                           <div className="text-right flex-shrink-0">
                             <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statusColors[r.status] ?? ''}`}>
                               {r.status}
                             </span>
-                            <p className="text-surface-500 text-[10px] mt-1">{r.pointsSpent} pts</p>
+                            <p className="text-subtle text-[10px] mt-1">{r.pointsSpent} pts</p>
                           </div>
                         </div>
                       );
@@ -819,9 +819,9 @@ export default function GamificationPage() {
                   </div>
                 ) : (
                   <div className="glass rounded-2xl p-6 text-center">
-                    <Award className="h-8 w-8 text-surface-500 mx-auto mb-3" />
-                    <p className="text-surface-400 text-sm">No redemptions yet</p>
-                    <p className="text-surface-500 text-xs mt-1">Redeem rewards from the store to see them here.</p>
+                    <Award className="h-8 w-8 text-subtle mx-auto mb-3" />
+                    <p className="text-muted text-sm">No redemptions yet</p>
+                    <p className="text-subtle text-xs mt-1">Redeem rewards from the store to see them here.</p>
                   </div>
                 )}
               </>

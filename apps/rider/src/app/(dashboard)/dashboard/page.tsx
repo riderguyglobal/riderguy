@@ -89,21 +89,21 @@ export default function DashboardPage() {
       <div className="absolute inset-0 h-[52dvh]">
         <RiderMap className="w-full h-full" status={mapStatus} />
         {/* Gradient fade at bottom */}
-        <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-[#0a0e17] to-transparent" />
+        <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-page to-transparent" />
       </div>
 
       {/* ── Floating Header ── */}
       <header className="relative z-10 flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <div>
-          <p className="text-surface-400 text-xs font-medium tracking-wider uppercase">{greeting}</p>
-          <h1 className="text-white text-xl font-bold mt-0.5">{firstName}</h1>
+          <p className="text-muted text-xs font-medium tracking-wider uppercase">{greeting}</p>
+          <h1 className="text-primary text-xl font-bold mt-0.5">{firstName}</h1>
         </div>
 
         {/* Status badge */}
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide ${
           isOnline
             ? 'bg-accent-500/15 text-accent-400 border border-accent-500/30'
-            : 'bg-surface-800/60 text-surface-400 border border-white/[0.06]'
+            : 'bg-surface-800/60 text-muted border border-themed'
         }`}>
           <div className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
           {isOnline ? 'Online' : 'Offline'}
@@ -119,7 +119,7 @@ export default function DashboardPage() {
             disabled={toggling}
             className={`relative group flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 btn-press shadow-2xl ${
               isOnline
-                ? 'bg-surface-800/80 backdrop-blur-xl text-surface-300 border border-white/[0.06] hover:bg-surface-700/80'
+                ? 'bg-surface-800/80 backdrop-blur-xl text-secondary border border-themed hover:bg-surface-700/80'
                 : 'gradient-accent text-white glow-accent hover:shadow-accent-500/30'
             }`}
           >
@@ -143,9 +143,9 @@ export default function DashboardPage() {
           <div className="glass rounded-2xl p-3.5 text-center">
             <div className="flex items-center justify-center gap-1 mb-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-accent-400" />
-              <span className="text-[10px] text-surface-400 font-medium uppercase tracking-wider">Earned</span>
+              <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Earned</span>
             </div>
-            <p className="text-white font-bold text-lg tabular-nums">
+            <p className="text-primary font-bold text-lg tabular-nums">
               {wallet ? formatCurrency(wallet.totalEarned) : '—'}
             </p>
           </div>
@@ -154,9 +154,9 @@ export default function DashboardPage() {
           <div className="glass rounded-2xl p-3.5 text-center">
             <div className="flex items-center justify-center gap-1 mb-1.5">
               <Package className="h-3.5 w-3.5 text-brand-400" />
-              <span className="text-[10px] text-surface-400 font-medium uppercase tracking-wider">Trips</span>
+              <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Trips</span>
             </div>
-            <p className="text-white font-bold text-lg tabular-nums">
+            <p className="text-primary font-bold text-lg tabular-nums">
               {profile ? profile.completedDeliveries : '—'}
             </p>
           </div>
@@ -165,9 +165,9 @@ export default function DashboardPage() {
           <div className="glass rounded-2xl p-3.5 text-center">
             <div className="flex items-center justify-center gap-1 mb-1.5">
               <Star className="h-3.5 w-3.5 text-amber-400" />
-              <span className="text-[10px] text-surface-400 font-medium uppercase tracking-wider">Rating</span>
+              <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Rating</span>
             </div>
-            <p className="text-white font-bold text-lg tabular-nums">
+            <p className="text-primary font-bold text-lg tabular-nums">
               {profile?.rating ? profile.rating.toFixed(1) : '—'}
             </p>
           </div>
@@ -188,8 +188,8 @@ export default function DashboardPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-white text-sm font-bold">{gamification.levelName}</span>
-                    <span className="text-surface-500 text-[10px]">Lvl {gamification.currentLevel}</span>
+                    <span className="text-primary text-sm font-bold">{gamification.levelName}</span>
+                    <span className="text-subtle text-[10px]">Lvl {gamification.currentLevel}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Zap className="h-3 w-3 text-accent-400" />
@@ -199,7 +199,7 @@ export default function DashboardPage() {
 
                 {/* Progress bar */}
                 {!gamification.isMaxLevel && (
-                  <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-skeleton overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-700"
                       style={{ width: `${Math.min(gamification.progressPercent, 100)}%` }}
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <ChevronRight className="h-4 w-4 text-surface-500 flex-shrink-0" />
+              <ChevronRight className="h-4 w-4 text-subtle flex-shrink-0" />
             </div>
           </Link>
         )}
@@ -220,7 +220,7 @@ export default function DashboardPage() {
         {orders.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-white font-semibold text-sm">Active Deliveries</h2>
+              <h2 className="text-primary font-semibold text-sm">Active Deliveries</h2>
               <Link href="/dashboard/jobs" className="text-brand-400 text-xs font-medium flex items-center gap-0.5">
                 View all <ChevronRight className="h-3.5 w-3.5" />
               </Link>
@@ -228,7 +228,7 @@ export default function DashboardPage() {
 
             <div className="space-y-2.5">
               {orders.map((order) => {
-                const status = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.PENDING ?? { label: order.status, color: 'text-surface-400', bg: 'bg-white/[0.06]' };
+                const status = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.PENDING ?? { label: order.status, color: 'text-muted', bg: 'bg-skeleton' };
                 const pkg = PACKAGE_TYPES[order.packageType] ?? PACKAGE_TYPES.SMALL_PARCEL ?? { label: 'Package', icon: '📦' };
 
                 return (
@@ -243,7 +243,7 @@ export default function DashboardPage() {
                         <Zap className="h-3 w-3" />
                         {status.label}
                       </span>
-                      <span className="text-white font-bold text-sm tabular-nums">
+                      <span className="text-primary font-bold text-sm tabular-nums">
                         {formatCurrency(order.totalPrice)}
                       </span>
                     </div>
@@ -252,7 +252,7 @@ export default function DashboardPage() {
                     <div className="flex gap-3">
                       {/* Route dots */}
                       <div className="flex flex-col items-center pt-0.5">
-                        <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                         <div className="w-px flex-1 bg-gradient-to-b from-brand-500/60 to-accent-500/60 my-1" />
                         <div className="h-2.5 w-2.5 rounded-full bg-accent-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                       </div>
@@ -260,29 +260,29 @@ export default function DashboardPage() {
                       {/* Addresses */}
                       <div className="flex-1 min-w-0 space-y-2">
                         <div>
-                          <p className="text-surface-400 text-[10px] font-medium uppercase tracking-wider mb-0.5">Pickup</p>
-                          <p className="text-white text-xs font-medium truncate">{order.pickupAddress}</p>
+                          <p className="text-muted text-[10px] font-medium uppercase tracking-wider mb-0.5">Pickup</p>
+                          <p className="text-primary text-xs font-medium truncate">{order.pickupAddress}</p>
                         </div>
                         <div>
-                          <p className="text-surface-400 text-[10px] font-medium uppercase tracking-wider mb-0.5">Dropoff</p>
-                          <p className="text-white text-xs font-medium truncate">{order.dropoffAddress}</p>
+                          <p className="text-muted text-[10px] font-medium uppercase tracking-wider mb-0.5">Dropoff</p>
+                          <p className="text-primary text-xs font-medium truncate">{order.dropoffAddress}</p>
                         </div>
                       </div>
 
                       {/* Arrow */}
                       <div className="flex items-center">
-                        <ChevronRight className="h-4 w-4 text-surface-500" />
+                        <ChevronRight className="h-4 w-4 text-subtle" />
                       </div>
                     </div>
 
                     {/* Bottom meta */}
-                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/[0.04]">
-                      <span className="flex items-center gap-1 text-[10px] text-surface-400">
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-themed-subtle">
+                      <span className="flex items-center gap-1 text-[10px] text-muted">
                         <MapPin className="h-3 w-3" />
                         {pkg?.icon} {pkg?.label}
                       </span>
                       {order.distanceKm && (
-                        <span className="flex items-center gap-1 text-[10px] text-surface-400">
+                        <span className="flex items-center gap-1 text-[10px] text-muted">
                           <Navigation className="h-3 w-3" />
                           {order.distanceKm.toFixed(1)} km
                         </span>
@@ -304,10 +304,10 @@ export default function DashboardPage() {
                 <Package className="h-6 w-6 text-brand-400" />
               </div>
             </div>
-            <h3 className="text-white text-sm font-semibold mb-1">
+            <h3 className="text-primary text-sm font-semibold mb-1">
               {isOnline ? 'Waiting for deliveries' : 'Go online to start earning'}
             </h3>
-            <p className="text-surface-400 text-xs">
+            <p className="text-muted text-xs">
               {isOnline
                 ? 'New delivery requests will appear here'
                 : 'Toggle online to receive delivery requests near you'}
@@ -325,7 +325,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-5 w-5 text-accent-400" />
             </div>
             <div className="text-center">
-              <p className="text-white text-xs font-semibold">Earnings</p>
+              <p className="text-primary text-xs font-semibold">Earnings</p>
             </div>
           </Link>
 
@@ -337,7 +337,7 @@ export default function DashboardPage() {
               <Trophy className="h-5 w-5 text-amber-400" />
             </div>
             <div className="text-center">
-              <p className="text-white text-xs font-semibold">Rank & XP</p>
+              <p className="text-primary text-xs font-semibold">Rank & XP</p>
             </div>
           </Link>
 
@@ -349,7 +349,7 @@ export default function DashboardPage() {
               <Clock className="h-5 w-5 text-brand-400" />
             </div>
             <div className="text-center">
-              <p className="text-white text-xs font-semibold">History</p>
+              <p className="text-primary text-xs font-semibold">History</p>
             </div>
           </Link>
         </div>

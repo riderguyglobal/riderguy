@@ -33,15 +33,15 @@ export default function SpotlightsPage() {
   }, [fetchLatestSpotlight, fetchSpotlights]);
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/community" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community" className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white">Rider Spotlight</h1>
+            <h1 className="text-lg font-semibold text-primary">Rider Spotlight</h1>
             <div className="w-9" />
           </div>
         </div>
@@ -57,8 +57,8 @@ export default function SpotlightsPage() {
             <div className="h-16 w-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
               <Trophy className="h-8 w-8 text-amber-400" />
             </div>
-            <h3 className="text-white font-semibold mb-1">No spotlights yet</h3>
-            <p className="text-surface-400 text-sm max-w-[260px]">
+            <h3 className="text-primary font-semibold mb-1">No spotlights yet</h3>
+            <p className="text-muted text-sm max-w-[260px]">
               Rider of the Month spotlights will appear here
             </p>
           </div>
@@ -89,14 +89,14 @@ export default function SpotlightsPage() {
                     )}
                   </div>
                   <div>
-                    <h2 className="text-white text-lg font-bold">
+                    <h2 className="text-primary text-lg font-bold">
                       {latestSpotlight.rider.user.firstName} {latestSpotlight.rider.user.lastName}
                     </h2>
-                    <p className="text-surface-300 text-xs">
+                    <p className="text-secondary text-xs">
                       Level {latestSpotlight.rider.currentLevel} —{' '}
                       {LEVEL_NAMES[latestSpotlight.rider.currentLevel]}
                     </p>
-                    <div className="flex items-center gap-2 text-[10px] text-surface-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[10px] text-muted mt-0.5">
                       <span>{latestSpotlight.rider.totalDeliveries} deliveries</span>
                       <span>•</span>
                       <span className="flex items-center gap-0.5">
@@ -113,8 +113,8 @@ export default function SpotlightsPage() {
                   </div>
                 </div>
 
-                <h3 className="text-white font-semibold text-sm mb-2">{latestSpotlight.title}</h3>
-                <p className="text-surface-200 text-sm leading-relaxed whitespace-pre-wrap">
+                <h3 className="text-primary font-semibold text-sm mb-2">{latestSpotlight.title}</h3>
+                <p className="text-secondary text-sm leading-relaxed whitespace-pre-wrap">
                   {latestSpotlight.story}
                 </p>
 
@@ -127,7 +127,7 @@ export default function SpotlightsPage() {
             {/* Past spotlights */}
             {spotlights.length > 1 && (
               <div>
-                <h2 className="text-white font-semibold mb-3">Past Spotlights</h2>
+                <h2 className="text-primary font-semibold mb-3">Past Spotlights</h2>
                 <div className="space-y-2">
                   {spotlights
                     .filter((s) => s.id !== latestSpotlight?.id)
@@ -146,7 +146,7 @@ export default function SpotlightsPage() {
 
 function SpotlightCard({ spotlight }: { spotlight: Spotlight }) {
   return (
-    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+    <div className="p-4 rounded-2xl bg-hover-themed border border-themed">
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
           {spotlight.rider.user.avatarUrl ? (
@@ -156,17 +156,17 @@ function SpotlightCard({ spotlight }: { spotlight: Spotlight }) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-sm truncate">
+          <h3 className="text-primary font-semibold text-sm truncate">
             {spotlight.rider.user.firstName} {spotlight.rider.user.lastName}
           </h3>
-          <p className="text-surface-400 text-xs">{spotlight.title}</p>
-          <p className="text-surface-500 text-[10px] mt-0.5">
+          <p className="text-muted text-xs">{spotlight.title}</p>
+          <p className="text-subtle text-[10px] mt-0.5">
             {MONTH_NAMES[spotlight.month]} {spotlight.year}
           </p>
         </div>
         <Trophy className="h-4 w-4 text-amber-400/60 flex-shrink-0" />
       </div>
-      <p className="text-surface-300 text-xs mt-2 line-clamp-2 leading-relaxed">{spotlight.story}</p>
+      <p className="text-secondary text-xs mt-2 line-clamp-2 leading-relaxed">{spotlight.story}</p>
     </div>
   );
 }

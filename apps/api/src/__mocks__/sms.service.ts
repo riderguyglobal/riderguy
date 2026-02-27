@@ -1,6 +1,9 @@
-// Mock SMS service for tests
+import { vi } from 'vitest';
+
+// Mock SMS service for tests — uses vi.fn() for spying
 export const SmsService = {
-  sendNewJobAvailable: async () => ({ success: true }),
-  sendOtp: async () => ({ success: true }),
-  sendWelcome: async () => ({ success: true }),
+  sendNewJobAvailable: vi.fn().mockResolvedValue({ success: true }),
+  sendOtp: vi.fn().mockResolvedValue({ success: true, messageId: 'mock-msg-1' }),
+  sendWelcome: vi.fn().mockResolvedValue({ success: true }),
+  sendOrderUpdate: vi.fn().mockResolvedValue({ success: true }),
 };

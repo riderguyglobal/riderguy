@@ -31,15 +31,15 @@ export default function FeatureRequestsPage() {
   }, [fetchRequests, sort]);
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/community" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community" className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white">Feature Requests</h1>
+            <h1 className="text-lg font-semibold text-primary">Feature Requests</h1>
             <button
               onClick={() => setShowCreate(true)}
               className="p-2 -mr-2 text-brand-400 hover:text-brand-300"
@@ -61,7 +61,7 @@ export default function FeatureRequestsPage() {
                 className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                   sort === s.id
                     ? 'bg-brand-500/20 text-brand-400'
-                    : 'text-surface-400 hover:bg-white/[0.04]'
+                    : 'text-muted hover:bg-hover-themed'
                 }`}
               >
                 {s.label}
@@ -75,15 +75,15 @@ export default function FeatureRequestsPage() {
         {loading && requests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
-            <p className="text-surface-400 text-sm mt-3">Loading...</p>
+            <p className="text-muted text-sm mt-3">Loading...</p>
           </div>
         ) : requests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="h-16 w-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
               <Lightbulb className="h-8 w-8 text-brand-500" />
             </div>
-            <h3 className="text-white font-semibold mb-1">No requests yet</h3>
-            <p className="text-surface-400 text-sm max-w-[260px]">
+            <h3 className="text-primary font-semibold mb-1">No requests yet</h3>
+            <p className="text-muted text-sm max-w-[260px]">
               Share your ideas to make Riderguy better!
             </p>
           </div>
@@ -105,7 +105,7 @@ export default function FeatureRequestsPage() {
                     className={`h-8 w-8 rounded-lg text-xs font-medium transition-colors ${
                       p === pagination.page
                         ? 'bg-brand-500 text-white'
-                        : 'bg-white/[0.04] text-surface-400 hover:bg-white/[0.08]'
+                        : 'bg-card text-muted hover:bg-active-themed'
                     }`}
                   >
                     {p}
@@ -137,7 +137,7 @@ function FeatureRequestCard({
 }) {
   const [upvoting, setUpvoting] = useState(false);
   const statusIcons: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-    SUBMITTED: { icon: <Clock className="h-3 w-3" />, color: 'text-surface-400', bg: 'bg-surface-400/10' },
+    SUBMITTED: { icon: <Clock className="h-3 w-3" />, color: 'text-muted', bg: 'bg-surface-400/10' },
     REVIEWED: { icon: <Search className="h-3 w-3" />, color: 'text-amber-400', bg: 'bg-amber-400/10' },
     PLANNED: { icon: <CheckCircle className="h-3 w-3" />, color: 'text-brand-400', bg: 'bg-brand-400/10' },
     IN_PROGRESS: { icon: <Code className="h-3 w-3" />, color: 'text-purple-400', bg: 'bg-purple-400/10' },
@@ -147,7 +147,7 @@ function FeatureRequestCard({
   const s = (statusIcons[request.status] ?? statusIcons.SUBMITTED)!;
 
   return (
-    <div className="flex gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+    <div className="flex gap-3 p-4 rounded-2xl bg-hover-themed border border-themed">
       {/* Upvote */}
       <button
         onClick={async () => {
@@ -163,7 +163,7 @@ function FeatureRequestCard({
         }}
         disabled={upvoting}
         className={`flex flex-col items-center gap-0.5 pt-0.5 transition-opacity ${upvoting ? 'opacity-50' : ''} ${
-          request.hasUpvoted ? 'text-brand-400' : 'text-surface-500'
+          request.hasUpvoted ? 'text-brand-400' : 'text-subtle'
         }`}
       >
         <ChevronUp className={`h-5 w-5 transition-transform ${request.hasUpvoted ? 'scale-110' : ''}`} />
@@ -178,8 +178,8 @@ function FeatureRequestCard({
             {request.status.replace('_', ' ')}
           </span>
         </div>
-        <h3 className="text-white font-semibold text-sm">{request.title}</h3>
-        <p className="text-surface-300 text-xs mt-1 line-clamp-2 leading-relaxed">
+        <h3 className="text-primary font-semibold text-sm">{request.title}</h3>
+        <p className="text-secondary text-xs mt-1 line-clamp-2 leading-relaxed">
           {request.description}
         </p>
         {request.adminNote && (
@@ -187,7 +187,7 @@ function FeatureRequestCard({
             Admin: {request.adminNote}
           </p>
         )}
-        <div className="flex items-center gap-2 mt-2 text-[10px] text-surface-500">
+        <div className="flex items-center gap-2 mt-2 text-[10px] text-subtle">
           <span>{request.author.firstName} {request.author.lastName}</span>
           <span>•</span>
           <span>{formatTime(request.createdAt)}</span>
@@ -223,11 +223,11 @@ function CreateFeatureRequestSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end" onClick={onClose}>
-      <div className="w-full max-h-[80dvh] bg-[#0f1420] border-t border-white/[0.06] rounded-t-3xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-h-[80dvh] bg-card-elevated border-t border-themed rounded-t-3xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-white font-semibold text-lg">Suggest a Feature</h2>
-            <button onClick={onClose} className="text-surface-400 text-sm">Cancel</button>
+            <h2 className="text-primary font-semibold text-lg">Suggest a Feature</h2>
+            <button onClick={onClose} className="text-muted text-sm">Cancel</button>
           </div>
 
           <input
@@ -235,14 +235,14 @@ function CreateFeatureRequestSheet({
             placeholder="Feature title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50"
+            className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50"
           />
           <textarea
             placeholder="Describe your idea in detail..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={5}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50 resize-none"
+            className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50 resize-none"
           />
           <button
             onClick={handleSubmit}

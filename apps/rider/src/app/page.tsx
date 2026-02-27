@@ -17,7 +17,7 @@ export default function LandingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-[#0a0e17]">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-page">
         <div className="relative">
           <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl animate-pulse" />
           <div className="relative animate-spin-slow">
@@ -29,12 +29,12 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[#0a0e17] relative overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col bg-page relative overflow-hidden">
       {/* Ambient glow backgrounds */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-brand-500/[0.06] blur-[150px]" />
         <div className="absolute bottom-[20%] right-[10%] w-[400px] h-[400px] rounded-full bg-accent-500/[0.04] blur-[120px]" />
-        <div className="absolute top-[60%] left-[5%] w-[300px] h-[300px] rounded-full bg-purple-500/[0.03] blur-[100px]" />
+        <div className="absolute top-[60%] left-[5%] w-[300px] h-[300px] rounded-full bg-brand-500/[0.03] blur-[100px]" />
       </div>
 
       {/* Header */}
@@ -42,7 +42,7 @@ export default function LandingPage() {
         <div className="h-10 w-10 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand">
           <Bike className="h-5 w-5 text-white" />
         </div>
-        <span className="text-lg font-bold text-white tracking-tight">Riderguy</span>
+        <span className="text-lg font-bold text-primary tracking-tight">Riderguy</span>
       </div>
 
       {/* Main content */}
@@ -56,10 +56,10 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <h1 className="text-4xl font-extrabold text-white mb-3 tracking-tight">
+          <h1 className="text-4xl font-extrabold text-primary mb-3 tracking-tight">
             Deliver & Earn
           </h1>
-          <p className="text-surface-400 text-lg leading-relaxed mb-10">
+          <p className="text-muted text-lg leading-relaxed mb-10">
             Join thousands of riders earning on their own schedule
           </p>
 
@@ -70,7 +70,7 @@ export default function LandingPage() {
               { icon: Shield, text: 'Insured' },
               { icon: MapPin, text: 'Live Tracking' },
             ].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass text-xs text-surface-300">
+              <div key={text} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass text-xs text-secondary">
                 <Icon className="h-3 w-3 text-brand-400" />
                 {text}
               </div>
@@ -91,14 +91,14 @@ export default function LandingPage() {
               <Button
                 variant="outline"
                 size="xl"
-                className="w-full border-white/10 text-surface-300 hover:bg-white/5 font-medium text-base py-4 rounded-2xl btn-press"
+                className="w-full border-themed text-secondary hover:bg-hover-themed font-medium text-base py-4 rounded-2xl btn-press"
               >
                 Create Account
               </Button>
             </Link>
           </div>
 
-          <p className="mt-8 text-xs text-surface-600">
+          <p className="mt-8 text-xs text-subtle">
             By continuing, you agree to our Terms of Service & Privacy Policy
           </p>
         </div>

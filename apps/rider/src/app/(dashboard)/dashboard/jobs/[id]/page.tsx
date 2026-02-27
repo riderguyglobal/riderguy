@@ -18,7 +18,7 @@ import type { Order } from '@riderguy/types';
 
 const NavigationMap = dynamic(
   () => import('@/components/navigation-map').then((m) => m.NavigationMap),
-  { ssr: false, loading: () => <div className="w-full h-full bg-surface-900 animate-shimmer bg-gradient-to-r from-surface-900 via-surface-800 to-surface-900 rounded-2xl" /> }
+  { ssr: false, loading: () => <div className="w-full h-full bg-page animate-shimmer bg-gradient-to-r from-page via-shimmer to-page rounded-2xl" /> }
 );
 
 const STATUS_FLOW = [
@@ -151,7 +151,7 @@ export default function JobDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-[#0a0e17]">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-page">
         <div className="relative">
           <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl scale-150 animate-pulse" />
           <div className="animate-spin-slow"><Package className="h-8 w-8 text-brand-400" /></div>
@@ -162,37 +162,37 @@ export default function JobDetailPage() {
 
   if (!order) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0a0e17] px-6 text-center">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-page px-6 text-center">
         <div className="relative mb-4">
           <div className="absolute inset-0 rounded-full bg-surface-500/10 blur-xl scale-150" />
           <div className="relative h-16 w-16 rounded-2xl glass flex items-center justify-center">
-            <Package className="h-7 w-7 text-surface-500" />
+            <Package className="h-7 w-7 text-subtle" />
           </div>
         </div>
-        <p className="text-surface-400 mb-4">Order not found</p>
-        <Button variant="outline" className="border-white/10 text-surface-300 rounded-xl" onClick={() => router.back()}>
+        <p className="text-muted mb-4">Order not found</p>
+        <Button variant="outline" className="border-themed text-secondary rounded-xl" onClick={() => router.back()}>
           Go Back
         </Button>
       </div>
     );
   }
 
-  const sc = STATUS_CONFIG[order.status] ?? { label: order.status, color: 'text-surface-400', bg: 'bg-surface-400/10' };
+  const sc = STATUS_CONFIG[order.status] ?? { label: order.status, color: 'text-muted', bg: 'bg-surface-400/10' };
   const pkg = PACKAGE_TYPES[order.packageType] ?? { label: 'Package', icon: '📦' };
   const currentStep = STATUS_FLOW.indexOf(order.status);
   const isComplete = order.status === 'DELIVERED' || order.status.startsWith('CANCELLED') || order.status === 'FAILED';
   const nextLabel = NEXT_STATUS_LABELS[order.status];
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col">
+    <div className="min-h-[100dvh] bg-page flex flex-col">
       {/* Top bar */}
-      <div className="safe-area-top bg-[#0a0e17]/90 backdrop-blur-2xl border-b border-white/[0.06] sticky top-0 z-20">
+      <div className="safe-area-top bg-overlay backdrop-blur-2xl border-b border-themed sticky top-0 z-20">
         <div className="flex items-center gap-3 px-4 py-3">
           <button onClick={() => router.push('/dashboard/jobs')} className="h-9 w-9 rounded-xl glass flex items-center justify-center btn-press">
-            <ArrowLeft className="h-5 w-5 text-surface-300" />
+            <ArrowLeft className="h-5 w-5 text-secondary" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
+            <p className="text-sm font-semibold text-primary truncate">
               {pkg.icon} {pkg.label} Delivery
             </p>
             <p className={`text-xs font-medium ${sc.color}`}>{sc.label}</p>
@@ -219,7 +219,7 @@ export default function JobDetailPage() {
             status={order.status}
             className="w-full h-full"
           />
-          <div className="absolute bottom-0 inset-x-4 h-12 bg-gradient-to-t from-[#0a0e17] to-transparent pointer-events-none rounded-b-2xl" />
+          <div className="absolute bottom-0 inset-x-4 h-12 bg-gradient-to-t from-page to-transparent pointer-events-none rounded-b-2xl" />
         </div>
       )}
 
@@ -239,7 +239,7 @@ export default function JobDetailPage() {
                       <div className="absolute h-6 w-6 rounded-full bg-brand-500/20 animate-ping" style={{ animationDuration: '2s' }} />
                     )}
                     <div className={`relative h-2.5 w-2.5 rounded-full transition-all duration-500 ${
-                      isDone ? 'bg-brand-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]' : 'bg-surface-700'
+                      isDone ? 'bg-brand-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-surface-700'
                     }`} />
                   </div>
                   {/* Connector line */}
@@ -252,7 +252,7 @@ export default function JobDetailPage() {
               );
             })}
           </div>
-          <p className="text-xs text-surface-400">
+          <p className="text-xs text-muted">
             Step {Math.max(currentStep + 1, 1)} of {STATUS_FLOW.length} — <span className={`font-semibold ${sc.color}`}>{sc.label}</span>
           </p>
         </div>
@@ -262,12 +262,12 @@ export default function JobDetailPage() {
           <div className="flex items-start gap-3">
             <div className="mt-0.5 relative">
               <div className="h-6 w-6 rounded-full bg-brand-500/15 flex items-center justify-center">
-                <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_6px_rgba(14,165,233,0.5)]" />
+                <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-surface-500 font-medium uppercase tracking-wider">Pickup</p>
-              <p className="text-sm text-white font-medium">{order.pickupAddress}</p>
+              <p className="text-[10px] text-subtle font-medium uppercase tracking-wider">Pickup</p>
+              <p className="text-sm text-primary font-medium">{order.pickupAddress}</p>
               {order.pickupContactPhone && (
                 <a href={`tel:${order.pickupContactPhone}`} className="inline-flex items-center gap-1.5 text-xs text-brand-400 mt-1.5 px-2.5 py-1 rounded-lg bg-brand-500/10 btn-press">
                   <Phone className="h-3 w-3" /> Call
@@ -283,8 +283,8 @@ export default function JobDetailPage() {
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-surface-500 font-medium uppercase tracking-wider">Drop-off</p>
-              <p className="text-sm text-white font-medium">{order.dropoffAddress}</p>
+              <p className="text-[10px] text-subtle font-medium uppercase tracking-wider">Drop-off</p>
+              <p className="text-sm text-primary font-medium">{order.dropoffAddress}</p>
               {order.dropoffContactPhone && (
                 <a href={`tel:${order.dropoffContactPhone}`} className="inline-flex items-center gap-1.5 text-xs text-brand-400 mt-1.5 px-2.5 py-1 rounded-lg bg-brand-500/10 btn-press">
                   <Phone className="h-3 w-3" /> Call
@@ -299,33 +299,33 @@ export default function JobDetailPage() {
           onClick={() => setShowDetails(!showDetails)}
           className="glass-elevated rounded-2xl p-4 w-full flex items-center justify-between btn-press"
         >
-          <span className="text-sm font-semibold text-white">Order Details</span>
-          {showDetails ? <ChevronUp className="h-4 w-4 text-surface-400" /> : <ChevronDown className="h-4 w-4 text-surface-400" />}
+          <span className="text-sm font-semibold text-primary">Order Details</span>
+          {showDetails ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
         </button>
 
         {showDetails && (
           <div className="glass rounded-2xl p-4 space-y-3 animate-slide-down">
             <div className="flex justify-between text-sm">
-              <span className="text-surface-500">Package</span>
-              <span className="text-white font-medium">{pkg.icon} {pkg.label}</span>
+              <span className="text-subtle">Package</span>
+              <span className="text-primary font-medium">{pkg.icon} {pkg.label}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-surface-500">Earnings</span>
+              <span className="text-subtle">Earnings</span>
               <span className="text-accent-400 font-bold">{formatCurrency(order.riderEarnings ?? 0)}</span>
             </div>
             {order.packageDescription && (
               <div className="flex justify-between text-sm">
-                <span className="text-surface-500">Description</span>
-                <span className="text-white text-right max-w-[200px]">{order.packageDescription}</span>
+                <span className="text-subtle">Description</span>
+                <span className="text-primary text-right max-w-[200px]">{order.packageDescription}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
-              <span className="text-surface-500">Order ID</span>
-              <span className="text-surface-400 font-mono text-xs">{order.orderNumber ?? order.id.slice(0, 8)}</span>
+              <span className="text-subtle">Order ID</span>
+              <span className="text-muted font-mono text-xs">{order.orderNumber ?? order.id.slice(0, 8)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-surface-500">Created</span>
-              <span className="text-surface-400">{timeAgo(new Date(order.createdAt))}</span>
+              <span className="text-subtle">Created</span>
+              <span className="text-muted">{timeAgo(new Date(order.createdAt))}</span>
             </div>
           </div>
         )}
@@ -350,9 +350,9 @@ export default function JobDetailPage() {
                     <CheckCircle className="h-8 w-8 text-accent-400" />
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1">Delivery Complete!</h3>
+                <h3 className="text-lg font-bold text-primary mb-1">Delivery Complete!</h3>
                 <p className="text-accent-400 text-2xl font-bold animate-number-pop">{formatCurrency(order.riderEarnings ?? 0)}</p>
-                <p className="text-surface-400 text-sm mt-1">Added to your wallet</p>
+                <p className="text-muted text-sm mt-1">Added to your wallet</p>
               </>
             ) : (
               <>
@@ -362,14 +362,14 @@ export default function JobDetailPage() {
                     <AlertTriangle className="h-8 w-8 text-danger-400" />
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1">
+                <h3 className="text-lg font-bold text-primary mb-1">
                   {order.status.startsWith('CANCELLED') ? 'Order Cancelled' : 'Delivery Failed'}
                 </h3>
               </>
             )}
             <Button
               variant="outline"
-              className="mt-5 border-white/10 text-surface-300 rounded-xl"
+              className="mt-5 border-themed text-secondary rounded-xl"
               onClick={() => router.push('/dashboard/jobs')}
             >
               Back to Jobs
@@ -380,7 +380,7 @@ export default function JobDetailPage() {
 
       {/* Bottom action bar */}
       {!isComplete && !showProof && (
-        <div className="sticky bottom-0 z-10 px-4 py-3 bg-[#0a0e17]/95 backdrop-blur-2xl border-t border-white/[0.06] safe-area-bottom">
+        <div className="sticky bottom-0 z-10 px-4 py-3 bg-nav backdrop-blur-2xl border-t border-themed safe-area-bottom">
           <div className="flex gap-3">
             <button
               onClick={() => setShowFailDialog(true)}
@@ -406,21 +406,21 @@ export default function JobDetailPage() {
 
       {/* Failed delivery dialog */}
       <Dialog open={showFailDialog} onOpenChange={setShowFailDialog}>
-        <DialogContent className="bg-[#111827] border-white/[0.08] rounded-2xl">
+        <DialogContent className="bg-card-strong border-themed-strong rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white">Report Failed Delivery</DialogTitle>
-            <DialogDescription className="text-surface-400">Explain why this delivery could not be completed.</DialogDescription>
+            <DialogTitle className="text-primary">Report Failed Delivery</DialogTitle>
+            <DialogDescription className="text-muted">Explain why this delivery could not be completed.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea
               value={failReason}
               onChange={(e) => setFailReason(e.target.value)}
               placeholder="Explain why the delivery couldn't be completed..."
-              className="bg-surface-800/50 border-white/[0.08] text-white placeholder:text-surface-500 min-h-[120px] rounded-xl focus:border-brand-500"
+              className="bg-surface-800/50 border-themed-strong text-primary placeholder:text-subtle min-h-[120px] rounded-xl focus:border-brand-500"
             />
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="border-white/10 text-surface-300 rounded-xl" onClick={() => setShowFailDialog(false)}>
+            <Button variant="outline" className="border-themed text-secondary rounded-xl" onClick={() => setShowFailDialog(false)}>
               Cancel
             </Button>
             <Button className="bg-danger-500 hover:bg-danger-600 text-white rounded-xl" onClick={handleFail} loading={updating} disabled={!failReason.trim()}>

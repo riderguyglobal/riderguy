@@ -96,8 +96,8 @@ export default function RegisterPage() {
             <CheckCircle2 className="h-12 w-12 text-white" />
           </div>
         </div>
-        <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Welcome Aboard!</h2>
-        <p className="text-surface-400 mb-8 max-w-xs mx-auto">Your rider account has been created. Complete onboarding to start earning.</p>
+        <h2 className="text-3xl font-extrabold text-primary mb-2 tracking-tight">Welcome Aboard!</h2>
+        <p className="text-muted mb-8 max-w-xs mx-auto">Your rider account has been created. Complete onboarding to start earning.</p>
         <Button
           size="xl"
           className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
@@ -112,8 +112,8 @@ export default function RegisterPage() {
 
   return (
     <div>
-      <h2 className="text-3xl font-extrabold text-white mb-1 tracking-tight">Become a Rider</h2>
-      <p className="text-surface-400 mb-6">Create your account to start delivering</p>
+      <h2 className="text-3xl font-extrabold text-primary mb-1 tracking-tight">Become a Rider</h2>
+      <p className="text-muted mb-6">Create your account to start delivering</p>
 
       {/* Premium step indicator */}
       <div className="flex items-center gap-0 mb-8">
@@ -123,17 +123,17 @@ export default function RegisterPage() {
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 ${
                 i < step ? 'gradient-accent text-white shadow-md' :
                 i === step ? 'gradient-brand text-white shadow-lg glow-brand' :
-                'bg-white/[0.06] text-surface-500 border border-white/[0.08]'
+                'bg-skeleton text-subtle border border-themed-strong'
               }`}>
                 {i < step ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
               </div>
               <span className={`text-[11px] mt-1.5 font-medium ${
-                i <= step ? 'text-white' : 'text-surface-500'
+                i <= step ? 'text-primary' : 'text-subtle'
               }`}>{s.label}</span>
             </div>
             {i < STEPS.length - 1 && (
               <div className={`flex-1 h-0.5 mx-2 mb-5 rounded-full transition-all duration-500 ${
-                i < step ? 'bg-accent-500' : 'bg-white/[0.06]'
+                i < step ? 'bg-accent-500' : 'bg-skeleton'
               }`} />
             )}
           </div>
@@ -150,7 +150,7 @@ export default function RegisterPage() {
       {step === 0 && (
         <div className="space-y-6 animate-slide-up">
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2.5">Phone Number</label>
+            <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
             <PhoneInput value={phone} onValueChange={setPhone} />
           </div>
           <Button size="xl" className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold" onClick={handleSendOtp} loading={submitting}>
@@ -165,8 +165,8 @@ export default function RegisterPage() {
             <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
               <Bike className="h-6 w-6 text-brand-400" />
             </div>
-            <p className="text-surface-300 text-sm">
-              Enter the 6-digit code sent to <span className="text-white font-semibold">{phone}</span>
+            <p className="text-secondary text-sm">
+              Enter the 6-digit code sent to <span className="text-primary font-semibold">{phone}</span>
             </p>
             <button onClick={() => { setStep(0); setError(''); }} className="text-brand-400 text-sm mt-2 hover:underline font-medium">
               Change number
@@ -183,7 +183,7 @@ export default function RegisterPage() {
             Verify & Continue
           </Button>
           <div className="text-center">
-            <button onClick={handleSendOtp} disabled={submitting} className="text-sm text-surface-400 hover:text-brand-400 font-medium transition-colors">
+            <button onClick={handleSendOtp} disabled={submitting} className="text-sm text-muted hover:text-brand-400 font-medium transition-colors">
               Resend code
             </button>
           </div>
@@ -194,24 +194,24 @@ export default function RegisterPage() {
         <form onSubmit={handleRegister} className="space-y-5 animate-slide-up">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-2.5">First Name</label>
-              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+              <label className="block text-sm font-medium text-secondary mb-2.5">First Name</label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-2.5">Last Name</label>
-              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+              <label className="block text-sm font-medium text-secondary mb-2.5">Last Name</label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2.5">Email <span className="text-surface-500">(optional)</span></label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+            <label className="block text-sm font-medium text-secondary mb-2.5">Email <span className="text-subtle">(optional)</span></label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-3">
-              <Lock className="inline h-4 w-4 mr-1.5 -mt-0.5 text-surface-400" />
+            <label className="block text-sm font-medium text-secondary mb-3">
+              <Lock className="inline h-4 w-4 mr-1.5 -mt-0.5 text-muted" />
               Set a 6-digit PIN
             </label>
-            <p className="text-xs text-surface-500 mb-3">You&apos;ll use this PIN to confirm transactions</p>
+            <p className="text-xs text-subtle mb-3">You&apos;ll use this PIN to confirm transactions</p>
             <OtpInput length={6} onChange={setPin} onComplete={setPin} />
           </div>
           <Button type="submit" size="xl" className="w-full gradient-accent text-white shadow-lg glow-accent btn-press rounded-2xl font-semibold" loading={submitting}>
@@ -220,7 +220,7 @@ export default function RegisterPage() {
         </form>
       )}
 
-      <p className="text-center text-sm text-surface-400 mt-8">
+      <p className="text-center text-sm text-muted mt-8">
         Already have an account?{' '}
         <Link href="/login" className="text-brand-400 font-semibold hover:underline">
           Sign in

@@ -29,7 +29,7 @@ const LEVEL_NAMES: Record<number, string> = {
 };
 
 const LEVEL_COLORS: Record<number, string> = {
-  1: 'text-surface-400',
+  1: 'text-muted',
   2: 'text-emerald-400',
   3: 'text-blue-400',
   4: 'text-purple-400',
@@ -88,7 +88,7 @@ export default function RiderProfilePage() {
 
   if (loading && !identity) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
         <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
       </div>
     );
@@ -96,22 +96,22 @@ export default function RiderProfilePage() {
 
   if (!identity) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col items-center justify-center">
-        <p className="text-surface-400 text-sm">Profile not found</p>
+      <div className="min-h-[100dvh] bg-page flex flex-col items-center justify-center">
+        <p className="text-muted text-sm">Profile not found</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/community" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community" className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white">My Profile</h1>
+            <h1 className="text-lg font-semibold text-primary">My Profile</h1>
             <button
               onClick={() => setEditing(!editing)}
               className="p-2 -mr-2 text-brand-400 hover:text-brand-300"
@@ -124,7 +124,7 @@ export default function RiderProfilePage() {
 
       <div className="px-4 py-4 space-y-4">
         {/* Profile Card */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-brand-500/10 to-purple-500/10 border border-white/[0.06]">
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-brand-500/10 to-purple-500/10 border border-themed">
           <div className="flex items-center gap-4 mb-4">
             <div className="h-16 w-16 rounded-2xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
               {identity.user.avatarUrl ? (
@@ -136,14 +136,14 @@ export default function RiderProfilePage() {
               )}
             </div>
             <div>
-              <h2 className="text-white text-lg font-bold">
+              <h2 className="text-primary text-lg font-bold">
                 {identity.user.firstName} {identity.user.lastName}
               </h2>
-              <p className={`text-sm font-semibold ${LEVEL_COLORS[identity.currentLevel] || 'text-surface-400'}`}>
+              <p className={`text-sm font-semibold ${LEVEL_COLORS[identity.currentLevel] || 'text-muted'}`}>
                 Level {identity.currentLevel} — {LEVEL_NAMES[identity.currentLevel] || 'Rider'}
               </p>
               {identity.currentZone && (
-                <p className="text-surface-400 text-xs mt-0.5">{identity.currentZone.name}</p>
+                <p className="text-muted text-xs mt-0.5">{identity.currentZone.name}</p>
               )}
             </div>
           </div>
@@ -151,19 +151,19 @@ export default function RiderProfilePage() {
           {/* Stats grid */}
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
-              <p className="text-white text-lg font-bold">{identity.totalDeliveries}</p>
-              <p className="text-surface-400 text-[10px]">Deliveries</p>
+              <p className="text-primary text-lg font-bold">{identity.totalDeliveries}</p>
+              <p className="text-muted text-[10px]">Deliveries</p>
             </div>
             <div className="text-center">
-              <p className="text-white text-lg font-bold flex items-center justify-center gap-1">
+              <p className="text-primary text-lg font-bold flex items-center justify-center gap-1">
                 <Star className="h-4 w-4 text-amber-400" />
                 {identity.averageRating.toFixed(1)}
               </p>
-              <p className="text-surface-400 text-[10px]">{identity.totalRatings} ratings</p>
+              <p className="text-muted text-[10px]">{identity.totalRatings} ratings</p>
             </div>
             <div className="text-center">
-              <p className="text-white text-lg font-bold">{Math.round(identity.completionRate)}%</p>
-              <p className="text-surface-400 text-[10px]">Completion</p>
+              <p className="text-primary text-lg font-bold">{Math.round(identity.completionRate)}%</p>
+              <p className="text-muted text-[10px]">Completion</p>
             </div>
           </div>
         </div>
@@ -172,30 +172,30 @@ export default function RiderProfilePage() {
         {editing ? (
           <div className="space-y-3">
             <div>
-              <label className="text-surface-300 text-xs font-medium mb-1.5 block">Bio</label>
+              <label className="text-secondary text-xs font-medium mb-1.5 block">Bio</label>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
                 rows={3}
                 placeholder="Tell other riders about yourself..."
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50 resize-none"
+                className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50 resize-none"
               />
-              <p className="text-surface-500 text-[10px] text-right mt-1">{bio.length}/500</p>
+              <p className="text-subtle text-[10px] text-right mt-1">{bio.length}/500</p>
             </div>
             <div>
-              <label className="text-surface-300 text-xs font-medium mb-1.5 block">
+              <label className="text-secondary text-xs font-medium mb-1.5 block">
                 Public Profile URL
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-surface-500 text-sm shrink-0">riderguy.com/rider/</span>
+                <span className="text-subtle text-sm shrink-0">riderguy.com/rider/</span>
                 <input
                   type="text"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                   placeholder="your-name"
                   maxLength={40}
-                  className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50"
+                  className="flex-1 bg-card border border-themed-strong rounded-xl px-3 py-2.5 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50"
                 />
               </div>
             </div>
@@ -209,7 +209,7 @@ export default function RiderProfilePage() {
               </button>
               <button
                 onClick={() => setEditing(false)}
-                className="flex-1 py-2.5 rounded-xl bg-white/[0.04] text-surface-300 font-medium text-sm"
+                className="flex-1 py-2.5 rounded-xl bg-card text-secondary font-medium text-sm"
               >
                 Cancel
               </button>
@@ -218,17 +218,17 @@ export default function RiderProfilePage() {
         ) : (
           <>
             {identity.bio && (
-              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                <p className="text-surface-200 text-sm leading-relaxed">{identity.bio}</p>
+              <div className="p-4 rounded-2xl bg-hover-themed border border-themed">
+                <p className="text-secondary text-sm leading-relaxed">{identity.bio}</p>
               </div>
             )}
 
             {/* Public link */}
             {identity.publicProfileUrl && (
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-hover-themed border border-themed">
                 <div className="flex items-center gap-2">
                   <ExternalLink className="h-4 w-4 text-brand-400" />
-                  <span className="text-surface-300 text-xs">
+                  <span className="text-secondary text-xs">
                     riderguy.com/rider/{identity.publicProfileUrl}
                   </span>
                 </div>
@@ -247,7 +247,7 @@ export default function RiderProfilePage() {
         {/* Badges */}
         {identity.badges.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+            <h2 className="text-primary font-semibold mb-3 flex items-center gap-2">
               <Award className="h-4 w-4 text-brand-400" />
               Badges
             </h2>
@@ -255,7 +255,7 @@ export default function RiderProfilePage() {
               {identity.badges.map((b) => (
                 <div
                   key={b.badge.name}
-                  className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-2.5"
+                  className="p-3 rounded-xl bg-hover-themed border border-themed flex items-center gap-2.5"
                 >
                   <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
                     {b.badge.icon ? (
@@ -265,8 +265,8 @@ export default function RiderProfilePage() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-white text-xs font-semibold truncate">{b.badge.name}</p>
-                    <p className="text-surface-400 text-[10px] truncate">{b.badge.description}</p>
+                    <p className="text-primary text-xs font-semibold truncate">{b.badge.name}</p>
+                    <p className="text-muted text-[10px] truncate">{b.badge.description}</p>
                   </div>
                 </div>
               ))}
@@ -276,17 +276,17 @@ export default function RiderProfilePage() {
 
         {/* Quick stats */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] text-center">
+          <div className="p-4 rounded-2xl bg-hover-themed border border-themed text-center">
             <Clock className="h-5 w-5 text-brand-400 mx-auto mb-1" />
-            <p className="text-white text-lg font-bold">{Math.round(identity.onTimeRate)}%</p>
-            <p className="text-surface-400 text-[10px]">On-Time Rate</p>
+            <p className="text-primary text-lg font-bold">{Math.round(identity.onTimeRate)}%</p>
+            <p className="text-muted text-[10px]">On-Time Rate</p>
           </div>
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] text-center">
+          <div className="p-4 rounded-2xl bg-hover-themed border border-themed text-center">
             <Truck className="h-5 w-5 text-brand-400 mx-auto mb-1" />
-            <p className="text-white text-lg font-bold">
+            <p className="text-primary text-lg font-bold">
               {new Date(identity.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
             </p>
-            <p className="text-surface-400 text-[10px]">Member Since</p>
+            <p className="text-muted text-[10px]">Member Since</p>
           </div>
         </div>
       </div>

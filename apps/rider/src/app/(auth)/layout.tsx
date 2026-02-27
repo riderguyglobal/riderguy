@@ -5,7 +5,7 @@ import { Bike } from 'lucide-react';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[100dvh] flex flex-col lg:flex-row bg-[#0a0e17]">
+    <div className="min-h-[100dvh] flex flex-col lg:flex-row bg-page">
       {/* Desktop branded panel */}
       <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden items-center justify-center p-12">
         {/* Gradient background */}
@@ -35,7 +35,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Mobile header */}
       <div className="lg:hidden px-6 pt-6 pb-4 safe-area-top">
-        <Link href="/" className="inline-flex items-center gap-2.5 text-white btn-press">
+        <Link href="/" className="inline-flex items-center gap-2.5 text-primary btn-press">
           <div className="h-9 w-9 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand">
             <Bike className="h-5 w-5 text-white" />
           </div>

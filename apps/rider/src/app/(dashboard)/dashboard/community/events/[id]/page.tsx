@@ -45,7 +45,7 @@ export default function EventDetailPage() {
 
   if (loading && !currentEvent) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
         <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
       </div>
     );
@@ -53,8 +53,8 @@ export default function EventDetailPage() {
 
   if (!currentEvent) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col items-center justify-center">
-        <p className="text-surface-400">Event not found</p>
+      <div className="min-h-[100dvh] bg-page flex flex-col items-center justify-center">
+        <p className="text-muted">Event not found</p>
         <Link href="/dashboard/community/events" className="text-brand-400 text-sm mt-2">
           Back to Events
         </Link>
@@ -69,15 +69,15 @@ export default function EventDetailPage() {
   const isOver = ev.status === 'COMPLETED' || ev.status === 'CANCELLED';
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/community/events" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community/events" className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white truncate mx-4">{ev.title}</h1>
+            <h1 className="text-lg font-semibold text-primary truncate mx-4">{ev.title}</h1>
             <div className="w-9" />
           </div>
         </div>
@@ -95,11 +95,11 @@ export default function EventDetailPage() {
             ev.status === 'UPCOMING' ? 'text-brand-400 bg-brand-400/10' :
             ev.status === 'ONGOING' ? 'text-emerald-400 bg-emerald-400/10' :
             ev.status === 'CANCELLED' ? 'text-red-400 bg-red-400/10' :
-            'text-surface-500 bg-surface-500/10'
+            'text-subtle bg-surface-500/10'
           }`}>
             {ev.status}
           </span>
-          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-surface-400 bg-white/[0.04]">
+          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-muted bg-card">
             {ev.type === 'IN_PERSON' ? <MapPin className="h-3 w-3" /> :
              ev.type === 'VIRTUAL' ? <Video className="h-3 w-3" /> :
              <Users className="h-3 w-3" />}
@@ -108,8 +108,8 @@ export default function EventDetailPage() {
         </div>
 
         {/* Description */}
-        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-          <p className="text-surface-200 text-sm leading-relaxed whitespace-pre-wrap">{ev.description}</p>
+        <div className="p-4 rounded-2xl bg-hover-themed border border-themed">
+          <p className="text-secondary text-sm leading-relaxed whitespace-pre-wrap">{ev.description}</p>
         </div>
 
         {/* Details */}
@@ -117,10 +117,10 @@ export default function EventDetailPage() {
           <div className="flex items-center gap-3 text-sm">
             <Calendar className="h-5 w-5 text-brand-400 flex-shrink-0" />
             <div>
-              <p className="text-white">
+              <p className="text-primary">
                 {date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
-              <p className="text-surface-400 text-xs">
+              <p className="text-muted text-xs">
                 {date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 {endDate && ` — ${endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
               </p>
@@ -130,7 +130,7 @@ export default function EventDetailPage() {
           {ev.location && (
             <div className="flex items-center gap-3 text-sm">
               <MapPin className="h-5 w-5 text-brand-400 flex-shrink-0" />
-              <p className="text-white">{ev.location}</p>
+              <p className="text-primary">{ev.location}</p>
             </div>
           )}
 
@@ -148,7 +148,7 @@ export default function EventDetailPage() {
 
           <div className="flex items-center gap-3 text-sm">
             <Users className="h-5 w-5 text-brand-400 flex-shrink-0" />
-            <p className="text-white">
+            <p className="text-primary">
               {ev._count.rsvps} attending
               {ev.capacity && ` / ${ev.capacity} max`}
             </p>
@@ -156,8 +156,8 @@ export default function EventDetailPage() {
 
           {ev.zone && (
             <div className="flex items-center gap-3 text-sm">
-              <MapPin className="h-5 w-5 text-surface-500 flex-shrink-0" />
-              <p className="text-surface-400">{ev.zone.name}</p>
+              <MapPin className="h-5 w-5 text-subtle flex-shrink-0" />
+              <p className="text-muted">{ev.zone.name}</p>
             </div>
           )}
         </div>
@@ -171,7 +171,7 @@ export default function EventDetailPage() {
               ev.hasRsvp
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
                 : isFull
-                  ? 'bg-white/[0.03] text-surface-500 cursor-not-allowed'
+                  ? 'bg-hover-themed text-subtle cursor-not-allowed'
                   : 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
             }`}
           >
@@ -193,12 +193,12 @@ export default function EventDetailPage() {
         {/* Attendees */}
         {ev.rsvps && ev.rsvps.length > 0 && (
           <div>
-            <h3 className="text-white font-semibold text-sm mb-3">Attendees</h3>
+            <h3 className="text-primary font-semibold text-sm mb-3">Attendees</h3>
             <div className="flex flex-wrap gap-2">
               {ev.rsvps.map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06]"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-themed"
                 >
                   <div className="h-6 w-6 rounded-full bg-brand-500/20 flex items-center justify-center">
                     {r.user.avatarUrl ? (
@@ -207,7 +207,7 @@ export default function EventDetailPage() {
                       <span className="text-brand-400 text-[10px] font-bold">{r.user.firstName?.charAt(0) || '?'}</span>
                     )}
                   </div>
-                  <span className="text-surface-300 text-xs">{r.user.firstName}</span>
+                  <span className="text-secondary text-xs">{r.user.firstName}</span>
                 </div>
               ))}
             </div>
@@ -215,8 +215,8 @@ export default function EventDetailPage() {
         )}
 
         {/* Organized by */}
-        <div className="pt-2 border-t border-white/[0.06]">
-          <p className="text-surface-500 text-xs">
+        <div className="pt-2 border-t border-themed">
+          <p className="text-subtle text-xs">
             Organized by {ev.createdBy.firstName} {ev.createdBy.lastName}
           </p>
         </div>

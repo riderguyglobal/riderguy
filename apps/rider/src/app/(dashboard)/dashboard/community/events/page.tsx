@@ -28,15 +28,15 @@ export default function EventsPage() {
   }, [fetchEvents, filter]);
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <Link href="/dashboard/community" className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <Link href="/dashboard/community" className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white">Events</h1>
+            <h1 className="text-lg font-semibold text-primary">Events</h1>
             <button
               onClick={() => setShowCreate(true)}
               className="p-2 -mr-2 text-brand-400 hover:text-brand-300"
@@ -54,7 +54,7 @@ export default function EventsPage() {
                 className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                   filter === f
                     ? 'bg-brand-500/20 text-brand-400'
-                    : 'text-surface-400 hover:bg-white/[0.04]'
+                    : 'text-muted hover:bg-hover-themed'
                 }`}
               >
                 {f || 'All'}
@@ -68,15 +68,15 @@ export default function EventsPage() {
         {loading && events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
-            <p className="text-surface-400 text-sm mt-3">Loading events...</p>
+            <p className="text-muted text-sm mt-3">Loading events...</p>
           </div>
         ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="h-16 w-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
               <Calendar className="h-8 w-8 text-brand-500" />
             </div>
-            <h3 className="text-white font-semibold mb-1">No events yet</h3>
-            <p className="text-surface-400 text-sm max-w-[260px]">
+            <h3 className="text-primary font-semibold mb-1">No events yet</h3>
+            <p className="text-muted text-sm max-w-[260px]">
               Be the first to organize a community event!
             </p>
           </div>
@@ -94,7 +94,7 @@ export default function EventsPage() {
                     className={`h-8 w-8 rounded-lg text-xs font-medium transition-colors ${
                       p === pagination.page
                         ? 'bg-brand-500 text-white'
-                        : 'bg-white/[0.04] text-surface-400 hover:bg-white/[0.08]'
+                        : 'bg-card text-muted hover:bg-active-themed'
                     }`}
                   >
                     {p}
@@ -128,14 +128,14 @@ function EventCard({ event }: { event: CommunityEvent }) {
   const statusColors: Record<string, string> = {
     UPCOMING: 'text-brand-400 bg-brand-400/10',
     ONGOING: 'text-emerald-400 bg-emerald-400/10',
-    COMPLETED: 'text-surface-500 bg-surface-500/10',
+    COMPLETED: 'text-subtle bg-surface-500/10',
     CANCELLED: 'text-red-400 bg-red-400/10',
   };
 
   return (
     <Link
       href={`/dashboard/community/events/${event.id}`}
-      className="block p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors"
+      className="block p-4 rounded-2xl bg-hover-themed border border-themed hover:bg-active-themed transition-colors"
     >
       {event.imageUrl && (
         <img
@@ -150,13 +150,13 @@ function EventCard({ event }: { event: CommunityEvent }) {
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColors[event.status] || ''}`}>
               {event.status}
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-surface-400 bg-white/[0.04]">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-muted bg-card">
               {typeIcons[event.type]}
               {event.type.replace('_', ' ')}
             </span>
           </div>
-          <h3 className="text-white font-semibold text-sm truncate">{event.title}</h3>
-          <div className="flex items-center gap-2 mt-1.5 text-xs text-surface-400">
+          <h3 className="text-primary font-semibold text-sm truncate">{event.title}</h3>
+          <div className="flex items-center gap-2 mt-1.5 text-xs text-muted">
             <Clock className="h-3.5 w-3.5" />
             <span>
               {date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
@@ -164,12 +164,12 @@ function EventCard({ event }: { event: CommunityEvent }) {
             </span>
           </div>
           {event.location && (
-            <div className="flex items-center gap-2 mt-1 text-xs text-surface-400">
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted">
               <MapPin className="h-3.5 w-3.5" />
               <span className="truncate">{event.location}</span>
             </div>
           )}
-          <div className="flex items-center gap-2 mt-2 text-[10px] text-surface-500">
+          <div className="flex items-center gap-2 mt-2 text-[10px] text-subtle">
             <Users className="h-3 w-3" />
             <span>{event._count.rsvps} attending</span>
             {event.capacity && <span>/ {event.capacity} max</span>}
@@ -181,7 +181,7 @@ function EventCard({ event }: { event: CommunityEvent }) {
             )}
           </div>
         </div>
-        <ChevronRight className="h-4 w-4 text-surface-500 mt-1 flex-shrink-0" />
+        <ChevronRight className="h-4 w-4 text-subtle mt-1 flex-shrink-0" />
       </div>
     </Link>
   );
@@ -224,11 +224,11 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end" onClick={onClose}>
-      <div className="w-full max-h-[90dvh] bg-[#0f1420] border-t border-white/[0.06] rounded-t-3xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-h-[90dvh] bg-card-elevated border-t border-themed rounded-t-3xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-white font-semibold text-lg">Create Event</h2>
-            <button onClick={onClose} className="text-surface-400 text-sm">Cancel</button>
+            <h2 className="text-primary font-semibold text-lg">Create Event</h2>
+            <button onClick={onClose} className="text-muted text-sm">Cancel</button>
           </div>
 
           <div className="space-y-3">
@@ -237,14 +237,14 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
               placeholder="Event title"
               value={form.title}
               onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50"
+              className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50"
             />
             <textarea
               placeholder="Description"
               value={form.description}
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               rows={3}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50 resize-none"
+              className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50 resize-none"
             />
             <div className="flex gap-2">
               {(['IN_PERSON', 'VIRTUAL', 'HYBRID'] as const).map((t) => (
@@ -254,7 +254,7 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
                   className={`flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${
                     form.type === t
                       ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
-                      : 'bg-white/[0.04] text-surface-400 border border-white/[0.06]'
+                      : 'bg-card text-muted border border-themed'
                   }`}
                 >
                   {t.replace('_', ' ')}
@@ -265,7 +265,7 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
               type="datetime-local"
               value={form.date}
               onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-brand-500/50 [color-scheme:dark]"
+              className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm outline-none focus:border-brand-500/50 [color-scheme:dark]"
             />
             {(form.type === 'IN_PERSON' || form.type === 'HYBRID') && (
               <input
@@ -273,7 +273,7 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
                 placeholder="Location"
                 value={form.location}
                 onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50"
+                className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50"
               />
             )}
             {(form.type === 'VIRTUAL' || form.type === 'HYBRID') && (
@@ -282,7 +282,7 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
                 placeholder="Virtual link (Zoom, Meet, etc.)"
                 value={form.virtualLink}
                 onChange={(e) => setForm((p) => ({ ...p, virtualLink: e.target.value }))}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50"
+                className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50"
               />
             )}
             <input
@@ -290,7 +290,7 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
               placeholder="Max capacity (optional)"
               value={form.capacity}
               onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder:text-surface-500 outline-none focus:border-brand-500/50"
+              className="w-full bg-card border border-themed-strong rounded-xl px-4 py-3 text-primary text-sm placeholder:text-subtle outline-none focus:border-brand-500/50"
             />
             <button
               onClick={handleSubmit}

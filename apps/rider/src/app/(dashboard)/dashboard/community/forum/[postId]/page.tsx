@@ -107,7 +107,7 @@ export default function ForumPostPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
       </div>
     );
@@ -115,23 +115,23 @@ export default function ForumPostPage() {
 
   if (!post) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col items-center justify-center">
-        <p className="text-surface-400">Post not found</p>
+      <div className="min-h-[100dvh] bg-page flex flex-col items-center justify-center">
+        <p className="text-muted">Post not found</p>
         <button onClick={() => router.back()} className="text-brand-400 text-sm mt-2">Go back</button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col">
+    <div className="min-h-[100dvh] bg-page flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
-            <button onClick={() => router.back()} className="p-2 -ml-2 text-surface-400 hover:text-surface-200">
+            <button onClick={() => router.back()} className="p-2 -ml-2 text-muted hover:text-secondary">
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <span className="text-sm text-surface-400 font-medium">Post</span>
+            <span className="text-sm text-muted font-medium">Post</span>
             {post.isOwner && (
               <button onClick={handleDelete} className="p-2 -mr-2 text-red-400 hover:text-red-300">
                 <Trash2 className="h-4 w-4" />
@@ -147,7 +147,7 @@ export default function ForumPostPage() {
         <div className="px-4 py-4">
           {/* Category & Badges */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] text-surface-400 font-medium">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-skeleton text-muted font-medium">
               {post.category}
             </span>
             {post.isPinned && (
@@ -161,7 +161,7 @@ export default function ForumPostPage() {
           </div>
 
           {/* Title */}
-          <h1 className="text-xl font-bold text-white leading-tight">{post.title}</h1>
+          <h1 className="text-xl font-bold text-primary leading-tight">{post.title}</h1>
 
           {/* Author & meta */}
           <div className="flex items-center gap-2 mt-3">
@@ -169,50 +169,50 @@ export default function ForumPostPage() {
               {post.author.avatarUrl ? (
                 <img src={post.author.avatarUrl} className="h-full w-full rounded-full object-cover" alt="" />
               ) : (
-                <span className="text-[10px] font-bold text-surface-300">{post.author.firstName.charAt(0)}</span>
+                <span className="text-[10px] font-bold text-secondary">{post.author.firstName.charAt(0)}</span>
               )}
             </div>
-            <span className="text-sm text-surface-300">{post.author.firstName} {post.author.lastName}</span>
-            <span className="text-surface-600">•</span>
-            <span className="text-xs text-surface-500">{formatTime(post.createdAt)}</span>
+            <span className="text-sm text-secondary">{post.author.firstName} {post.author.lastName}</span>
+            <span className="text-subtle">•</span>
+            <span className="text-xs text-subtle">{formatTime(post.createdAt)}</span>
           </div>
 
           {/* Body */}
-          <div className="mt-4 text-surface-200 text-sm leading-relaxed whitespace-pre-wrap">{post.body}</div>
+          <div className="mt-4 text-secondary text-sm leading-relaxed whitespace-pre-wrap">{post.body}</div>
 
           {/* Poll */}
           {post.poll && <PollComponent poll={post.poll} onVote={handlePollVote} />}
 
           {/* Vote & stats bar */}
-          <div className="flex items-center gap-4 mt-5 py-3 border-t border-b border-white/[0.06]">
+          <div className="flex items-center gap-4 mt-5 py-3 border-t border-b border-themed">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => handleVotePost(1)}
-                className={`p-1.5 rounded-lg ${post.userVote === 1 ? 'bg-brand-500/20 text-brand-400' : 'text-surface-500 hover:text-surface-300'}`}
+                className={`p-1.5 rounded-lg ${post.userVote === 1 ? 'bg-brand-500/20 text-brand-400' : 'text-subtle hover:text-secondary'}`}
               >
                 ▲
               </button>
-              <span className={`text-sm font-bold min-w-[24px] text-center ${post.score > 0 ? 'text-brand-400' : post.score < 0 ? 'text-red-400' : 'text-surface-400'}`}>
+              <span className={`text-sm font-bold min-w-[24px] text-center ${post.score > 0 ? 'text-brand-400' : post.score < 0 ? 'text-red-400' : 'text-muted'}`}>
                 {post.score}
               </span>
               <button
                 onClick={() => handleVotePost(-1)}
-                className={`p-1.5 rounded-lg ${post.userVote === -1 ? 'bg-red-500/20 text-red-400' : 'text-surface-500 hover:text-surface-300'}`}
+                className={`p-1.5 rounded-lg ${post.userVote === -1 ? 'bg-red-500/20 text-red-400' : 'text-subtle hover:text-secondary'}`}
               >
                 ▼
               </button>
             </div>
-            <span className="text-xs text-surface-500 flex items-center gap-1">
+            <span className="text-xs text-subtle flex items-center gap-1">
               <MessageSquare className="h-3.5 w-3.5" /> {post.commentCount} comments
             </span>
-            <span className="text-xs text-surface-500">👁 {post.viewCount} views</span>
+            <span className="text-xs text-subtle">👁 {post.viewCount} views</span>
           </div>
 
           {/* Comments */}
           <div className="mt-4">
-            <h3 className="text-white font-semibold text-sm mb-3">Comments</h3>
+            <h3 className="text-primary font-semibold text-sm mb-3">Comments</h3>
             {comments.length === 0 ? (
-              <p className="text-surface-500 text-sm py-4">No comments yet. Be the first!</p>
+              <p className="text-subtle text-sm py-4">No comments yet. Be the first!</p>
             ) : (
               <div className="space-y-3">
                 {comments.map(comment => (
@@ -232,13 +232,13 @@ export default function ForumPostPage() {
 
       {/* Comment input */}
       {!post.isLocked && (
-        <div className="sticky bottom-0 bg-[#0a0e17] border-t border-white/[0.06] pb-[env(safe-area-inset-bottom)]">
+        <div className="sticky bottom-0 bg-page border-t border-themed pb-[env(safe-area-inset-bottom)]">
           {replyTo && (
             <div className="px-4 pt-2 flex items-center gap-2">
-              <span className="text-xs text-surface-400">
+              <span className="text-xs text-muted">
                 Replying to <span className="text-brand-400">{replyTo.name}</span>
               </span>
-              <button onClick={() => setReplyTo(null)} className="text-surface-500 text-xs">✕</button>
+              <button onClick={() => setReplyTo(null)} className="text-subtle text-xs">✕</button>
             </div>
           )}
           <div className="flex items-center gap-2 px-4 py-3">
@@ -248,7 +248,7 @@ export default function ForumPostPage() {
               onChange={e => setCommentText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleComment()}
               placeholder={replyTo ? `Reply to ${replyTo.name}...` : 'Write a comment...'}
-              className="flex-1 bg-white/[0.06] border border-white/[0.08] rounded-full px-4 py-2.5 text-sm text-white placeholder:text-surface-500 focus:outline-none focus:border-brand-500/50"
+              className="flex-1 bg-skeleton border border-themed-strong rounded-full px-4 py-2.5 text-sm text-primary placeholder:text-subtle focus:outline-none focus:border-brand-500/50"
             />
             <button
               onClick={handleComment}
@@ -271,7 +271,7 @@ function PollComponent({ poll, onVote }: { poll: PollData; onVote: (optionId: st
 
   return (
     <div className="mt-4 p-4 rounded-2xl bg-purple-500/[0.06] border border-purple-500/20">
-      <h4 className="text-white font-semibold text-sm mb-3">📊 {poll.question}</h4>
+      <h4 className="text-primary font-semibold text-sm mb-3">📊 {poll.question}</h4>
       <div className="space-y-2">
         {poll.options.map(option => {
           const pct = option.percentage ?? (poll.totalVotes > 0 ? Math.round((option.votes / poll.totalVotes) * 100) : 0);
@@ -284,22 +284,22 @@ function PollComponent({ poll, onVote }: { poll: PollData; onVote: (optionId: st
             >
               {/* Fill bar */}
               <div
-                className={`absolute inset-0 transition-all ${option.userVoted ? 'bg-brand-500/20' : 'bg-white/[0.04]'}`}
+                className={`absolute inset-0 transition-all ${option.userVoted ? 'bg-brand-500/20' : 'bg-card'}`}
                 style={{ width: hasVoted ? `${pct}%` : '100%' }}
               />
               <div className="relative flex items-center justify-between">
-                <span className={`text-sm ${option.userVoted ? 'text-brand-400 font-medium' : 'text-surface-200'}`}>
+                <span className={`text-sm ${option.userVoted ? 'text-brand-400 font-medium' : 'text-secondary'}`}>
                   {option.userVoted && '✓ '}{option.text}
                 </span>
                 {hasVoted && (
-                  <span className="text-xs text-surface-400 font-medium">{pct}%</span>
+                  <span className="text-xs text-muted font-medium">{pct}%</span>
                 )}
               </div>
             </button>
           );
         })}
       </div>
-      <p className="text-[10px] text-surface-500 mt-2">
+      <p className="text-[10px] text-subtle mt-2">
         {poll.totalVotes} vote{poll.totalVotes !== 1 ? 's' : ''}
         {poll.isExpired && ' • Poll ended'}
         {poll.expiresAt && !poll.isExpired && ` • Ends ${formatTime(poll.expiresAt)}`}
@@ -336,27 +336,27 @@ function CommentCard({
   };
 
   return (
-    <div className={`${depth > 0 ? 'ml-6 pl-3 border-l border-white/[0.06]' : ''}`}>
+    <div className={`${depth > 0 ? 'ml-6 pl-3 border-l border-themed' : ''}`}>
       <div className="flex items-start gap-2">
         <div className="h-6 w-6 rounded-full bg-surface-700 flex items-center justify-center flex-shrink-0">
-          <span className="text-[9px] font-bold text-surface-300">{comment.author.firstName.charAt(0)}</span>
+          <span className="text-[9px] font-bold text-secondary">{comment.author.firstName.charAt(0)}</span>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-surface-300 font-medium">{comment.author.firstName}</span>
-            <span className="text-[10px] text-surface-600">{formatTime(comment.createdAt)}</span>
+            <span className="text-xs text-secondary font-medium">{comment.author.firstName}</span>
+            <span className="text-[10px] text-subtle">{formatTime(comment.createdAt)}</span>
           </div>
-          <p className="text-sm text-surface-200 mt-0.5">{comment.body}</p>
+          <p className="text-sm text-secondary mt-0.5">{comment.body}</p>
           <div className="flex items-center gap-3 mt-1">
             <div className="flex items-center gap-0.5">
-              <button onClick={() => handleVote(1)} className={`text-xs ${localVote === 1 ? 'text-brand-400' : 'text-surface-500'}`}>▲</button>
-              <span className={`text-[10px] font-bold ${score > 0 ? 'text-brand-400' : score < 0 ? 'text-red-400' : 'text-surface-500'}`}>{score}</span>
-              <button onClick={() => handleVote(-1)} className={`text-xs ${localVote === -1 ? 'text-red-400' : 'text-surface-500'}`}>▼</button>
+              <button onClick={() => handleVote(1)} className={`text-xs ${localVote === 1 ? 'text-brand-400' : 'text-subtle'}`}>▲</button>
+              <span className={`text-[10px] font-bold ${score > 0 ? 'text-brand-400' : score < 0 ? 'text-red-400' : 'text-subtle'}`}>{score}</span>
+              <button onClick={() => handleVote(-1)} className={`text-xs ${localVote === -1 ? 'text-red-400' : 'text-subtle'}`}>▼</button>
             </div>
             {depth === 0 && (
               <button
                 onClick={() => onReply(comment.id, comment.author.firstName)}
-                className="text-[10px] text-surface-500 hover:text-brand-400"
+                className="text-[10px] text-subtle hover:text-brand-400"
               >
                 Reply
               </button>

@@ -87,26 +87,26 @@ export function IncomingRequest() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-md bg-[#111827] rounded-3xl border border-white/[0.08] shadow-2xl animate-slide-up overflow-hidden">
+      <div className="w-full max-w-md bg-card-strong rounded-3xl border border-themed-strong shadow-2xl animate-slide-up overflow-hidden">
         {/* Countdown header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-themed">
           <div>
-            <h3 className="text-lg font-bold text-white tracking-tight">New Delivery Request</h3>
-            <p className="text-xs text-surface-400 mt-0.5">Respond before time runs out</p>
+            <h3 className="text-lg font-bold text-primary tracking-tight">New Delivery Request</h3>
+            <p className="text-xs text-muted mt-0.5">Respond before time runs out</p>
           </div>
           <div className="relative h-14 w-14">
             <svg className="h-14 w-14 -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
               <circle
                 cx="50" cy="50" r="45" fill="none"
-                stroke={countdown > 10 ? '#0ea5e9' : '#ef4444'}
+                stroke={countdown > 10 ? '#22c55e' : '#ef4444'}
                 strokeWidth="6" strokeLinecap="round"
                 strokeDasharray="283" strokeDashoffset={283 - strokeDash}
                 className="transition-all duration-1000 linear"
-                style={{ filter: `drop-shadow(0 0 6px ${countdown > 10 ? 'rgba(14,165,233,.4)' : 'rgba(239,68,68,.4)'})` }}
+                style={{ filter: `drop-shadow(0 0 6px ${countdown > 10 ? 'rgba(34,197,94,.4)' : 'rgba(239,68,68,.4)'})` }}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-white tabular-nums">
+            <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-primary tabular-nums">
               {countdown}
             </span>
           </div>
@@ -129,8 +129,8 @@ export function IncomingRequest() {
                 <div className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,.4)]" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] text-surface-500 uppercase tracking-wider font-medium">Pickup</p>
-                <p className="text-sm text-white font-medium truncate">{offer.pickupAddress ?? 'Pickup location'}</p>
+                <p className="text-[10px] text-subtle uppercase tracking-wider font-medium">Pickup</p>
+                <p className="text-sm text-primary font-medium truncate">{offer.pickupAddress ?? 'Pickup location'}</p>
               </div>
             </div>
             <div className="ml-3 w-px h-3 bg-gradient-to-b from-amber-500/30 to-accent-500/30" />
@@ -139,28 +139,28 @@ export function IncomingRequest() {
                 <div className="h-2.5 w-2.5 rounded-full bg-accent-400 shadow-[0_0_6px_rgba(34,197,94,.4)]" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] text-surface-500 uppercase tracking-wider font-medium">Dropoff</p>
-                <p className="text-sm text-white font-medium truncate">{offer.dropoffAddress ?? 'Dropoff location'}</p>
+                <p className="text-[10px] text-subtle uppercase tracking-wider font-medium">Dropoff</p>
+                <p className="text-sm text-primary font-medium truncate">{offer.dropoffAddress ?? 'Dropoff location'}</p>
               </div>
             </div>
           </div>
 
           {/* Meta */}
-          <div className="flex items-center gap-3 text-xs text-surface-400">
+          <div className="flex items-center gap-3 text-xs text-muted">
             {offer.distanceKm && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.04]">
+              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card">
                 <MapPin className="h-3.5 w-3.5" />
                 {formatDistance(offer.distanceKm)}
               </span>
             )}
             {offer.estimatedDurationMinutes && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.04]">
+              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card">
                 <Clock className="h-3.5 w-3.5" />
                 {offer.estimatedDurationMinutes} min
               </span>
             )}
             {offer.packageType && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.04]">
+              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card">
                 <Package className="h-3.5 w-3.5" />
                 {offer.packageType}
               </span>
@@ -173,7 +173,7 @@ export function IncomingRequest() {
           <Button
             variant="outline"
             size="xl"
-            className="flex-1 border-white/[0.08] text-surface-300 rounded-2xl btn-press"
+            className="flex-1 border-themed-strong text-secondary rounded-2xl btn-press"
             onClick={() => handleRespond(false)}
             disabled={responding}
           >

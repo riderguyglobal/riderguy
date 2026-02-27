@@ -67,7 +67,7 @@ export default function MentorshipDetailPage() {
 
   if (loading && !currentMentorship) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
         <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
       </div>
     );
@@ -75,8 +75,8 @@ export default function MentorshipDetailPage() {
 
   if (!currentMentorship) {
     return (
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col items-center justify-center text-center px-4">
-        <p className="text-surface-400">Mentorship not found</p>
+      <div className="min-h-[100dvh] bg-page flex flex-col items-center justify-center text-center px-4">
+        <p className="text-muted">Mentorship not found</p>
         <Link href="/dashboard/community/mentorship" className="text-brand-400 text-sm mt-2">
           Back to Mentorship
         </Link>
@@ -89,23 +89,23 @@ export default function MentorshipDetailPage() {
     PENDING: { color: 'text-amber-400', bg: 'bg-amber-400/10', icon: <Clock className="h-4 w-4" /> },
     ACTIVE: { color: 'text-emerald-400', bg: 'bg-emerald-400/10', icon: <CheckCircle className="h-4 w-4" /> },
     COMPLETED: { color: 'text-brand-400', bg: 'bg-brand-400/10', icon: <Star className="h-4 w-4" /> },
-    CANCELLED: { color: 'text-surface-500', bg: 'bg-surface-500/10', icon: <XCircle className="h-4 w-4" /> },
+    CANCELLED: { color: 'text-subtle', bg: 'bg-surface-500/10', icon: <XCircle className="h-4 w-4" /> },
   };
   const sc = (statusConfig[m.status] ?? statusConfig.PENDING)!;
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17]">
+    <div className="min-h-[100dvh] bg-page">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0a0e17]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-40 bg-nav backdrop-blur-xl border-b border-themed">
         <div className="px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between h-14">
             <Link
               href="/dashboard/community/mentorship"
-              className="p-2 -ml-2 text-surface-400 hover:text-surface-200"
+              className="p-2 -ml-2 text-muted hover:text-secondary"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-lg font-semibold text-white">Mentorship</h1>
+            <h1 className="text-lg font-semibold text-primary">Mentorship</h1>
             <div className="w-9" />
           </div>
         </div>
@@ -113,14 +113,14 @@ export default function MentorshipDetailPage() {
 
       <div className="px-4 py-4 space-y-4">
         {/* Mentor & Mentee */}
-        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+        <div className="p-4 rounded-2xl bg-hover-themed border border-themed">
           <div className="flex items-center justify-between mb-3">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${sc.color} ${sc.bg}`}>
               {sc.icon}
               {m.status}
             </span>
             {m.zone && (
-              <span className="text-[10px] text-surface-500 bg-white/[0.04] px-2 py-1 rounded-full">
+              <span className="text-[10px] text-subtle bg-card px-2 py-1 rounded-full">
                 {m.zone.name}
               </span>
             )}
@@ -139,10 +139,10 @@ export default function MentorshipDetailPage() {
                 )}
               </div>
               <div>
-                <p className="text-white text-sm font-semibold">
+                <p className="text-primary text-sm font-semibold">
                   {m.mentor.user?.firstName} {m.mentor.user?.lastName}
                 </p>
-                <p className="text-xs text-surface-400">
+                <p className="text-xs text-muted">
                   Mentor — Level {m.mentor.currentLevel} • {m.mentor.totalDeliveries} deliveries
                 </p>
               </div>
@@ -162,10 +162,10 @@ export default function MentorshipDetailPage() {
                 )}
               </div>
               <div>
-                <p className="text-white text-sm font-semibold">
+                <p className="text-primary text-sm font-semibold">
                   {m.mentee.user?.firstName} {m.mentee.user?.lastName}
                 </p>
-                <p className="text-xs text-surface-400">
+                <p className="text-xs text-muted">
                   Mentee — Level {m.mentee.currentLevel} • {m.mentee.totalDeliveries} deliveries
                 </p>
               </div>
@@ -213,19 +213,19 @@ export default function MentorshipDetailPage() {
 
         {/* Check-ins */}
         <div>
-          <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+          <h2 className="text-primary font-semibold mb-3 flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-brand-400" />
             Check-ins
           </h2>
 
           {/* Add check-in (only active) */}
           {m.status === 'ACTIVE' && (
-            <div className="mb-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+            <div className="mb-4 p-4 rounded-2xl bg-hover-themed border border-themed">
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="How did it go? Write a check-in note..."
-                className="w-full bg-transparent text-white text-sm placeholder:text-surface-500 resize-none outline-none min-h-[80px]"
+                className="w-full bg-transparent text-primary text-sm placeholder:text-subtle resize-none outline-none min-h-[80px]"
               />
               <div className="flex items-center justify-between mt-2">
                 <div className="flex gap-1">
@@ -234,7 +234,7 @@ export default function MentorshipDetailPage() {
                       key={r}
                       onClick={() => setRating(rating === r ? undefined : r)}
                       className={`p-1 transition-colors ${
-                        rating && r <= rating ? 'text-amber-400' : 'text-surface-600'
+                        rating && r <= rating ? 'text-amber-400' : 'text-subtle'
                       }`}
                     >
                       <Star className="h-4 w-4" fill={rating && r <= rating ? 'currentColor' : 'none'} />
@@ -254,16 +254,16 @@ export default function MentorshipDetailPage() {
 
           {/* Check-in list */}
           {checkIns.length === 0 ? (
-            <p className="text-surface-500 text-sm text-center py-8">No check-ins yet</p>
+            <p className="text-subtle text-sm text-center py-8">No check-ins yet</p>
           ) : (
             <div className="space-y-2">
               {checkIns.map((ci) => (
                 <div
                   key={ci.id}
-                  className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"
+                  className="p-3 rounded-xl bg-hover-themed border border-themed"
                 >
-                  <p className="text-surface-200 text-sm leading-relaxed">{ci.note}</p>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] text-surface-500">
+                  <p className="text-secondary text-sm leading-relaxed">{ci.note}</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-subtle">
                     {ci.rating && (
                       <span className="flex items-center gap-0.5 text-amber-400">
                         <Star className="h-3 w-3" fill="currentColor" />

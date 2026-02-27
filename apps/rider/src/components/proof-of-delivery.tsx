@@ -106,12 +106,12 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
 
   return (
     <div className="glass-elevated rounded-2xl overflow-hidden">
-      <div className="px-4 py-3.5 border-b border-white/[0.06]">
-        <h3 className="text-sm font-bold text-white tracking-tight">Proof of Delivery</h3>
+      <div className="px-4 py-3.5 border-b border-themed">
+        <h3 className="text-sm font-bold text-primary tracking-tight">Proof of Delivery</h3>
       </div>
 
       {/* Premium proof type selector */}
-      <div className="relative flex p-1 m-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+      <div className="relative flex p-1 m-3 rounded-2xl bg-card border border-themed">
         <div
           className="absolute top-1 bottom-1 rounded-xl gradient-brand transition-all duration-300 ease-out shadow-lg"
           style={{
@@ -124,7 +124,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
             key={type}
             onClick={() => setProofType(type)}
             className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors btn-press ${
-              proofType === type ? 'text-white' : 'text-surface-400'
+              proofType === type ? 'text-primary' : 'text-muted'
             }`}
           >
             {icon} {label}
@@ -136,24 +136,24 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
         {proofType === 'PHOTO' && (
           <>
             {photoPreview ? (
-              <div className="relative rounded-2xl overflow-hidden border border-white/[0.06]">
+              <div className="relative rounded-2xl overflow-hidden border border-themed">
                 <img src={photoPreview} alt="Proof" className="w-full h-48 object-cover" />
                 <button
                   onClick={() => { setPhotoPreview(null); if (fileRef.current) fileRef.current.value = ''; }}
                   className="absolute top-2 right-2 h-8 w-8 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center btn-press"
                 >
-                  <X className="h-4 w-4 text-white" />
+                  <X className="h-4 w-4 text-primary" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full h-40 rounded-2xl border-2 border-dashed border-white/[0.08] flex flex-col items-center justify-center gap-2 hover:border-brand-500/30 hover:bg-brand-500/[0.03] transition-all btn-press"
+                className="w-full h-40 rounded-2xl border-2 border-dashed border-themed-strong flex flex-col items-center justify-center gap-2 hover:border-brand-500/30 hover:bg-brand-500/[0.03] transition-all btn-press"
               >
-                <div className="h-12 w-12 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                  <ImageIcon className="h-6 w-6 text-surface-500" />
+                <div className="h-12 w-12 rounded-xl bg-skeleton flex items-center justify-center">
+                  <ImageIcon className="h-6 w-6 text-subtle" />
                 </div>
-                <span className="text-sm text-surface-400 font-medium">Take or upload photo</span>
+                <span className="text-sm text-muted font-medium">Take or upload photo</span>
               </button>
             )}
             <input
@@ -173,7 +173,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               ref={canvasRef}
               width={320}
               height={150}
-              className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] touch-none"
+              className="w-full rounded-2xl border border-themed-strong bg-hover-themed touch-none"
               onMouseDown={startDraw}
               onMouseMove={draw}
               onMouseUp={stopDraw}
@@ -190,7 +190,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
 
         {proofType === 'PIN_CODE' && (
           <div>
-            <p className="text-xs text-surface-400 mb-2">
+            <p className="text-xs text-muted mb-2">
               {deliveryPin ? `Ask the recipient for their delivery PIN` : 'Enter the delivery PIN'}
             </p>
             <input
@@ -200,7 +200,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               placeholder="Enter PIN"
-              className="w-full text-center text-2xl font-mono tracking-[0.5em] py-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-surface-600 outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all"
+              className="w-full text-center text-2xl font-mono tracking-[0.5em] py-3 rounded-2xl bg-card border border-themed-strong text-primary placeholder:text-subtle outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all"
             />
           </div>
         )}

@@ -84,8 +84,8 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h2 className="text-3xl font-extrabold text-white mb-1 tracking-tight">Welcome back</h2>
-      <p className="text-surface-400 mb-8">Sign in to continue delivering</p>
+      <h2 className="text-3xl font-extrabold text-primary mb-1 tracking-tight">Welcome back</h2>
+      <p className="text-muted mb-8">Sign in to continue delivering</p>
 
       {/* Error banner */}
       {error && (
@@ -96,7 +96,7 @@ export default function LoginPage() {
       )}
 
       {/* Premium segmented control */}
-      <div className="relative flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06] mb-8">
+      <div className="relative flex p-1 rounded-2xl bg-card border border-themed mb-8">
         <div
           className="absolute top-1 bottom-1 rounded-xl gradient-brand transition-all duration-300 ease-out shadow-lg glow-brand"
           style={{ width: 'calc(50% - 4px)', left: method === 'phone' ? '4px' : 'calc(50% + 0px)' }}
@@ -106,7 +106,7 @@ export default function LoginPage() {
             key={m}
             onClick={() => { setMethod(m); setError(''); setPhoneStage('input'); }}
             className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors btn-press ${
-              method === m ? 'text-white' : 'text-surface-400 hover:text-surface-300'
+              method === m ? 'text-primary' : 'text-muted hover:text-secondary'
             }`}
           >
             {m === 'phone' ? <Phone className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
@@ -120,7 +120,7 @@ export default function LoginPage() {
           {phoneStage === 'input' ? (
             <>
               <div>
-                <label className="block text-sm font-medium text-surface-300 mb-2.5">Phone Number</label>
+                <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
                 <PhoneInput value={phone} onValueChange={setPhone} />
               </div>
               <Button
@@ -138,8 +138,8 @@ export default function LoginPage() {
                 <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
                   <Phone className="h-6 w-6 text-brand-400" />
                 </div>
-                <p className="text-surface-300 text-sm">
-                  We sent a code to <span className="text-white font-semibold">{phone}</span>
+                <p className="text-secondary text-sm">
+                  We sent a code to <span className="text-primary font-semibold">{phone}</span>
                 </p>
                 <button onClick={() => setPhoneStage('input')} className="text-brand-400 text-sm mt-2 hover:underline font-medium">
                   Change number
@@ -159,7 +159,7 @@ export default function LoginPage() {
                 <button
                   onClick={handleRequestOtp}
                   disabled={submitting}
-                  className="text-sm text-surface-400 hover:text-brand-400 transition-colors font-medium"
+                  className="text-sm text-muted hover:text-brand-400 transition-colors font-medium"
                 >
                   Resend code
                 </button>
@@ -170,29 +170,29 @@ export default function LoginPage() {
       ) : (
         <form onSubmit={handleEmailLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2.5">Email</label>
+            <label className="block text-sm font-medium text-secondary mb-2.5">Email</label>
             <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
+              className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-2.5">Password</label>
+            <label className="block text-sm font-medium text-secondary mb-2.5">Password</label>
             <div className="relative">
               <Input
                 type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-surface-500 pr-11 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
+                className="bg-card border-themed-strong text-primary placeholder:text-subtle pr-11 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
               />
               <button
                 type="button"
                 onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-300 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-secondary transition-colors"
               >
                 {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -204,7 +204,7 @@ export default function LoginPage() {
         </form>
       )}
 
-      <p className="text-center text-sm text-surface-400 mt-8">
+      <p className="text-center text-sm text-muted mt-8">
         Don&apos;t have an account?{' '}
         <Link href="/register" className="text-brand-400 font-semibold hover:underline">
           Sign up

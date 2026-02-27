@@ -78,19 +78,19 @@ export default function DocumentsPage() {
   const getDocStatus = (type: string) => docs.find((d) => d.type === type);
 
   return (
-    <div className="min-h-[100dvh] pb-10 animate-page-enter bg-[#0a0e17]">
+    <div className="min-h-[100dvh] pb-10 animate-page-enter bg-page">
       {/* Header */}
-      <div className="safe-area-top bg-[#0a0e17]/80 backdrop-blur-xl sticky top-0 z-20 border-b border-white/[0.06]">
+      <div className="safe-area-top bg-nav backdrop-blur-xl sticky top-0 z-20 border-b border-themed">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center btn-press">
-            <ArrowLeft className="h-5 w-5 text-surface-300" />
+          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-xl bg-skeleton border border-themed-strong flex items-center justify-center btn-press">
+            <ArrowLeft className="h-5 w-5 text-secondary" />
           </button>
-          <h1 className="text-lg font-bold text-white tracking-tight">Documents</h1>
+          <h1 className="text-lg font-bold text-primary tracking-tight">Documents</h1>
         </div>
       </div>
 
       <div className="px-4 py-6 space-y-4">
-        <p className="text-sm text-surface-400">Upload your identification documents for verification.</p>
+        <p className="text-sm text-muted">Upload your identification documents for verification.</p>
 
         {error && (
           <div className="p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2 animate-shake backdrop-blur-sm">
@@ -110,10 +110,10 @@ export default function DocumentsPage() {
                   <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
                     <File className="h-5 w-5 text-brand-400" />
                   </div>
-                  <span className="text-sm font-semibold text-white">{label}</span>
+                  <span className="text-sm font-semibold text-primary">{label}</span>
                 </div>
                 {doc && (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04]">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card">
                     {doc.status === 'APPROVED' && <CheckCircle className="h-3.5 w-3.5 text-accent-400" />}
                     {doc.status === 'PENDING' && <Clock className="h-3.5 w-3.5 text-amber-400" />}
                     {doc.status === 'REJECTED' && <AlertCircle className="h-3.5 w-3.5 text-danger-400" />}
@@ -136,7 +136,7 @@ export default function DocumentsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full border-white/[0.08] text-surface-300 rounded-xl hover:bg-white/[0.04] btn-press"
+                  className="w-full border-themed-strong text-secondary rounded-xl hover:bg-hover-themed btn-press"
                   onClick={() => triggerUpload(type)}
                   loading={isUploading}
                 >
@@ -146,7 +146,7 @@ export default function DocumentsPage() {
               )}
 
               {doc?.fileName && doc.status !== 'REJECTED' && (
-                <p className="text-xs text-surface-500 truncate mt-2">{doc.fileName}</p>
+                <p className="text-xs text-subtle truncate mt-2">{doc.fileName}</p>
               )}
             </div>
           );

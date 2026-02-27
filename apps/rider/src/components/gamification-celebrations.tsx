@@ -98,21 +98,21 @@ export function LevelUpCelebration({ level, levelName, onDismiss }: LevelUpProps
           </div>
 
           {/* Content */}
-          <div className="bg-[#0f1420] p-6 text-center space-y-3">
+          <div className="bg-card-elevated p-6 text-center space-y-3">
             <div className="flex items-center justify-center gap-2">
               <ChevronUp className="h-5 w-5 text-accent-400 animate-bounce" />
               <span className="text-accent-400 text-sm font-bold uppercase tracking-widest">Level Up!</span>
               <ChevronUp className="h-5 w-5 text-accent-400 animate-bounce" />
             </div>
 
-            <h2 className="text-white text-2xl font-black">
+            <h2 className="text-primary text-2xl font-black">
               Level {level}
             </h2>
             <p className={`text-lg font-bold bg-gradient-to-r ${gradientClass} bg-clip-text text-transparent`}>
               {levelName}
             </p>
 
-            <p className="text-surface-400 text-sm leading-relaxed">
+            <p className="text-muted text-sm leading-relaxed">
               Keep going! Higher levels unlock lower commission rates and exclusive perks.
             </p>
 
@@ -183,7 +183,7 @@ export function BadgeCelebration({ badges, onDismiss }: BadgeCelebrationProps) {
           {/* Close */}
           <button
             onClick={onDismiss}
-            className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/5 flex items-center justify-center text-surface-400 hover:text-white transition-colors"
+            className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/5 flex items-center justify-center text-muted hover:text-primary transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -204,8 +204,8 @@ export function BadgeCelebration({ badges, onDismiss }: BadgeCelebrationProps) {
           </div>
 
           {/* Badge info */}
-          <h3 className="text-white text-xl font-black mb-1">{badge.name}</h3>
-          <p className="text-surface-400 text-sm mb-1">{badge.description}</p>
+          <h3 className="text-primary text-xl font-black mb-1">{badge.name}</h3>
+          <p className="text-muted text-sm mb-1">{badge.description}</p>
 
           {badge.xpReward > 0 && (
             <p className="text-accent-400 text-sm font-semibold">+{badge.xpReward} XP</p>
@@ -213,7 +213,7 @@ export function BadgeCelebration({ badges, onDismiss }: BadgeCelebrationProps) {
 
           {/* Counter */}
           {badges.length > 1 && (
-            <p className="text-surface-500 text-xs mt-3">
+            <p className="text-subtle text-xs mt-3">
               {currentIndex + 1} of {badges.length}
             </p>
           )}

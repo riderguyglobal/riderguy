@@ -65,22 +65,22 @@ export default function JobsPage() {
   return (
     <div className="min-h-[100dvh] pb-24 animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-[#0a0e17]/95 backdrop-blur-xl sticky top-0 z-20 border-b border-white/[0.06]">
+      <div className="safe-area-top bg-nav backdrop-blur-xl sticky top-0 z-20 border-b border-themed">
         <div className="px-5 pt-4 pb-3">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-white">Jobs</h1>
+            <h1 className="text-xl font-bold text-primary">Jobs</h1>
             <button
               onClick={fetchJobs}
               className="h-9 w-9 rounded-xl glass flex items-center justify-center btn-press"
             >
-              <RefreshCw className={`h-4 w-4 text-surface-400 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 text-muted ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
 
         {/* Premium segmented control */}
         <div className="px-5 pb-3">
-          <div className="relative flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+          <div className="relative flex p-1 rounded-2xl bg-card border border-themed">
             {/* Sliding pill indicator */}
             <div
               className="absolute top-1 bottom-1 rounded-xl gradient-brand shadow-lg transition-all duration-300 ease-out"
@@ -94,7 +94,7 @@ export default function JobsPage() {
                 key={t}
                 onClick={() => setTab(t)}
                 className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                  tab === t ? 'text-white' : 'text-surface-500'
+                  tab === t ? 'text-primary' : 'text-subtle'
                 }`}
               >
                 {t === 'available' ? (
@@ -136,18 +136,18 @@ export default function JobsPage() {
             <div className="relative inline-flex mb-5">
               <div className="absolute inset-0 rounded-full bg-brand-500/10 blur-2xl scale-[2]" />
               <div className="relative h-16 w-16 rounded-2xl glass flex items-center justify-center">
-                <Search className="h-7 w-7 text-surface-500" />
+                <Search className="h-7 w-7 text-subtle" />
               </div>
             </div>
-            <h3 className="text-white text-base font-semibold mb-1">
+            <h3 className="text-primary text-base font-semibold mb-1">
               {tab === 'available' ? 'No jobs available' : 'No active deliveries'}
             </h3>
-            <p className="text-surface-500 text-sm max-w-[250px] mx-auto mb-6">
+            <p className="text-subtle text-sm max-w-[250px] mx-auto mb-6">
               {tab === 'available' ? 'New delivery requests will appear here when available' : 'Accept a job to start earning'}
             </p>
             <button
               onClick={fetchJobs}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl glass text-sm text-surface-300 font-medium btn-press"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl glass text-sm text-secondary font-medium btn-press"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -155,7 +155,7 @@ export default function JobsPage() {
           </div>
         ) : (
           jobs.map((job, idx) => {
-            const sc = STATUS_CONFIG[job.status] ?? { label: job.status, color: 'text-surface-400', bg: 'bg-surface-400/10' };
+            const sc = STATUS_CONFIG[job.status] ?? { label: job.status, color: 'text-muted', bg: 'bg-surface-400/10' };
             const pkg = PACKAGE_TYPES[job.packageType] ?? { label: 'Package', icon: '📦' };
             const isAvailable = tab === 'available';
 
@@ -174,8 +174,8 @@ export default function JobsPage() {
                         {pkg.icon}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-white">{pkg.label}</p>
-                        <p className="text-[10px] text-surface-500">{timeAgo(new Date(job.createdAt))}</p>
+                        <p className="text-sm font-semibold text-primary">{pkg.label}</p>
+                        <p className="text-[10px] text-subtle">{timeAgo(new Date(job.createdAt))}</p>
                       </div>
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full ${sc.bg} ${sc.color}`}>
@@ -187,29 +187,29 @@ export default function JobsPage() {
                   {/* Route with connected dots */}
                   <div className="flex gap-3 pl-1">
                     <div className="flex flex-col items-center pt-0.5">
-                      <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                       <div className="w-px flex-1 bg-gradient-to-b from-brand-500/60 to-accent-500/60 my-1 min-h-[16px]" />
                       <div className="h-2.5 w-2.5 rounded-full bg-accent-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                     </div>
                     <div className="flex-1 min-w-0 space-y-2">
                       <div>
-                        <p className="text-[10px] text-surface-500 font-medium uppercase tracking-wider">Pickup</p>
-                        <p className="text-xs text-white font-medium truncate">{job.pickupAddress ?? 'Pickup'}</p>
+                        <p className="text-[10px] text-subtle font-medium uppercase tracking-wider">Pickup</p>
+                        <p className="text-xs text-primary font-medium truncate">{job.pickupAddress ?? 'Pickup'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-surface-500 font-medium uppercase tracking-wider">Dropoff</p>
-                        <p className="text-xs text-white font-medium truncate">{job.dropoffAddress ?? 'Dropoff'}</p>
+                        <p className="text-[10px] text-subtle font-medium uppercase tracking-wider">Dropoff</p>
+                        <p className="text-xs text-primary font-medium truncate">{job.dropoffAddress ?? 'Dropoff'}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Meta + Earnings + Action */}
-                  <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+                  <div className="flex items-center justify-between pt-2 border-t border-themed-subtle">
                     <div className="flex items-center gap-3">
                       <p className="text-lg font-bold text-accent-400 tabular-nums">
                         {formatCurrency(job.riderEarnings ?? job.totalPrice ?? 0)}
                       </p>
-                      <div className="flex items-center gap-2 text-[10px] text-surface-500">
+                      <div className="flex items-center gap-2 text-[10px] text-subtle">
                         {job.distanceKm && (
                           <span className="flex items-center gap-0.5">
                             <MapPin className="h-3 w-3" />
@@ -235,7 +235,7 @@ export default function JobsPage() {
                         Accept
                       </Button>
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-surface-500" />
+                      <ChevronRight className="h-4 w-4 text-subtle" />
                     )}
                   </div>
                 </div>

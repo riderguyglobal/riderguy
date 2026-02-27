@@ -6,7 +6,6 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "echo 'no lint configured'",
     "clean": "rimraf dist .turbo"

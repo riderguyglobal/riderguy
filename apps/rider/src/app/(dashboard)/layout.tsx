@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.RIDER]}>
-      <div className="min-h-[100dvh] bg-[#0a0e17] flex flex-col">
+      <div className="min-h-[100dvh] bg-page flex flex-col">
         {/* Main content */}
         <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
           {children}
@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {!hideNav && (
           <nav className="fixed bottom-0 inset-x-0 z-50">
             {/* Frosted glass background */}
-            <div className="absolute inset-0 bg-[#0a0e17]/80 backdrop-blur-xl border-t border-white/[0.06]" />
+            <div className="absolute inset-0 bg-nav backdrop-blur-xl border-t border-themed" />
 
             {/* Ambient glow from active tab */}
             <div className="relative px-4 pb-[env(safe-area-inset-bottom)]">
@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     >
                       {/* Active indicator pill */}
                       {isActive && (
-                        <div className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-brand-500 shadow-[0_0_12px_rgba(14,165,233,0.6)]" />
+                        <div className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-brand-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]" />
                       )}
 
                       {/* Icon with glow */}
@@ -72,7 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         )}
                         <Icon
                           className={`relative h-[22px] w-[22px] transition-colors duration-200 ${
-                            isActive ? 'text-brand-400' : 'text-surface-500'
+                            isActive ? 'text-brand-400' : 'text-subtle'
                           }`}
                           strokeWidth={isActive ? 2.2 : 1.8}
                         />
@@ -81,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       {/* Label */}
                       <span
                         className={`text-[10px] font-medium tracking-wide transition-colors duration-200 ${
-                          isActive ? 'text-brand-400' : 'text-surface-500'
+                          isActive ? 'text-brand-400' : 'text-subtle'
                         }`}
                       >
                         {item.label}

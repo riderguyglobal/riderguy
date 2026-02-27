@@ -100,15 +100,15 @@ export default function SelfiePage() {
 
   if (success) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0a0e17] px-6 text-center animate-scale-in">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-page px-6 text-center animate-scale-in">
         <div className="relative mb-6">
           <div className="absolute inset-0 rounded-full bg-accent-500/20 animate-ping" />
           <div className="relative h-20 w-20 rounded-full gradient-accent flex items-center justify-center shadow-xl glow-accent">
             <CheckCircle className="h-10 w-10 text-white" />
           </div>
         </div>
-        <h2 className="text-2xl font-extrabold text-white mb-2 tracking-tight">Selfie Uploaded!</h2>
-        <p className="text-surface-400 mb-8">Your photo is being reviewed.</p>
+        <h2 className="text-2xl font-extrabold text-primary mb-2 tracking-tight">Selfie Uploaded!</h2>
+        <p className="text-muted mb-8">Your photo is being reviewed.</p>
         <Button className="gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold px-8" onClick={() => router.push('/dashboard/onboarding')}>
           Back to Onboarding
         </Button>
@@ -117,14 +117,14 @@ export default function SelfiePage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0e17] animate-page-enter">
+    <div className="min-h-[100dvh] bg-page animate-page-enter">
       {/* Header */}
-      <div className="safe-area-top bg-[#0a0e17]/80 backdrop-blur-xl sticky top-0 z-20 border-b border-white/[0.06]">
+      <div className="safe-area-top bg-nav backdrop-blur-xl sticky top-0 z-20 border-b border-themed">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center btn-press">
-            <ArrowLeft className="h-5 w-5 text-surface-300" />
+          <button onClick={() => router.push('/dashboard/onboarding')} className="h-9 w-9 rounded-xl bg-skeleton border border-themed-strong flex items-center justify-center btn-press">
+            <ArrowLeft className="h-5 w-5 text-secondary" />
           </button>
-          <h1 className="text-lg font-bold text-white tracking-tight">Selfie Verification</h1>
+          <h1 className="text-lg font-bold text-primary tracking-tight">Selfie Verification</h1>
         </div>
       </div>
 
@@ -137,7 +137,7 @@ export default function SelfiePage() {
         )}
 
         {/* Camera preview / photo */}
-        <div className="relative aspect-[3/4] max-h-[60dvh] rounded-2xl overflow-hidden bg-white/[0.03] border border-white/[0.06]">
+        <div className="relative aspect-[3/4] max-h-[60dvh] rounded-2xl overflow-hidden bg-hover-themed border border-themed">
           {photo ? (
             <img src={photo} alt="Selfie" className="w-full h-full object-cover" />
           ) : stream ? (
@@ -153,7 +153,7 @@ export default function SelfiePage() {
               <div className="h-16 w-16 rounded-2xl bg-brand-500/10 flex items-center justify-center">
                 <Camera className="h-8 w-8 text-brand-400" />
               </div>
-              <p className="text-sm text-surface-400">Tap to start camera</p>
+              <p className="text-sm text-muted">Tap to start camera</p>
               <Button onClick={startCamera} className="gradient-brand text-white shadow-lg glow-brand btn-press rounded-xl font-semibold">
                 Start Camera
               </Button>
@@ -163,7 +163,7 @@ export default function SelfiePage() {
           {/* Overlay guide circle */}
           {(stream && !photo) && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-56 h-72 rounded-full border-2 border-brand-400/40 border-dashed shadow-[0_0_30px_rgba(14,165,233,0.1)]" />
+              <div className="w-56 h-72 rounded-full border-2 border-brand-400/40 border-dashed shadow-[0_0_30px_rgba(34,197,94,0.1)]" />
             </div>
           )}
         </div>
@@ -173,7 +173,7 @@ export default function SelfiePage() {
         {/* Controls */}
         {photo ? (
           <div className="flex gap-3">
-            <Button variant="outline" size="lg" className="flex-1 border-white/[0.08] text-surface-300 rounded-xl btn-press" onClick={retake}>
+            <Button variant="outline" size="lg" className="flex-1 border-themed-strong text-secondary rounded-xl btn-press" onClick={retake}>
               <RotateCcw className="h-4 w-4 mr-2" />
               Retake
             </Button>
@@ -183,17 +183,17 @@ export default function SelfiePage() {
           </div>
         ) : stream ? (
           <div className="flex items-center justify-center gap-6">
-            <button onClick={flipCamera} className="h-12 w-12 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center btn-press">
-              <FlipHorizontal2 className="h-5 w-5 text-surface-300" />
+            <button onClick={flipCamera} className="h-12 w-12 rounded-xl bg-skeleton border border-themed-strong flex items-center justify-center btn-press">
+              <FlipHorizontal2 className="h-5 w-5 text-secondary" />
             </button>
             <button onClick={capture} className="h-[68px] w-[68px] rounded-full gradient-brand flex items-center justify-center ring-4 ring-brand-500/20 shadow-xl glow-brand btn-press">
-              <div className="h-14 w-14 rounded-full bg-white border-4 border-[#0a0e17]" />
+              <div className="h-14 w-14 rounded-full bg-white border-4 border-page" />
             </button>
             <div className="w-12" />
           </div>
         ) : null}
 
-        <p className="text-xs text-surface-500 text-center px-4">
+        <p className="text-xs text-subtle text-center px-4">
           Position your face within the oval guide. Ensure good lighting and remove sunglasses.
         </p>
       </div>
