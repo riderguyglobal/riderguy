@@ -9,22 +9,27 @@ import {
   ArrowLeft,
   MapPin,
   Navigation,
-  Search,
   X,
   AlertCircle,
   Loader2,
-  ChevronRight,
   ChevronDown,
   CreditCard,
   Smartphone,
   Banknote,
   Send,
+  Check,
+  Crosshair,
 } from 'lucide-react';
 
 // Compact package types — the 4 most common for in-town delivery
 const QUICK_PACKAGES = PACKAGE_TYPES.filter((p) =>
   ['SMALL_PARCEL', 'DOCUMENT', 'FOOD', 'FRAGILE'].includes(p.value)
 );
+
+interface PlaceResult {
+  place_name: string;
+  center: [number, number];
+}
 
 interface LocationData {
   address: string;
@@ -42,6 +47,64 @@ const emptyLocation = (): LocationData => ({
   notes: '',
 });
 
+// ── Inline autocomplete hook ──
+function useAutocomplete() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<PlaceResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const abortRef = useRef<AbortController>();
+
+  const search = useCallback(async (q: string) => {
+    if (!q || q.length < 2) { setResults([]); setLoading(false); return; }
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}`,
+        { signal: ctrl.signal }
+      );
+      const json = await res.json();
+      setResults(
+        json.data?.map((s: { placeName: string; latitude: number; longitude: number }) => ({
+          place_name: s.placeName,
+          center: [s.longitude, s.latitude] as [number, number],
+        })) || []
+      );
+    } catch {
+      if (!ctrl.signal.aborted) setResults([]);
+    } finally {
+      if (!ctrl.signal.aborted) setLoading(false);
+    }
+  }, []);
+
+  const onChange = useCallback((value: string) => {
+    setQuery(value);
+    setOpen(true);
+    if (timer.current) clearTimeout(timer.current);
+    if (value.length < 2) { setResults([]); setLoading(false); return; }
+    setLoading(true);
+    timer.current = setTimeout(() => search(value), 250);
+  }, [search]);
+
+  const clear = useCallback(() => {
+    setQuery('');
+    setResults([]);
+    setOpen(false);
+    abortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    return () => { if (timer.current) clearTimeout(timer.current); abortRef.current?.abort(); };
+  }, []);
+
+  return { query, setQuery, results, loading, open, setOpen, onChange, clear };
+}
+
 export default function SendPackagePage() {
   const router = useRouter();
   const { api } = useAuth();
@@ -54,49 +117,62 @@ export default function SendPackagePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showDetails, setShowDetails] = useState(false);
+  const [locatingPickup, setLocatingPickup] = useState(false);
+  const [locatingDropoff, setLocatingDropoff] = useState(false);
 
-  // Search overlay
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Array<{ place_name: string; center: [number, number] }>>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchTarget, setSearchTarget] = useState<'pickup' | 'dropoff'>('pickup');
-  const [showSearch, setShowSearch] = useState(false);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const pickupAC = useAutocomplete();
+  const dropoffAC = useAutocomplete();
+  const pickupRef = useRef<HTMLInputElement>(null);
+  const dropoffRef = useRef<HTMLInputElement>(null);
+  const pickupWrapRef = useRef<HTMLDivElement>(null);
+  const dropoffWrapRef = useRef<HTMLDivElement>(null);
 
-  const searchPlaces = useCallback(async (query: string) => {
-    if (!query || query.length < 3) { setSearchResults([]); return; }
-    setSearching(true);
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(query)}`
-      );
-      const json = await res.json();
-      setSearchResults(json.data?.map((s: { placeName: string; latitude: number; longitude: number }) => ({
-        place_name: s.placeName,
-        center: [s.longitude, s.latitude] as [number, number],
-      })) || []);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
+  // Close dropdowns on outside click
   useEffect(() => {
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => searchPlaces(searchQuery), 400);
-    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
-  }, [searchQuery, searchPlaces]);
+    const handler = (e: MouseEvent) => {
+      if (pickupWrapRef.current && !pickupWrapRef.current.contains(e.target as Node)) {
+        pickupAC.setOpen(false);
+      }
+      if (dropoffWrapRef.current && !dropoffWrapRef.current.contains(e.target as Node)) {
+        dropoffAC.setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [pickupAC, dropoffAC]);
 
-  const selectPlace = (place: { place_name: string; center: [number, number] }) => {
-    const setter = searchTarget === 'pickup' ? setPickup : setDropoff;
-    setter((prev) => ({ ...prev, address: place.place_name, coordinates: place.center }));
-    setShowSearch(false);
-    setSearchQuery('');
-    setSearchResults([]);
+  const selectPickupPlace = (place: PlaceResult) => {
+    setPickup((prev) => ({ ...prev, address: place.place_name, coordinates: place.center }));
+    pickupAC.setQuery(place.place_name);
+    pickupAC.setOpen(false);
+    // Auto-focus dropoff if empty
+    if (!dropoff.coordinates) setTimeout(() => dropoffRef.current?.focus(), 100);
   };
 
-  const useCurrentLocation = () => {
+  const selectDropoffPlace = (place: PlaceResult) => {
+    setDropoff((prev) => ({ ...prev, address: place.place_name, coordinates: place.center }));
+    dropoffAC.setQuery(place.place_name);
+    dropoffAC.setOpen(false);
+  };
+
+  const handlePickupInputChange = (value: string) => {
+    pickupAC.onChange(value);
+    // If the user edits the text after selecting, clear coordinates
+    if (pickup.coordinates) {
+      setPickup((prev) => ({ ...prev, address: value, coordinates: null }));
+    }
+  };
+
+  const handleDropoffInputChange = (value: string) => {
+    dropoffAC.onChange(value);
+    if (dropoff.coordinates) {
+      setDropoff((prev) => ({ ...prev, address: value, coordinates: null }));
+    }
+  };
+
+  const useCurrentLocation = async (target: 'pickup' | 'dropoff') => {
+    const setLocating = target === 'pickup' ? setLocatingPickup : setLocatingDropoff;
+    setLocating(true);
     navigator.geolocation?.getCurrentPosition(
       async (pos) => {
         const [lng, lat] = [pos.coords.longitude, pos.coords.latitude];
@@ -105,13 +181,20 @@ export default function SendPackagePage() {
             `${API_BASE_URL}/orders/reverse-geocode?latitude=${lat}&longitude=${lng}`
           );
           const json = await res.json();
-          const name = json.data?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-          const setter = searchTarget === 'pickup' ? setPickup : setDropoff;
+          const name = json.data?.address || 'Current Location';
+          const setter = target === 'pickup' ? setPickup : setDropoff;
+          const ac = target === 'pickup' ? pickupAC : dropoffAC;
           setter((prev) => ({ ...prev, address: name, coordinates: [lng, lat] }));
-        } catch { /* fallback ignored */ }
-        setShowSearch(false);
+          ac.setQuery(name);
+          ac.setOpen(false);
+        } catch { /* fallback */ }
+        setLocating(false);
+        // Auto-focus next field
+        if (target === 'pickup' && !dropoff.coordinates) {
+          setTimeout(() => dropoffRef.current?.focus(), 100);
+        }
       },
-      () => setError('Could not get your location'),
+      () => { setError('Could not get your location'); setLocating(false); },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
@@ -149,7 +232,6 @@ export default function SendPackagePage() {
         packageType,
         paymentMethod,
       };
-      // Only send optional fields if filled
       if (pickup.contactName) body.pickupContactName = pickup.contactName;
       if (pickup.contactPhone) body.pickupContactPhone = pickup.contactPhone;
       if (pickup.notes) body.pickupInstructions = pickup.notes;
@@ -166,65 +248,6 @@ export default function SendPackagePage() {
       setSubmitting(false);
     }
   };
-
-  // ── Search overlay ──
-  if (showSearch) {
-    return (
-      <div className="fixed inset-0 z-50 bg-white animate-slide-up">
-        <div className="safe-area-top" />
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
-          <button onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }} className="h-10 w-10 rounded-full bg-surface-100 flex items-center justify-center btn-press">
-            <ArrowLeft className="h-5 w-5 text-surface-900" />
-          </button>
-          <div className="flex-1 relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
-            <input
-              autoFocus
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={searchTarget === 'pickup' ? 'Pickup address...' : 'Delivery address...'}
-              className="w-full pl-10 pr-8 h-12 bg-surface-100 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all"
-            />
-            {searchQuery && (
-              <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="h-4 w-4 text-surface-400" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="px-4 py-3">
-          <button onClick={useCurrentLocation} className="w-full flex items-center gap-3 py-3 px-3 rounded-2xl hover:bg-surface-50 transition-colors group">
-            <div className="h-10 w-10 rounded-full bg-surface-100 flex items-center justify-center shrink-0 group-hover:bg-surface-200">
-              <Navigation className="h-4 w-4 text-brand-500" />
-            </div>
-            <span className="text-sm font-semibold text-brand-600">Use current location</span>
-          </button>
-        </div>
-
-        {searching && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 text-surface-400 animate-spin" />
-          </div>
-        )}
-
-        <div className="px-4 space-y-0.5">
-          {searchResults.map((place, i) => (
-            <button
-              key={i}
-              onClick={() => selectPlace(place)}
-              className="w-full flex items-start gap-3 py-3 px-3 rounded-2xl hover:bg-surface-50 transition-colors text-left btn-press"
-            >
-              <div className="h-8 w-8 rounded-full bg-surface-100 flex items-center justify-center shrink-0 mt-0.5">
-                <MapPin className="h-3.5 w-3.5 text-surface-500" />
-              </div>
-              <span className="text-sm text-surface-700 leading-snug">{place.place_name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-[100dvh] bg-white animate-page-enter flex flex-col">
@@ -246,7 +269,7 @@ export default function SendPackagePage() {
           </div>
         )}
 
-        {/* ── Route: Pickup → Dropoff (Uber-style connected dots) ── */}
+        {/* ── Route: Pickup → Dropoff with inline autocomplete ── */}
         <div className="relative">
           <div className="flex items-start gap-3">
             {/* Dot connector */}
@@ -256,35 +279,119 @@ export default function SendPackagePage() {
               <div className="h-3 w-3 rounded-full bg-surface-900 ring-2 ring-surface-300" />
             </div>
 
-            {/* Address inputs */}
+            {/* Address inputs with inline suggestions */}
             <div className="flex-1 space-y-2">
-              <button
-                onClick={() => { setSearchTarget('pickup'); setShowSearch(true); }}
-                className="w-full flex items-center gap-2 h-12 px-4 bg-surface-100 rounded-xl text-left hover:bg-surface-200/70 transition-colors btn-press"
-              >
-                <div className="flex-1 min-w-0">
-                  {pickup.address ? (
-                    <p className="text-sm text-surface-900 font-medium truncate">{pickup.address}</p>
-                  ) : (
-                    <p className="text-sm text-surface-400">Pickup location</p>
-                  )}
+              {/* Pickup input */}
+              <div ref={pickupWrapRef} className="relative">
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <input
+                      ref={pickupRef}
+                      value={pickupAC.query}
+                      onChange={(e) => handlePickupInputChange(e.target.value)}
+                      onFocus={() => { if (pickupAC.query.length >= 2) pickupAC.setOpen(true); }}
+                      placeholder="Pickup location"
+                      className="w-full h-12 pl-4 pr-9 bg-surface-100 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all"
+                    />
+                    {pickup.coordinates && (
+                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent-500" />
+                    )}
+                    {pickupAC.loading && !pickup.coordinates && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 animate-spin" />
+                    )}
+                    {pickupAC.query && !pickup.coordinates && !pickupAC.loading && (
+                      <button onClick={() => { pickupAC.clear(); setPickup(emptyLocation()); }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <X className="h-4 w-4 text-surface-400" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => useCurrentLocation('pickup')}
+                    disabled={locatingPickup}
+                    className="h-12 w-12 shrink-0 rounded-xl bg-surface-100 flex items-center justify-center hover:bg-surface-200 transition-colors btn-press disabled:opacity-50"
+                    title="Use current location"
+                  >
+                    {locatingPickup ? (
+                      <Loader2 className="h-4 w-4 text-brand-500 animate-spin" />
+                    ) : (
+                      <Crosshair className="h-4 w-4 text-brand-500" />
+                    )}
+                  </button>
                 </div>
-                <ChevronRight className="h-4 w-4 text-surface-300 shrink-0" />
-              </button>
 
-              <button
-                onClick={() => { setSearchTarget('dropoff'); setShowSearch(true); }}
-                className="w-full flex items-center gap-2 h-12 px-4 bg-surface-100 rounded-xl text-left hover:bg-surface-200/70 transition-colors btn-press"
-              >
-                <div className="flex-1 min-w-0">
-                  {dropoff.address ? (
-                    <p className="text-sm text-surface-900 font-medium truncate">{dropoff.address}</p>
-                  ) : (
-                    <p className="text-sm text-surface-400">Delivery location</p>
-                  )}
+                {/* Pickup suggestions dropdown */}
+                {pickupAC.open && pickupAC.results.length > 0 && (
+                  <div className="absolute top-full left-0 right-12 mt-1 bg-white rounded-xl border border-surface-200 shadow-lg z-30 max-h-52 overflow-y-auto">
+                    {pickupAC.results.map((place, i) => (
+                      <button
+                        key={i}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectPickupPlace(place)}
+                        className="w-full flex items-start gap-2.5 py-2.5 px-3 hover:bg-surface-50 transition-colors text-left first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <MapPin className="h-4 w-4 text-surface-400 shrink-0 mt-0.5" />
+                        <span className="text-sm text-surface-700 leading-snug">{place.place_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Dropoff input */}
+              <div ref={dropoffWrapRef} className="relative">
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <input
+                      ref={dropoffRef}
+                      value={dropoffAC.query}
+                      onChange={(e) => handleDropoffInputChange(e.target.value)}
+                      onFocus={() => { if (dropoffAC.query.length >= 2) dropoffAC.setOpen(true); }}
+                      placeholder="Delivery location"
+                      className="w-full h-12 pl-4 pr-9 bg-surface-100 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all"
+                    />
+                    {dropoff.coordinates && (
+                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent-500" />
+                    )}
+                    {dropoffAC.loading && !dropoff.coordinates && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 animate-spin" />
+                    )}
+                    {dropoffAC.query && !dropoff.coordinates && !dropoffAC.loading && (
+                      <button onClick={() => { dropoffAC.clear(); setDropoff(emptyLocation()); }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <X className="h-4 w-4 text-surface-400" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => useCurrentLocation('dropoff')}
+                    disabled={locatingDropoff}
+                    className="h-12 w-12 shrink-0 rounded-xl bg-surface-100 flex items-center justify-center hover:bg-surface-200 transition-colors btn-press disabled:opacity-50"
+                    title="Use current location"
+                  >
+                    {locatingDropoff ? (
+                      <Loader2 className="h-4 w-4 text-brand-500 animate-spin" />
+                    ) : (
+                      <Crosshair className="h-4 w-4 text-brand-500" />
+                    )}
+                  </button>
                 </div>
-                <ChevronRight className="h-4 w-4 text-surface-300 shrink-0" />
-              </button>
+
+                {/* Dropoff suggestions dropdown */}
+                {dropoffAC.open && dropoffAC.results.length > 0 && (
+                  <div className="absolute top-full left-0 right-12 mt-1 bg-white rounded-xl border border-surface-200 shadow-lg z-30 max-h-52 overflow-y-auto">
+                    {dropoffAC.results.map((place, i) => (
+                      <button
+                        key={i}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectDropoffPlace(place)}
+                        className="w-full flex items-start gap-2.5 py-2.5 px-3 hover:bg-surface-50 transition-colors text-left first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <MapPin className="h-4 w-4 text-surface-400 shrink-0 mt-0.5" />
+                        <span className="text-sm text-surface-700 leading-snug">{place.place_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
