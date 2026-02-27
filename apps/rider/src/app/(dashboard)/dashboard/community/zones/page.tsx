@@ -3,31 +3,27 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { useCommunityChat } from '@/hooks/use-community';
 import type { ZoneRoom } from '@/hooks/use-community';
 import { ArrowLeft, Users, MapPin, Check } from 'lucide-react';
 
 export default function ZoneRoomsPage() {
   const router = useRouter();
-  const { accessToken } = useAuth();
+  const { api } = useAuth();
   const { joinZoneRoom } = useCommunityChat();
   const [zones, setZones] = useState<ZoneRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!accessToken) return;
-    fetch(`${API_BASE_URL}/community/chat/zones`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-      .then(r => r.json())
-      .then(json => {
-        if (json.success) setZones(json.data);
+    if (!api) return;
+    api.get('/community/chat/zones')
+      .then(res => {
+        if (res.data?.success) setZones(res.data.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [accessToken]);
+  }, [api]);
 
   const handleJoin = useCallback(async (zone: ZoneRoom) => {
     if (!zone.zoneId) return;

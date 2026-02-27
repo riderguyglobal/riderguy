@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { Star, ArrowLeft, CheckCircle, AlertCircle, Heart } from 'lucide-react';
 
 const TIP_OPTIONS = [0, 2, 5, 10];
@@ -25,7 +24,7 @@ export default function RatePage() {
     setSubmitting(true);
     setError('');
     try {
-      await api.post(`${API_BASE_URL}/orders/${id}/rate`, {
+      await api.post(`/orders/${id}/rate`, {
         rating,
         review: review.trim() || undefined,
         tip: tip > 0 ? tip : undefined,

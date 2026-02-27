@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { OtpInput, PhoneInput } from '@riderguy/ui';
@@ -11,7 +11,7 @@ const STEP_LABELS = ['Phone', 'Verify', 'Details', 'Done'];
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { requestOtp, verifyOtp, register } = useAuth();
+  const { requestOtp, verifyOtp, register, isAuthenticated, isLoading: authLoading } = useAuth();
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -21,6 +21,13 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect authenticated users to dashboard (don't redirect during step 3 success)
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && step < 3) {
+      router.replace('/dashboard');
+    }
+  }, [authLoading, isAuthenticated, step, router]);
 
   const handleSendOtp = async () => {
     if (!phone) return;

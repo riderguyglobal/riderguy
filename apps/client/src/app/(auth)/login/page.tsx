@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { OtpInput, PhoneInput } from '@riderguy/ui';
@@ -12,7 +12,7 @@ type PhoneStage = 'input' | 'otp';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginWithPassword, loginWithOtp, requestOtp } = useAuth();
+  const { loginWithPassword, loginWithOtp, requestOtp, isAuthenticated, isLoading } = useAuth();
   const [method, setMethod] = useState<Method>('phone');
   const [phone, setPhone] = useState('');
   const [phoneStage, setPhoneStage] = useState<PhoneStage>('input');
@@ -22,6 +22,13 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   const handlePhoneSubmit = async () => {
     if (!phone) return;

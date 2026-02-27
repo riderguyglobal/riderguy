@@ -30,7 +30,13 @@ export class AuthController {
 
   /** POST /auth/register */
   static async register(req: Request, res: Response) {
-    const result = await AuthService.register(req.body);
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
+
+    const result = await AuthService.register(req.body, deviceInfo, ipAddress);
     res.status(StatusCodes.CREATED).json({
       success: true,
       data: result,
@@ -40,8 +46,13 @@ export class AuthController {
   /** POST /auth/login */
   static async loginWithOtp(req: Request, res: Response) {
     const { phone, otp } = req.body;
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
 
-    const result = await AuthService.loginWithOtp(phone, otp);
+    const result = await AuthService.loginWithOtp(phone, otp, deviceInfo, ipAddress);
     res.status(StatusCodes.OK).json({
       success: true,
       data: result,

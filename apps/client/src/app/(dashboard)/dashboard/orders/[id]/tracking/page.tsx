@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
-import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
+import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
 import { connectSocket, disconnectSocket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } from '@/hooks/use-socket';
 import { Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
@@ -58,7 +58,7 @@ export default function TrackingPage() {
   const { data: order, isLoading, refetch } = useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
-      const res = await api!.get(`${API_BASE_URL}/orders/${id}`);
+      const res = await api!.get(`/orders/${id}`);
       return res.data.data;
     },
     enabled: !!api && !!id,
@@ -381,7 +381,7 @@ export default function TrackingPage() {
             <button
               onClick={async () => {
                 try {
-                  await api!.patch(`${API_BASE_URL}/orders/${id}/cancel`);
+                  await api!.patch(`/orders/${id}/cancel`);
                   refetch();
                 } catch { /* ignored */ }
               }}

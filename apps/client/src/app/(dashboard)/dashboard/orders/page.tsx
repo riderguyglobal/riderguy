@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
-import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
+import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Badge, Skeleton } from '@riderguy/ui';
 import { Package, MapPin, Clock, ChevronRight, Send, Navigation } from 'lucide-react';
@@ -23,10 +23,10 @@ export default function OrdersPage() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['orders', tab],
     queryFn: async () => {
-      let url = `${API_BASE_URL}/orders?sort=-createdAt&limit=50`;
-      if (tab === 'active') url += '&status=PENDING,SEARCHING_RIDER,ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF';
-      if (tab === 'completed') url += '&status=DELIVERED';
-      const res = await api!.get(url);
+      const params: Record<string, string> = { sort: '-createdAt', limit: '50' };
+      if (tab === 'active') params.status = 'PENDING,SEARCHING_RIDER,ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF';
+      if (tab === 'completed') params.status = 'DELIVERED';
+      const res = await api!.get('/orders', { params });
       return res.data.data ?? [];
     },
     enabled: !!api,

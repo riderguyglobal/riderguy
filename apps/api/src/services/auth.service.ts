@@ -142,7 +142,7 @@ export class AuthService {
     password?: string;
     pin?: string;
     role: UserRole;
-  }) {
+  }, deviceInfo?: string, ipAddress?: string) {
     // ---- 1. Verify that the phone was OTP-verified for REGISTRATION ----
     const verifiedOtp = await prisma.otp.findFirst({
       where: { phone: input.phone, purpose: 'REGISTRATION', verified: true },
@@ -250,6 +250,8 @@ export class AuthService {
     const session = await prisma.session.create({
       data: {
         userId: user.id,
+        deviceInfo,
+        ipAddress,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       },
     });
@@ -295,7 +297,7 @@ export class AuthService {
 
   // ---- Login with OTP ----
 
-  static async loginWithOtp(phone: string, otpCode: string) {
+  static async loginWithOtp(phone: string, otpCode: string, deviceInfo?: string, ipAddress?: string) {
     // Verify the OTP first
     const otp = await prisma.otp.findFirst({
       where: { phone, purpose: 'LOGIN', verified: false },
@@ -345,6 +347,8 @@ export class AuthService {
     const session = await prisma.session.create({
       data: {
         userId: user.id,
+        deviceInfo,
+        ipAddress,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });

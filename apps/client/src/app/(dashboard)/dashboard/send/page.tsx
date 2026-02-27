@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL, PACKAGE_TYPES } from '@/lib/constants';
+import { PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
 import {
   ArrowLeft,
@@ -48,7 +48,7 @@ const emptyLocation = (): LocationData => ({
 });
 
 // ── Inline autocomplete hook ──
-function useAutocomplete() {
+function useAutocomplete(api: import('axios').AxiosInstance | null) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,20 +57,19 @@ function useAutocomplete() {
   const abortRef = useRef<AbortController>();
 
   const search = useCallback(async (q: string) => {
-    if (!q || q.length < 2) { setResults([]); setLoading(false); return; }
+    if (!q || q.length < 2 || !api) { setResults([]); setLoading(false); return; }
     // Abort any in-flight request
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}`,
-        { signal: ctrl.signal }
-      );
-      const json = await res.json();
+      const res = await api.get('/orders/autocomplete', {
+        params: { q },
+        signal: ctrl.signal,
+      });
       setResults(
-        json.data?.map((s: { placeName: string; latitude: number; longitude: number }) => ({
+        res.data?.data?.map((s: { placeName: string; latitude: number; longitude: number }) => ({
           place_name: s.placeName,
           center: [s.longitude, s.latitude] as [number, number],
         })) || []
@@ -80,7 +79,7 @@ function useAutocomplete() {
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   const onChange = useCallback((value: string) => {
     setQuery(value);
@@ -120,8 +119,8 @@ export default function SendPackagePage() {
   const [locatingPickup, setLocatingPickup] = useState(false);
   const [locatingDropoff, setLocatingDropoff] = useState(false);
 
-  const pickupAC = useAutocomplete();
-  const dropoffAC = useAutocomplete();
+  const pickupAC = useAutocomplete(api);
+  const dropoffAC = useAutocomplete(api);
   const pickupRef = useRef<HTMLInputElement>(null);
   const dropoffRef = useRef<HTMLInputElement>(null);
   const pickupWrapRef = useRef<HTMLDivElement>(null);
@@ -177,11 +176,10 @@ export default function SendPackagePage() {
       async (pos) => {
         const [lng, lat] = [pos.coords.longitude, pos.coords.latitude];
         try {
-          const res = await fetch(
-            `${API_BASE_URL}/orders/reverse-geocode?latitude=${lat}&longitude=${lng}`
-          );
-          const json = await res.json();
-          const name = json.data?.address || 'Current Location';
+          const res = await api!.get('/orders/reverse-geocode', {
+            params: { latitude: lat, longitude: lng },
+          });
+          const name = res.data?.data?.address || 'Current Location';
           const setter = target === 'pickup' ? setPickup : setDropoff;
           const ac = target === 'pickup' ? pickupAC : dropoffAC;
           setter((prev) => ({ ...prev, address: name, coordinates: [lng, lat] }));
@@ -205,7 +203,7 @@ export default function SendPackagePage() {
     setEstimating(true);
     const [lng1, lat1] = pickup.coordinates;
     const [lng2, lat2] = dropoff.coordinates;
-    api.post(`${API_BASE_URL}/orders/estimate`, {
+    api.post('/orders/estimate', {
       pickupLatitude: lat1, pickupLongitude: lng1,
       dropoffLatitude: lat2, dropoffLongitude: lng2,
       packageType,
@@ -239,7 +237,7 @@ export default function SendPackagePage() {
       if (dropoff.contactPhone) body.dropoffContactPhone = dropoff.contactPhone;
       if (dropoff.notes) body.dropoffInstructions = dropoff.notes;
 
-      const res = await api.post(`${API_BASE_URL}/orders`, body);
+      const res = await api.post('/orders', body);
       const orderId = res.data.data?.id;
       router.replace(orderId ? `/dashboard/orders/${orderId}/tracking` : '/dashboard/orders');
     } catch (err: unknown) {

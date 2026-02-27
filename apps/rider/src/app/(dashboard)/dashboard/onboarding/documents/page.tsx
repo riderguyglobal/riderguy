@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { Button } from '@riderguy/ui';
 import { ArrowLeft, Upload, File, X, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 
@@ -33,7 +32,7 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (!api) return;
-    api.get(`${API_BASE_URL}/documents`).then((res) => {
+    api.get('/documents').then((res) => {
       setDocs(res.data.data ?? []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [api]);
@@ -55,12 +54,12 @@ export default function DocumentsPage() {
       formData.append('file', file);
       formData.append('type', selectedType);
 
-      await api.post(`${API_BASE_URL}/documents/upload`, formData, {
+      await api.post('/documents/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       // Refresh docs
-      const res = await api.get(`${API_BASE_URL}/documents`);
+      const res = await api.get('/documents');
       setDocs(res.data.data ?? []);
     } catch {
       setError('Upload failed. Try again.');

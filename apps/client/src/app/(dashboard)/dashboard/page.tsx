@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
-import { API_BASE_URL, ORDER_STATUS_CONFIG } from '@/lib/constants';
+import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Badge, Skeleton } from '@riderguy/ui';
 import {
@@ -36,7 +36,7 @@ export default function DashboardPage() {
   const { data: recentOrders, isLoading } = useQuery({
     queryKey: ['recent-orders'],
     queryFn: async () => {
-      const res = await api!.get(`${API_BASE_URL}/orders?limit=5&sort=-createdAt`);
+      const res = await api!.get('/orders', { params: { limit: 5, sort: '-createdAt' } });
       return res.data.data ?? [];
     },
     enabled: !!api,
