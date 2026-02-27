@@ -34,7 +34,7 @@ export function ProtectedRoute({
   onUnauthenticated,
   onUnauthorised,
 }: ProtectedRouteProps) {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated, logout } = useAuth();
   const redirectedRef = useRef(false);
 
   useEffect(() => {
@@ -52,13 +52,17 @@ export function ProtectedRoute({
 
     if (allowedRoles && user && !allowedRoles.includes(user.role)) {
       redirectedRef.current = true;
-      if (onUnauthorised) {
-        onUnauthorised();
-      } else {
-        window.location.replace(loginPath);
-      }
+      // Logout first to clear tokens — prevents infinite loop where
+      // the login page restores the session and redirects back here.
+      logout().then(() => {
+        if (onUnauthorised) {
+          onUnauthorised();
+        } else {
+          window.location.replace(loginPath);
+        }
+      });
     }
-  }, [isLoading, isAuthenticated, user, allowedRoles, onUnauthenticated, onUnauthorised, loginPath]);
+  }, [isLoading, isAuthenticated, user, allowedRoles, onUnauthenticated, onUnauthorised, loginPath, logout]);
 
   // Default spinner while loading / redirecting
   const spinner = (

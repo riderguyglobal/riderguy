@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useAuthStore, type AuthUser } from './auth-store';
@@ -89,7 +90,13 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     }
   }, [api, setUser, clearAuth]);
 
+  // Guard against React Strict Mode double-fire
+  const sessionRestored = useRef(false);
+
   useEffect(() => {
+    if (sessionRestored.current) return;
+    sessionRestored.current = true;
+
     if (tokenStorage.hasTokens()) {
       refreshUser().finally(() => setLoading(false));
     } else {

@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from './token-storage';
+import { useAuthStore } from './auth-store';
 
 // ============================================================
 // API Client — Axios instance with auth interceptors
@@ -66,7 +67,8 @@ export function initApiClient(baseURL: string): AxiosInstance {
 
       const refreshToken = tokenStorage.getRefreshToken();
       if (!refreshToken) {
-        tokenStorage.clear();
+        // Clear both tokens AND Zustand state to stay consistent
+        useAuthStore.getState().clearAuth();
         return Promise.reject(error);
       }
 
@@ -102,7 +104,8 @@ export function initApiClient(baseURL: string): AxiosInstance {
         return apiClient!.request(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        tokenStorage.clear();
+        // Clear both tokens AND Zustand state to stay consistent
+        useAuthStore.getState().clearAuth();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

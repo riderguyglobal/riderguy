@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   error: null,
 
-  setUser: (user) => set({ user, isAuthenticated: true, error: null }),
+  setUser: (user) => set({ user, isAuthenticated: true, isLoading: false, error: null }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
 
