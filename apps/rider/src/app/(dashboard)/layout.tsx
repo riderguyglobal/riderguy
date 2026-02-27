@@ -42,8 +42,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Premium Bottom Navigation */}
         {!hideNav && (
           <nav className="fixed bottom-0 inset-x-0 z-50">
-            {/* Frosted glass background */}
-            <div className="absolute inset-0 bg-nav backdrop-blur-xl border-t border-themed" />
+            {/* Frosted glass background with top accent line */}
+            <div className="absolute inset-0 bg-nav backdrop-blur-xl border-t border-brand-500/10 dark:border-themed" />
 
             {/* Ambient glow from active tab */}
             <div className="relative px-4 pb-[env(safe-area-inset-bottom)]">
@@ -62,17 +62,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     >
                       {/* Active indicator pill */}
                       {isActive && (
-                        <div className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-brand-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]" />
+                        <div className="absolute -top-px left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-full bg-gradient-to-r from-brand-500 to-accent-500 shadow-[0_2px_12px_rgba(34,197,94,0.5)]" />
                       )}
 
                       {/* Icon with glow */}
                       <div className="relative">
                         {isActive && (
-                          <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-lg scale-[2]" />
+                          <div className="absolute inset-0 bg-brand-500/15 rounded-full blur-xl scale-[2.5]" />
                         )}
                         <Icon
                           className={`relative h-[22px] w-[22px] transition-colors duration-200 ${
-                            isActive ? 'text-brand-400' : 'text-subtle'
+                            isActive ? 'text-brand-500 dark:text-brand-400' : 'text-subtle'
                           }`}
                           strokeWidth={isActive ? 2.2 : 1.8}
                         />
@@ -80,8 +80,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                       {/* Label */}
                       <span
-                        className={`text-[10px] font-medium tracking-wide transition-colors duration-200 ${
-                          isActive ? 'text-brand-400' : 'text-subtle'
+                        className={`text-[10px] font-semibold tracking-wide transition-colors duration-200 ${
+                          isActive ? 'text-brand-600 dark:text-brand-400' : 'text-subtle'
                         }`}
                       >
                         {item.label}

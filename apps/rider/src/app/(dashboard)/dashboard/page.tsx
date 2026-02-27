@@ -94,16 +94,16 @@ export default function DashboardPage() {
 
       {/* ── Floating Header ── */}
       <header className="relative z-10 flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1rem)]">
-        <div>
-          <p className="text-muted text-xs font-medium tracking-wider uppercase">{greeting}</p>
-          <h1 className="text-primary text-xl font-bold mt-0.5">{firstName}</h1>
+        <div className="bg-white/70 dark:bg-surface-900/70 backdrop-blur-xl rounded-2xl px-4 py-2.5 shadow-theme-card">
+          <p className="text-muted text-[10px] font-semibold tracking-[0.12em] uppercase">{greeting}</p>
+          <h1 className="text-primary text-lg font-bold -mt-0.5">{firstName}</h1>
         </div>
 
         {/* Status badge */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide ${
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold tracking-wide shadow-theme-card backdrop-blur-xl ${
           isOnline
-            ? 'bg-accent-500/15 text-accent-400 border border-accent-500/30'
-            : 'bg-surface-800/60 text-muted border border-themed'
+            ? 'bg-brand-500/15 text-brand-600 dark:text-accent-400 border border-brand-500/25'
+            : 'bg-white/70 dark:bg-surface-800/60 text-muted border border-themed'
         }`}>
           <div className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
           {isOnline ? 'Online' : 'Offline'}
@@ -117,10 +117,10 @@ export default function DashboardPage() {
           <button
             onClick={toggleAvailability}
             disabled={toggling}
-            className={`relative group flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 btn-press shadow-2xl ${
+            className={`relative group flex items-center gap-3 px-10 py-4 rounded-2xl font-bold text-base transition-all duration-300 btn-press ${
               isOnline
-                ? 'bg-surface-800/80 backdrop-blur-xl text-secondary border border-themed hover:bg-surface-700/80'
-                : 'gradient-accent text-white glow-accent hover:shadow-accent-500/30'
+                ? 'bg-surface-800/90 dark:bg-surface-800/80 backdrop-blur-xl text-white border border-white/10 shadow-xl hover:bg-surface-700/90'
+                : 'gradient-accent text-white glow-accent shadow-2xl hover:shadow-brand-500/40'
             }`}
           >
             {toggling ? (
@@ -140,34 +140,40 @@ export default function DashboardPage() {
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-3 gap-3">
           {/* Earnings */}
-          <div className="glass rounded-2xl p-3.5 text-center">
-            <div className="flex items-center justify-center gap-1 mb-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-accent-400" />
-              <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Earned</span>
+          <div className="stat-card-earned rounded-2xl p-3.5 text-center shadow-theme-sm backdrop-blur-lg">
+            <div className="flex items-center justify-center gap-1.5 mb-2">
+              <div className="h-5 w-5 rounded-md bg-accent-500/15 flex items-center justify-center">
+                <TrendingUp className="h-3 w-3 text-accent-500" />
+              </div>
+              <span className="text-[10px] text-muted font-semibold uppercase tracking-wider">Earned</span>
             </div>
-            <p className="text-primary font-bold text-lg tabular-nums">
+            <p className="text-primary font-extrabold text-lg tabular-nums">
               {wallet ? formatCurrency(wallet.totalEarned) : '—'}
             </p>
           </div>
 
           {/* Deliveries */}
-          <div className="glass rounded-2xl p-3.5 text-center">
-            <div className="flex items-center justify-center gap-1 mb-1.5">
-              <Package className="h-3.5 w-3.5 text-brand-400" />
-              <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Trips</span>
+          <div className="stat-card-trips rounded-2xl p-3.5 text-center shadow-theme-sm backdrop-blur-lg">
+            <div className="flex items-center justify-center gap-1.5 mb-2">
+              <div className="h-5 w-5 rounded-md bg-blue-500/15 flex items-center justify-center">
+                <Package className="h-3 w-3 text-blue-500" />
+              </div>
+              <span className="text-[10px] text-muted font-semibold uppercase tracking-wider">Trips</span>
             </div>
-            <p className="text-primary font-bold text-lg tabular-nums">
+            <p className="text-primary font-extrabold text-lg tabular-nums">
               {profile ? profile.completedDeliveries : '—'}
             </p>
           </div>
 
           {/* Rating */}
-          <div className="glass rounded-2xl p-3.5 text-center">
-            <div className="flex items-center justify-center gap-1 mb-1.5">
-              <Star className="h-3.5 w-3.5 text-amber-400" />
-              <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Rating</span>
+          <div className="stat-card-rating rounded-2xl p-3.5 text-center shadow-theme-sm backdrop-blur-lg">
+            <div className="flex items-center justify-center gap-1.5 mb-2">
+              <div className="h-5 w-5 rounded-md bg-amber-500/15 flex items-center justify-center">
+                <Star className="h-3 w-3 text-amber-500" />
+              </div>
+              <span className="text-[10px] text-muted font-semibold uppercase tracking-wider">Rating</span>
             </div>
-            <p className="text-primary font-bold text-lg tabular-nums">
+            <p className="text-primary font-extrabold text-lg tabular-nums">
               {profile?.rating ? profile.rating.toFixed(1) : '—'}
             </p>
           </div>
@@ -175,43 +181,47 @@ export default function DashboardPage() {
 
         {/* ── XP & Level Card ── */}
         {gamification && (
-          <Link href="/dashboard/gamification" className="block glass-elevated rounded-2xl p-4 btn-press transition-transform hover:scale-[1.01]">
-            <div className="flex items-center gap-3">
-              {/* Level badge */}
-              <div className="relative flex-shrink-0">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-brand-500/20 to-accent-500/20 flex items-center justify-center">
-                  <span className="text-2xl">{['🏁','🏃','🔥','⚡','🎯','👑','🌟'][gamification.currentLevel - 1] ?? '🏁'}</span>
-                </div>
-              </div>
+          <Link href="/dashboard/gamification" className="block overflow-hidden rounded-2xl shadow-theme-card btn-press transition-transform hover:scale-[1.01]">
+            <div className="relative bg-gradient-to-r from-brand-500/10 via-accent-500/8 to-brand-500/5 dark:from-brand-500/15 dark:via-accent-500/10 dark:to-brand-500/8 border border-brand-500/12 dark:border-brand-500/20 p-4">
+              {/* Decorative corner glow */}
+              <div className="absolute -top-6 -right-6 w-24 h-24 bg-brand-500/10 dark:bg-brand-500/15 rounded-full blur-2xl" />
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-primary text-sm font-bold">{gamification.levelName}</span>
-                    <span className="text-subtle text-[10px]">Lvl {gamification.currentLevel}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Zap className="h-3 w-3 text-accent-400" />
-                    <span className="text-accent-400 text-xs font-bold tabular-nums">{gamification.totalXp.toLocaleString()} XP</span>
+              <div className="relative flex items-center gap-3">
+                {/* Level badge */}
+                <div className="relative flex-shrink-0">
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center shadow-lg shadow-brand-500/25">
+                    <span className="text-xl text-white font-bold">L{gamification.currentLevel}</span>
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                {!gamification.isMaxLevel && (
-                  <div className="h-1.5 rounded-full bg-skeleton overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-700"
-                      style={{ width: `${Math.min(gamification.progressPercent, 100)}%` }}
-                    />
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-primary text-sm font-bold">{gamification.levelName}</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-accent-500/10 px-2 py-0.5 rounded-full">
+                      <Zap className="h-3 w-3 text-accent-500" />
+                      <span className="text-accent-600 dark:text-accent-400 text-xs font-bold tabular-nums">{gamification.totalXp.toLocaleString()} XP</span>
+                    </div>
                   </div>
-                )}
-                {gamification.isMaxLevel && (
-                  <div className="h-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400" />
-                )}
-              </div>
 
-              <ChevronRight className="h-4 w-4 text-subtle flex-shrink-0" />
+                  {/* Progress bar */}
+                  {!gamification.isMaxLevel && (
+                    <div className="h-2 rounded-full bg-brand-500/10 dark:bg-brand-500/15 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-700 shadow-sm shadow-brand-500/30"
+                        style={{ width: `${Math.min(gamification.progressPercent, 100)}%` }}
+                      />
+                    </div>
+                  )}
+                  {gamification.isMaxLevel && (
+                    <div className="h-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 shadow-sm shadow-amber-400/30" />
+                  )}
+                </div>
+
+                <ChevronRight className="h-4 w-4 text-brand-400 flex-shrink-0" />
+              </div>
             </div>
           </Link>
         )}
@@ -297,21 +307,26 @@ export default function DashboardPage() {
 
         {/* ── Empty State ── */}
         {orders.length === 0 && (
-          <div className="glass rounded-2xl p-6 text-center">
-            <div className="relative inline-flex mb-3">
-              <div className="absolute inset-0 bg-brand-500/10 rounded-full blur-xl scale-150" />
-              <div className="relative h-14 w-14 rounded-full bg-brand-500/10 flex items-center justify-center">
-                <Package className="h-6 w-6 text-brand-400" />
+          <div className="relative overflow-hidden rounded-2xl border border-themed-subtle shadow-theme-card bg-card p-6 text-center">
+            {/* Decorative bg */}
+            <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 via-transparent to-accent-500/5" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-brand-500/8 rounded-full blur-3xl" />
+
+            <div className="relative">
+              <div className="relative inline-flex mb-4">
+                <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-brand-500/15 to-accent-500/10 flex items-center justify-center border border-brand-500/10">
+                  <Package className="h-7 w-7 text-brand-500" />
+                </div>
               </div>
+              <h3 className="text-primary text-sm font-bold mb-1">
+                {isOnline ? 'Waiting for deliveries' : 'Go online to start earning'}
+              </h3>
+              <p className="text-muted text-xs leading-relaxed">
+                {isOnline
+                  ? 'New delivery requests will appear here'
+                  : 'Toggle online to receive delivery requests near you'}
+              </p>
             </div>
-            <h3 className="text-primary text-sm font-semibold mb-1">
-              {isOnline ? 'Waiting for deliveries' : 'Go online to start earning'}
-            </h3>
-            <p className="text-muted text-xs">
-              {isOnline
-                ? 'New delivery requests will appear here'
-                : 'Toggle online to receive delivery requests near you'}
-            </p>
           </div>
         )}
 
@@ -319,38 +334,32 @@ export default function DashboardPage() {
         <div className="grid grid-cols-3 gap-3">
           <Link
             href="/dashboard/earnings"
-            className="glass rounded-2xl p-4 flex flex-col items-center gap-2 btn-press group transition-transform hover:scale-[1.02]"
+            className="rounded-2xl p-4 flex flex-col items-center gap-2.5 btn-press group transition-all hover:scale-[1.02] bg-card border border-themed-subtle shadow-theme-sm"
           >
-            <div className="h-10 w-10 rounded-xl bg-accent-500/10 flex items-center justify-center group-hover:bg-accent-500/20 transition-colors">
-              <TrendingUp className="h-5 w-5 text-accent-400" />
+            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-accent-500/15 to-accent-500/5 flex items-center justify-center group-hover:from-accent-500/25 group-hover:to-accent-500/10 transition-all border border-accent-500/10">
+              <TrendingUp className="h-5 w-5 text-accent-500" />
             </div>
-            <div className="text-center">
-              <p className="text-primary text-xs font-semibold">Earnings</p>
-            </div>
+            <p className="text-primary text-xs font-semibold">Earnings</p>
           </Link>
 
           <Link
             href="/dashboard/gamification"
-            className="glass rounded-2xl p-4 flex flex-col items-center gap-2 btn-press group transition-transform hover:scale-[1.02]"
+            className="rounded-2xl p-4 flex flex-col items-center gap-2.5 btn-press group transition-all hover:scale-[1.02] bg-card border border-themed-subtle shadow-theme-sm"
           >
-            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
-              <Trophy className="h-5 w-5 text-amber-400" />
+            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-500/5 flex items-center justify-center group-hover:from-amber-500/25 group-hover:to-amber-500/10 transition-all border border-amber-500/10">
+              <Trophy className="h-5 w-5 text-amber-500" />
             </div>
-            <div className="text-center">
-              <p className="text-primary text-xs font-semibold">Rank & XP</p>
-            </div>
+            <p className="text-primary text-xs font-semibold">Rank & XP</p>
           </Link>
 
           <Link
             href="/dashboard/jobs"
-            className="glass rounded-2xl p-4 flex flex-col items-center gap-2 btn-press group transition-transform hover:scale-[1.02]"
+            className="rounded-2xl p-4 flex flex-col items-center gap-2.5 btn-press group transition-all hover:scale-[1.02] bg-card border border-themed-subtle shadow-theme-sm"
           >
-            <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center group-hover:bg-brand-500/20 transition-colors">
-              <Clock className="h-5 w-5 text-brand-400" />
+            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-500/5 flex items-center justify-center group-hover:from-brand-500/25 group-hover:to-brand-500/10 transition-all border border-brand-500/10">
+              <Clock className="h-5 w-5 text-brand-500" />
             </div>
-            <div className="text-center">
-              <p className="text-primary text-xs font-semibold">History</p>
-            </div>
+            <p className="text-primary text-xs font-semibold">History</p>
           </Link>
         </div>
       </div>
