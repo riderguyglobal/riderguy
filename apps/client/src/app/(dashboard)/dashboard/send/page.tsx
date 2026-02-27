@@ -239,7 +239,13 @@ export default function SendPackagePage() {
 
       const res = await api.post('/orders', body);
       const orderId = res.data.data?.id;
-      router.replace(orderId ? `/dashboard/orders/${orderId}/tracking` : '/dashboard/orders');
+
+      // For non-cash orders, redirect to payment page first
+      if (orderId && paymentMethod !== 'CASH') {
+        router.replace(`/dashboard/orders/${orderId}/payment`);
+      } else {
+        router.replace(orderId ? `/dashboard/orders/${orderId}/tracking` : '/dashboard/orders');
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create order.');
     } finally {

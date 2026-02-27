@@ -7,7 +7,7 @@ import { useAuth } from '@riderguy/auth';
 import { formatCurrency } from '@riderguy/utils';
 import { RiderAvailability, type Order } from '@riderguy/types';
 import { useRiderAvailability } from '@/hooks/use-rider-availability';
-import { API_BASE_URL, STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
+import { STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
 import {
   Power,
   TrendingUp,
@@ -53,17 +53,17 @@ export default function DashboardPage() {
   // Fetch data
   useEffect(() => {
     if (!api) return;
-    api.get(`${API_BASE_URL}/wallets`).then(r => setWallet(r.data.data)).catch(() => {});
-    api.get(`${API_BASE_URL}/orders?role=rider&status=ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF&limit=5`)
+    api.get('/wallets').then(r => setWallet(r.data.data)).catch(() => {});
+    api.get('/orders', { params: { role: 'rider', status: 'ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF', limit: 5 } })
       .then(r => setOrders(r.data.data ?? []))
       .catch(() => {});
-    api.get(`${API_BASE_URL}/riders/profile`)
+    api.get('/riders/profile')
       .then(r => {
         const d = r.data.data;
         setProfile({ completedDeliveries: d?.completedDeliveries ?? 0, rating: d?.rating ?? 0 });
       })
       .catch(() => {});
-    api.get(`${API_BASE_URL}/gamification/profile`)
+    api.get('/gamification/profile')
       .then(r => {
         const d = r.data.data;
         if (d) setGamification({

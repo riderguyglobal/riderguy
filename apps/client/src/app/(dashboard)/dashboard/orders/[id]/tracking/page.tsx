@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
 import { ORDER_STATUS_CONFIG } from '@/lib/constants';
@@ -20,6 +20,7 @@ import {
   Copy,
   AlertTriangle,
   Star,
+  CreditCard,
   Send,
   MessageCircle,
   ChevronDown,
@@ -45,6 +46,7 @@ const STATUS_STEPS = [
 export default function TrackingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { api, user } = useAuth();
   const [riderCoords, setRiderCoords] = useState<[number, number] | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -54,6 +56,13 @@ export default function TrackingPage() {
   const [typing, setTyping] = useState(false);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Auto-verify payment if redirected from Paystack with a reference
+  const paymentRef = searchParams.get('reference') || searchParams.get('trxref');
+  useEffect(() => {
+    if (!api || !paymentRef) return;
+    api.get(`/payments/verify/${paymentRef}`).catch(() => {});
+  }, [api, paymentRef]);
 
   const { data: order, isLoading, refetch } = useQuery({
     queryKey: ['order', id],
@@ -374,6 +383,16 @@ export default function TrackingPage() {
               className="w-full h-13 rounded-2xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press flex items-center justify-center gap-2"
             >
               <Star className="h-4 w-4" /> Rate Delivery
+            </button>
+          )}
+
+          {/* Pay Now button for unpaid non-cash orders */}
+          {!isComplete && !isCancelled && order.paymentMethod !== 'CASH' && order.paymentStatus !== 'COMPLETED' && (
+            <button
+              onClick={() => router.push(`/dashboard/orders/${id}/payment`)}
+              className="w-full h-13 rounded-2xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press flex items-center justify-center gap-2"
+            >
+              <CreditCard className="h-4 w-4" /> Pay Now — {formatCurrency(order.totalPrice)}
             </button>
           )}
 

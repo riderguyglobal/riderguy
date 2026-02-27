@@ -8,6 +8,9 @@ export const MAPBOX_TOKEN: string =
   process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
   '';
 
+export const PAYSTACK_PUBLIC_KEY: string =
+  process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
+
 export const MAP_STYLE = 'mapbox://styles/mapbox/light-v11';
 
 /** Accra default center */

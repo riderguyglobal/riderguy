@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Button, Input, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@riderguy/ui';
 import {
@@ -36,8 +35,8 @@ export default function EarningsPage() {
   useEffect(() => {
     if (!api) return;
     Promise.all([
-      api.get(`${API_BASE_URL}/wallets`),
-      api.get(`${API_BASE_URL}/wallets/transactions?limit=20`),
+      api.get('/wallets'),
+      api.get('/wallets/transactions', { params: { limit: 20 } }),
     ])
       .then(([wRes, tRes]) => {
         setWallet(wRes.data.data);
@@ -60,7 +59,7 @@ export default function EarningsPage() {
     // Fetch banks
     if (banks.length === 0) {
       try {
-        const res = await api?.get(`${API_BASE_URL}/payments/banks`);
+        const res = await api?.get('/payments/banks');
         setBanks(res?.data.data ?? []);
       } catch {}
     }
@@ -74,7 +73,7 @@ export default function EarningsPage() {
     setWSubmitting(true);
     setWError('');
     try {
-      const res = await api.post(`${API_BASE_URL}/payments/resolve-account`, {
+      const res = await api.post('/payments/resolve-account', {
         accountNumber: wAccountNumber,
         bankCode: wBankCode || undefined,
       });
@@ -100,7 +99,7 @@ export default function EarningsPage() {
     setWSubmitting(true);
     setWError('');
     try {
-      await api?.post(`${API_BASE_URL}/wallets/withdraw`, {
+      await api?.post('/wallets/withdraw', {
         amount,
         method: wMethod,
         accountNumber: wAccountNumber,
@@ -109,7 +108,7 @@ export default function EarningsPage() {
       });
       setWSuccess(true);
       // Refresh wallet
-      const wRes = await api?.get(`${API_BASE_URL}/wallets`);
+      const wRes = await api?.get('/wallets');
       setWallet(wRes?.data.data ?? null);
     } catch (err: unknown) {
       setWError(err instanceof Error ? err.message : 'Withdrawal failed');

@@ -27,7 +27,8 @@ export class PaystackService {
       timeout: 30000,
     });
 
-    this.webhookSecret = config.paystack.webhookSecret;
+    // Paystack signs webhooks using the secret key (not a separate secret)
+    this.webhookSecret = config.paystack.webhookSecret || config.paystack.secretKey;
   }
 
   // ── Charge / Payment Collection ──
