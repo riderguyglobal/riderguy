@@ -1,4 +1,5 @@
-import { Package, MapPin, Zap, Shield } from 'lucide-react';
+import Image from 'next/image';
+import { MapPin, Zap, Shield } from 'lucide-react';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,8 +14,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <div className="relative z-10 text-center max-w-sm">
-          <div className="h-20 w-20 rounded-3xl bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-8 shadow-xl">
-            <Package className="h-10 w-10 text-white" />
+          <div className="h-20 w-20 rounded-3xl bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-8 shadow-xl overflow-hidden">
+            <Image
+              src="/images/branding/logo-white.png"
+              alt="RiderGuy"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
           </div>
           <h2 className="text-3xl font-extrabold text-white mb-3">RiderGuy</h2>
           <p className="text-white/70 text-base mb-10">
@@ -45,8 +53,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* ── Mobile header ── */}
       <div className="lg:hidden safe-area-top bg-white border-b border-surface-100/60">
         <div className="flex items-center gap-3 px-5 py-4">
-          <div className="h-10 w-10 rounded-2xl brand-gradient flex items-center justify-center shadow-brand">
-            <Package className="h-5 w-5 text-white" />
+          <div className="h-10 w-10 rounded-2xl brand-gradient flex items-center justify-center shadow-brand overflow-hidden">
+            <Image
+              src="/images/branding/logo-white.png"
+              alt="RiderGuy"
+              width={28}
+              height={28}
+              className="h-7 w-7 object-contain"
+              priority
+            />
           </div>
           <span className="text-lg font-extrabold text-surface-900">
             Rider<span className="text-brand-500">Guy</span>

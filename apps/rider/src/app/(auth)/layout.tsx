@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bike } from 'lucide-react';
+import Image from 'next/image';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,10 +18,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
         </div>
         <div className="relative z-10 text-center text-white max-w-md">
-          <div className="mx-auto mb-8 h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-2xl">
-            <Bike className="h-10 w-10" />
+          <div className="mx-auto mb-8 h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-2xl overflow-hidden">
+            <Image
+              src="/images/branding/logo-white.png"
+              alt="RiderGuy"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
           </div>
-          <h1 className="text-4xl font-extrabold mb-4 tracking-tight">Riderguy Rider</h1>
+          <h1 className="text-4xl font-extrabold mb-4 tracking-tight">RiderGuy Rider</h1>
           <p className="text-xl text-white/70 mb-10">Deliver packages and earn on your schedule</p>
           <div className="flex items-center justify-center gap-8 text-sm text-white/50">
             <div><span className="block text-2xl font-bold text-white">1000+</span>Active Riders</div>
@@ -36,10 +43,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Mobile header */}
       <div className="lg:hidden px-6 pt-6 pb-4 safe-area-top">
         <Link href="/" className="inline-flex items-center gap-2.5 text-primary btn-press">
-          <div className="h-9 w-9 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand">
-            <Bike className="h-5 w-5 text-white" />
+          <div className="h-9 w-9 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand overflow-hidden">
+            <Image
+              src="/images/branding/logo-white.png"
+              alt="RiderGuy"
+              width={24}
+              height={24}
+              className="h-6 w-6 object-contain"
+              priority
+            />
           </div>
-          <span className="font-bold text-lg tracking-tight">Riderguy</span>
+          <span className="font-bold text-lg tracking-tight">RiderGuy</span>
         </Link>
       </div>
 

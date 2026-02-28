@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
+import Image from 'next/image';
 import { Button, Avatar, AvatarFallback, AvatarImage, Spinner } from '@riderguy/ui';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -25,19 +26,14 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         {/* Sidebar */}
         <aside className="hidden w-64 flex-shrink-0 border-r bg-white lg:block">
           <div className="flex h-16 items-center gap-2 border-b px-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            </div>
+            <Image
+              src="/images/branding/logo-black.png"
+              alt="RiderGuy"
+              width={32}
+              height={32}
+              className="h-8 w-auto object-contain"
+              priority
+            />
             <span className="text-sm font-bold text-gray-900">RiderGuy Admin</span>
           </div>
 
@@ -68,9 +64,18 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         <div className="flex flex-1 flex-col">
           {/* Top bar */}
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-white px-6">
-            <h2 className="text-lg font-semibold text-gray-900 lg:hidden">
-              RiderGuy Admin
-            </h2>
+            <div className="flex items-center gap-2 lg:hidden">
+              <Image
+                src="/images/branding/logo-black.png"
+                alt="RiderGuy"
+                width={28}
+                height={28}
+                className="h-7 w-auto object-contain"
+              />
+              <h2 className="text-lg font-semibold text-gray-900">
+                RiderGuy Admin
+              </h2>
+            </div>
 
             <div className="ml-auto flex items-center gap-4">
               <div className="flex items-center gap-2">

@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { Package, ArrowRight, Zap, Shield, Clock } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowRight, Zap, Shield, Clock } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -34,8 +35,15 @@ export default function LandingPage() {
         {/* Logo */}
         <div className="relative mb-8 animate-bounce-in">
           <div className="absolute inset-0 rounded-3xl bg-brand-500/20 blur-2xl scale-150" />
-          <div className="relative h-20 w-20 rounded-3xl brand-gradient-radial flex items-center justify-center shadow-brand">
-            <Package className="h-10 w-10 text-white" />
+          <div className="relative h-20 w-20 rounded-3xl brand-gradient-radial flex items-center justify-center shadow-brand overflow-hidden">
+            <Image
+              src="/images/branding/logo-white.png"
+              alt="RiderGuy"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
           </div>
         </div>
 

@@ -5,7 +5,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { Button } from '@riderguy/ui';
-import { Bike, ChevronRight, Zap, Shield, MapPin } from 'lucide-react';
+import Image from 'next/image';
+import { ChevronRight, Zap, Shield, MapPin } from 'lucide-react';
 
 export default function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,11 +19,16 @@ export default function LandingPage() {
   if (isLoading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-page">
-        <div className="relative">
+        <div className="relative h-16 w-16">
           <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl animate-pulse" />
-          <div className="relative animate-spin-slow">
-            <Bike className="h-12 w-12 text-brand-400" />
-          </div>
+          <Image
+            src="/images/branding/logo-black.png"
+            alt="RiderGuy"
+            width={64}
+            height={64}
+            className="relative h-16 w-16 object-contain animate-spin-slow"
+            priority
+          />
         </div>
       </div>
     );
@@ -39,10 +45,17 @@ export default function LandingPage() {
 
       {/* Header */}
       <div className="relative z-10 safe-area-top px-6 pt-6 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand">
-          <Bike className="h-5 w-5 text-white" />
+        <div className="h-10 w-10 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand overflow-hidden">
+          <Image
+            src="/images/branding/logo-white.png"
+            alt="RiderGuy"
+            width={28}
+            height={28}
+            className="h-7 w-7 object-contain"
+            priority
+          />
         </div>
-        <span className="text-lg font-bold text-primary tracking-tight">Riderguy</span>
+        <span className="text-lg font-bold text-primary tracking-tight">RiderGuy</span>
       </div>
 
       {/* Main content */}
@@ -51,8 +64,15 @@ export default function LandingPage() {
           {/* Logo mark */}
           <div className="mx-auto mb-10 relative">
             <div className="absolute inset-0 rounded-3xl bg-brand-500/20 blur-2xl scale-150 animate-pulse-glow" />
-            <div className="relative h-24 w-24 mx-auto rounded-3xl gradient-brand flex items-center justify-center shadow-2xl">
-              <Bike className="h-12 w-12 text-white" />
+            <div className="relative h-24 w-24 mx-auto rounded-3xl gradient-brand flex items-center justify-center shadow-2xl overflow-hidden">
+              <Image
+                src="/images/branding/logo-white.png"
+                alt="RiderGuy"
+                width={64}
+                height={64}
+                className="h-16 w-16 object-contain"
+                priority
+              />
             </div>
           </div>
 
