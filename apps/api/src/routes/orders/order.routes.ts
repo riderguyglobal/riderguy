@@ -13,6 +13,7 @@ import { StatusCodes } from 'http-status-codes';
 import * as OrderService from '../../services/order.service';
 import * as DispatchService from '../../services/dispatch.service';
 import * as GeocodingService from '../../services/geocoding.service';
+import { formatPlusCode, decodePlusCode, isValidPlusCode, isFullPlusCode, recoverPlusCode } from '@riderguy/utils';
 import * as TrackingService from '../../services/tracking.service';
 import { notifyNearbyRiders } from '../../services/notification.service';
 import { autoDispatch } from '../../services/auto-dispatch.service';
@@ -128,6 +129,58 @@ router.get(
     }
     const result = await GeocodingService.reverseGeocode(latitude, longitude);
     res.status(StatusCodes.OK).json({ success: true, data: result });
+  }),
+);
+
+/** GET /orders/plus-code — Encode coordinates to Plus Code or decode a Plus Code */
+router.get(
+  '/plus-code',
+  asyncHandler(async (req, res) => {
+    const code = req.query.code as string | undefined;
+    const latStr = req.query.latitude as string | undefined;
+    const lngStr = req.query.longitude as string | undefined;
+
+    // Decode: Plus Code → coordinates
+    if (code) {
+      if (!isValidPlusCode(code)) {
+        throw ApiError.badRequest('Invalid Plus Code format');
+      }
+      let fullCode = code;
+      if (!isFullPlusCode(code)) {
+        // Short code — recover using Accra as reference
+        const refLat = parseFloat(req.query.refLat as string) || 5.603;
+        const refLng = parseFloat(req.query.refLng as string) || -0.187;
+        fullCode = recoverPlusCode(code, refLat, refLng);
+      }
+      const area = decodePlusCode(fullCode);
+      // Also reverse geocode the center to get an address
+      const geocoded = await GeocodingService.reverseGeocode(area.latitudeCenter, area.longitudeCenter);
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: {
+          code: fullCode,
+          latitude: area.latitudeCenter,
+          longitude: area.longitudeCenter,
+          address: geocoded?.address ?? null,
+          bounds: {
+            latLo: area.latitudeLo,
+            latHi: area.latitudeHi,
+            lngLo: area.longitudeLo,
+            lngHi: area.longitudeHi,
+          },
+        },
+      });
+      return;
+    }
+
+    // Encode: coordinates → Plus Code
+    const latitude = parseFloat(latStr ?? '');
+    const longitude = parseFloat(lngStr ?? '');
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw ApiError.badRequest('Provide either "code" (Plus Code) or "latitude" & "longitude" query parameters');
+    }
+    const plusCode = formatPlusCode(latitude, longitude);
+    res.status(StatusCodes.OK).json({ success: true, data: plusCode });
   }),
 );
 

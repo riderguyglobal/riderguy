@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type mapboxgl from 'mapbox-gl';
 import { MAPBOX_TOKEN } from '@/lib/constants';
-import { MAP_PADDING } from '@riderguy/utils';
+import { MAP_PADDING, formatPlusCode } from '@riderguy/utils';
 import { initMapCore, fitBoundsToCoords, type MapCoreInstance } from '@/lib/map-core';
 import { createPickupMarker, createDropoffMarker, removeMarkers } from '@/lib/map-markers';
 import {
@@ -109,12 +109,18 @@ export default function RoutePreviewMap({
       return;
     }
 
-    // Markers
-    const pickup = createPickupMarker(mapboxglLib, pickupCoords, { popup: 'Pickup' });
+    // Markers (with Plus Code)
+    const pickupPC = formatPlusCode(pickupCoords[1], pickupCoords[0]);
+    const pickup = createPickupMarker(mapboxglLib, pickupCoords, {
+      popup: `Pickup<br/><span style="font-size:11px;opacity:0.7">${pickupPC.display}</span>`,
+    });
     pickup.addTo(map);
     markersRef.current.push(pickup);
 
-    const dropoff = createDropoffMarker(mapboxglLib, dropoffCoords, { popup: 'Dropoff' });
+    const dropoffPC = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
+    const dropoff = createDropoffMarker(mapboxglLib, dropoffCoords, {
+      popup: `Dropoff<br/><span style="font-size:11px;opacity:0.7">${dropoffPC.display}</span>`,
+    });
     dropoff.addTo(map);
     markersRef.current.push(dropoff);
 

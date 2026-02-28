@@ -1,5 +1,6 @@
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
+import { formatPlusCode } from '@riderguy/utils';
 
 // ============================================================
 // Geocoding Service — converts addresses to coordinates and
@@ -14,6 +15,12 @@ export interface GeocodingResult {
   latitude: number;
   longitude: number;
   placeType: string;
+  plusCode?: {
+    full: string;
+    short: string;
+    display: string;
+    city: string;
+  };
 }
 
 export interface AutocompleteSuggestion {
@@ -80,12 +87,17 @@ export async function forwardGeocode(
 
   const data = (await response.json()) as GeocodingV6Response;
 
-  return data.features.map((f) => ({
-    address: f.properties.full_address ?? `${f.properties.name}, ${f.properties.place_formatted ?? ''}`.trim(),
-    latitude: f.properties.coordinates.latitude,
-    longitude: f.properties.coordinates.longitude,
-    placeType: f.properties.feature_type ?? 'unknown',
-  }));
+  return data.features.map((f) => {
+    const lat = f.properties.coordinates.latitude;
+    const lng = f.properties.coordinates.longitude;
+    return {
+      address: f.properties.full_address ?? `${f.properties.name}, ${f.properties.place_formatted ?? ''}`.trim(),
+      latitude: lat,
+      longitude: lng,
+      placeType: f.properties.feature_type ?? 'unknown',
+      plusCode: formatPlusCode(lat, lng),
+    };
+  });
 }
 
 /**
@@ -133,6 +145,7 @@ export async function reverseGeocode(
     latitude: feature.properties.coordinates.latitude,
     longitude: feature.properties.coordinates.longitude,
     placeType: feature.properties.feature_type ?? 'unknown',
+    plusCode: formatPlusCode(feature.properties.coordinates.latitude, feature.properties.coordinates.longitude),
   };
 }
 

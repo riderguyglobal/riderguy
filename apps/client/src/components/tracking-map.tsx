@@ -17,7 +17,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type mapboxgl from 'mapbox-gl';
 import { MAPBOX_TOKEN } from '@/lib/constants';
-import { ROUTE_COLORS, MAP_PADDING, ROUTE_REFRESH_DISTANCE_M, haversineDistance } from '@riderguy/utils';
+import { ROUTE_COLORS, MAP_PADDING, ROUTE_REFRESH_DISTANCE_M, haversineDistance, formatPlusCode } from '@riderguy/utils';
 import { initMapCore, fitBoundsToCoords, type MapCoreInstance } from '@/lib/map-core';
 import { createPickupMarker, createDropoffMarker, createRiderMarker, removeMarkers } from '@/lib/map-markers';
 import { drawRoute, addTrafficLayer, toggleTraffic, hasTrafficLayer, removeRoute } from '@/lib/map-route';
@@ -130,17 +130,23 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
 
     const boundsCoords: [number, number][] = [];
 
-    // Pickup marker
+    // Pickup marker (with Plus Code)
     if (pickupCoords) {
-      const m = createPickupMarker(mapboxglLib, pickupCoords, { popup: 'Pickup' });
+      const pc = formatPlusCode(pickupCoords[1], pickupCoords[0]);
+      const m = createPickupMarker(mapboxglLib, pickupCoords, {
+        popup: `Pickup<br/><span style="font-size:11px;opacity:0.7">${pc.display}</span>`,
+      });
       m.addTo(map);
       markersRef.current.push(m);
       boundsCoords.push(pickupCoords);
     }
 
-    // Dropoff marker
+    // Dropoff marker (with Plus Code)
     if (dropoffCoords) {
-      const m = createDropoffMarker(mapboxglLib, dropoffCoords, { popup: 'Dropoff' });
+      const pc = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
+      const m = createDropoffMarker(mapboxglLib, dropoffCoords, {
+        popup: `Dropoff<br/><span style="font-size:11px;opacity:0.7">${pc.display}</span>`,
+      });
       m.addTo(map);
       markersRef.current.push(m);
       boundsCoords.push(dropoffCoords);

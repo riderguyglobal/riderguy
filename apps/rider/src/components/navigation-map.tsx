@@ -25,6 +25,7 @@ import {
   MAP_ZOOM,
   ROUTE_REFRESH_DISTANCE_M,
   haversineDistance,
+  formatPlusCode,
 } from '@riderguy/utils';
 import { tokenStorage } from '@riderguy/auth';
 import { useTheme } from '@/lib/theme';
@@ -201,23 +202,31 @@ export function NavigationMap({
 
     const boundsCoords: [number, number][] = [];
 
-    // Pickup
-    const pm = createPickupMarker(mapboxglLib, pickupCoords, { popup: 'Pickup' });
+    // Pickup (with Plus Code)
+    const pickupPC = formatPlusCode(pickupCoords[1], pickupCoords[0]);
+    const pm = createPickupMarker(mapboxglLib, pickupCoords, {
+      popup: `Pickup<br/><span style="font-size:11px;opacity:0.7">${pickupPC.display}</span>`,
+    });
     pm.addTo(map);
     staticMarkersRef.current.push(pm);
     boundsCoords.push(pickupCoords);
 
-    // Dropoff
-    const dm = createDropoffMarker(mapboxglLib, dropoffCoords, { popup: 'Dropoff' });
+    // Dropoff (with Plus Code)
+    const dropoffPC = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
+    const dm = createDropoffMarker(mapboxglLib, dropoffCoords, {
+      popup: `Dropoff<br/><span style="font-size:11px;opacity:0.7">${dropoffPC.display}</span>`,
+    });
     dm.addTo(map);
     staticMarkersRef.current.push(dm);
     boundsCoords.push(dropoffCoords);
 
-    // Multi-stop markers
+    // Multi-stop markers (with Plus Code)
     if (stops?.length) {
       for (const stop of stops) {
+        const stopPC = formatPlusCode(stop.latitude, stop.longitude);
+        const stopLabel = stop.address ?? `Stop ${stop.sequence}`;
         const sm = createStopMarker(mapboxglLib, [stop.longitude, stop.latitude], {
-          popup: stop.address ?? `Stop ${stop.sequence}`,
+          popup: `${stopLabel}<br/><span style="font-size:11px;opacity:0.7">${stopPC.display}</span>`,
           label: String(stop.sequence),
         });
         sm.addTo(map);

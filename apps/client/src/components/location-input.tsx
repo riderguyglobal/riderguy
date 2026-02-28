@@ -102,9 +102,12 @@ export function LocationInput({
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const [lng, lat] = [pos.coords.longitude, pos.coords.latitude];
-        const name = await reverseGeocode(lat, lng);
-        onChange({ address: name, coordinates: [lng, lat] });
-        ac.setQuery(name);
+        const result = await reverseGeocode(lat, lng);
+        const displayAddress = result.plusCode
+          ? `${result.address} (${result.plusCode.display})`
+          : result.address;
+        onChange({ address: displayAddress, coordinates: [lng, lat] });
+        ac.setQuery(displayAddress);
         ac.setOpen(false);
         setLocating(false);
       },

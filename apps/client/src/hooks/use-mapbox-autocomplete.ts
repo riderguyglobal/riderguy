@@ -124,8 +124,12 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
 /**
  * Reverse geocode coordinates to a human-readable address.
  * Routes through the backend API proxy (no token exposure).
+ * Returns both the address and Plus Code when available.
  */
-export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+export async function reverseGeocode(lat: number, lng: number): Promise<{
+  address: string;
+  plusCode?: { full: string; short: string; display: string; city: string };
+}> {
   try {
     const url = `${API_BASE_URL}/orders/reverse-geocode?latitude=${lat}&longitude=${lng}`;
     const token = tokenStorage.getAccessToken();
@@ -133,12 +137,24 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
       credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (!res.ok) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    if (!res.ok) return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
     const json = await res.json();
-    return json.data?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    return {
+      address: json.data?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      plusCode: json.data?.plusCode,
+    };
   } catch {
-    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
   }
+}
+
+/**
+ * Reverse geocode coordinates to a plain address string.
+ * Convenience wrapper for backwards compatibility.
+ */
+export async function reverseGeocodeAddress(lat: number, lng: number): Promise<string> {
+  const result = await reverseGeocode(lat, lng);
+  return result.address;
 }
 
 /**

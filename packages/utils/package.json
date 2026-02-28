@@ -11,6 +11,10 @@
     "clean": "rimraf dist .turbo"
   },
   "devDependencies": {
+    "@types/open-location-code": "^1.0.1",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "open-location-code": "^1.0.3"
   }
 }
