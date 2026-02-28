@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
-import 'mapbox-gl/dist/mapbox-gl.css';
 import './globals.css';
 
 const inter = Inter({
@@ -35,6 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        <link
+          href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css"
+          rel="stylesheet"
+        />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="font-sans">
