@@ -107,9 +107,10 @@ export default function ClientMap() {
           style: MAP_STYLE,
           center: DEFAULT_CENTER,
           zoom: MAP_ZOOM.default,
-          attributionControl: false,
+          attributionControl: true,
           interactive: true,
           fadeDuration: 0,
+          antialias: true,
         });
 
         mapRef.current = map;

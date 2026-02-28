@@ -87,7 +87,7 @@ export function RiderMap({ className = '', status = 'offline' }: RiderMapProps) 
         center: DEFAULT_CENTER,
         zoom: MAP_ZOOM.default,
         interactive: true,
-        attributionControl: false,
+        attributionControl: true,
         fadeDuration: 0,
         antialias: true,
       });

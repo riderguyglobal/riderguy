@@ -24,7 +24,9 @@ export interface AutocompleteSuggestion {
   longitude: number;
 }
 
-const MAPBOX_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
+// ── Geocoding API v6 endpoints ────────────────────────────
+const GEOCODE_FORWARD = 'https://api.mapbox.com/search/geocode/v6/forward';
+const GEOCODE_REVERSE = 'https://api.mapbox.com/search/geocode/v6/reverse';
 
 /** Ghana bounding box: [minLng, minLat, maxLng, maxLat] */
 const GHANA_BBOX = '-3.26,4.74,1.19,11.17';
@@ -40,6 +42,7 @@ function warnMockFallback(method: string) {
 
 /**
  * Forward geocode: address text → coordinates.
+ * Uses Mapbox Geocoding API v6.
  * Biased towards Ghana by default.
  */
 export async function forwardGeocode(
@@ -55,39 +58,39 @@ export async function forwardGeocode(
 
   const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
-  const encoded = encodeURIComponent(address);
   const prox = options.proximity ?? ACCRA_CENTER;
 
   const params = new URLSearchParams({
+    q: address,
     access_token: token,
     country,
     limit: String(limit),
-    types: 'address,poi,place,locality,neighborhood,district',
+    types: 'address,street,place,locality,neighborhood,district',
     language: 'en',
     bbox: GHANA_BBOX,
     proximity: `${prox.lng},${prox.lat}`,
-    fuzzyMatch: 'true',
   });
 
-  const url = `${MAPBOX_BASE}/${encoded}.json?${params.toString()}`;
+  const url = `${GEOCODE_FORWARD}?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
     throw ApiError.internal('Geocoding service unavailable');
   }
 
-  const data = (await response.json()) as MapboxResponse;
+  const data = (await response.json()) as GeocodingV6Response;
 
   return data.features.map((f) => ({
-    address: f.place_name,
-    latitude: f.center[1],
-    longitude: f.center[0],
-    placeType: f.place_type[0] ?? 'unknown',
+    address: f.properties.full_address ?? `${f.properties.name}, ${f.properties.place_formatted ?? ''}`.trim(),
+    latitude: f.properties.coordinates.latitude,
+    longitude: f.properties.coordinates.longitude,
+    placeType: f.properties.feature_type ?? 'unknown',
   }));
 }
 
 /**
  * Reverse geocode: coordinates → address.
+ * Uses Mapbox Geocoding API v6.
  */
 export async function reverseGeocode(
   latitude: number,
@@ -106,33 +109,36 @@ export async function reverseGeocode(
   }
 
   const params = new URLSearchParams({
+    longitude: String(longitude),
+    latitude: String(latitude),
     access_token: token,
-    types: 'address,poi,place,locality,neighborhood',
+    types: 'address,street,place,locality,neighborhood',
     limit: '1',
     language: 'en',
   });
 
-  const url = `${MAPBOX_BASE}/${longitude},${latitude}.json?${params.toString()}`;
+  const url = `${GEOCODE_REVERSE}?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
     throw ApiError.internal('Reverse geocoding service unavailable');
   }
 
-  const data = (await response.json()) as MapboxResponse;
+  const data = (await response.json()) as GeocodingV6Response;
   const feature = data.features[0];
   if (!feature) return null;
 
   return {
-    address: feature.place_name,
-    latitude: feature.center[1],
-    longitude: feature.center[0],
-    placeType: feature.place_type[0] ?? 'unknown',
+    address: feature.properties.full_address ?? `${feature.properties.name}, ${feature.properties.place_formatted ?? ''}`.trim(),
+    latitude: feature.properties.coordinates.latitude,
+    longitude: feature.properties.coordinates.longitude,
+    placeType: feature.properties.feature_type ?? 'unknown',
   };
 }
 
 /**
  * Autocomplete: partial text → suggestions.
+ * Uses Mapbox Geocoding API v6 with autocomplete=true.
  * Designed for real-time search-as-you-type.
  */
 export async function autocomplete(
@@ -148,53 +154,61 @@ export async function autocomplete(
 
   const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
-  const encoded = encodeURIComponent(query);
   const prox = options.proximity ?? ACCRA_CENTER;
 
   const params = new URLSearchParams({
+    q: query,
     access_token: token,
     country,
     limit: String(limit),
-    types: 'address,poi,place,locality,neighborhood,district',
+    types: 'address,street,place,locality,neighborhood,district',
     autocomplete: 'true',
     language: 'en',
     bbox: GHANA_BBOX,
-    fuzzyMatch: 'true',
     proximity: `${prox.lng},${prox.lat}`,
   });
 
-  const url = `${MAPBOX_BASE}/${encoded}.json?${params.toString()}`;
+  const url = `${GEOCODE_FORWARD}?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
     throw ApiError.internal('Autocomplete service unavailable');
   }
 
-  const data = (await response.json()) as MapboxResponse;
+  const data = (await response.json()) as GeocodingV6Response;
 
   return data.features.map((f) => ({
-    id: f.id,
-    text: f.text,
-    placeName: f.place_name,
-    latitude: f.center[1],
-    longitude: f.center[0],
+    id: f.properties.mapbox_id ?? f.id,
+    text: f.properties.name,
+    placeName: f.properties.full_address ?? `${f.properties.name}, ${f.properties.place_formatted ?? ''}`.trim(),
+    latitude: f.properties.coordinates.latitude,
+    longitude: f.properties.coordinates.longitude,
   }));
 }
 
-// ---- Mapbox response types ----
+// ── Mapbox Geocoding v6 response types ────────────────────
 
-interface MapboxFeature {
-  id: string;
+interface GeocodingV6Feature {
   type: string;
-  place_type: string[];
-  text: string;
-  place_name: string;
-  center: [number, number]; // [lng, lat]
+  id: string;
+  geometry: { type: string; coordinates: [number, number] };
+  properties: {
+    mapbox_id: string;
+    feature_type: string;
+    name: string;
+    name_preferred?: string;
+    place_formatted?: string;
+    full_address?: string;
+    coordinates: { longitude: number; latitude: number; accuracy?: string };
+    context?: Record<string, unknown>;
+    match_code?: { confidence: string };
+  };
 }
 
-interface MapboxResponse {
+interface GeocodingV6Response {
   type: string;
-  features: MapboxFeature[];
+  features: GeocodingV6Feature[];
+  attribution?: string;
 }
 
 // ---- Mock implementations for local dev ----

@@ -155,7 +155,7 @@ export function NavigationMap({
           style: resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
           center: [pickupLng, pickupLat],
           zoom: 13,
-          attributionControl: false,
+          attributionControl: true,
           antialias: true,
         });
 

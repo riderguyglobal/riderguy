@@ -83,7 +83,7 @@ export default function RoutePreviewMap({
           style: MAP_STYLE,
           center,
           zoom: MAP_ZOOM.default,
-          attributionControl: false,
+          attributionControl: true,
           interactive: true,
         });
 

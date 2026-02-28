@@ -377,9 +377,12 @@
 }
 
 /* ── Mapbox overrides ────────────────────────────────── */
-.mapboxgl-ctrl-attrib,
-.mapboxgl-ctrl-logo {
-  display: none !important;
+.mapboxgl-ctrl-attrib {
+  font-size: 9px !important;
+  opacity: 0.6;
+}
+.mapboxgl-ctrl-attrib a {
+  color: var(--text-secondary, #888) !important;
 }
 
 .mapboxgl-canvas {

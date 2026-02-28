@@ -143,8 +143,8 @@ router.get(
     const mapboxToken = (await import('../../config')).config.mapbox?.accessToken;
     if (!mapboxToken) throw ApiError.internal('Map service not configured');
 
-    const routeProfile = driveProfile === 'cycling' ? 'cycling' : 'driving';
-    const url = `https://api.mapbox.com/directions/v5/mapbox/${routeProfile}/${coordinates}?geometries=geojson&overview=full&access_token=${mapboxToken}`;
+    const routeProfile = driveProfile === 'cycling' ? 'cycling' : driveProfile === 'walking' ? 'walking' : 'driving-traffic';
+    const url = `https://api.mapbox.com/directions/v5/mapbox/${routeProfile}/${coordinates}?geometries=geojson&overview=full&steps=true&alternatives=true&annotations=congestion,duration,distance&language=en&access_token=${mapboxToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {

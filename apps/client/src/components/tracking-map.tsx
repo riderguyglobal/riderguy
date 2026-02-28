@@ -96,7 +96,7 @@ export default function TrackingMap({
           style: MAP_STYLE,
           center,
           zoom: MAP_ZOOM.default,
-          attributionControl: false,
+          attributionControl: true,
         });
 
         mapRef.current = map;

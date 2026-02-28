@@ -257,8 +257,8 @@
 }
 
 /* ─── Mapbox Overrides (Light) ───────────────── */
-.mapboxgl-ctrl-logo    { display: none !important; }
-.mapboxgl-ctrl-attrib  { display: none !important; }
+.mapboxgl-ctrl-attrib  { @apply !text-[9px] !opacity-60; }
+.mapboxgl-ctrl-attrib a { @apply !text-surface-400; }
 .mapboxgl-ctrl-group   { @apply !rounded-2xl !border-0; box-shadow: 0 2px 8px rgba(0,0,0,.08) !important; }
 .mapboxgl-ctrl-group button { @apply !border-surface-100/50; }
 .mapboxgl-popup-content { @apply !rounded-2xl !p-0; box-shadow: 0 2px 12px rgba(0,0,0,.1) !important; }
