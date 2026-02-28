@@ -9,12 +9,13 @@ import {
   Crosshair,
   Search,
   Navigation,
+  Store,
 } from 'lucide-react';
 import {
   useMapboxAutocomplete,
   reverseGeocode,
   splitPlaceName,
-  type MapboxFeature,
+  type SearchSuggestion,
 } from '@/hooks/use-mapbox-autocomplete';
 
 export interface LocationValue {
@@ -84,10 +85,23 @@ export function LocationInput({
     }
   };
 
-  const selectPlace = (feature: MapboxFeature) => {
-    onChange({ address: feature.place_name, coordinates: feature.center });
-    ac.setQuery(feature.place_name);
+  const selectPlace = async (suggestion: SearchSuggestion) => {
+    // Show placeName immediately while retrieving coordinates
+    ac.setQuery(suggestion.placeName);
     ac.setOpen(false);
+
+    // Retrieve full details (coordinates) from Search Box
+    const place = await ac.retrieve(suggestion);
+    if (place) {
+      const displayAddress = place.plusCode
+        ? `${place.fullAddress} (${place.plusCode.display})`
+        : place.fullAddress;
+      onChange({ address: displayAddress, coordinates: [place.longitude, place.latitude] });
+      ac.setQuery(displayAddress);
+    } else {
+      // Fallback: use the suggestion name without coords
+      onChange({ address: suggestion.placeName, coordinates: null });
+    }
   };
 
   const handleClear = () => {
@@ -138,13 +152,13 @@ export function LocationInput({
           />
 
           {/* Right icon: checkmark / spinner / clear */}
-          {hasSelection && (
+          {hasSelection && !ac.retrieving && (
             <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent-500" />
           )}
-          {ac.loading && !hasSelection && (
+          {(ac.loading || ac.retrieving) && !hasSelection && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 animate-spin" />
           )}
-          {ac.query && !hasSelection && !ac.loading && (
+          {ac.query && !hasSelection && !ac.loading && !ac.retrieving && (
             <button
               type="button"
               onClick={handleClear}
@@ -176,15 +190,15 @@ export function LocationInput({
       {/* ── Suggestions dropdown ── */}
       {ac.open && ac.results.length > 0 && (
         <div className="absolute top-full left-0 right-12 mt-1.5 bg-white rounded-2xl border border-surface-200 shadow-xl z-30 max-h-72 overflow-y-auto animate-slide-up">
-          {ac.results.map((feature) => {
-            const { primary, secondary } = splitPlaceName(feature.place_name);
-            const typeIcon = getPlaceTypeIcon(feature.place_type?.[0]);
+          {ac.results.map((suggestion) => {
+            const { primary, secondary } = splitPlaceName(suggestion.placeName);
+            const typeIcon = getPlaceTypeIcon(suggestion.placeType, suggestion.category);
             return (
               <button
-                key={feature.id}
+                key={suggestion.id}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectPlace(feature)}
+                onClick={() => selectPlace(suggestion)}
                 className="w-full flex items-start gap-3 py-3 px-3.5 hover:bg-surface-50 active:bg-surface-100 transition-colors text-left first:rounded-t-2xl last:rounded-b-2xl border-b border-surface-100 last:border-0"
               >
                 <div className="h-9 w-9 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -197,6 +211,11 @@ export function LocationInput({
                   {secondary && (
                     <p className="text-xs text-surface-400 truncate mt-0.5">
                       {secondary}
+                    </p>
+                  )}
+                  {suggestion.category && (
+                    <p className="text-[10px] text-surface-300 truncate mt-0.5 capitalize">
+                      {suggestion.category.replace(/_/g, ' ')}
                     </p>
                   )}
                 </div>
@@ -223,16 +242,22 @@ export function LocationInput({
   );
 }
 
-/** Return a contextual icon based on Mapbox place type */
-function getPlaceTypeIcon(type?: string) {
+/** Return a contextual icon based on place type or category */
+function getPlaceTypeIcon(type?: string, category?: string) {
+  // POI gets a store/navigation icon
+  if (type === 'poi' || category) {
+    return <Store className="h-4 w-4 text-brand-500" />;
+  }
   switch (type) {
-    case 'poi':
-      return <Navigation className="h-4 w-4 text-brand-500" />;
     case 'address':
+    case 'street':
       return <MapPin className="h-4 w-4 text-surface-500" />;
     case 'neighborhood':
     case 'locality':
       return <MapPin className="h-4 w-4 text-accent-500" />;
+    case 'place':
+    case 'district':
+      return <Navigation className="h-4 w-4 text-brand-500" />;
     default:
       return <MapPin className="h-4 w-4 text-surface-500" />;
   }

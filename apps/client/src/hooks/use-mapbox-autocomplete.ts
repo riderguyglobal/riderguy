@@ -2,8 +2,13 @@
 
 // ══════════════════════════════════════════════════════════
 // useMapboxAutocomplete — Address autocomplete via API proxy
-// Routes all requests through the backend to keep the
-// Mapbox token server-side (not exposed in client URLs)
+//
+// Uses Mapbox Search Box v1 (suggest + retrieve) through
+// the backend to keep the Mapbox token server-side.
+//
+// Flow:
+// 1. User types → suggest endpoint → list of suggestions (no coords)
+// 2. User selects → retrieve endpoint → full details with coords
 // ══════════════════════════════════════════════════════════
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -19,21 +24,49 @@ export interface MapboxFeature {
   context?: Array<{ id: string; text: string }>;
 }
 
+/** Suggestion returned by Search Box suggest (NO coordinates) */
+export interface SearchSuggestion {
+  id: string;           // mapbox_id — used for retrieve
+  text: string;         // short display name
+  placeName: string;    // full formatted address
+  placeType?: string;   // feature_type (poi, address, place, etc.)
+  category?: string;    // POI category if applicable
+}
+
+/** Full place returned by Search Box retrieve (WITH coordinates) */
+export interface RetrievedPlace {
+  id: string;
+  name: string;
+  fullAddress: string;
+  latitude: number;
+  longitude: number;
+  placeType: string;
+  plusCode?: { full: string; short: string; display: string; city: string };
+}
+
 interface UseMapboxAutocompleteOptions {
   /** Debounce delay in ms. Defaults to 250. */
   debounce?: number;
+}
+
+/** Generate a random UUID v4 for session tokens */
+function uuid() {
+  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}) {
   const { debounce = 250 } = options;
 
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<MapboxFeature[]>([]);
+  const [results, setResults] = useState<SearchSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [retrieving, setRetrieving] = useState(false);
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController>();
   const userLocationRef = useRef<[number, number] | null>(null);
+  // Session token groups suggest + retrieve calls for Mapbox billing
+  const sessionTokenRef = useRef<string>(uuid());
 
   // Try to get user's actual location for better proximity bias
   useEffect(() => {
@@ -47,6 +80,7 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     );
   }, []);
 
+  /** Fetch suggestions from Search Box suggest endpoint */
   const search = useCallback(async (q: string) => {
     if (!q || q.length < 2) {
       setResults([]);
@@ -61,7 +95,7 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
 
     try {
       const prox = userLocationRef.current || DEFAULT_CENTER;
-      const url = `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}&lat=${prox[1]}&lng=${prox[0]}`;
+      const url = `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}&lat=${prox[1]}&lng=${prox[0]}&session_token=${sessionTokenRef.current}`;
       const token = tokenStorage.getAccessToken();
       const res = await fetch(url, {
         signal: ctrl.signal,
@@ -71,23 +105,45 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
 
       if (!res.ok) throw new Error('Autocomplete failed');
       const json = await res.json();
-      const suggestions = json.data ?? [];
-
-      // Normalize API proxy response → standard MapboxFeature shape
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const features: MapboxFeature[] = suggestions.map((s: any) => ({
-        id: s.id,
-        text: s.text,
-        place_name: s.placeName ?? s.place_name ?? s.text,
-        center: s.center ?? [s.longitude ?? 0, s.latitude ?? 0],
-        place_type: s.place_type ?? ['place'],
+      const suggestions: SearchSuggestion[] = (json.data ?? []).map((s: Record<string, unknown>) => ({
+        id: s.id as string,
+        text: s.text as string,
+        placeName: (s.placeName ?? s.place_name ?? s.text) as string,
+        placeType: s.placeType as string | undefined,
+        category: s.category as string | undefined,
       }));
 
-      setResults(features);
+      setResults(suggestions);
     } catch {
       if (!ctrl.signal.aborted) setResults([]);
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
+    }
+  }, []);
+
+  /** Retrieve full place details (coordinates) for a selected suggestion */
+  const retrieve = useCallback(async (suggestion: SearchSuggestion): Promise<RetrievedPlace | null> => {
+    setRetrieving(true);
+    try {
+      const url = `${API_BASE_URL}/orders/retrieve-place/${encodeURIComponent(suggestion.id)}?session_token=${sessionTokenRef.current}`;
+      const token = tokenStorage.getAccessToken();
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) return null;
+      const json = await res.json();
+      const place = json.data as RetrievedPlace | undefined;
+
+      // Start a new session for the next search
+      sessionTokenRef.current = uuid();
+
+      return place ?? null;
+    } catch {
+      return null;
+    } finally {
+      setRetrieving(false);
     }
   }, []);
 
@@ -109,6 +165,8 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     setResults([]);
     setOpen(false);
     abortRef.current?.abort();
+    // New session for next search
+    sessionTokenRef.current = uuid();
   }, []);
 
   useEffect(() => {
@@ -118,7 +176,7 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     };
   }, []);
 
-  return { query, setQuery, results, loading, open, setOpen, onChange, clear };
+  return { query, setQuery, results, loading, retrieving, open, setOpen, onChange, clear, retrieve };
 }
 
 /**

@@ -27,13 +27,35 @@ export interface AutocompleteSuggestion {
   id: string;
   text: string;
   placeName: string;
+  /** Coordinates may be absent from suggest — filled in after retrieve */
+  latitude?: number;
+  longitude?: number;
+  placeType?: string;
+  category?: string;
+}
+
+export interface RetrievedPlace {
+  id: string;
+  name: string;
+  fullAddress: string;
   latitude: number;
   longitude: number;
+  placeType: string;
+  plusCode?: {
+    full: string;
+    short: string;
+    display: string;
+    city: string;
+  };
 }
 
 // ── Geocoding API v6 endpoints ────────────────────────────
 const GEOCODE_FORWARD = 'https://api.mapbox.com/search/geocode/v6/forward';
 const GEOCODE_REVERSE = 'https://api.mapbox.com/search/geocode/v6/reverse';
+
+// ── Search Box API v1 endpoints (for autocomplete with POIs) ──
+const SEARCHBOX_SUGGEST = 'https://api.mapbox.com/search/searchbox/v1/suggest';
+const SEARCHBOX_RETRIEVE = 'https://api.mapbox.com/search/searchbox/v1/retrieve';
 
 /** Ghana bounding box: [minLng, minLat, maxLng, maxLat] */
 const GHANA_BBOX = '-3.26,4.74,1.19,11.17';
@@ -151,12 +173,19 @@ export async function reverseGeocode(
 
 /**
  * Autocomplete: partial text → suggestions.
- * Uses Mapbox Geocoding API v6 with autocomplete=true.
- * Designed for real-time search-as-you-type.
+ * Uses Mapbox Search Box v1 suggest endpoint — includes POIs,
+ * landmarks, addresses, neighborhoods and more.
+ * This is critical for Ghana where most locations are known by
+ * POI name (markets, hospitals, malls) not street addresses.
  */
 export async function autocomplete(
   query: string,
-  options: { proximity?: { lat: number; lng: number }; country?: string; limit?: number } = {},
+  options: {
+    proximity?: { lat: number; lng: number };
+    country?: string;
+    limit?: number;
+    sessionToken?: string;
+  } = {},
 ): Promise<AutocompleteSuggestion[]> {
   const token = config.mapbox?.accessToken;
 
@@ -166,7 +195,7 @@ export async function autocomplete(
   }
 
   const country = options.country ?? 'gh';
-  const limit = options.limit ?? 5;
+  const limit = options.limit ?? 8;
   const prox = options.proximity ?? ACCRA_CENTER;
 
   const params = new URLSearchParams({
@@ -174,19 +203,110 @@ export async function autocomplete(
     access_token: token,
     country,
     limit: String(limit),
+    types: 'poi,address,street,place,neighborhood,locality,district',
+    language: 'en',
+    proximity: `${prox.lng},${prox.lat}`,
+  });
+
+  // Session token keeps suggest+retrieve grouped for billing
+  if (options.sessionToken) {
+    params.set('session_token', options.sessionToken);
+  }
+
+  const url = `${SEARCHBOX_SUGGEST}?${params.toString()}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    // Fallback to geocoding v6 if Search Box fails
+    console.warn('[GeocodingService] Search Box suggest failed, falling back to geocoding v6');
+    return fallbackAutocomplete(query, { proximity: prox, country, limit });
+  }
+
+  const data = (await response.json()) as SearchBoxSuggestResponse;
+
+  return (data.suggestions ?? []).map((s) => ({
+    id: s.mapbox_id,
+    text: s.name,
+    placeName: s.full_address ?? s.place_formatted ?? s.name,
+    placeType: s.feature_type,
+    category: s.poi_category?.[0],
+  }));
+}
+
+/**
+ * Retrieve full place details (including coordinates) for a
+ * suggestion selected by the user.
+ * Uses Mapbox Search Box v1 retrieve endpoint.
+ */
+export async function retrievePlace(
+  mapboxId: string,
+  sessionToken?: string,
+): Promise<RetrievedPlace | null> {
+  const token = config.mapbox?.accessToken;
+
+  if (!token) {
+    warnMockFallback('retrievePlace');
+    return null;
+  }
+
+  const params = new URLSearchParams({ access_token: token });
+  if (sessionToken) {
+    params.set('session_token', sessionToken);
+  }
+
+  const url = `${SEARCHBOX_RETRIEVE}/${encodeURIComponent(mapboxId)}?${params.toString()}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    console.error('[GeocodingService] Search Box retrieve failed:', response.status);
+    return null;
+  }
+
+  const data = (await response.json()) as SearchBoxRetrieveResponse;
+  const feature = data.features?.[0];
+  if (!feature) return null;
+
+  const [lng, lat] = feature.geometry.coordinates;
+
+  return {
+    id: feature.properties.mapbox_id,
+    name: feature.properties.name,
+    fullAddress:
+      feature.properties.full_address ??
+      `${feature.properties.name}, ${feature.properties.place_formatted ?? ''}`.trim(),
+    latitude: lat,
+    longitude: lng,
+    placeType: feature.properties.feature_type ?? 'unknown',
+    plusCode: formatPlusCode(lat, lng),
+  };
+}
+
+/**
+ * Fallback autocomplete using Geocoding v6 when Search Box is unavailable.
+ */
+async function fallbackAutocomplete(
+  query: string,
+  options: { proximity: { lat: number; lng: number }; country: string; limit: number },
+): Promise<AutocompleteSuggestion[]> {
+  const token = config.mapbox?.accessToken;
+  if (!token) return mockAutocomplete(query);
+
+  const params = new URLSearchParams({
+    q: query,
+    access_token: token,
+    country: options.country,
+    limit: String(options.limit),
     types: 'address,street,place,locality,neighborhood,district',
     autocomplete: 'true',
     language: 'en',
     bbox: GHANA_BBOX,
-    proximity: `${prox.lng},${prox.lat}`,
+    proximity: `${options.proximity.lng},${options.proximity.lat}`,
   });
 
   const url = `${GEOCODE_FORWARD}?${params.toString()}`;
 
   const response = await fetch(url);
-  if (!response.ok) {
-    throw ApiError.internal('Autocomplete service unavailable');
-  }
+  if (!response.ok) return [];
 
   const data = (await response.json()) as GeocodingV6Response;
 
@@ -221,6 +341,54 @@ interface GeocodingV6Feature {
 interface GeocodingV6Response {
   type: string;
   features: GeocodingV6Feature[];
+  attribution?: string;
+}
+
+// ── Mapbox Search Box v1 response types ───────────────────
+
+interface SearchBoxSuggestion {
+  name: string;
+  mapbox_id: string;
+  feature_type: string;
+  address?: string;
+  full_address?: string;
+  place_formatted?: string;
+  context?: Record<string, unknown>;
+  language?: string;
+  maki?: string;
+  poi_category?: string[];
+  poi_category_ids?: string[];
+  brand?: string[];
+  external_ids?: Record<string, string>;
+  metadata?: Record<string, unknown>;
+}
+
+interface SearchBoxSuggestResponse {
+  suggestions: SearchBoxSuggestion[];
+  attribution?: string;
+  url?: string;
+}
+
+interface SearchBoxRetrieveFeature {
+  type: string;
+  geometry: { type: string; coordinates: [number, number] };
+  properties: {
+    mapbox_id: string;
+    feature_type: string;
+    name: string;
+    name_preferred?: string;
+    place_formatted?: string;
+    full_address?: string;
+    coordinates: { longitude: number; latitude: number };
+    context?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    poi_category?: string[];
+  };
+}
+
+interface SearchBoxRetrieveResponse {
+  type: string;
+  features: SearchBoxRetrieveFeature[];
   attribution?: string;
 }
 

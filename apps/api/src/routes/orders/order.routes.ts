@@ -99,7 +99,7 @@ router.get(
   }),
 );
 
-/** GET /orders/autocomplete — Address autocomplete */
+/** GET /orders/autocomplete — Address autocomplete (Search Box v1 suggest) */
 router.get(
   '/autocomplete',
   asyncHandler(async (req, res) => {
@@ -112,9 +112,30 @@ router.get(
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
     const proximity = !isNaN(lat) && !isNaN(lng) ? { lat, lng } : undefined;
+    const sessionToken = req.query.session_token as string | undefined;
 
-    const suggestions = await GeocodingService.autocomplete(query, { proximity });
+    const suggestions = await GeocodingService.autocomplete(query, { proximity, sessionToken });
     res.status(StatusCodes.OK).json({ success: true, data: suggestions });
+  }),
+);
+
+/** GET /orders/retrieve-place/:id — Retrieve full place details (coordinates, address, Plus Code) */
+router.get(
+  '/retrieve-place/:id',
+  asyncHandler(async (req, res) => {
+    const mapboxId = req.params.id as string;
+    if (!mapboxId) {
+      throw ApiError.badRequest('Mapbox place ID is required');
+    }
+
+    const sessionToken = String(req.query.session_token ?? '') || undefined;
+    const place = await GeocodingService.retrievePlace(mapboxId, sessionToken);
+
+    if (!place) {
+      throw ApiError.notFound('Place not found');
+    }
+
+    res.status(StatusCodes.OK).json({ success: true, data: place });
   }),
 );
 
