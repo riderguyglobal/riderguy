@@ -26,25 +26,50 @@ export interface AutocompleteSuggestion {
 
 const MAPBOX_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
+/** Ghana bounding box: [minLng, minLat, maxLng, maxLat] */
+const GHANA_BBOX = '-3.26,4.74,1.19,11.17';
+
+/** Accra center for proximity bias */
+const ACCRA_CENTER = { lng: -0.187, lat: 5.603 };
+
+function warnMockFallback(method: string) {
+  console.warn(
+    `[GeocodingService] ${method}: MAPBOX_ACCESS_TOKEN not set — using mock data. Set the token in .env for real geocoding.`
+  );
+}
+
 /**
  * Forward geocode: address text → coordinates.
  * Biased towards Ghana by default.
  */
 export async function forwardGeocode(
   address: string,
-  options: { country?: string; limit?: number } = {},
+  options: { country?: string; limit?: number; proximity?: { lat: number; lng: number } } = {},
 ): Promise<GeocodingResult[]> {
   const token = config.mapbox?.accessToken;
 
   if (!token) {
-    // Fallback for local dev — return a mocked result based on address
+    warnMockFallback('forwardGeocode');
     return mockForwardGeocode(address);
   }
 
   const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
   const encoded = encodeURIComponent(address);
-  const url = `${MAPBOX_BASE}/${encoded}.json?access_token=${token}&country=${country}&limit=${limit}&types=address,poi,place`;
+  const prox = options.proximity ?? ACCRA_CENTER;
+
+  const params = new URLSearchParams({
+    access_token: token,
+    country,
+    limit: String(limit),
+    types: 'address,poi,place,locality,neighborhood,district',
+    language: 'en',
+    bbox: GHANA_BBOX,
+    proximity: `${prox.lng},${prox.lat}`,
+    fuzzyMatch: 'true',
+  });
+
+  const url = `${MAPBOX_BASE}/${encoded}.json?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -71,6 +96,7 @@ export async function reverseGeocode(
   const token = config.mapbox?.accessToken;
 
   if (!token) {
+    warnMockFallback('reverseGeocode');
     return {
       address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
       latitude,
@@ -79,7 +105,14 @@ export async function reverseGeocode(
     };
   }
 
-  const url = `${MAPBOX_BASE}/${longitude},${latitude}.json?access_token=${token}&types=address,poi,place&limit=1`;
+  const params = new URLSearchParams({
+    access_token: token,
+    types: 'address,poi,place,locality,neighborhood',
+    limit: '1',
+    language: 'en',
+  });
+
+  const url = `${MAPBOX_BASE}/${longitude},${latitude}.json?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -109,17 +142,28 @@ export async function autocomplete(
   const token = config.mapbox?.accessToken;
 
   if (!token) {
+    warnMockFallback('autocomplete');
     return mockAutocomplete(query);
   }
 
   const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
   const encoded = encodeURIComponent(query);
-  let url = `${MAPBOX_BASE}/${encoded}.json?access_token=${token}&country=${country}&limit=${limit}&types=address,poi,place&autocomplete=true`;
+  const prox = options.proximity ?? ACCRA_CENTER;
 
-  if (options.proximity) {
-    url += `&proximity=${options.proximity.lng},${options.proximity.lat}`;
-  }
+  const params = new URLSearchParams({
+    access_token: token,
+    country,
+    limit: String(limit),
+    types: 'address,poi,place,locality,neighborhood,district',
+    autocomplete: 'true',
+    language: 'en',
+    bbox: GHANA_BBOX,
+    fuzzyMatch: 'true',
+    proximity: `${prox.lng},${prox.lat}`,
+  });
+
+  const url = `${MAPBOX_BASE}/${encoded}.json?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
