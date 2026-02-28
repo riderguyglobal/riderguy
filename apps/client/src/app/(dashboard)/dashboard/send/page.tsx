@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { PACKAGE_TYPES } from '@/lib/constants';
@@ -19,6 +20,9 @@ import {
   Camera,
   Trash2,
 } from 'lucide-react';
+
+// Lazy-load route preview map (SSR-unsafe)
+const RoutePreviewMap = dynamic(() => import('@/components/route-preview-map'), { ssr: false });
 
 // Compact package types — the 4 most common for in-town delivery
 const QUICK_PACKAGES = PACKAGE_TYPES.filter((p) =>
@@ -246,6 +250,15 @@ export default function SendPackagePage() {
             </div>
           </div>
         </div>
+
+        {/* ── Route Preview Map — shows pickup/dropoff with animated route ── */}
+        {(pickup.location.coordinates || dropoff.location.coordinates) && (
+          <RoutePreviewMap
+            pickupCoords={pickup.location.coordinates as [number, number] | null}
+            dropoffCoords={dropoff.location.coordinates as [number, number] | null}
+            className="h-[180px]"
+          />
+        )}
 
         {/* ── Package type — compact horizontal pills ── */}
         <div>

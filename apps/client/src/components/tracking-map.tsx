@@ -1,8 +1,27 @@
 'use client';
 
+// ══════════════════════════════════════════════════════════
+// TrackingMap — Advanced order tracking map with real-time
+// rider position, route display, ETA, traffic, and controls
+// ══════════════════════════════════════════════════════════
+
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { MAPBOX_TOKEN, MAP_STYLE, API_BASE_URL } from '@/lib/constants';
-import { tokenStorage } from '@riderguy/auth';
+import { MAPBOX_TOKEN, MAP_STYLE } from '@/lib/constants';
+import { ROUTE_COLORS, MAP_PADDING, MAP_ZOOM, ROUTE_REFRESH_DISTANCE_M } from '@riderguy/utils';
+import { haversineDistance } from '@riderguy/utils';
+import { useDirections } from '@/hooks/use-directions';
+import {
+  createPickupMarker,
+  createDropoffMarker,
+  createRiderMarker,
+} from '@/lib/map-markers';
+import {
+  drawRoute,
+  addTrafficLayer,
+  toggleTraffic,
+  fitBoundsToCoords,
+} from '@/lib/map-route';
+import { Navigation, Maximize2, Layers, Clock, MapPin, Route } from 'lucide-react';
 
 interface TrackingMapProps {
   pickupCoords: [number, number] | null;
@@ -11,7 +30,12 @@ interface TrackingMapProps {
   status: string;
 }
 
-export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, status }: TrackingMapProps) {
+export default function TrackingMap({
+  pickupCoords,
+  dropoffCoords,
+  riderCoords,
+  status,
+}: TrackingMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,109 +45,62 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
   const lastRiderRoutePos = useRef<[number, number] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [eta, setEta] = useState<number | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [showTrafficLayer, setShowTrafficLayer] = useState(false);
+  const { fetchRoute } = useDirections();
 
-  /** Fetch route through backend proxy (keeps Mapbox token server-side) */
-  const fetchRouteProxy = useCallback(async (
-    map: mapboxgl.Map,
+  // Determine phase-aware route color
+  const isPickupPhase = ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP'].includes(status);
+  const routeColor = isPickupPhase ? ROUTE_COLORS.primary : ROUTE_COLORS.delivery;
+
+  /** Fetch and draw route on the map */
+  const drawRouteOnMap = useCallback(async (
     from: [number, number],
     to: [number, number],
   ) => {
-    try {
-      const coordinates = `${from.join(',')};${to.join(',')}`;
-      const url = `${API_BASE_URL}/orders/directions?coordinates=${encodeURIComponent(coordinates)}`;
-      const token = tokenStorage.getAccessToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(url, { headers, credentials: 'include' });
-      if (!res.ok) return null;
-      const json = await res.json();
-      return json.data?.routes?.[0]?.geometry ?? null;
-    } catch (err) {
-      console.warn('[TrackingMap] Failed to fetch route:', err);
-      return null;
-    }
-  }, []);
+    const map = mapRef.current;
+    const mbgl = mapboxglRef.current;
+    if (!map || !mbgl) return;
 
-  /** Add or update the route line on the map */
-  const drawRoute = useCallback(async (
-    map: mapboxgl.Map,
-    from: [number, number],
-    to: [number, number],
-  ) => {
-    const geometry = await fetchRouteProxy(map, from, to);
-    if (!geometry) return;
+    const result = await fetchRoute([from, to]);
+    if (!result) return;
 
-    const sourceId = 'route';
-    if (map.getSource(sourceId)) {
-      (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(
-        { type: 'Feature', geometry, properties: {} },
-      );
-    } else {
-      map.addSource(sourceId, {
-        type: 'geojson',
-        data: { type: 'Feature', geometry, properties: {} },
-      });
+    const primary = result.routes[0]!;
+    drawRoute(map, mbgl, primary, { color: routeColor, fitBounds: false });
+    setEta(result.eta);
+    setDistance(result.distance);
+  }, [fetchRoute, routeColor]);
 
-      map.addLayer({
-        id: 'route-glow',
-        type: 'line',
-        source: sourceId,
-        paint: { 'line-color': '#22c55e', 'line-width': 10, 'line-opacity': 0.12, 'line-blur': 4 },
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-      });
-
-      map.addLayer({
-        id: 'route-line',
-        type: 'line',
-        source: sourceId,
-        paint: { 'line-color': '#22c55e', 'line-width': 4, 'line-opacity': 0.85 },
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-      });
-    }
-
-    // Fit bounds to the route
-    const coords = geometry.coordinates as [number, number][];
-    if (coords.length > 0) {
-      const mapboxgl = mapboxglRef.current;
-      if (!mapboxgl) return;
-      const bounds = coords.reduce(
-        (b: mapboxgl.LngLatBounds, c: [number, number]) => b.extend(c),
-        new mapboxgl.LngLatBounds(coords[0], coords[0])
-      );
-      map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 1000 });
-    }
-  }, [fetchRouteProxy]);
-
+  // ── Map initialization ────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     if (!pickupCoords && !dropoffCoords) return;
-
-    // Token guard
     if (!MAPBOX_TOKEN) {
       setMapError('Map service not configured');
       return;
     }
 
     let cancelled = false;
+
     (async () => {
       try {
         const mapboxgl = (await import('mapbox-gl')).default;
         if (cancelled || !containerRef.current) return;
         mapboxglRef.current = mapboxgl;
-
         mapboxgl.accessToken = MAPBOX_TOKEN;
+
         const center = dropoffCoords || pickupCoords || [0, 0];
         const map = new mapboxgl.Map({
           container: containerRef.current,
           style: MAP_STYLE,
           center,
-          zoom: 13,
+          zoom: MAP_ZOOM.default,
           attributionControl: false,
         });
 
         mapRef.current = map;
 
-        // Error handler
         map.on('error', (e) => {
           console.error('[TrackingMap] Mapbox error:', e.error?.message ?? e);
         });
@@ -138,35 +115,29 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
           if (cancelled) return;
           setLoaded(true);
 
-          // Pickup marker — dark (black) rounded square for green/black/white theme
+          // Pickup marker
           if (pickupCoords) {
-            const el = document.createElement('div');
-            el.innerHTML = `
-              <div style="position:relative;">
-                <div style="position:absolute;inset:-4px;border-radius:14px;background:rgba(15,23,42,0.12);"></div>
-                <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#1e293b,#0f172a);box-shadow:0 4px 12px rgba(0,0,0,0.25);border:2.5px solid white;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                </div>
-              </div>`;
-            new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat(pickupCoords).addTo(map);
+            createPickupMarker(mapboxgl, pickupCoords, map);
           }
 
-          // Dropoff marker — brand green gradient rounded square
+          // Dropoff marker
           if (dropoffCoords) {
-            const el = document.createElement('div');
-            el.innerHTML = `
-              <div style="position:relative;">
-                <div style="position:absolute;inset:-4px;border-radius:14px;background:rgba(34,197,94,0.15);"></div>
-                <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#22c55e,#4ade80);box-shadow:0 4px 12px rgba(34,197,94,0.35);border:2.5px solid white;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                </div>
-              </div>`;
-            new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat(dropoffCoords).addTo(map);
+            createDropoffMarker(mapboxgl, dropoffCoords, map);
           }
 
-          // Route line (via backend proxy)
+          // Draw initial route
           if (pickupCoords && dropoffCoords) {
-            drawRoute(map, pickupCoords, dropoffCoords);
+            const from = riderCoords || pickupCoords;
+            drawRouteOnMap(from, isPickupPhase ? pickupCoords : dropoffCoords);
+          }
+
+          // Fit bounds to all points
+          const allCoords: [number, number][] = [];
+          if (pickupCoords) allCoords.push(pickupCoords);
+          if (dropoffCoords) allCoords.push(dropoffCoords);
+          if (riderCoords) allCoords.push(riderCoords);
+          if (allCoords.length > 0) {
+            fitBoundsToCoords(map, mapboxgl, allCoords, MAP_PADDING.route);
           }
         });
       } catch (err) {
@@ -181,54 +152,69 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [pickupCoords, dropoffCoords, drawRoute]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupCoords, dropoffCoords]);
 
-  // Rider position — bike icon marker (no re-import of mapbox-gl)
+  // ── Rider position tracking ───────────────────────────
   useEffect(() => {
     if (!mapRef.current || !mapboxglRef.current || !riderCoords || !loaded) return;
-
     const mapboxgl = mapboxglRef.current;
+    const map = mapRef.current;
 
     if (riderMarkerRef.current) {
       riderMarkerRef.current.setLngLat(riderCoords);
     } else {
-      const el = document.createElement('div');
-      el.innerHTML = `
-        <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-          <div style="position:absolute;inset:-6px;border-radius:50%;background:rgba(34,197,94,0.2);animation:pulse-ring 2s ease-in-out infinite;"></div>
-          <div style="position:absolute;inset:-3px;border-radius:50%;background:rgba(34,197,94,0.1);"></div>
-          <div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:14px;background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 16px rgba(34,197,94,0.4);border:3px solid white;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="18.5" cy="17.5" r="3.5"/>
-              <circle cx="5.5" cy="17.5" r="3.5"/>
-              <circle cx="15" cy="5" r="1"/>
-              <path d="m12 17.5 2-4.5h3l1.5-5"/>
-              <path d="M5.5 17.5 8 12l4-1V7"/>
-            </svg>
-          </div>
-        </div>`;
-      riderMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat(riderCoords).addTo(mapRef.current!);
+      riderMarkerRef.current = createRiderMarker(mapboxgl, riderCoords, map, {
+        color: '#22c55e',
+        withBike: true,
+      });
     }
 
-    // Re-draw route from rider to dropoff when rider moves > 150m
-    if (dropoffCoords && mapRef.current) {
+    // Re-draw route when rider moves > threshold
+    const dest = isPickupPhase ? pickupCoords : dropoffCoords;
+    if (dest) {
       if (!lastRiderRoutePos.current) {
         lastRiderRoutePos.current = riderCoords;
+        drawRouteOnMap(riderCoords, dest);
       } else {
         const [pLng, pLat] = lastRiderRoutePos.current;
         const [cLng, cLat] = riderCoords;
-        const dLat = (cLat - pLat) * (Math.PI / 180);
-        const dLng = (cLng - pLng) * (Math.PI / 180);
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(pLat * Math.PI / 180) * Math.cos(cLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-        const dist = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        if (dist > 150) {
-          drawRoute(mapRef.current, riderCoords, dropoffCoords);
+        const dist = haversineDistance(pLat, pLng, cLat, cLng) * 1000; // km → m
+        if (dist > ROUTE_REFRESH_DISTANCE_M) {
+          drawRouteOnMap(riderCoords, dest);
           lastRiderRoutePos.current = riderCoords;
         }
       }
     }
-  }, [riderCoords, loaded, dropoffCoords, drawRoute]);
+  }, [riderCoords, loaded, pickupCoords, dropoffCoords, isPickupPhase, drawRouteOnMap]);
+
+  // ── Controls ──────────────────────────────────────────
+  const handleToggleTraffic = () => {
+    if (!mapRef.current) return;
+    const next = !showTrafficLayer;
+    setShowTrafficLayer(next);
+    if (next && !mapRef.current.getSource('rg-traffic')) {
+      addTrafficLayer(mapRef.current);
+    } else {
+      toggleTraffic(mapRef.current, next);
+    }
+  };
+
+  const handleRecenter = () => {
+    if (!mapRef.current || !mapboxglRef.current) return;
+    const allCoords: [number, number][] = [];
+    if (pickupCoords) allCoords.push(pickupCoords);
+    if (dropoffCoords) allCoords.push(dropoffCoords);
+    if (riderCoords) allCoords.push(riderCoords);
+    fitBoundsToCoords(mapRef.current, mapboxglRef.current, allCoords, MAP_PADDING.route);
+  };
+
+  const handleFollowRider = () => {
+    if (!mapRef.current || !riderCoords) return;
+    mapRef.current.flyTo({ center: riderCoords, zoom: MAP_ZOOM.close, duration: 800 });
+  };
+
+  const phaseLabel = isPickupPhase ? 'To Pickup' : 'To Dropoff';
 
   return (
     <div className="relative w-full h-full">
@@ -240,10 +226,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
           <div className="absolute inset-0 animate-shimmer" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(34,197,94,0.06) 50%, transparent 100%)', backgroundSize: '200% 100%' }} />
           <div className="flex flex-col items-center gap-2">
             <div className="h-8 w-8 rounded-xl brand-gradient flex items-center justify-center shadow-brand animate-pulse">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                <circle cx="12" cy="10" r="3"/>
-              </svg>
+              <Route className="h-4 w-4 text-white" />
             </div>
             <p className="text-xs font-medium text-surface-400">Loading map...</p>
           </div>
@@ -254,6 +237,55 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
       {mapError && (
         <div className="absolute inset-0 bg-gradient-to-br from-surface-50 via-surface-100 to-surface-50 rounded-2xl flex items-center justify-center">
           <p className="text-sm text-surface-500">{mapError}</p>
+        </div>
+      )}
+
+      {/* ETA panel — bottom left */}
+      {loaded && eta !== null && (
+        <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg border border-surface-100 max-w-[200px]">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Clock className="h-3.5 w-3.5 text-surface-400" />
+            <span className="text-[10px] text-surface-400 uppercase tracking-wider font-semibold">{phaseLabel}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-extrabold text-surface-900 tabular-nums">{eta}</span>
+            <span className="text-sm font-medium text-surface-400">min</span>
+          </div>
+          {distance !== null && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <MapPin className="h-3 w-3 text-surface-300" />
+              <span className="text-xs text-surface-500 font-medium tabular-nums">{distance} km</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Map controls — right side */}
+      {loaded && (
+        <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
+          <button
+            onClick={handleToggleTraffic}
+            className={`w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md border border-surface-100 flex items-center justify-center transition-all hover:bg-surface-50 active:scale-95 ${showTrafficLayer ? 'text-blue-500' : 'text-surface-400'}`}
+            aria-label="Toggle traffic"
+          >
+            <Layers className="h-4.5 w-4.5" />
+          </button>
+          <button
+            onClick={handleRecenter}
+            className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md border border-surface-100 flex items-center justify-center text-surface-400 hover:bg-surface-50 active:scale-95 transition-all"
+            aria-label="Fit all markers"
+          >
+            <Maximize2 className="h-4.5 w-4.5" />
+          </button>
+          {riderCoords && (
+            <button
+              onClick={handleFollowRider}
+              className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md border border-surface-100 flex items-center justify-center text-surface-400 hover:bg-surface-50 active:scale-95 transition-all"
+              aria-label="Follow rider"
+            >
+              <Navigation className="h-4.5 w-4.5" />
+            </button>
+          )}
         </div>
       )}
     </div>
