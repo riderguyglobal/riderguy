@@ -49,6 +49,7 @@ export const createOrderSchema = z.object({
   // Package
   packageType: packageTypeEnum,
   packageDescription: z.string().max(500).optional(),
+  packagePhotoUrl: z.string().max(1000).optional(),
 
   // Payment
   paymentMethod: paymentMethodEnum,

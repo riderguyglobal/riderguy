@@ -87,6 +87,7 @@ export async function createOrder(
     dropoffInstructions?: string;
     packageType: PackageType;
     packageDescription?: string;
+    packagePhotoUrl?: string;
     paymentMethod: PaymentMethod;
     isScheduled?: boolean;
     scheduledAt?: string;
@@ -129,6 +130,7 @@ export async function createOrder(
       dropoffInstructions: input.dropoffInstructions,
       packageType: input.packageType,
       packageDescription: input.packageDescription,
+      packagePhotoUrl: input.packagePhotoUrl,
       paymentMethod: input.paymentMethod,
       distanceKm: price.distanceKm,
       estimatedDurationMinutes: price.estimatedDurationMinutes,

@@ -32,6 +32,49 @@ router.use(authenticate);
 // Price Estimation & Geocoding (public to authenticated users)
 // ─────────────────────────────────────────────────────────────
 
+/** POST /orders/upload-photo — Upload a package photo/video before creating order */
+router.post(
+  '/upload-photo',
+  asyncHandler(async (req, res) => {
+    const { fileData, fileName, mimeType } = req.body;
+
+    if (!fileData || !fileName || !mimeType) {
+      throw ApiError.badRequest('fileData, fileName, and mimeType are required');
+    }
+
+    // Validate MIME type
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
+    if (!ALLOWED_TYPES.includes(mimeType)) {
+      throw ApiError.badRequest(`File type ${mimeType} is not allowed. Allowed: ${ALLOWED_TYPES.join(', ')}`);
+    }
+
+    // Validate size (max 10MB for images, 25MB for videos)
+    const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+    const estimatedSize = Math.ceil(base64Data.length * 0.75);
+    const isVideo = mimeType.startsWith('video/');
+    const maxSize = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
+
+    if (estimatedSize > maxSize) {
+      throw ApiError.badRequest(`File exceeds maximum size of ${isVideo ? '25MB' : '10MB'}`);
+    }
+
+    // Save to uploads/packages/ directory
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const { randomUUID } = await import('crypto');
+    const ext = path.extname(fileName).toLowerCase() || (isVideo ? '.mp4' : '.jpg');
+    const storedName = `pkg-${randomUUID()}${ext}`;
+    const uploadsDir = path.resolve(process.cwd(), 'uploads', 'packages');
+    await fs.mkdir(uploadsDir, { recursive: true });
+    const filePath = path.join(uploadsDir, storedName);
+    await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+
+    const photoUrl = `/api/v1/uploads/packages/${storedName}`;
+
+    res.status(StatusCodes.OK).json({ success: true, data: { url: photoUrl } });
+  }),
+);
+
 /** POST /orders/estimate — Get a price estimate */
 router.post(
   '/estimate',
