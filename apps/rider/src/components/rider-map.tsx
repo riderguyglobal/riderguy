@@ -1,208 +1,165 @@
-'use client';
-
 // ══════════════════════════════════════════════════════════
 // RiderMap — Dashboard map for the rider app
-// Shows rider position dot (status-aware), traffic overlay,
-// and theme-switching. Uses shared utilities.
+//
+// Features:
+// • Mapbox GL JS v3.19 via initMapCore (all controls, 3D, fog)
+// • Theme-aware style switching (light ↔ dark)
+// • Rider status dot (offline → online → on-route)
+// • User geolocation tracking
+// • Traffic overlay (toggle)
+// • Branded map controls
 // ══════════════════════════════════════════════════════════
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
 import { MAPBOX_TOKEN, DEFAULT_CENTER, MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/lib/constants';
 import { MAP_ZOOM } from '@riderguy/utils';
 import { useTheme } from '@/lib/theme';
+import { initMapCore, switchMapStyle, type MapCoreInstance } from '@/lib/map-core';
 import {
   createRiderStatusDot,
   updateRiderStatusDot,
   type RiderMapStatus,
 } from '@/lib/map-markers';
-import {
-  addTrafficLayer,
-  toggleTraffic as toggleTrafficLayer,
-  hasTrafficLayer as checkTraffic,
-} from '@/lib/map-route';
-import { Navigation, Layers } from 'lucide-react';
+import { addTrafficLayer, toggleTraffic, hasTrafficLayer } from '@/lib/map-route';
 
+// Re-export type for page-level usage
 export type { RiderMapStatus };
+
+// ── Types ───────────────────────────────────────────────
 
 interface RiderMapProps {
   className?: string;
   status?: RiderMapStatus;
 }
 
-export function RiderMap({ className = '', status = 'offline' }: RiderMapProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markerRef = useRef<mapboxgl.Marker | null>(null);
-  const markerElRef = useRef<HTMLDivElement | null>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [mapError, setMapError] = useState<string | null>(null);
-  const [showTraffic, setShowTraffic] = useState(true);
-  const { resolvedTheme } = useTheme();
-  const prevThemeRef = useRef(resolvedTheme);
+// ── Component ───────────────────────────────────────────
 
-  // ── Update marker colors when status changes ──────────
+export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const coreRef = useRef<MapCoreInstance | null>(null);
+  const statusDotRef = useRef<{ marker: import('mapbox-gl').Marker; element: HTMLDivElement } | null>(null);
+  const [trafficOn, setTrafficOn] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
+
+  const { resolvedTheme } = useTheme();
+
+  // ── Get user position ─────────────────────────────────
+  const getUserPosition = (): Promise<[number, number] | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve([pos.coords.longitude, pos.coords.latitude]),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+      );
+    });
+  };
+
+  // ── Initialize map ────────────────────────────────────
   useEffect(() => {
-    if (!markerElRef.current) return;
-    updateRiderStatusDot(markerElRef.current, status);
-  }, [status]);
+    if (!containerRef.current || !MAPBOX_TOKEN) return;
+    let cancelled = false;
+
+    (async () => {
+      const userPos = await getUserPosition();
+      if (cancelled) return;
+
+      const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
+
+      const core = await initMapCore({
+        container: containerRef.current!,
+        token: MAPBOX_TOKEN,
+        style,
+        center: userPos ?? DEFAULT_CENTER,
+        zoom: userPos ? MAP_ZOOM.close : MAP_ZOOM.default,
+        onLoad: (map, mapboxglLib) => {
+          addTrafficLayer(map);
+
+          // Rider status dot at user position
+          if (userPos) {
+            const dot = createRiderStatusDot(mapboxglLib, userPos, status);
+            dot.marker.addTo(map);
+            statusDotRef.current = dot;
+          }
+
+          setMapReady(true);
+        },
+      });
+
+      if (cancelled) {
+        core.destroy();
+        return;
+      }
+      coreRef.current = core;
+    })();
+
+    return () => {
+      cancelled = true;
+      statusDotRef.current?.marker.remove();
+      statusDotRef.current = null;
+      coreRef.current?.destroy();
+      coreRef.current = null;
+    };
+  }, []);
 
   // ── Theme switching ───────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || !loaded) return;
-    if (prevThemeRef.current === resolvedTheme) return;
-    prevThemeRef.current = resolvedTheme;
+    const core = coreRef.current;
+    if (!core || !mapReady) return;
 
-    const map = mapRef.current;
-    const center = map.getCenter();
-    const zoom = map.getZoom();
-    const bearing = map.getBearing();
-    const pitch = map.getPitch();
-    map.setStyle(resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT);
-
-    map.once('style.load', () => {
-      map.setCenter(center);
-      map.setZoom(zoom);
-      map.setBearing(bearing);
-      map.setPitch(pitch);
-      if (showTraffic) addTrafficLayer(map);
+    const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
+    switchMapStyle(core.map, style, {
+      onStyleLoad: () => {
+        addTrafficLayer(core.map);
+        if (trafficOn) toggleTraffic(core.map, true);
+      },
     });
-  }, [resolvedTheme, loaded, showTraffic]);
+  }, [resolvedTheme, mapReady]);
 
-  // ── Map initialization ────────────────────────────────
-  const initMap = useCallback(async () => {
-    if (!containerRef.current || mapRef.current) return;
-    if (!MAPBOX_TOKEN) {
-      setMapError('Map token not configured');
-      return;
-    }
+  // ── Update status dot when status prop changes ────────
+  useEffect(() => {
+    if (!statusDotRef.current) return;
+    updateRiderStatusDot(statusDotRef.current.element, status);
+  }, [status]);
 
-    try {
-      const mapboxgl = (await import('mapbox-gl')).default;
-      mapboxgl.accessToken = MAPBOX_TOKEN;
+  // ── Update dot position from GeolocateControl ────────
+  useEffect(() => {
+    if (!mapReady) return;
+    const geolocate = coreRef.current?.geolocate;
+    if (!geolocate) return;
 
-      const map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
-        center: DEFAULT_CENTER,
-        zoom: MAP_ZOOM.default,
-        interactive: true,
-        attributionControl: true,
-        fadeDuration: 0,
-        antialias: true,
-      });
+    const handleGeolocate = (e: { coords: { longitude: number; latitude: number } }) => {
+      statusDotRef.current?.marker.setLngLat([e.coords.longitude, e.coords.latitude]);
+    };
 
-      mapRef.current = map;
-      prevThemeRef.current = resolvedTheme;
-
-      map.on('error', (e) => {
-        console.error('[RiderMap] Mapbox error:', e.error?.message ?? e);
-      });
-
-      resizeObserverRef.current = new ResizeObserver(() => mapRef.current?.resize());
-      if (containerRef.current) resizeObserverRef.current.observe(containerRef.current);
-
-      map.on('load', () => {
-        setLoaded(true);
-        addTrafficLayer(map);
-
-        // Create rider status dot marker
-        const { marker, element } = createRiderStatusDot(
-          mapboxgl, [DEFAULT_CENTER[0], DEFAULT_CENTER[1]], map, status,
-        );
-        markerRef.current = marker;
-        markerElRef.current = element;
-
-        // Fly to rider's actual position
-        navigator.geolocation?.getCurrentPosition(
-          (pos) => {
-            const { longitude: lng, latitude: lat } = pos.coords;
-            map.flyTo({ center: [lng, lat], zoom: MAP_ZOOM.neighborhood, duration: 1800, essential: true });
-            markerRef.current?.setLngLat([lng, lat]);
-          },
-          (err) => console.warn('[RiderMap] Geolocation denied:', err.message),
-          { enableHighAccuracy: true, timeout: 8000 },
-        );
-      });
-    } catch (err) {
-      console.error('[RiderMap] Init failed:', err);
-      setMapError('Failed to load map');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    geolocate.on('geolocate', handleGeolocate as any);
+    return () => {
+      geolocate.off('geolocate', handleGeolocate as any);
+    };
+  }, [mapReady]);
 
   // ── Traffic toggle ────────────────────────────────────
-  const handleToggleTraffic = useCallback(() => {
-    if (!mapRef.current) return;
-    const next = !showTraffic;
-    setShowTraffic(next);
-    if (!checkTraffic(mapRef.current)) {
-      addTrafficLayer(mapRef.current);
-    } else {
-      toggleTrafficLayer(mapRef.current, next);
-    }
-  }, [showTraffic]);
-
-  // ── Recenter on GPS position ──────────────────────────
-  const recenter = () => {
-    if (!mapRef.current) return;
-    navigator.geolocation?.getCurrentPosition(
-      (pos) => {
-        const { longitude: lng, latitude: lat } = pos.coords;
-        mapRef.current?.flyTo({ center: [lng, lat], zoom: MAP_ZOOM.close, duration: 800 });
-        markerRef.current?.setLngLat([lng, lat]);
-      },
-      () => mapRef.current?.flyTo({ center: DEFAULT_CENTER, zoom: MAP_ZOOM.default, duration: 800 }),
-      { enableHighAccuracy: true, timeout: 5000 },
-    );
-  };
-
   useEffect(() => {
-    initMap();
-    return () => {
-      resizeObserverRef.current?.disconnect();
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
-  }, [initMap]);
+    const map = coreRef.current?.map;
+    if (!map || !hasTrafficLayer(map)) return;
+    toggleTraffic(map, trafficOn);
+  }, [trafficOn]);
 
   return (
-    <div className={`relative ${className}`}>
-      <div ref={containerRef} className="w-full h-full" />
+    <div className={`relative ${className ?? 'w-full h-full'}`}>
+      <div ref={containerRef} className="w-full h-full rounded-2xl" />
 
-      {!loaded && !mapError && (
-        <div className="absolute inset-0 bg-page animate-shimmer bg-gradient-to-r from-page via-shimmer to-page" />
-      )}
-      {mapError && (
-        <div className="absolute inset-0 bg-page flex items-center justify-center">
-          <p className="text-sm text-subtle">{mapError}</p>
-        </div>
-      )}
-
-      {/* Controls — right side */}
-      {loaded && (
-        <div className="absolute top-[calc(env(safe-area-inset-top)+4.5rem)] right-3 flex flex-col gap-2 z-10">
-          <button
-            onClick={handleToggleTraffic}
-            className={`map-control-btn ${showTraffic ? 'map-control-active' : ''}`}
-            aria-label="Toggle traffic"
-          >
-            <Layers className="h-5 w-5" />
-          </button>
-        </div>
-      )}
-
-      {/* GPS recenter */}
-      {loaded && (
-        <div className="absolute bottom-32 right-3 z-10">
-          <button onClick={recenter} className="map-control-btn map-control-gps" aria-label="Recenter map">
-            <Navigation className="h-5 w-5" />
-          </button>
-        </div>
-      )}
-
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-page to-transparent pointer-events-none" />
+      <button
+        onClick={() => setTrafficOn((p) => !p)}
+        className="map-control-btn absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-2 text-xs font-medium shadow-md backdrop-blur transition hover:bg-white dark:bg-neutral-900/90 dark:hover:bg-neutral-800"
+        aria-label={trafficOn ? 'Hide traffic' : 'Show traffic'}
+        title={trafficOn ? 'Hide traffic' : 'Show traffic'}
+      >
+        <span className={`h-2 w-2 rounded-full ${trafficOn ? 'bg-green-500' : 'bg-gray-400'}`} />
+        Traffic
+      </button>
     </div>
   );
 }
