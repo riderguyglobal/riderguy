@@ -1,6 +1,8 @@
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
 import { formatPlusCode } from '@riderguy/utils';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ============================================================
 // Geocoding Service — converts addresses to coordinates and
@@ -17,9 +19,12 @@ import { formatPlusCode } from '@riderguy/utils';
 //    SUPPLEMENTARY provider — OSM has excellent community-mapped
 //    data for Ghana (neighborhoods, markets, landmarks).
 //
-// 3. A **local Ghana gazetteer** of 100+ well-known locations
-//    instantly matches popular neighborhoods and landmarks
-//    before any API call, providing immediate results.
+// 3. A **comprehensive local Ghana gazetteer** of 16,000+
+//    locations (sourced from GeoNames.org — CC BY 4.0) provides
+//    instant offline matching for every city, town, village, and
+//    hamlet across all 16 regions of Ghana. An additional set of
+//    curated landmarks (malls, hospitals, airports, neighborhoods)
+//    supplements the dataset.
 //
 // Results are merged, deduplicated, and the gazetteer results
 // appear first when matched.
@@ -89,68 +94,55 @@ function warnMockFallback(method: string) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Ghana Gazetteer — instant matches for well-known locations
+// Ghana Gazetteer — 16,000+ locations from GeoNames.org
+// plus curated landmarks (malls, hospitals, airports, etc.)
 // ═══════════════════════════════════════════════════════════
 
-interface GazetteerEntry {
-  name: string;
-  area: string;         // parent city / region
+/** GeoNames entry from ghana-places.json */
+interface GeoNamesPlace {
+  n: string;             // display name
+  a?: string;            // ascii name (when different from n)
   lat: number;
-  lng: number;
-  aliases?: string[];   // alternative spellings / local names
+  lon: number;
+  p: number;             // population (0 for many small places)
+  r: string;             // region name
+  al?: string[];          // alternate names
 }
 
-const GHANA_GAZETTEER: GazetteerEntry[] = [
-  // ── Greater Accra ─────────────────────────────
+/** Curated landmark / POI entry */
+interface LandmarkEntry {
+  name: string;
+  area: string;          // parent city / region
+  lat: number;
+  lng: number;
+  aliases?: string[];    // alternative spellings / local names
+}
+
+// ────────────────────────────────────────────────────────────
+// Curated landmarks — malls, hospitals, airports, popular
+// neighborhoods, and other POIs that are commonly searched
+// but may not appear (or appear poorly) in GeoNames data.
+// ────────────────────────────────────────────────────────────
+const LANDMARKS: LandmarkEntry[] = [
+  // ── Greater Accra neighborhoods ───────────────
   { name: 'East Legon', area: 'Accra', lat: 5.6350, lng: -0.1572 },
   { name: 'West Legon', area: 'Accra', lat: 5.6380, lng: -0.2210 },
   { name: 'Osu', area: 'Accra', lat: 5.5560, lng: -0.1870, aliases: ['Oxford Street'] },
   { name: 'Airport Residential', area: 'Accra', lat: 5.6050, lng: -0.1700, aliases: ['Airport Area'] },
   { name: 'Cantonments', area: 'Accra', lat: 5.5720, lng: -0.1770 },
   { name: 'Labone', area: 'Accra', lat: 5.5630, lng: -0.1830 },
-  { name: 'Adabraka', area: 'Accra', lat: 5.5580, lng: -0.2120 },
-  { name: 'Dansoman', area: 'Accra', lat: 5.5390, lng: -0.2580 },
-  { name: 'Tema', area: 'Greater Accra', lat: 5.6698, lng: -0.0166 },
-  { name: 'Madina', area: 'Accra', lat: 5.6740, lng: -0.1680 },
-  { name: 'Achimota', area: 'Accra', lat: 5.6150, lng: -0.2310 },
-  { name: 'Dzorwulu', area: 'Accra', lat: 5.6100, lng: -0.1990 },
   { name: 'Spintex', area: 'Accra', lat: 5.6340, lng: -0.0960, aliases: ['Spintex Road'] },
-  { name: 'Teshie', area: 'Accra', lat: 5.5780, lng: -0.1070 },
-  { name: 'Nungua', area: 'Accra', lat: 5.5890, lng: -0.0770 },
-  { name: 'Labadi', area: 'Accra', lat: 5.5590, lng: -0.1530, aliases: ['La'] },
-  { name: 'Tesano', area: 'Accra', lat: 5.6000, lng: -0.2280 },
-  { name: 'Kokomlemle', area: 'Accra', lat: 5.5700, lng: -0.2050 },
-  { name: 'Asylum Down', area: 'Accra', lat: 5.5630, lng: -0.2090 },
-  { name: 'Ridge', area: 'Accra', lat: 5.5650, lng: -0.2010 },
+  { name: 'Dzorwulu', area: 'Accra', lat: 5.6100, lng: -0.1990 },
   { name: 'Roman Ridge', area: 'Accra', lat: 5.5750, lng: -0.1940 },
-  { name: 'North Kaneshie', area: 'Accra', lat: 5.5690, lng: -0.2350 },
-  { name: 'Kaneshie', area: 'Accra', lat: 5.5620, lng: -0.2400 },
-  { name: 'Odorkor', area: 'Accra', lat: 5.5700, lng: -0.2620 },
-  { name: 'Darkuman', area: 'Accra', lat: 5.5650, lng: -0.2500 },
-  { name: 'Circle', area: 'Accra', lat: 5.5700, lng: -0.2170, aliases: ['Kwame Nkrumah Circle'] },
-  { name: 'Makola', area: 'Accra', lat: 5.5480, lng: -0.2120, aliases: ['Makola Market'] },
-  { name: 'James Town', area: 'Accra', lat: 5.5370, lng: -0.2100 },
-  { name: 'Mamprobi', area: 'Accra', lat: 5.5330, lng: -0.2280 },
-  { name: 'Korle Bu', area: 'Accra', lat: 5.5350, lng: -0.2270, aliases: ['Korle-Bu Teaching Hospital'] },
-  { name: 'Sakumono', area: 'Accra', lat: 5.6210, lng: -0.0480, aliases: ['Sakumono Estates'] },
-  { name: 'Kasoa', area: 'Greater Accra', lat: 5.5340, lng: -0.4190 },
-  { name: 'Weija', area: 'Accra', lat: 5.5560, lng: -0.3520 },
-  { name: 'Haatso', area: 'Accra', lat: 5.6650, lng: -0.1940 },
-  { name: 'Dome', area: 'Accra', lat: 5.6510, lng: -0.2280 },
-  { name: 'Kwabenya', area: 'Accra', lat: 5.6820, lng: -0.2140 },
-  { name: 'Pokuase', area: 'Accra', lat: 5.6970, lng: -0.2800 },
-  { name: 'Agbogba', area: 'Accra', lat: 5.6710, lng: -0.1810 },
-  { name: 'Adenta', area: 'Accra', lat: 5.6830, lng: -0.1540, aliases: ['Adentan'] },
-  { name: 'Ashaiman', area: 'Greater Accra', lat: 5.6880, lng: -0.0330 },
-  { name: 'Lapaz', area: 'Accra', lat: 5.6090, lng: -0.2470, aliases: ['La Paz'] },
-  { name: 'Abeka', area: 'Accra', lat: 5.5920, lng: -0.2410 },
-  { name: 'Nima', area: 'Accra', lat: 5.5780, lng: -0.1930 },
-  { name: 'Mamobi', area: 'Accra', lat: 5.5790, lng: -0.1990 },
+  { name: 'Asylum Down', area: 'Accra', lat: 5.5630, lng: -0.2090 },
   { name: 'Pig Farm', area: 'Accra', lat: 5.5680, lng: -0.2290 },
   { name: 'Abelemkpe', area: 'Accra', lat: 5.5950, lng: -0.2030 },
-  { name: 'Legon', area: 'Accra', lat: 5.6510, lng: -0.1860, aliases: ['University of Ghana'] },
+  { name: 'Sakumono', area: 'Accra', lat: 5.6210, lng: -0.0480, aliases: ['Sakumono Estates'] },
+  { name: 'Lapaz', area: 'Accra', lat: 5.6090, lng: -0.2470, aliases: ['La Paz'] },
+  { name: 'Circle', area: 'Accra', lat: 5.5700, lng: -0.2170, aliases: ['Kwame Nkrumah Circle'] },
+  { name: 'Agbogba', area: 'Accra', lat: 5.6710, lng: -0.1810 },
 
-  // ── Takoradi / Western Region ─────────────────
+  // ── Takoradi / Western Region neighborhoods ───
   { name: 'Effia', area: 'Takoradi', lat: 4.9300, lng: -1.7580, aliases: ['Effia Nkwanta'] },
   { name: 'Effiekuma', area: 'Takoradi', lat: 4.9200, lng: -1.7700, aliases: ['Effikuma', 'Effiakuma'] },
   { name: 'Anaji', area: 'Takoradi', lat: 4.9140, lng: -1.7640, aliases: ['Anaji Estate'] },
@@ -163,7 +155,6 @@ const GHANA_GAZETTEER: GazetteerEntry[] = [
   { name: 'Apremdo', area: 'Takoradi', lat: 4.9350, lng: -1.7820 },
   { name: 'Kwesimintsim', area: 'Takoradi', lat: 4.9420, lng: -1.7900, aliases: ['Kwesi Mintim'] },
   { name: 'Chapel Hill', area: 'Takoradi', lat: 4.9060, lng: -1.7560 },
-  { name: 'Sekondi', area: 'Sekondi-Takoradi', lat: 4.9340, lng: -1.7090 },
   { name: 'Essikado', area: 'Sekondi-Takoradi', lat: 4.9420, lng: -1.7010 },
   { name: 'Dixcove Hill', area: 'Takoradi', lat: 4.9030, lng: -1.7490 },
   { name: 'Windy Ridge', area: 'Takoradi', lat: 4.9150, lng: -1.7470 },
@@ -172,47 +163,18 @@ const GHANA_GAZETTEER: GazetteerEntry[] = [
   { name: 'Harbour Area', area: 'Takoradi', lat: 4.8920, lng: -1.7510, aliases: ['Takoradi Harbour'] },
   { name: 'Liberation Road', area: 'Takoradi', lat: 4.9030, lng: -1.7530 },
 
-  // ── Kumasi / Ashanti Region ───────────────────
+  // ── Kumasi / Ashanti neighborhoods ────────────
   { name: 'Adum', area: 'Kumasi', lat: 6.6940, lng: -1.6220 },
   { name: 'Kejetia', area: 'Kumasi', lat: 6.6920, lng: -1.6260, aliases: ['Kejetia Market'] },
   { name: 'Bantama', area: 'Kumasi', lat: 6.7020, lng: -1.6350 },
   { name: 'Ahodwo', area: 'Kumasi', lat: 6.6700, lng: -1.6370, aliases: ['Ahodwo Roundabout'] },
   { name: 'Ayigya', area: 'Kumasi', lat: 6.6780, lng: -1.5730, aliases: ['KNUST Area'] },
   { name: 'Suame', area: 'Kumasi', lat: 6.7180, lng: -1.6210, aliases: ['Suame Magazine'] },
-  { name: 'Asokwa', area: 'Kumasi', lat: 6.6680, lng: -1.6120 },
-  { name: 'Oforikrom', area: 'Kumasi', lat: 6.6880, lng: -1.5820 },
   { name: 'Tech Junction', area: 'Kumasi', lat: 6.6850, lng: -1.5730, aliases: ['KNUST Junction'] },
   { name: 'Asafo', area: 'Kumasi', lat: 6.6890, lng: -1.6110, aliases: ['Asafo Market'] },
-  { name: 'Tafo', area: 'Kumasi', lat: 6.7250, lng: -1.5900, aliases: ['Old Tafo'] },
   { name: 'Nhyiaeso', area: 'Kumasi', lat: 6.6740, lng: -1.6240 },
-  { name: 'Danyame', area: 'Kumasi', lat: 6.6780, lng: -1.6400 },
 
-  // ── Cape Coast / Central Region ───────────────
-  { name: 'Cape Coast', area: 'Central Region', lat: 5.1050, lng: -1.2466 },
-  { name: 'Abura', area: 'Cape Coast', lat: 5.1080, lng: -1.2510 },
-  { name: 'Pedu', area: 'Cape Coast', lat: 5.1230, lng: -1.2530 },
-  { name: 'UCC Campus', area: 'Cape Coast', lat: 5.1120, lng: -1.2890, aliases: ['University of Cape Coast'] },
-  { name: 'Elmina', area: 'Central Region', lat: 5.0850, lng: -1.3510 },
-
-  // ── Tamale / Northern Region ──────────────────
-  { name: 'Tamale', area: 'Northern Region', lat: 9.4035, lng: -0.8392 },
-  { name: 'Lamashegu', area: 'Tamale', lat: 9.4120, lng: -0.8420 },
-  { name: 'Nyohini', area: 'Tamale', lat: 9.4180, lng: -0.8360 },
-  { name: 'Jisonayili', area: 'Tamale', lat: 9.4260, lng: -0.8300 },
-
-  // ── Ho / Volta Region ─────────────────────────
-  { name: 'Ho', area: 'Volta Region', lat: 6.6118, lng: 0.4703 },
-  { name: 'Ho Bankoe', area: 'Ho', lat: 6.6060, lng: 0.4650, aliases: ['Bankoe'] },
-  { name: 'Ho Dome', area: 'Ho', lat: 6.6200, lng: 0.4750 },
-
-  // ── Koforidua / Eastern Region ────────────────
-  { name: 'Koforidua', area: 'Eastern Region', lat: 6.0940, lng: -0.2572 },
-  { name: 'Adweso', area: 'Koforidua', lat: 6.0880, lng: -0.2510 },
-
-  // ── Sunyani / Bono Region ─────────────────────
-  { name: 'Sunyani', area: 'Bono Region', lat: 7.3390, lng: -2.3266 },
-
-  // ── Popular landmarks ─────────────────────────
+  // ── Popular landmarks & POIs ──────────────────
   { name: 'Accra Mall', area: 'Accra', lat: 5.6170, lng: -0.0840, aliases: ['A&C Mall'] },
   { name: 'West Hills Mall', area: 'Accra', lat: 5.5820, lng: -0.3450 },
   { name: 'Junction Mall', area: 'Accra', lat: 5.5670, lng: -0.2570 },
@@ -223,24 +185,75 @@ const GHANA_GAZETTEER: GazetteerEntry[] = [
   { name: 'Takoradi Mall', area: 'Takoradi', lat: 4.9270, lng: -1.7650 },
   { name: 'Kumasi City Mall', area: 'Kumasi', lat: 6.6770, lng: -1.6180 },
   { name: 'Kotoka International Airport', area: 'Accra', lat: 5.6052, lng: -0.1668, aliases: ['KIA', 'Accra Airport'] },
-  { name: 'Korle Bu Teaching Hospital', area: 'Accra', lat: 5.5350, lng: -0.2270 },
+  { name: 'Korle Bu Teaching Hospital', area: 'Accra', lat: 5.5350, lng: -0.2270, aliases: ['Korle-Bu', 'Korle Bu'] },
   { name: '37 Military Hospital', area: 'Accra', lat: 5.5920, lng: -0.1860, aliases: ['37 Hospital'] },
   { name: 'Effia Nkwanta Hospital', area: 'Takoradi', lat: 4.9310, lng: -1.7590 },
   { name: 'KNUST', area: 'Kumasi', lat: 6.6730, lng: -1.5670, aliases: ['Kwame Nkrumah University of Science and Technology'] },
   { name: 'University of Ghana', area: 'Accra', lat: 5.6510, lng: -0.1860, aliases: ['UG', 'Legon'] },
+  { name: 'UCC Campus', area: 'Cape Coast', lat: 5.1120, lng: -1.2890, aliases: ['University of Cape Coast'] },
 ];
 
+// ── Load GeoNames dataset at startup ──────────────────────
+let geoNamesPlaces: GeoNamesPlace[] = [];
+let geoNamesLoaded = false;
+
+function loadGeoNamesData(): void {
+  if (geoNamesLoaded) return;
+  try {
+    // Try multiple paths to support both dev (tsx src/) and prod (node dist/)
+    const candidates = [
+      path.join(__dirname, '..', 'data', 'ghana-places.json'),    // dist/services → dist/data  OR  src/services → src/data
+      path.join(__dirname, 'data', 'ghana-places.json'),           // fallback
+      path.resolve(process.cwd(), 'src', 'data', 'ghana-places.json'),  // cwd-based (for tsx)
+      path.resolve(process.cwd(), 'data', 'ghana-places.json'),         // cwd-based (for Docker/Render)
+    ];
+
+    let filePath: string | null = null;
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        filePath = candidate;
+        break;
+      }
+    }
+
+    if (filePath) {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      geoNamesPlaces = JSON.parse(raw) as GeoNamesPlace[];
+      console.log(`[GeocodingService] Loaded ${geoNamesPlaces.length} Ghana places from GeoNames dataset (${filePath})`);
+    } else {
+      console.warn('[GeocodingService] ghana-places.json not found — gazetteer will use landmarks only. Checked:', candidates.join(', '));
+    }
+  } catch (err) {
+    console.error('[GeocodingService] Failed to load GeoNames data:', err);
+  }
+  geoNamesLoaded = true;
+}
+
+// Load on first import
+loadGeoNamesData();
+
 /**
- * Search the local gazetteer for instant matches.
- * Returns results sorted by relevance (prefix match first, then substring).
+ * Search the comprehensive gazetteer for matching locations.
+ *
+ * Searches both the 16,000+ GeoNames dataset and the curated
+ * landmarks. Scores results by match quality and population.
+ *
+ * @param query  The user's search text
+ * @param limit  Maximum results to return
+ * @param proximity  Optional coordinates to boost nearby results
  */
-function searchGazetteer(query: string, limit = 5): AutocompleteSuggestion[] {
+function searchGazetteer(
+  query: string,
+  limit = 5,
+  proximity?: { lat: number; lng: number },
+): AutocompleteSuggestion[] {
   const lower = query.toLowerCase().trim();
   if (!lower || lower.length < 2) return [];
 
-  const scored: { entry: GazetteerEntry; score: number }[] = [];
+  const scored: { name: string; area: string; lat: number; lng: number; score: number; source: 'landmark' | 'geonames' }[] = [];
 
-  for (const entry of GHANA_GAZETTEER) {
+  // ── 1. Search curated landmarks ───────────────
+  for (const entry of LANDMARKS) {
     const nameLower = entry.name.toLowerCase();
     const areaLower = entry.area.toLowerCase();
     const allNames = [nameLower, ...(entry.aliases?.map((a) => a.toLowerCase()) ?? [])];
@@ -249,35 +262,109 @@ function searchGazetteer(query: string, limit = 5): AutocompleteSuggestion[] {
     let bestScore = 0;
 
     for (const n of allNames) {
-      if (n === lower) {
-        bestScore = Math.max(bestScore, 100); // exact match
-      } else if (n.startsWith(lower)) {
-        bestScore = Math.max(bestScore, 80); // prefix match
-      } else if (n.includes(lower)) {
-        bestScore = Math.max(bestScore, 60); // substring
-      }
+      if (n === lower)              bestScore = Math.max(bestScore, 200); // exact
+      else if (n.startsWith(lower)) bestScore = Math.max(bestScore, 160); // prefix
+      else if (n.includes(lower))   bestScore = Math.max(bestScore, 120); // substring
     }
 
-    // Also check "name, area" combined
-    if (fullName.startsWith(lower)) {
-      bestScore = Math.max(bestScore, 75);
-    } else if (fullName.includes(lower)) {
-      bestScore = Math.max(bestScore, 50);
-    }
+    if (fullName.startsWith(lower)) bestScore = Math.max(bestScore, 150);
+    else if (fullName.includes(lower)) bestScore = Math.max(bestScore, 100);
 
     if (bestScore > 0) {
-      scored.push({ entry, score: bestScore });
+      scored.push({
+        name: entry.name,
+        area: entry.area,
+        lat: entry.lat,
+        lng: entry.lng,
+        score: bestScore,
+        source: 'landmark',
+      });
     }
   }
 
+  // ── 2. Search GeoNames dataset ────────────────
+  for (const place of geoNamesPlaces) {
+    const nameLower = (place.a ?? place.n).toLowerCase();
+    const displayLower = place.n.toLowerCase();
+    const regionLower = place.r.toLowerCase();
+    const fullName = `${displayLower}, ${regionLower}`;
+
+    let bestScore = 0;
+
+    // Match main name
+    if (nameLower === lower || displayLower === lower) {
+      bestScore = 100;
+    } else if (nameLower.startsWith(lower) || displayLower.startsWith(lower)) {
+      bestScore = 80;
+    } else if (nameLower.includes(lower) || displayLower.includes(lower)) {
+      bestScore = 60;
+    }
+
+    // Match alternate names
+    if (place.al && bestScore < 100) {
+      for (const alt of place.al) {
+        const altLower = alt.toLowerCase();
+        if (altLower === lower)              bestScore = Math.max(bestScore, 95);
+        else if (altLower.startsWith(lower)) bestScore = Math.max(bestScore, 75);
+        else if (altLower.includes(lower))   bestScore = Math.max(bestScore, 55);
+      }
+    }
+
+    // Match "name, region"
+    if (fullName.startsWith(lower)) bestScore = Math.max(bestScore, 70);
+    else if (fullName.includes(lower)) bestScore = Math.max(bestScore, 45);
+
+    if (bestScore > 0) {
+      // Population bonus: large cities score higher
+      const popBonus = place.p > 100000 ? 15
+        : place.p > 50000 ? 10
+        : place.p > 10000 ? 5
+        : place.p > 1000 ? 2
+        : 0;
+
+      // Proximity bonus: if user has location, boost nearby places
+      let proxBonus = 0;
+      if (proximity) {
+        const dist = Math.abs(place.lat - proximity.lat) + Math.abs(place.lon - proximity.lng);
+        if (dist < 0.1) proxBonus = 10;       // ~10km
+        else if (dist < 0.3) proxBonus = 5;   // ~30km
+        else if (dist < 1.0) proxBonus = 2;   // ~100km
+      }
+
+      scored.push({
+        name: place.n,
+        area: place.r,
+        lat: place.lat,
+        lng: place.lon,
+        score: bestScore + popBonus + proxBonus,
+        source: 'geonames',
+      });
+    }
+  }
+
+  // Sort by score descending, then deduplicate by proximity
   scored.sort((a, b) => b.score - a.score);
 
-  return scored.slice(0, limit).map((s, i) => ({
-    id: `gaz-${i}-${s.entry.name.toLowerCase().replace(/\s/g, '-')}`,
-    text: s.entry.name,
-    placeName: `${s.entry.name}, ${s.entry.area}, Ghana`,
-    latitude: s.entry.lat,
-    longitude: s.entry.lng,
+  // Deduplicate: skip entries within ~200m of an already-selected result
+  const selected: typeof scored = [];
+  for (const s of scored) {
+    const tooClose = selected.some(
+      (existing) =>
+        Math.abs(existing.lat - s.lat) < 0.002 &&
+        Math.abs(existing.lng - s.lng) < 0.002,
+    );
+    if (!tooClose) {
+      selected.push(s);
+      if (selected.length >= limit) break;
+    }
+  }
+
+  return selected.map((s, i) => ({
+    id: `gaz-${i}-${s.name.toLowerCase().replace(/\s/g, '-')}`,
+    text: s.name,
+    placeName: `${s.name}, ${s.area}, Ghana`,
+    latitude: s.lat,
+    longitude: s.lng,
     placeType: 'place',
     source: 'gazetteer' as const,
   }));
@@ -418,7 +505,7 @@ export async function autocomplete(
   const prox = options.proximity ?? ACCRA_CENTER;
 
   // 1. Instant local gazetteer lookup (synchronous, zero latency)
-  const gazetteerResults = searchGazetteer(query, 4);
+  const gazetteerResults = searchGazetteer(query, 4, prox);
 
   // 2. Mapbox Geocoding v6 with autocomplete: true
   const mapboxPromise = mapboxGeocodeAutocomplete(query, { proximity: prox, country, limit });
@@ -606,21 +693,40 @@ export async function retrievePlace(
     return null;
   }
 
-  // Gazetteer entries — look up directly
+  // Gazetteer entries — search landmarks + GeoNames by name
   if (mapboxId.startsWith('gaz-')) {
     const namePart = mapboxId.replace(/^gaz-\d+-/, '').replace(/-/g, ' ');
-    const entry = GHANA_GAZETTEER.find(
+
+    // First check curated landmarks
+    const landmark = LANDMARKS.find(
       (e) => e.name.toLowerCase().replace(/\s/g, ' ') === namePart
     );
-    if (entry) {
+    if (landmark) {
       return {
         id: mapboxId,
-        name: entry.name,
-        fullAddress: `${entry.name}, ${entry.area}, Ghana`,
-        latitude: entry.lat,
-        longitude: entry.lng,
+        name: landmark.name,
+        fullAddress: `${landmark.name}, ${landmark.area}, Ghana`,
+        latitude: landmark.lat,
+        longitude: landmark.lng,
         placeType: 'place',
-        plusCode: formatPlusCode(entry.lat, entry.lng),
+        plusCode: formatPlusCode(landmark.lat, landmark.lng),
+      };
+    }
+
+    // Then check GeoNames dataset
+    const geoPlace = geoNamesPlaces.find(
+      (e) => e.n.toLowerCase().replace(/\s/g, ' ') === namePart ||
+             (e.a && e.a.toLowerCase().replace(/\s/g, ' ') === namePart)
+    );
+    if (geoPlace) {
+      return {
+        id: mapboxId,
+        name: geoPlace.n,
+        fullAddress: `${geoPlace.n}, ${geoPlace.r}, Ghana`,
+        latitude: geoPlace.lat,
+        longitude: geoPlace.lon,
+        placeType: 'place',
+        plusCode: formatPlusCode(geoPlace.lat, geoPlace.lon),
       };
     }
   }
@@ -774,12 +880,13 @@ interface NominatimResult {
 
 function mockForwardGeocode(address: string): GeocodingResult[] {
   const lower = address.toLowerCase();
-  const matches = GHANA_GAZETTEER.filter(
+
+  // Search landmarks first
+  const landmarkMatches = LANDMARKS.filter(
     (a) => a.name.toLowerCase().includes(lower) || a.area.toLowerCase().includes(lower)
   );
-
-  if (matches.length > 0) {
-    return matches.slice(0, 5).map((m) => ({
+  if (landmarkMatches.length > 0) {
+    return landmarkMatches.slice(0, 5).map((m) => ({
       address: `${m.name}, ${m.area}`,
       latitude: m.lat,
       longitude: m.lng,
@@ -787,8 +894,21 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
     }));
   }
 
-  // Return a random location if no match
-  const fallback = GHANA_GAZETTEER[Math.floor(Math.random() * GHANA_GAZETTEER.length)]!;
+  // Search GeoNames
+  const geoMatches = geoNamesPlaces.filter(
+    (p) => p.n.toLowerCase().includes(lower) || (p.a && p.a.toLowerCase().includes(lower))
+  );
+  if (geoMatches.length > 0) {
+    return geoMatches.slice(0, 5).map((m) => ({
+      address: `${m.n}, ${m.r}, Ghana`,
+      latitude: m.lat,
+      longitude: m.lon,
+      placeType: 'place',
+    }));
+  }
+
+  // Fallback with a random landmark
+  const fallback = LANDMARKS[Math.floor(Math.random() * LANDMARKS.length)]!;
   return [
     {
       address: `${address} (${fallback.name}, ${fallback.area})`,

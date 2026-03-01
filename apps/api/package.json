@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"const{cpSync,existsSync}=require('fs');const{join}=require('path');const s=join('src','data');const d=join('dist','data');if(existsSync(s)){cpSync(s,d,{recursive:true});console.log('Copied data/ to dist/data/')}\"",
     "start": "node dist/index.js",
     "lint": "eslint src/",
     "type-check": "tsc --noEmit",
