@@ -46,6 +46,8 @@ export async function getEstimate(input: {
   dropoffLatitude: number;
   dropoffLongitude: number;
   packageType: PackageType;
+  additionalStops?: number;
+  scheduleType?: 'SAME_DAY' | 'NEXT_DAY' | 'RECURRING';
 }) {
   const price = await calculatePrice(
     input.pickupLatitude,
@@ -53,17 +55,31 @@ export async function getEstimate(input: {
     input.dropoffLatitude,
     input.dropoffLongitude,
     input.packageType,
+    {
+      additionalStops: input.additionalStops,
+      scheduleType: input.scheduleType,
+    },
   );
 
   return {
     distanceKm: price.distanceKm,
+    haversineDistanceKm: price.haversineDistanceKm,
+    roadFactor: price.roadFactor,
     estimatedDurationMinutes: price.estimatedDurationMinutes,
     baseFare: price.baseFare,
     distanceCharge: price.distanceCharge,
+    stopSurcharges: price.stopSurcharges,
+    additionalStops: price.additionalStops,
+    packageMultiplier: price.packageMultiplier,
+    packageType: price.packageType,
     surgeMultiplier: price.surgeMultiplier,
+    scheduleDiscount: price.scheduleDiscount,
+    subtotal: price.subtotal,
     serviceFee: price.serviceFee,
     totalPrice: price.totalPrice,
     currency: price.currency,
+    riderEarnings: price.riderEarnings,
+    platformCommission: price.platformCommission,
   };
 }
 
@@ -103,12 +119,15 @@ export async function createOrder(
     }>;
   },
 ) {
+  const additionalStops = input.stops ? Math.max(0, input.stops.length - 1) : 0;
+
   const price = await calculatePrice(
     input.pickupLatitude,
     input.pickupLongitude,
     input.dropoffLatitude,
     input.dropoffLongitude,
     input.packageType,
+    { additionalStops },
   );
 
   const order = await prisma.order.create({

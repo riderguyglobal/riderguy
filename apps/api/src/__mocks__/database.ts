@@ -30,4 +30,7 @@ export const prisma = {
     findMany: vi.fn(),
     count: vi.fn(),
   },
+  zone: {
+    findMany: vi.fn(),
+  },
 };

@@ -26,10 +26,24 @@ function toRadians(degrees: number): number {
 
 /**
  * Estimate travel duration based on distance and average speed.
- * Returns duration in minutes.
+ * Returns duration in minutes (minimum 10 minutes).
+ *
+ * @param distanceKm — effective road distance (already includes road factor)
+ * @param avgSpeedKmh — average motorcycle speed for the zone type (default 20 km/h for urban Ghana)
  */
-export function estimateDuration(distanceKm: number, avgSpeedKmh = 25): number {
-  return (distanceKm / avgSpeedKmh) * 60;
+export function estimateDuration(distanceKm: number, avgSpeedKmh = 20): number {
+  return Math.max(10, Math.ceil((distanceKm / avgSpeedKmh) * 60));
+}
+
+/**
+ * Convert Haversine (straight-line) distance to approximate road distance
+ * by applying a road factor for the given zone type.
+ *
+ * @param haversineKm — straight-line distance in km
+ * @param roadFactor — multiplier (default 1.3 for typical urban Ghana)
+ */
+export function toRoadDistance(haversineKm: number, roadFactor = 1.3): number {
+  return haversineKm * roadFactor;
 }
 
 /**
