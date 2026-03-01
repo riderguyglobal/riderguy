@@ -3,12 +3,13 @@
 // ══════════════════════════════════════════════════════════
 // useMapboxAutocomplete — Address autocomplete via API proxy
 //
-// Uses Mapbox Search Box v1 (suggest + retrieve) through
-// the backend to keep the Mapbox token server-side.
+// Multi-provider strategy (Mapbox Geocoding v6 + Nominatim + 
+// local Ghana gazetteer) through the backend API proxy.
 //
 // Flow:
-// 1. User types → suggest endpoint → list of suggestions (no coords)
-// 2. User selects → retrieve endpoint → full details with coords
+// 1. User types → API proxy → merged results (with coords!)
+// 2. User selects → if coords present: instant, no retrieve call
+//                  → if no coords: retrieve endpoint for details
 // ══════════════════════════════════════════════════════════
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -24,13 +25,17 @@ export interface MapboxFeature {
   context?: Array<{ id: string; text: string }>;
 }
 
-/** Suggestion returned by Search Box suggest (NO coordinates) */
+/** Suggestion returned by autocomplete (coordinates included for most providers) */
 export interface SearchSuggestion {
-  id: string;           // mapbox_id — used for retrieve
+  id: string;           // mapbox_id, gaz-*, nom-* — used for retrieve
   text: string;         // short display name
   placeName: string;    // full formatted address
   placeType?: string;   // feature_type (poi, address, place, etc.)
   category?: string;    // POI category if applicable
+  /** Coordinates are included for Geocoding v6, Nominatim, and gazetteer results */
+  latitude?: number;
+  longitude?: number;
+  source?: string;      // 'mapbox' | 'nominatim' | 'gazetteer'
 }
 
 /** Full place returned by Search Box retrieve (WITH coordinates) */
@@ -111,6 +116,9 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
         placeName: (s.placeName ?? s.place_name ?? s.text) as string,
         placeType: s.placeType as string | undefined,
         category: s.category as string | undefined,
+        latitude: s.latitude as number | undefined,
+        longitude: s.longitude as number | undefined,
+        source: s.source as string | undefined,
       }));
 
       setResults(suggestions);
@@ -123,6 +131,22 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
 
   /** Retrieve full place details (coordinates) for a selected suggestion */
   const retrieve = useCallback(async (suggestion: SearchSuggestion): Promise<RetrievedPlace | null> => {
+    // If coordinates are already present (Geocoding v6, Nominatim, gazetteer),
+    // skip the retrieve API call entirely — build the place object directly.
+    if (suggestion.latitude != null && suggestion.longitude != null) {
+      // Start a new session for the next search
+      sessionTokenRef.current = uuid();
+      return {
+        id: suggestion.id,
+        name: suggestion.text,
+        fullAddress: suggestion.placeName,
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+        placeType: suggestion.placeType ?? 'place',
+      };
+    }
+
+    // Legacy path: Search Box IDs that need a retrieve call for coordinates
     setRetrieving(true);
     try {
       const url = `${API_BASE_URL}/orders/retrieve-place/${encodeURIComponent(suggestion.id)}?session_token=${sessionTokenRef.current}`;
