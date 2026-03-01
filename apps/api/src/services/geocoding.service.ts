@@ -115,7 +115,7 @@ interface GazetteerEntry {
   t: 'place' | 'poi';   // type: populated place or point of interest
   c?: string;            // category (POIs only): health, education, food, shop, etc.
   st?: string;           // subtype: village, town, hotel, fuel, pharmacy, etc.
-  src: 'gn' | 'osm' | 'dre';  // source: geonames, openstreetmap, or DRE Atlas
+  src: 'gn' | 'osm' | 'dre' | 'nga';  // source: geonames, openstreetmap, DRE Atlas, or NGA GEOnet
 }
 
 /** Curated landmark / POI entry */
