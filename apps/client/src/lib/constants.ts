@@ -28,6 +28,14 @@ export const PACKAGE_TYPES = [
   { value: 'OTHER', label: 'Other', emoji: '📋' },
 ] as const;
 
+/** Schedule types with labels and discount info */
+export const SCHEDULE_TYPES = [
+  { value: 'NOW', label: 'Now', description: 'Pickup ASAP', discount: null },
+  { value: 'SAME_DAY', label: 'Same Day', description: 'Later today', discount: null },
+  { value: 'NEXT_DAY', label: 'Next Day', description: 'Tomorrow', discount: '5% off' },
+  { value: 'RECURRING', label: 'Recurring', description: 'Regular schedule', discount: '10% off' },
+] as const;
+
 export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   PENDING: { label: 'Finding Rider', color: 'text-amber-600', bg: 'bg-amber-50' },
   SEARCHING_RIDER: { label: 'Searching', color: 'text-amber-600', bg: 'bg-amber-50' },
