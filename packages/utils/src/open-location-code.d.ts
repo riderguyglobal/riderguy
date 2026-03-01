@@ -13,12 +13,13 @@ declare module 'open-location-code' {
   }
 
   class OpenLocationCode {
-    static encode(latitude: number, longitude: number, codeLength?: number): string;
-    static decode(code: string): CodeArea;
-    static shorten(code: string, referenceLatitude: number, referenceLongitude: number): string;
-    static recoverNearest(shortCode: string, referenceLatitude: number, referenceLongitude: number): string;
-    static isValid(code: string): boolean;
-    static isFull(code: string): boolean;
-    static isShort(code: string): boolean;
+    constructor();
+    encode(latitude: number, longitude: number, codeLength?: number): string;
+    decode(code: string): CodeArea;
+    shorten(code: string, referenceLatitude: number, referenceLongitude: number): string;
+    recoverNearest(shortCode: string, referenceLatitude: number, referenceLongitude: number): string;
+    isValid(code: string): boolean;
+    isFull(code: string): boolean;
+    isShort(code: string): boolean;
   }
 }

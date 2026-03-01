@@ -10,7 +10,11 @@
 // (e.g. "8Q4V+7W Accra") making them easy to share locally.
 // ══════════════════════════════════════════════════════════
 
+/// <reference path="./open-location-code.d.ts" />
 import { OpenLocationCode } from 'open-location-code';
+
+// Singleton instance — methods are on the prototype, not static
+const olc = new OpenLocationCode();
 
 // ── Reference locations for shortening codes ────────────
 
@@ -45,7 +49,7 @@ const DEFAULT_REF = PLUS_CODE_REFERENCES.accra!;
  * encodePlusCode(5.603, -0.187) // "9G5M8QGJ+XX"
  */
 export function encodePlusCode(lat: number, lng: number, codeLength = 10): string {
-  return OpenLocationCode.encode(lat, lng, codeLength);
+  return olc.encode(lat, lng, codeLength);
 }
 
 /**
@@ -55,7 +59,7 @@ export function encodePlusCode(lat: number, lng: number, codeLength = 10): strin
  * @returns Decoded area with center, bounds, and code length
  */
 export function decodePlusCode(code: string): PlusCodeArea {
-  const decoded = OpenLocationCode.decode(code);
+  const decoded = olc.decode(code);
   return {
     latitudeCenter: decoded.latitudeCenter,
     longitudeCenter: decoded.longitudeCenter,
@@ -90,9 +94,9 @@ export function shortenPlusCode(
   refLat = DEFAULT_REF.lat,
   refLng = DEFAULT_REF.lng,
 ): string {
-  const fullCode = OpenLocationCode.encode(lat, lng);
+  const fullCode = olc.encode(lat, lng);
   try {
-    return OpenLocationCode.shorten(fullCode, refLat, refLng);
+    return olc.shorten(fullCode, refLat, refLng);
   } catch {
     // If reference is too far, return full code
     return fullCode;
@@ -116,7 +120,7 @@ export function recoverPlusCode(
   refLat = DEFAULT_REF.lat,
   refLng = DEFAULT_REF.lng,
 ): string {
-  return OpenLocationCode.recoverNearest(shortCode, refLat, refLng);
+  return olc.recoverNearest(shortCode, refLat, refLng);
 }
 
 // ── Formatting helpers ──────────────────────────────────
@@ -176,12 +180,12 @@ export function findNearestCity(lat: number, lng: number): {
  * // }
  */
 export function formatPlusCode(lat: number, lng: number): PlusCodeFormatted {
-  const full = OpenLocationCode.encode(lat, lng);
+  const full = olc.encode(lat, lng);
   const nearestCity = findNearestCity(lat, lng);
 
   let short: string;
   try {
-    short = OpenLocationCode.shorten(full, nearestCity.lat, nearestCity.lng);
+    short = olc.shorten(full, nearestCity.lat, nearestCity.lng);
   } catch {
     short = full;
   }
@@ -204,21 +208,21 @@ export function formatPlusCode(lat: number, lng: number): PlusCodeFormatted {
  * Check if a string is a valid Plus Code (full or short).
  */
 export function isValidPlusCode(code: string): boolean {
-  return OpenLocationCode.isValid(code);
+  return olc.isValid(code);
 }
 
 /**
  * Check if a string is a valid full Plus Code.
  */
 export function isFullPlusCode(code: string): boolean {
-  return OpenLocationCode.isFull(code);
+  return olc.isFull(code);
 }
 
 /**
  * Check if a string is a valid short Plus Code.
  */
 export function isShortPlusCode(code: string): boolean {
-  return OpenLocationCode.isShort(code);
+  return olc.isShort(code);
 }
 
 // ── Types ───────────────────────────────────────────────
