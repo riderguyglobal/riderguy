@@ -7,6 +7,8 @@
  * 2. HOT/OSM Populated Places (CC BY 4.0) — ~7,903 named settlements
  * 3. HOT/OSM Points of Interest (CC BY 4.0) — ~20,182 named POIs
  *    (includes health facilities, education, financial services, shops, etc.)
+ * 4. World Bank DRE Atlas (CC BY 4.0) — merged via merge-dre-settlements.js
+ *    ~5,860 additional named settlements with population/district data
  * 
  * Output: apps/api/src/data/ghana-places.json
  * 
@@ -14,11 +16,13 @@
  * - https://download.geonames.org/export/dump/GH.zip
  * - https://data.humdata.org/dataset/hotosm_gha_populated_places
  * - https://data.humdata.org/dataset/hotosm_gha_points_of_interest
+ * - https://datacatalog.worldbank.org/search/dataset/0042284 (DRE Atlas)
  * 
  * License: All sources are CC BY 4.0. Attribution required:
  * - GeoNames (geonames.org)
  * - OpenStreetMap contributors (openstreetmap.org)
  * - Humanitarian OpenStreetMap Team (hotosm.org)
+ * - World Bank (worldbank.org) — DRE Atlas
  */
 
 const fs = require('fs');
