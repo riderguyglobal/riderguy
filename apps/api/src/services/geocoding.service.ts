@@ -19,12 +19,14 @@ import * as path from 'path';
 //    SUPPLEMENTARY provider — OSM has excellent community-mapped
 //    data for Ghana (neighborhoods, markets, landmarks).
 //
-// 3. A **comprehensive local Ghana gazetteer** of 16,000+
-//    locations (sourced from GeoNames.org — CC BY 4.0) provides
-//    instant offline matching for every city, town, village, and
-//    hamlet across all 16 regions of Ghana. An additional set of
-//    curated landmarks (malls, hospitals, airports, neighborhoods)
-//    supplements the dataset.
+// 3. A **comprehensive local Ghana gazetteer** of 42,000+
+//    locations provides instant offline matching. Sources:
+//    • GeoNames.org (CC BY 4.0) — 15,997 populated places
+//    • HOT/OSM Populated Places (CC BY 4.0) — 6,300+ settlements
+//    • HOT/OSM Points of Interest (CC BY 4.0) — 20,000+ named POIs
+//      (restaurants, hotels, fuel stations, hospitals, schools,
+//      banks, shops, markets, places of worship, etc.)
+//    An additional set of curated landmarks supplements the dataset.
 //
 // Results are merged, deduplicated, and the gazetteer results
 // appear first when matched.
@@ -94,19 +96,26 @@ function warnMockFallback(method: string) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Ghana Gazetteer — 16,000+ locations from GeoNames.org
+// Ghana Gazetteer — 42,000+ locations from multiple sources:
+// • GeoNames.org (15,997 populated places)
+// • HOT/OSM Populated Places (6,300+ unique settlements)
+// • HOT/OSM Points of Interest (20,000+ named POIs)
 // plus curated landmarks (malls, hospitals, airports, etc.)
 // ═══════════════════════════════════════════════════════════
 
-/** GeoNames entry from ghana-places.json */
-interface GeoNamesPlace {
+/** Unified gazetteer entry from ghana-places.json */
+interface GazetteerEntry {
   n: string;             // display name
-  a?: string;            // ascii name (when different from n)
+  a?: string;            // ascii / english name (when different from n)
   lat: number;
   lon: number;
-  p: number;             // population (0 for many small places)
-  r: string;             // region name
-  al?: string[];          // alternate names
+  p?: number;            // population (places only)
+  r?: string;            // region name (GeoNames places only)
+  al?: string[];         // alternate names (GeoNames places only)
+  t: 'place' | 'poi';   // type: populated place or point of interest
+  c?: string;            // category (POIs only): health, education, food, shop, etc.
+  st?: string;           // subtype: village, town, hotel, fuel, pharmacy, etc.
+  src: 'gn' | 'osm';    // source: geonames or openstreetmap
 }
 
 /** Curated landmark / POI entry */
@@ -193,12 +202,12 @@ const LANDMARKS: LandmarkEntry[] = [
   { name: 'UCC Campus', area: 'Cape Coast', lat: 5.1120, lng: -1.2890, aliases: ['University of Cape Coast'] },
 ];
 
-// ── Load GeoNames dataset at startup ──────────────────────
-let geoNamesPlaces: GeoNamesPlace[] = [];
-let geoNamesLoaded = false;
+// ── Load gazetteer dataset at startup ─────────────────────
+let gazetteerEntries: GazetteerEntry[] = [];
+let gazetteerLoaded = false;
 
-function loadGeoNamesData(): void {
-  if (geoNamesLoaded) return;
+function loadGazetteerData(): void {
+  if (gazetteerLoaded) return;
   try {
     // Try multiple paths to support both dev (tsx src/) and prod (node dist/)
     const candidates = [
@@ -218,25 +227,28 @@ function loadGeoNamesData(): void {
 
     if (filePath) {
       const raw = fs.readFileSync(filePath, 'utf8');
-      geoNamesPlaces = JSON.parse(raw) as GeoNamesPlace[];
-      console.log(`[GeocodingService] Loaded ${geoNamesPlaces.length} Ghana places from GeoNames dataset (${filePath})`);
+      gazetteerEntries = JSON.parse(raw) as GazetteerEntry[];
+      const places = gazetteerEntries.filter(e => e.t === 'place').length;
+      const pois = gazetteerEntries.filter(e => e.t === 'poi').length;
+      console.log(`[GeocodingService] Loaded ${gazetteerEntries.length} Ghana locations (${places} places + ${pois} POIs) from ${filePath}`);
     } else {
       console.warn('[GeocodingService] ghana-places.json not found — gazetteer will use landmarks only. Checked:', candidates.join(', '));
     }
   } catch (err) {
-    console.error('[GeocodingService] Failed to load GeoNames data:', err);
+    console.error('[GeocodingService] Failed to load gazetteer data:', err);
   }
-  geoNamesLoaded = true;
+  gazetteerLoaded = true;
 }
 
 // Load on first import
-loadGeoNamesData();
+loadGazetteerData();
 
 /**
  * Search the comprehensive gazetteer for matching locations.
  *
- * Searches both the 16,000+ GeoNames dataset and the curated
- * landmarks. Scores results by match quality and population.
+ * Searches the 42,000+ entry dataset (GeoNames + OSM places +
+ * OSM POIs) plus the curated landmarks. Scores results by match
+ * quality, population (places), and category relevance (POIs).
  *
  * @param query  The user's search text
  * @param limit  Maximum results to return
@@ -250,7 +262,7 @@ function searchGazetteer(
   const lower = query.toLowerCase().trim();
   if (!lower || lower.length < 2) return [];
 
-  const scored: { name: string; area: string; lat: number; lng: number; score: number; source: 'landmark' | 'geonames' }[] = [];
+  const scored: { name: string; area: string; lat: number; lng: number; score: number; source: 'landmark' | 'gazetteer'; category?: string; placeType?: string }[] = [];
 
   // ── 1. Search curated landmarks ───────────────
   for (const entry of LANDMARKS) {
@@ -282,62 +294,89 @@ function searchGazetteer(
     }
   }
 
-  // ── 2. Search GeoNames dataset ────────────────
-  for (const place of geoNamesPlaces) {
-    const nameLower = (place.a ?? place.n).toLowerCase();
-    const displayLower = place.n.toLowerCase();
-    const regionLower = place.r.toLowerCase();
-    const fullName = `${displayLower}, ${regionLower}`;
+  // ── 2. Search unified gazetteer (places + POIs) ─────────
+  for (const entry of gazetteerEntries) {
+    const nameLower = (entry.a ?? entry.n).toLowerCase();
+    const displayLower = entry.n.toLowerCase();
+    const regionLower = (entry.r ?? '').toLowerCase();
+    const subtypeLower = (entry.st ?? '').toLowerCase();
+    const fullName = regionLower ? `${displayLower}, ${regionLower}` : displayLower;
 
     let bestScore = 0;
 
+    // Scoring base depends on type: places score higher than POIs
+    const isPlace = entry.t === 'place';
+    const exactBase = isPlace ? 100 : 90;
+    const prefixBase = isPlace ? 80 : 70;
+    const substringBase = isPlace ? 60 : 50;
+
     // Match main name
     if (nameLower === lower || displayLower === lower) {
-      bestScore = 100;
+      bestScore = exactBase;
     } else if (nameLower.startsWith(lower) || displayLower.startsWith(lower)) {
-      bestScore = 80;
+      bestScore = prefixBase;
     } else if (nameLower.includes(lower) || displayLower.includes(lower)) {
-      bestScore = 60;
+      bestScore = substringBase;
     }
 
-    // Match alternate names
-    if (place.al && bestScore < 100) {
-      for (const alt of place.al) {
+    // Match alternate names (GeoNames places only)
+    if (entry.al && bestScore < exactBase) {
+      for (const alt of entry.al) {
         const altLower = alt.toLowerCase();
-        if (altLower === lower)              bestScore = Math.max(bestScore, 95);
-        else if (altLower.startsWith(lower)) bestScore = Math.max(bestScore, 75);
-        else if (altLower.includes(lower))   bestScore = Math.max(bestScore, 55);
+        if (altLower === lower)              bestScore = Math.max(bestScore, exactBase - 5);
+        else if (altLower.startsWith(lower)) bestScore = Math.max(bestScore, prefixBase - 5);
+        else if (altLower.includes(lower))   bestScore = Math.max(bestScore, substringBase - 5);
       }
     }
 
-    // Match "name, region"
-    if (fullName.startsWith(lower)) bestScore = Math.max(bestScore, 70);
-    else if (fullName.includes(lower)) bestScore = Math.max(bestScore, 45);
+    // Match "name, region" for places
+    if (regionLower) {
+      if (fullName.startsWith(lower)) bestScore = Math.max(bestScore, 70);
+      else if (fullName.includes(lower)) bestScore = Math.max(bestScore, 45);
+    }
+
+    // Match by category/subtype for POIs (e.g. searching "hotel" matches all hotels)
+    if (!isPlace && bestScore === 0) {
+      if (subtypeLower === lower) bestScore = 65;
+      else if (subtypeLower.startsWith(lower)) bestScore = 55;
+      else if ((entry.c ?? '').toLowerCase() === lower) bestScore = 50;
+    }
 
     if (bestScore > 0) {
-      // Population bonus: large cities score higher
-      const popBonus = place.p > 100000 ? 15
-        : place.p > 50000 ? 10
-        : place.p > 10000 ? 5
-        : place.p > 1000 ? 2
+      // Population bonus: large cities score higher (places only)
+      const pop = entry.p ?? 0;
+      const popBonus = pop > 100000 ? 15
+        : pop > 50000 ? 10
+        : pop > 10000 ? 5
+        : pop > 1000 ? 2
         : 0;
 
-      // Proximity bonus: if user has location, boost nearby places
+      // Proximity bonus: if user has location, boost nearby entries
       let proxBonus = 0;
       if (proximity) {
-        const dist = Math.abs(place.lat - proximity.lat) + Math.abs(place.lon - proximity.lng);
+        const dist = Math.abs(entry.lat - proximity.lat) + Math.abs(entry.lon - proximity.lng);
         if (dist < 0.1) proxBonus = 10;       // ~10km
         else if (dist < 0.3) proxBonus = 5;   // ~30km
         else if (dist < 1.0) proxBonus = 2;   // ~100km
       }
 
+      // Build display area
+      let area = entry.r ?? '';
+      if (!area && entry.c) {
+        // For POIs without a region, show the category
+        const catLabel = entry.c.charAt(0).toUpperCase() + entry.c.slice(1);
+        area = catLabel;
+      }
+
       scored.push({
-        name: place.n,
-        area: place.r,
-        lat: place.lat,
-        lng: place.lon,
+        name: entry.n,
+        area,
+        lat: entry.lat,
+        lng: entry.lon,
         score: bestScore + popBonus + proxBonus,
-        source: 'geonames',
+        source: 'gazetteer',
+        category: entry.c,
+        placeType: isPlace ? (entry.st ?? 'place') : (entry.st ?? entry.c ?? 'poi'),
       });
     }
   }
@@ -362,10 +401,11 @@ function searchGazetteer(
   return selected.map((s, i) => ({
     id: `gaz-${i}-${s.name.toLowerCase().replace(/\s/g, '-')}`,
     text: s.name,
-    placeName: `${s.name}, ${s.area}, Ghana`,
+    placeName: s.area ? `${s.name}, ${s.area}, Ghana` : `${s.name}, Ghana`,
     latitude: s.lat,
     longitude: s.lng,
-    placeType: 'place',
+    placeType: s.placeType ?? 'place',
+    category: s.category,
     source: 'gazetteer' as const,
   }));
 }
@@ -505,7 +545,7 @@ export async function autocomplete(
   const prox = options.proximity ?? ACCRA_CENTER;
 
   // 1. Instant local gazetteer lookup (synchronous, zero latency)
-  const gazetteerResults = searchGazetteer(query, 4, prox);
+  const gazetteerResults = searchGazetteer(query, 6, prox);
 
   // 2. Mapbox Geocoding v6 with autocomplete: true
   const mapboxPromise = mapboxGeocodeAutocomplete(query, { proximity: prox, country, limit });
@@ -713,19 +753,20 @@ export async function retrievePlace(
       };
     }
 
-    // Then check GeoNames dataset
-    const geoPlace = geoNamesPlaces.find(
+    // Then check the full gazetteer dataset
+    const geoPlace = gazetteerEntries.find(
       (e) => e.n.toLowerCase().replace(/\s/g, ' ') === namePart ||
              (e.a && e.a.toLowerCase().replace(/\s/g, ' ') === namePart)
     );
     if (geoPlace) {
+      const area = geoPlace.r ?? (geoPlace.c ? geoPlace.c.charAt(0).toUpperCase() + geoPlace.c.slice(1) : '');
       return {
         id: mapboxId,
         name: geoPlace.n,
-        fullAddress: `${geoPlace.n}, ${geoPlace.r}, Ghana`,
+        fullAddress: area ? `${geoPlace.n}, ${area}, Ghana` : `${geoPlace.n}, Ghana`,
         latitude: geoPlace.lat,
         longitude: geoPlace.lon,
-        placeType: 'place',
+        placeType: geoPlace.t === 'poi' ? (geoPlace.st ?? 'poi') : 'place',
         plusCode: formatPlusCode(geoPlace.lat, geoPlace.lon),
       };
     }
@@ -894,16 +935,16 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
     }));
   }
 
-  // Search GeoNames
-  const geoMatches = geoNamesPlaces.filter(
+  // Search gazetteer (places and POIs)
+  const geoMatches = gazetteerEntries.filter(
     (p) => p.n.toLowerCase().includes(lower) || (p.a && p.a.toLowerCase().includes(lower))
   );
   if (geoMatches.length > 0) {
     return geoMatches.slice(0, 5).map((m) => ({
-      address: `${m.n}, ${m.r}, Ghana`,
+      address: m.r ? `${m.n}, ${m.r}, Ghana` : `${m.n}, Ghana`,
       latitude: m.lat,
       longitude: m.lon,
-      placeType: 'place',
+      placeType: m.t === 'poi' ? (m.st ?? 'poi') : 'place',
     }));
   }
 
