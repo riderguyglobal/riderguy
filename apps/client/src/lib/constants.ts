@@ -25,6 +25,7 @@ export const PACKAGE_TYPES = [
   { value: 'LARGE_PARCEL', label: 'Large Parcel', emoji: '🗳️' },
   { value: 'FRAGILE', label: 'Fragile', emoji: '🔮' },
   { value: 'FOOD', label: 'Food', emoji: '🍜' },
+  { value: 'HIGH_VALUE', label: 'High Value', emoji: '💎' },
   { value: 'OTHER', label: 'Other', emoji: '📋' },
 ] as const;
 

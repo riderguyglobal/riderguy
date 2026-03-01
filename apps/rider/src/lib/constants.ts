@@ -50,4 +50,5 @@ export const PACKAGE_TYPES: Record<string, { label: string; icon: string }> = {
   FRAGILE:       { label: 'Fragile',      icon: '⚠️' },
   FOOD:          { label: 'Food',         icon: '🍔' },
   HIGH_VALUE:    { label: 'High Value',   icon: '💎' },
+  OTHER:         { label: 'Other',        icon: '📋' },
 };

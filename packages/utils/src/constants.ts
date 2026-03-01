@@ -63,6 +63,7 @@ export const PACKAGE_TYPE_MULTIPLIERS: Record<string, number> = {
   FOOD: 1.10,
   FRAGILE: 1.25,
   HIGH_VALUE: 1.50,
+  OTHER: 1.00,
 };
 
 /**

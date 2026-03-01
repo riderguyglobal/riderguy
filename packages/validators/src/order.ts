@@ -11,8 +11,9 @@ const packageTypeEnum = z.enum([
   'FOOD',
   'FRAGILE',
   'HIGH_VALUE',
+  'OTHER',
 ]);
-const paymentMethodEnum = z.enum(['CARD', 'MOBILE_MONEY', 'WALLET', 'CASH']);
+const paymentMethodEnum = z.enum(['CARD', 'MOBILE_MONEY', 'WALLET', 'CASH', 'BANK_TRANSFER']);
 const scheduleFrequency = z.enum(['ONCE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'CUSTOM']);
 
 // ── Multi-stop schema ──
@@ -89,7 +90,11 @@ export const priceEstimateSchema = z.object({
   dropoffLatitude: latitudeSchema,
   dropoffLongitude: longitudeSchema,
   packageType: packageTypeEnum,
-  // Optional extra stops for accurate multi-stop pricing
+  // Number of additional stops (simple count for quick estimates)
+  additionalStops: z.number().int().min(0).max(10).optional(),
+  // Schedule type affects discounts
+  scheduleType: z.enum(['NOW', 'SAME_DAY', 'NEXT_DAY', 'RECURRING']).optional(),
+  // Optional extra stops with coordinates for precise multi-stop pricing
   stops: z.array(z.object({
     type: stopType,
     latitude: latitudeSchema,

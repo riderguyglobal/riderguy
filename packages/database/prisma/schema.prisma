@@ -138,6 +138,7 @@ enum PackageType {
   FOOD
   FRAGILE
   HIGH_VALUE
+  OTHER
 }
 
 enum ProofOfDeliveryType {
