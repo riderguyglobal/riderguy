@@ -15,7 +15,27 @@ function getPosition(opts?: PositionOptions): Promise<GeolocationPosition> {
   });
 }
 
-const HIGH_ACCURACY: PositionOptions = { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 };
+/**
+ * Try high-accuracy first; if it times out, fall back to network/cell location.
+ * This prevents the common PWA issue where GPS needs 15–30 s for a cold fix.
+ */
+async function getPositionWithFallback(): Promise<GeolocationPosition> {
+  try {
+    return await getPosition(HIGH_ACCURACY);
+  } catch (err) {
+    // Code 3 = TIMEOUT — retry with low accuracy (WiFi/cell, much faster)
+    if (err instanceof GeolocationPositionError && err.code === 3) {
+      return getPosition(LOW_ACCURACY);
+    }
+    throw err;
+  }
+}
+
+/** High-accuracy (GPS satellite) — may take 15-30 s on cold start */
+const HIGH_ACCURACY: PositionOptions = { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 };
+
+/** Low-accuracy fallback (WiFi / cell tower) — resolves in 1-3 s */
+const LOW_ACCURACY: PositionOptions = { enableHighAccuracy: false, maximumAge: 30_000, timeout: 10_000 };
 
 // ══════════════════════════════════════════════════════════
 
@@ -44,7 +64,7 @@ export function useRiderAvailability() {
         // appear in dispatch queries immediately when they go ONLINE.
         if (profile && profile.currentLatitude == null && navigator.geolocation) {
           try {
-            const pos = await getPosition(HIGH_ACCURACY);
+            const pos = await getPositionWithFallback();
             const { latitude, longitude } = pos.coords;
             if (mounted) {
               setCoords({ lat: latitude, lng: longitude });
@@ -68,12 +88,14 @@ export function useRiderAvailability() {
 
     setGpsError(null);
 
-    // 1. Fire an immediate high-accuracy position so dispatch has fresh coords
-    //    within the first second (instead of waiting for watchPosition's first fire)
-    getPosition(HIGH_ACCURACY)
+    // 1. Fire an immediate position so dispatch has fresh coords
+    //    within the first second (instead of waiting for watchPosition's first fire).
+    //    Uses fallback so we never show a timeout on first load.
+    getPositionWithFallback()
       .then((pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         setCoords({ lat, lng });
+        setGpsError(null);
         if (connected) emitLocation(lat, lng, pos.coords.heading ?? undefined);
         api.post('/riders/location', { latitude: lat, longitude: lng }).catch(() => {});
       })
@@ -88,11 +110,25 @@ export function useRiderAvailability() {
         if (connected) emitLocation(lat, lng, pos.coords.heading ?? undefined);
       },
       (err) => {
-        setGpsError(
-          err.code === 1 ? 'Location permission denied — enable it in your browser settings'
-          : err.code === 2 ? 'Location unavailable — check your device GPS'
-          : 'Location timed out — retrying…',
-        );
+        if (err.code === 1) {
+          setGpsError('Location permission denied — enable it in your browser settings');
+        } else if (err.code === 2) {
+          setGpsError('Location unavailable — check your device GPS');
+        } else {
+          // Code 3 — TIMEOUT: silently retry with low accuracy (WiFi/cell)
+          // instead of alarming the user with a red banner.
+          getPosition(LOW_ACCURACY)
+            .then((pos) => {
+              const { latitude: lat, longitude: lng } = pos.coords;
+              setCoords({ lat, lng });
+              setGpsError(null);
+              if (connected) emitLocation(lat, lng, pos.coords.heading ?? undefined);
+              api.post('/riders/location', { latitude: lat, longitude: lng }).catch(() => {});
+            })
+            .catch(() => {
+              setGpsError('Location timed out — retrying…');
+            });
+        }
       },
       HIGH_ACCURACY,
     );
@@ -135,7 +171,7 @@ export function useRiderAvailability() {
 
       if (next === RiderAvailability.ONLINE && navigator.geolocation) {
         try {
-          const pos = await getPosition(HIGH_ACCURACY);
+          const pos = await getPositionWithFallback();
           latitude = pos.coords.latitude;
           longitude = pos.coords.longitude;
           setCoords({ lat: latitude, lng: longitude });
