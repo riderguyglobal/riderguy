@@ -7,27 +7,22 @@ import { updateProfileSchema, changePasswordSchema } from '@riderguy/validators'
 import { AuthService } from '../../services/auth.service';
 import { PushService } from '../../services/push.service';
 import { StatusCodes } from 'http-status-codes';
+import { StorageService } from '../../services/storage.service';
 import multer from 'multer';
 import type { Request } from 'express';
 import path from 'node:path';
-import fs from 'node:fs';
+import os from 'node:os';
 import crypto from 'node:crypto';
 
 // ---------------------------------------------------------------------------
 // Avatar upload — Multer config
-// In production this would be S3/CloudFront; for now we store in local
-// `uploads/avatars` folder and serve statically.
+// Files are stored via StorageService (S3/R2 in production, local in dev).
 // ---------------------------------------------------------------------------
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'avatars');
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-
 const avatarStorage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, UPLOAD_DIR),
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, os.tmpdir()),
   filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${crypto.randomUUID()}${ext}`);
+    cb(null, `riderguy-avatar-${crypto.randomUUID()}${ext}`);
   },
 });
 
@@ -169,25 +164,27 @@ router.post(
       return;
     }
 
-    // Build the public URL (in prod this would be a CDN URL)
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    // Upload via StorageService (S3 in production, local disk in dev)
+    const result = await StorageService.uploadFromPath(
+      req.file.path,
+      req.file.originalname,
+      req.file.mimetype,
+      'avatars',
+    );
 
-    // Delete previous avatar file if it was a local upload
+    // Delete previous avatar file if it exists
     const existing = await prisma.user.findUnique({
       where: { id: req.user!.userId },
       select: { avatarUrl: true },
     });
 
-    if (existing?.avatarUrl?.startsWith('/uploads/avatars/')) {
-      const oldPath = path.join(process.cwd(), existing.avatarUrl);
-      fs.unlink(oldPath, () => {
-        /* ignore errors for missing files */
-      });
+    if (existing?.avatarUrl) {
+      StorageService.delete(existing.avatarUrl).catch(() => {});
     }
 
     const user = await prisma.user.update({
       where: { id: req.user!.userId },
-      data: { avatarUrl },
+      data: { avatarUrl: result.url },
       select: {
         id: true,
         avatarUrl: true,

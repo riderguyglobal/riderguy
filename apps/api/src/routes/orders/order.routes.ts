@@ -18,6 +18,7 @@ import * as TrackingService from '../../services/tracking.service';
 import { notifyNearbyRiders } from '../../services/notification.service';
 import { autoDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
+import { StorageService } from '../../services/storage.service';
 import { prisma } from '@riderguy/database';
 import { logger } from '../../lib/logger';
 import type { OrderStatus } from '@prisma/client';
@@ -80,16 +81,15 @@ router.post(
     const file = req.file;
     if (!file) throw ApiError.badRequest('No file uploaded');
 
-    // Move from temp → uploads/packages/
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    const storedName = `pkg-${crypto.randomUUID()}${ext}`;
-    const uploadsDir = path.resolve(process.cwd(), 'uploads', 'packages');
-    await fs.mkdir(uploadsDir, { recursive: true });
-    const destPath = path.join(uploadsDir, storedName);
-    await fs.rename(file.path, destPath);
+    // Upload via StorageService (S3/R2 in production, local disk in dev)
+    const result = await StorageService.uploadFromPath(
+      file.path,
+      file.originalname,
+      file.mimetype,
+      'packages',
+    );
 
-    const photoUrl = `/api/v1/uploads/packages/${storedName}`;
-    res.status(StatusCodes.OK).json({ success: true, data: { url: photoUrl } });
+    res.status(StatusCodes.OK).json({ success: true, data: { url: result.url } });
   }),
 );
 
@@ -581,25 +581,27 @@ router.post(
       if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
       proofUrl = `pin:${proofData}`;
     } else if (req.file) {
-      // Multipart file upload (PHOTO or SIGNATURE)
-      const fileName = `proof-${orderId}-${Date.now()}${path.extname(req.file.originalname) || '.png'}`;
-      const uploadsDir = path.resolve(process.cwd(), 'uploads', 'proofs');
-      await fs.mkdir(uploadsDir, { recursive: true });
-      const destPath = path.join(uploadsDir, fileName);
-      await fs.rename(req.file.path, destPath);
-      proofUrl = `/api/v1/uploads/proofs/${fileName}`;
+      // Multipart file upload (PHOTO or SIGNATURE) via StorageService
+      const result = await StorageService.uploadFromPath(
+        req.file.path,
+        req.file.originalname,
+        req.file.mimetype,
+        'proofs',
+      );
+      proofUrl = result.url;
     } else if (req.body.proofData) {
       // Fallback: accept base64 for backward compatibility (signatures)
       const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');
       const estimatedSize = Math.ceil(base64Data.length * 0.75);
       if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
 
-      const fileName = `proof-${orderId}-${Date.now()}.png`;
-      const uploadsDir = path.resolve(process.cwd(), 'uploads', 'proofs');
-      await fs.mkdir(uploadsDir, { recursive: true });
-      const filePath = path.join(uploadsDir, fileName);
-      await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
-      proofUrl = `/api/v1/uploads/proofs/${fileName}`;
+      const result = await StorageService.upload(
+        Buffer.from(base64Data, 'base64'),
+        `proof-${orderId}.png`,
+        'image/png',
+        'proofs',
+      );
+      proofUrl = result.url;
     } else {
       throw ApiError.badRequest('File upload or proofData is required');
     }
@@ -649,12 +651,13 @@ router.post(
       }
 
       const fileName = `fail-${orderId}-${Date.now()}.png`;
-      const fs = await import('fs/promises');
-      const pathMod = await import('path');
-      const uploadsDir = pathMod.resolve(process.cwd(), 'uploads', 'failures');
-      await fs.mkdir(uploadsDir, { recursive: true });
-      await fs.writeFile(pathMod.join(uploadsDir, fileName), Buffer.from(base64Data, 'base64'));
-      failurePhotoUrl = `/api/v1/uploads/failures/${fileName}`;
+      const result = await StorageService.upload(
+        Buffer.from(base64Data, 'base64'),
+        fileName,
+        'image/png',
+        'failures',
+      );
+      failurePhotoUrl = result.url;
     }
 
     // Update failure photo URL if present

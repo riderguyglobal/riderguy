@@ -39,7 +39,7 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   'application/pdf',
 ]);
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB (supports video uploads)
 
 // --------------- helpers ----------------------------------------------
 
