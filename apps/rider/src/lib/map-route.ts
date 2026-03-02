@@ -60,6 +60,35 @@ const NAV_WIDTHS = {
   congestionLine: Math.round(ROUTE_LINE_WIDTHS.congestionLine * 1.3), // 8
 } as const;
 
+// ── Arrow Image ─────────────────────────────────────────
+
+/**
+ * Load a chevron arrow image into the map style for directional indicators.
+ * Uses an SDF (signed distance field) image so `icon-color` paint works.
+ */
+function ensureArrowImage(map: mapboxgl.Map): void {
+  if (map.hasImage(ROUTE_LAYER_IDS.arrowImage)) return;
+
+  const size = 24;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  // Draw a right-pointing chevron (>) — Mapbox rotates it to follow the line
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(6, 3);
+  ctx.lineTo(18, 12);
+  ctx.lineTo(6, 21);
+  ctx.lineTo(9, 12);
+  ctx.closePath();
+  ctx.fill();
+
+  const imageData = ctx.getImageData(0, 0, size, size);
+  map.addImage(ROUTE_LAYER_IDS.arrowImage, imageData, { sdf: true });
+}
+
 // ── Route Drawing ───────────────────────────────────────
 
 /**
@@ -140,6 +169,33 @@ export function drawRoute(
         'line-opacity': 1,
       },
     });
+
+    // Layer 5: Directional arrows along route
+    ensureArrowImage(map);
+    map.addLayer({
+      id: ROUTE_LAYER_IDS.arrow,
+      type: 'symbol',
+      source: ROUTE_LAYER_IDS.source,
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 90,
+        'icon-image': ROUTE_LAYER_IDS.arrowImage,
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 0.6,
+          14, 0.85,
+          18, 1.0,
+        ],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-rotation-alignment': 'map',
+        'icon-pitch-alignment': 'map',
+      },
+      paint: {
+        'icon-color': '#ffffff',
+        'icon-opacity': 0.92,
+      },
+    });
   }
 
   // Layer 5: Congestion overlay
@@ -212,6 +268,7 @@ function drawCongestionLayer(map: mapboxgl.Map, route: RouteData): void {
 /** Remove route layers and sources */
 export function removeRoute(map: mapboxgl.Map): void {
   const layers = [
+    ROUTE_LAYER_IDS.arrow,
     ROUTE_LAYER_IDS.congestion,
     ROUTE_LAYER_IDS.line,
     ROUTE_LAYER_IDS.glow,

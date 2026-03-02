@@ -96,6 +96,8 @@ export const ROUTE_LAYER_IDS = {
   border: 'rg-route-border',
   glow: 'rg-route-glow',
   line: 'rg-route-line',
+  arrow: 'rg-route-arrow',
+  arrowImage: 'rg-arrow-chevron',
   congestion: 'rg-route-congestion',
   altShadow: 'rg-alt-shadow',
   altLine: 'rg-alt-line',
