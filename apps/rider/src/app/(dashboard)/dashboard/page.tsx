@@ -32,7 +32,7 @@ interface WalletData {
 
 export default function DashboardPage() {
   const { api, user } = useAuth();
-  const { availability, toggleAvailability, loading: toggling, gpsError } = useRiderAvailability();
+  const { availability, toggleAvailability, loading: toggling, gpsError, onboardingStatus } = useRiderAvailability();
 
   // ── Dashboard data via React Query (cached + background refresh) ──
 
@@ -149,6 +149,18 @@ export default function DashboardPage() {
             <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
             {gpsError}
           </div>
+        )}
+
+        {/* Onboarding Banner — show when rider hasn't been activated yet */}
+        {onboardingStatus && onboardingStatus !== 'ACTIVATED' && !gpsError && (
+          <Link
+            href="/dashboard/onboarding"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium"
+          >
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span className="flex-1">Complete your onboarding to start accepting deliveries</span>
+            <ChevronRight className="h-4 w-4 shrink-0" />
+          </Link>
         )}
 
         {/* ── Stats Row ── */}

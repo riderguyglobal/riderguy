@@ -193,20 +193,28 @@ export async function notifyNearbyRiders(
   zoneId: string | null,
   pickupAddress: string,
 ) {
-  const whereClause: any = {
+  const baseWhere: any = {
     availability: 'ONLINE',
     onboardingStatus: 'ACTIVATED',
   };
 
-  if (zoneId) {
-    whereClause.currentZoneId = zoneId;
-  }
+  // Try zone-specific riders first, fallback to all online riders
+  let riders = zoneId
+    ? await prisma.riderProfile.findMany({
+        where: { ...baseWhere, currentZoneId: zoneId },
+        select: { userId: true },
+        take: 50,
+      })
+    : [];
 
-  const riders = await prisma.riderProfile.findMany({
-    where: whereClause,
-    select: { userId: true },
-    take: 50,
-  });
+  // Fallback: if no zone-specific riders found, notify all online riders
+  if (riders.length === 0) {
+    riders = await prisma.riderProfile.findMany({
+      where: baseWhere,
+      select: { userId: true },
+      take: 50,
+    });
+  }
 
   // Fetch rider phone numbers for SMS delivery
   const riderUsers = await prisma.user.findMany({

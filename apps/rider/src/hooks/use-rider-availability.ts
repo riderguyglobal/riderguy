@@ -46,6 +46,7 @@ export function useRiderAvailability() {
   const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
   const watchRef = useRef<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -59,6 +60,7 @@ export function useRiderAvailability() {
         if (!mounted) return;
         const profile = res?.data?.data;
         setAvailability(profile?.availability ?? RiderAvailability.OFFLINE);
+        setOnboardingStatus(profile?.onboardingStatus ?? null);
 
         // If rider profile has no GPS stored yet, seed it now so they
         // appear in dispatch queries immediately when they go ONLINE.
@@ -183,12 +185,17 @@ export function useRiderAvailability() {
       await api.patch('/riders/availability', { availability: next, latitude, longitude });
       setAvailability(next);
       setGpsError(null);
-    } catch {
-      // toggle failed
+    } catch (err: any) {
+      // Server returns 403 if rider is not ACTIVATED
+      const message = err?.response?.data?.message ?? err?.message ?? '';
+      if (err?.response?.status === 403 || message.includes('not yet activated')) {
+        setGpsError(message || 'Your account is not yet activated. Complete onboarding and wait for approval.');
+      }
+      // Other errors — silently ignore (network issues, etc.)
     } finally {
       setLoading(false);
     }
   }, [availability, loading, api]);
 
-  return { availability, toggleAvailability, loading, coords, gpsError };
+  return { availability, toggleAvailability, loading, coords, gpsError, onboardingStatus };
 }

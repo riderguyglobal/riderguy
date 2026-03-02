@@ -19,6 +19,7 @@ import { notifyNearbyRiders } from '../../services/notification.service';
 import { autoDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
 import { prisma } from '@riderguy/database';
+import { logger } from '../../lib/logger';
 import type { OrderStatus } from '@prisma/client';
 import multer from 'multer';
 import type { Request } from 'express';
@@ -311,7 +312,9 @@ router.post(
     const order = await OrderService.createOrder(req.user!.userId, req.body);
 
     // Auto-dispatch: find the best nearby rider and send targeted offer
-    autoDispatch(order.id).catch(() => {});
+    autoDispatch(order.id).catch((err) => {
+      logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
+    });
 
     // Also broadcast to job feed as a fallback
     notifyNearbyRiders(
@@ -319,7 +322,9 @@ router.post(
       order.orderNumber,
       order.zoneId,
       order.pickupAddress,
-    ).catch(() => {}); // fire-and-forget
+    ).catch((err) => {
+      logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: order });
   }),

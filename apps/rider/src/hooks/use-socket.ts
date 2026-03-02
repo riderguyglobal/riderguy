@@ -73,7 +73,8 @@ export function useSocket() {
   }, []);
 
   const respondToOffer = useCallback((orderId: string, accepted: boolean) => {
-    sharedSocket?.emit('job:offer:respond', { orderId, accepted });
+    const response = accepted ? 'accept' : 'decline';
+    sharedSocket?.emit('job:offer:respond', { orderId, response } as any);
   }, []);
 
   return {

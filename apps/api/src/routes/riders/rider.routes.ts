@@ -80,6 +80,24 @@ router.patch(
   asyncHandler(async (req, res) => {
     const { availability, latitude, longitude } = req.body;
 
+    // Gate: only ACTIVATED riders can go ONLINE
+    if (availability === 'ONLINE') {
+      const currentProfile = await prisma.riderProfile.findUnique({
+        where: { userId: req.user!.userId },
+        select: { onboardingStatus: true },
+      });
+
+      if (!currentProfile) {
+        throw ApiError.notFound('Rider profile not found');
+      }
+
+      if (currentProfile.onboardingStatus !== 'ACTIVATED') {
+        throw ApiError.forbidden(
+          'Your account is not yet activated. Please complete onboarding and wait for admin approval before going online.',
+        );
+      }
+    }
+
     // Build update data — always set availability
     const updateData: Record<string, unknown> = { availability };
 
