@@ -32,6 +32,55 @@ vi.mock('../../services/paystack.service', () => ({
   },
 }));
 
+vi.mock('@riderguy/database', () => ({
+  prisma: {
+    order: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      aggregate: vi.fn(),
+      count: vi.fn(),
+    },
+    user: { findUnique: vi.fn() },
+    riderProfile: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+    orderStatusHistory: { create: vi.fn() },
+    withdrawal: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      count: vi.fn(),
+      aggregate: vi.fn(),
+    },
+    wallet: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    transaction: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    notification: { create: vi.fn() },
+  },
+}));
+
+vi.mock('../../lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 import { prisma } from '@riderguy/database';
 import { enqueuePayoutJob } from '../../jobs/queues';
 

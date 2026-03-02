@@ -2,6 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { calculatePrice, type PriceBreakdown } from './pricing.service';
 import { prisma } from '@riderguy/database';
 
+vi.mock('@riderguy/database', () => ({
+  prisma: {
+    zone: { findMany: vi.fn() },
+    order: { findUnique: vi.fn(), update: vi.fn() },
+  },
+}));
+
+vi.mock('../lib/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
 // ============================================================
 // Pricing Engine — Unit Tests
 //

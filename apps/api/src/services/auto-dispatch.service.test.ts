@@ -1,8 +1,34 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { prisma } from '@riderguy/database';
 import { logger } from '../lib/logger';
-import { io, getIO } from '../socket';
 import { SmsService } from './sms.service';
+
+// Type helper — casts a function to a Vitest mock so .mockResolvedValue etc. are available
+const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
+
+// ── Explicit mocks (more reliable than config-based aliases for relative imports) ──
+
+const mockRooms = new Map<string, Set<string>>();
+
+const { mockIo, mockGetIO } = vi.hoisted(() => {
+  const rooms = new Map<string, Set<string>>();
+  const mockIo = {
+    to: vi.fn().mockReturnThis(),
+    emit: vi.fn(),
+    sockets: { adapter: { rooms } },
+  };
+  return { mockIo, mockGetIO: vi.fn().mockReturnValue(mockIo) };
+});
+
+vi.mock('../socket', () => ({
+  getIO: mockGetIO,
+  initSocketServer: vi.fn(),
+  emitOrderStatusUpdate: vi.fn(),
+  emitNewJob: vi.fn(),
+}));
+
+// io is resolved lazily in beforeEach
+let io: typeof mockIo;
 
 // ============================================================
 // Auto-Dispatch Service — Integration Tests
@@ -25,6 +51,46 @@ const { mockAssignRider } = vi.hoisted(() => ({
 vi.mock('./dispatch.service', () => ({
   assignRider: mockAssignRider,
   enqueuePayoutJob: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./sms.service', () => ({
+  SmsService: {
+    sendNewJobAvailable: vi.fn().mockResolvedValue({ success: true }),
+    sendOtp: vi.fn().mockResolvedValue({ success: true, messageId: 'mock-msg-1' }),
+    sendWelcome: vi.fn().mockResolvedValue({ success: true }),
+    sendOrderUpdate: vi.fn().mockResolvedValue({ success: true }),
+  },
+}));
+
+vi.mock('@riderguy/database', () => ({
+  prisma: {
+    order: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      aggregate: vi.fn(),
+      count: vi.fn(),
+    },
+    user: { findUnique: vi.fn() },
+    riderProfile: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+    orderStatusHistory: { create: vi.fn() },
+    notification: { create: vi.fn() },
+  },
+}));
+
+vi.mock('../lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 // ── Import AFTER mocks are wired ──
@@ -128,12 +194,17 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ shouldAdvanceTime: false });
 
+  // Resolve io from hoisted mock and re-apply defaults after clearAllMocks
+  mockGetIO.mockReturnValue(mockIo);
+  mockIo.to.mockReturnThis();
+  io = mockIo;
+
   // Re-apply SmsService mock implementations (clearAllMocks keeps them,
   // but we reset just in case and ensure they're always thenable)
-  SmsService.sendNewJobAvailable.mockResolvedValue({ success: true });
-  SmsService.sendOtp.mockResolvedValue({ success: true, messageId: 'mock-msg-1' });
-  SmsService.sendWelcome.mockResolvedValue({ success: true });
-  SmsService.sendOrderUpdate.mockResolvedValue({ success: true });
+  asMock(SmsService.sendNewJobAvailable).mockResolvedValue({ success: true });
+  asMock(SmsService.sendOtp).mockResolvedValue({ success: true, messageId: 'mock-msg-1' });
+  asMock(SmsService.sendWelcome).mockResolvedValue({ success: true });
+  asMock(SmsService.sendOrderUpdate).mockResolvedValue({ success: true });
 
   // Reset the assignRider mock
   mockAssignRider.mockResolvedValue({});
@@ -603,7 +674,7 @@ describe('handleOfferResponse', () => {
 
     // Reset to track calls during handleOfferResponse
     vi.clearAllMocks();
-    SmsService.sendNewJobAvailable.mockResolvedValue({ success: true });
+    asMock(SmsService.sendNewJobAvailable).mockResolvedValue({ success: true });
     mockAssignRider.mockResolvedValue({ id: ORDER_ID, status: 'ASSIGNED' });
 
     const result = await handleOfferResponse(ORDER_ID, RIDER_USER_ID, 'accept');
@@ -993,7 +1064,7 @@ describe('Full dispatch cascade', () => {
 
     // Step 3: rider3 accepts
     vi.clearAllMocks();
-    SmsService.sendNewJobAvailable.mockResolvedValue({ success: true });
+    asMock(SmsService.sendNewJobAvailable).mockResolvedValue({ success: true });
     mockAssignRider.mockResolvedValue({ id: ORDER_ID, status: 'ASSIGNED' });
 
     const result = await handleOfferResponse(ORDER_ID, 'user-rider-03', 'accept');
