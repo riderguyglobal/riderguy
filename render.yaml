@@ -106,6 +106,7 @@ services:
   # ── Redis (for rate limiting & BullMQ job queue) ────────────
   - type: redis
     name: riderguy-redis
+    region: frankfurt  # Must match API region for internal networking
     plan: starter  # $7/mo — 25MB, persistent
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []  # Only internal services can connect
