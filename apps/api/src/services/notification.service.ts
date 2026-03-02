@@ -10,6 +10,7 @@ import { prisma } from '@riderguy/database';
 import type { Prisma, NotificationType } from '@riderguy/database';
 import { PushService } from './push.service';
 import { SmsService } from './sms.service';
+import { emitNewJob } from '../socket';
 import { logger } from '../lib/logger';
 
 // --------------- types ------------------------------------------------
@@ -195,7 +196,8 @@ export async function notifyNearbyRiders(
 ) {
   const baseWhere: any = {
     availability: 'ONLINE',
-    onboardingStatus: 'ACTIVATED',
+    // TODO: Re-enable after trial — temporarily bypassed for end-to-end testing
+    // onboardingStatus: 'ACTIVATED',
   };
 
   // Try zone-specific riders first, fallback to all online riders
@@ -222,6 +224,41 @@ export async function notifyNearbyRiders(
     select: { id: true, phone: true },
   });
   const phoneMap = new Map(riderUsers.map((u) => [u.id, u.phone]));
+
+  logger.info(
+    { orderId, orderNumber, riderCount: riders.length, zoneId },
+    '[NotifyRiders] Broadcasting job:new + SMS to riders',
+  );
+
+  // Also emit socket broadcast so riders' Jobs tab auto-refreshes
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        distanceKm: true,
+        totalPrice: true,
+        packageType: true,
+        dropoffAddress: true,
+        isMultiStop: true,
+        isScheduled: true,
+      },
+    });
+    if (order) {
+      emitNewJob(zoneId, {
+        orderId,
+        orderNumber,
+        pickupAddress,
+        dropoffAddress: order.dropoffAddress,
+        distanceKm: order.distanceKm,
+        totalPrice: typeof order.totalPrice === 'number' ? order.totalPrice : Number(order.totalPrice),
+        packageType: order.packageType,
+        isMultiStop: order.isMultiStop,
+        isScheduled: order.isScheduled,
+      });
+    }
+  } catch (err) {
+    logger.error({ err, orderId }, '[NotifyRiders] Failed to emit job:new broadcast');
+  }
 
   await Promise.allSettled(
     riders.map((rider) => {

@@ -399,9 +399,8 @@ export function emitNewJob(zoneId: string | null, data: {
     totalStops: data.totalStops ?? 2,
     isScheduled: data.isScheduled ?? false,
   };
-  if (zoneId) {
-    io.to(`zone:${zoneId}`).emit('job:new', payload);
-  } else {
-    io.to('role:RIDER').emit('job:new', payload);
-  }
+  // Always broadcast to all riders — zone rooms are not joined by riders,
+  // so zone-targeted emission was going to nobody.
+  io.to('role:RIDER').emit('job:new', payload);
+  logger.info({ orderId: data.orderId, zoneId }, '[Socket] Broadcast job:new to all riders');
 }

@@ -26,6 +26,7 @@ function getOrCreateSocket(): Socket {
 export function useSocket() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [socketError, setSocketError] = useState<string | null>(null);
 
   useEffect(() => {
     const s = getOrCreateSocket();
@@ -33,16 +34,33 @@ export function useSocket() {
     if (!s.connected) s.connect();
     setSocket(s);
 
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    const onConnect = () => {
+      console.log('[Socket] Connected ✓ id:', s.id);
+      setConnected(true);
+      setSocketError(null);
+    };
+    const onDisconnect = (reason: string) => {
+      console.warn('[Socket] Disconnected:', reason);
+      setConnected(false);
+    };
+    const onConnectError = (err: Error) => {
+      console.error('[Socket] Connection error:', err.message);
+      setSocketError(err.message);
+      setConnected(false);
+    };
 
     s.on('connect', onConnect);
     s.on('disconnect', onDisconnect);
-    if (s.connected) setConnected(true);
+    s.on('connect_error', onConnectError);
+    if (s.connected) {
+      setConnected(true);
+      setSocketError(null);
+    }
 
     return () => {
       s.off('connect', onConnect);
       s.off('disconnect', onDisconnect);
+      s.off('connect_error', onConnectError);
       listenerCount--;
       if (listenerCount <= 0 && sharedSocket) {
         sharedSocket.disconnect();
@@ -80,6 +98,7 @@ export function useSocket() {
   return {
     socket,
     connected,
+    socketError,
     emitLocation,
     subscribeToOrder,
     unsubscribeFromOrder,

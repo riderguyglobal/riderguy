@@ -52,6 +52,7 @@ export function IncomingRequest() {
     if (!socket) return;
 
     const handleOffer = (data: JobOffer) => {
+      console.log('[IncomingRequest] Received job:offer!', data.orderId, data.orderNumber);
       setOffer(data);
       setCountdown(OFFER_COUNTDOWN);
 

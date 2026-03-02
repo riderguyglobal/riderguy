@@ -8,6 +8,7 @@ import { useAuth } from '@riderguy/auth';
 import { formatCurrency } from '@riderguy/utils';
 import { RiderAvailability, type Order } from '@riderguy/types';
 import { useRiderAvailability } from '@/hooks/use-rider-availability';
+import { useSocket } from '@/hooks/use-socket';
 import { STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
 import {
   Power,
@@ -33,6 +34,7 @@ interface WalletData {
 export default function DashboardPage() {
   const { api, user } = useAuth();
   const { availability, toggleAvailability, loading: toggling, gpsError, onboardingStatus } = useRiderAvailability();
+  const { connected: socketConnected, socketError } = useSocket();
 
   // ── Dashboard data via React Query (cached + background refresh) ──
 
@@ -113,6 +115,10 @@ export default function DashboardPage() {
         }`}>
           <div className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
           {isOnline ? 'Online' : 'Offline'}
+          {/* Socket connection indicator */}
+          <div className={`h-2 w-2 rounded-full ${
+            socketConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'
+          }`} title={socketConnected ? 'Socket connected' : 'Socket disconnected'} />
         </div>
       </header>
 
@@ -142,6 +148,14 @@ export default function DashboardPage() {
             )}
           </button>
         </div>
+
+        {/* Socket Error Banner */}
+        {!socketConnected && isOnline && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+            Socket disconnected — you won&apos;t receive delivery requests{socketError ? `: ${socketError}` : ''}
+          </div>
+        )}
 
         {/* GPS Error Banner */}
         {gpsError && (

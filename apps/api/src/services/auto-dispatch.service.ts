@@ -236,6 +236,11 @@ export async function autoDispatch(orderId: string): Promise<void> {
     return;
   }
 
+  logger.info(
+    { orderId, riderCount: riders.length, riders: riders.map(r => ({ id: r.userId, lat: r.currentLatitude, lng: r.currentLongitude })) },
+    '[AutoDispatch] Found online riders with GPS',
+  );
+
   // Score each rider
   const scored: ScoredRider[] = [];
 
@@ -402,7 +407,18 @@ function sendOfferToNextRider(
   // Emit targeted offer to this specific rider
   try {
     const io = getIO();
-    io.to(`user:${rider.userId}`).emit('job:offer', offerPayload);
+    const room = `user:${rider.userId}`;
+    const socketsInRoom = io.sockets.adapter.rooms.get(room);
+    logger.info(
+      {
+        orderId: state.orderId,
+        room,
+        socketsInRoom: socketsInRoom ? [...socketsInRoom] : [],
+        socketCount: socketsInRoom?.size ?? 0,
+      },
+      '[AutoDispatch] Emitting job:offer to room',
+    );
+    io.to(room).emit('job:offer', offerPayload);
   } catch (err) {
     logger.error({ err, orderId: state.orderId }, '[AutoDispatch] Failed to emit job:offer');
   }
