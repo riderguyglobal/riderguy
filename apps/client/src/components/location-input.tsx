@@ -10,6 +10,7 @@ import {
   Search,
   Navigation,
   Store,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useMapboxAutocomplete,
@@ -17,6 +18,7 @@ import {
   splitPlaceName,
   type SearchSuggestion,
 } from '@/hooks/use-mapbox-autocomplete';
+import { GoogleMapsLinkModal } from './google-maps-link-modal';
 
 export interface LocationValue {
   address: string;
@@ -54,6 +56,7 @@ export function LocationInput({
   const inputRef = externalRef || internalRef;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [locating, setLocating] = useState(false);
+  const [showGoogleMapsModal, setShowGoogleMapsModal] = useState(false);
 
   // Sync external value changes into the autocomplete query
   useEffect(() => {
@@ -129,6 +132,12 @@ export function LocationInput({
     );
   };
 
+  const handleGoogleMapsLocation = (value: LocationValue) => {
+    onChange(value);
+    ac.setQuery(value.address);
+    ac.setOpen(false);
+  };
+
   const hasSelection = !!value.coordinates;
 
   return (
@@ -190,6 +199,7 @@ export function LocationInput({
           {ac.results.map((suggestion) => {
             const { primary, secondary } = splitPlaceName(suggestion.placeName);
             const typeIcon = getPlaceTypeIcon(suggestion.placeType, suggestion.category);
+            const isCommunity = suggestion.source === 'community';
             return (
               <button
                 key={suggestion.id}
@@ -198,13 +208,20 @@ export function LocationInput({
                 onClick={() => selectPlace(suggestion)}
                 className="w-full flex items-start gap-3 py-3 px-3.5 hover:bg-surface-50 active:bg-surface-100 transition-colors text-left first:rounded-t-2xl last:rounded-b-2xl border-b border-surface-100 last:border-0"
               >
-                <div className="h-9 w-9 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 mt-0.5">
+                <div className={`h-9 w-9 rounded-xl ${isCommunity ? 'bg-accent-100' : 'bg-surface-100'} flex items-center justify-center shrink-0 mt-0.5`}>
                   {typeIcon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-surface-900 truncate">
-                    {primary}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-surface-900 truncate">
+                      {primary}
+                    </p>
+                    {isCommunity && (
+                      <span className="shrink-0 text-[9px] font-semibold text-accent-600 bg-accent-100 px-1.5 py-0.5 rounded-full">
+                        Community
+                      </span>
+                    )}
+                  </div>
                   {secondary && (
                     <p className="text-xs text-surface-400 truncate mt-0.5">
                       {secondary}
@@ -224,17 +241,54 @@ export function LocationInput({
           <div className="py-1.5 px-3.5 text-center border-t border-surface-100">
             <span className="text-[9px] text-surface-300">Powered by Mapbox</span>
           </div>
+
+          {/* Google Maps fallback link — always shown at bottom of results */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              ac.setOpen(false);
+              setShowGoogleMapsModal(true);
+            }}
+            className="w-full flex items-center gap-2.5 py-2.5 px-3.5 border-t border-surface-100 hover:bg-brand-50 transition-colors text-left rounded-b-2xl"
+          >
+            <div className="h-7 w-7 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
+              <ExternalLink className="h-3.5 w-3.5 text-brand-600" />
+            </div>
+            <p className="text-xs font-medium text-brand-600">
+              Can&apos;t find it? Search on Google Maps
+            </p>
+          </button>
         </div>
       )}
 
       {/* Empty state when typing but no results */}
       {ac.open && ac.query.length >= 2 && !ac.loading && ac.results.length === 0 && (
-        <div className="absolute top-full left-0 right-12 mt-1.5 bg-white rounded-2xl border border-surface-200 shadow-xl z-30 py-6 px-4 text-center animate-slide-up">
+        <div className="absolute top-full left-0 right-12 mt-1.5 bg-white rounded-2xl border border-surface-200 shadow-xl z-30 py-5 px-4 text-center animate-slide-up">
           <MapPin className="h-5 w-5 text-surface-300 mx-auto mb-2" />
           <p className="text-sm text-surface-400">No locations found</p>
-          <p className="text-xs text-surface-300 mt-1">Try a different search term</p>
+          <p className="text-xs text-surface-300 mt-1 mb-4">Try a different search term, or:</p>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              ac.setOpen(false);
+              setShowGoogleMapsModal(true);
+            }}
+            className="inline-flex items-center gap-2 py-2.5 px-4 bg-brand-50 border border-brand-200 rounded-xl text-sm font-medium text-brand-600 hover:bg-brand-100 transition-colors btn-press"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Search on Google Maps
+          </button>
         </div>
       )}
+
+      {/* Google Maps Link Modal */}
+      <GoogleMapsLinkModal
+        open={showGoogleMapsModal}
+        onClose={() => setShowGoogleMapsModal(false)}
+        onLocationFound={handleGoogleMapsLocation}
+      />
     </div>
   );
 }

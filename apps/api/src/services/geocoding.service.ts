@@ -1,6 +1,7 @@
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
 import { formatPlusCode } from '@riderguy/utils';
+import { prisma } from '@riderguy/database';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -55,7 +56,7 @@ export interface AutocompleteSuggestion {
   placeType?: string;
   category?: string;
   /** Source provider for logging / debugging */
-  source?: 'mapbox' | 'nominatim' | 'gazetteer';
+  source?: 'mapbox' | 'nominatim' | 'gazetteer' | 'community';
 }
 
 export interface RetrievedPlace {
@@ -547,21 +548,29 @@ export async function autocomplete(
   // 1. Instant local gazetteer lookup (synchronous, zero latency)
   const gazetteerResults = searchGazetteer(query, 6, prox);
 
-  // 2. Mapbox Geocoding v6 with autocomplete: true
+  // 2. Community places — user-contributed locations from the database
+  const communityPromise = searchCommunityPlaces(query, 6, prox);
+
+  // 3. Mapbox Geocoding v6 with autocomplete: true
   const mapboxPromise = mapboxGeocodeAutocomplete(query, { proximity: prox, country, limit });
 
-  // 3. Nominatim / OpenStreetMap (search in parallel with Mapbox)
+  // 4. Nominatim / OpenStreetMap (search in parallel with Mapbox)
   const nominatimPromise = nominatimAutocomplete(query, { proximity: prox, limit: 5 });
 
-  // Wait for both API providers in parallel
-  const [mapboxResults, nominatimResults] = await Promise.allSettled([
+  // Wait for all API providers in parallel
+  const [communityResults, mapboxResults, nominatimResults] = await Promise.allSettled([
+    communityPromise,
     mapboxPromise,
     nominatimPromise,
   ]);
 
+  const community = communityResults.status === 'fulfilled' ? communityResults.value : [];
   const mapbox = mapboxResults.status === 'fulfilled' ? mapboxResults.value : [];
   const nominatim = nominatimResults.status === 'fulfilled' ? nominatimResults.value : [];
 
+  if (communityResults.status === 'rejected') {
+    console.warn('[GeocodingService] Community places search failed:', communityResults.reason);
+  }
   if (mapboxResults.status === 'rejected') {
     console.warn('[GeocodingService] Mapbox autocomplete failed:', mapboxResults.reason);
   }
@@ -569,8 +578,9 @@ export async function autocomplete(
     console.warn('[GeocodingService] Nominatim autocomplete failed:', nominatimResults.reason);
   }
 
-  // Merge: gazetteer first (instant, reliable), then Mapbox, then Nominatim
-  const merged = deduplicateSuggestions([...gazetteerResults, ...mapbox, ...nominatim]);
+  // Merge: gazetteer first (instant), then community (user-contributed),
+  // then Mapbox (API), then Nominatim (supplementary)
+  const merged = deduplicateSuggestions([...gazetteerResults, ...community, ...mapbox, ...nominatim]);
 
   return merged.slice(0, limit);
 }
@@ -614,6 +624,83 @@ async function mapboxGeocodeAutocomplete(
     placeType: f.properties.feature_type,
     source: 'mapbox' as const,
   }));
+}
+
+/**
+ * Search community places (user-contributed locations) from the database.
+ * These are locations added by users via Google Maps links or pin drops.
+ * Results are scored by match quality, usage count, and proximity.
+ */
+async function searchCommunityPlaces(
+  query: string,
+  limit = 6,
+  proximity?: { lat: number; lng: number },
+): Promise<AutocompleteSuggestion[]> {
+  try {
+    const lower = query.toLowerCase().trim();
+    if (lower.length < 2) return [];
+
+    const places = await prisma.communityPlace.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { address: { contains: query, mode: 'insensitive' } },
+          { category: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ usageCount: 'desc' }, { createdAt: 'desc' }],
+      take: limit * 3, // Fetch extra for proximity sorting
+    });
+
+    if (places.length === 0) return [];
+
+    // Score and sort by relevance + proximity
+    type ScoredPlace = { place: typeof places[number]; score: number };
+    const scored: ScoredPlace[] = places.map((p) => {
+      let score = 0;
+      const nameLower = p.name.toLowerCase();
+
+      // Name matching
+      if (nameLower === lower) score += 100;
+      else if (nameLower.startsWith(lower)) score += 80;
+      else if (nameLower.includes(lower)) score += 60;
+      else score += 30; // matched via address or category
+
+      // Usage count bonus (popular places rank higher)
+      score += Math.min(p.usageCount * 3, 30);
+
+      // Verified bonus
+      if (p.verified) score += 15;
+
+      // Proximity bonus
+      if (proximity) {
+        const dist = Math.abs(p.latitude - proximity.lat) + Math.abs(p.longitude - proximity.lng);
+        if (dist < 0.1) score += 10;       // ~10km
+        else if (dist < 0.3) score += 5;   // ~30km
+        else if (dist < 1.0) score += 2;   // ~100km
+      }
+
+      return { place: p, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    return scored.slice(0, limit).map((s, i) => ({
+      id: `com-${s.place.id}`,
+      text: s.place.name,
+      placeName: s.place.address
+        ? `${s.place.name}, ${s.place.address}`
+        : `${s.place.name}, Ghana`,
+      latitude: s.place.latitude,
+      longitude: s.place.longitude,
+      placeType: s.place.placeType,
+      category: s.place.category ?? undefined,
+      source: 'community' as const,
+    }));
+  } catch (err) {
+    console.warn('[GeocodingService] Community places search failed:', err);
+    return [];
+  }
 }
 
 /**
@@ -776,6 +863,28 @@ export async function retrievePlace(
   // The client should skip retrieve for these, but handle gracefully
   if (mapboxId.startsWith('nom-')) {
     return null; // Coordinates already in suggestion; client should use them
+  }
+
+  // Community place entries — look up from database and increment usage
+  if (mapboxId.startsWith('com-')) {
+    const placeId = mapboxId.replace('com-', '');
+    try {
+      const place = await prisma.communityPlace.update({
+        where: { id: placeId },
+        data: { usageCount: { increment: 1 } },
+      });
+      return {
+        id: mapboxId,
+        name: place.name,
+        fullAddress: place.address ?? `${place.name}, Ghana`,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        placeType: place.placeType,
+        plusCode: formatPlusCode(place.latitude, place.longitude),
+      };
+    } catch {
+      return null;
+    }
   }
 
   // Mapbox IDs — use Search Box retrieve for dXJuO... IDs,

@@ -263,6 +263,9 @@ model User {
   featureRequests       FeatureRequest[]      @relation("FeatureRequestAuthor")
   featureRequestUpvotes FeatureRequestUpvote[]
 
+  // Community places (user-contributed locations)
+  communityPlaces       CommunityPlace[]
+
   @@index([phone])
   @@index([email])
   @@index([role, status])
@@ -1619,4 +1622,40 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ============================================================
+// COMMUNITY PLACES — user-contributed locations that grow the
+// platform's geocoding database over time. Sources:
+// • Google Maps link paste (user finds it on Google Maps)
+// • Manual pin drop on app map
+// • Imported from external datasets
+// ============================================================
+
+model CommunityPlace {
+  id              String    @id @default(cuid())
+  name            String                            // display name (from reverse-geocode or user input)
+  address         String?                           // full formatted address
+  latitude        Float
+  longitude       Float
+  plusCode         String?                           // Open Location Code for areas without addresses
+  placeType       String    @default("place")       // place, poi, business, landmark, etc.
+  category        String?                           // shop, restaurant, hospital, school, etc.
+  source          String    @default("google_maps")  // google_maps | pin_drop | imported
+  googleMapsUrl   String?                           // original Google Maps link (for verification)
+  contributedById String                            // user who added it
+  contributedBy   User      @relation(fields: [contributedById], references: [id], onDelete: Cascade)
+  usageCount      Int       @default(1)             // how many times this place has been used in orders
+  verified        Boolean   @default(false)         // admin-verified or threshold-verified
+  region          String?                           // region name for fast filtering (e.g., "Greater Accra")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([latitude, longitude])
+  @@index([name])
+  @@index([region])
+  @@index([contributedById])
+  @@index([source])
+  @@index([usageCount])
+  @@map("community_places")
 }
