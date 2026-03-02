@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -9,7 +9,10 @@ import { formatCurrency } from '@riderguy/utils';
 import { RiderAvailability, type Order } from '@riderguy/types';
 import { useRiderAvailability } from '@/hooks/use-rider-availability';
 import { useSocket } from '@/hooks/use-socket';
-import { STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
+import { useConnectionHealth } from '@/hooks/use-connection-health';
+import { useWakeLock } from '@/hooks/use-wake-lock';
+import { STATUS_CONFIG, PACKAGE_TYPES, API_BASE_URL } from '@/lib/constants';
+import { tokenStorage } from '@riderguy/auth';
 import {
   Power,
   TrendingUp,
@@ -21,6 +24,12 @@ import {
   Zap,
   Clock,
   Trophy,
+  Wifi,
+  WifiOff,
+  Signal,
+  SignalLow,
+  SignalMedium,
+  SignalHigh,
 } from 'lucide-react';
 
 const RiderMap = dynamic(() => import('@/components/rider-map').then(mod => mod.RiderMap), { ssr: false });
@@ -34,7 +43,60 @@ interface WalletData {
 export default function DashboardPage() {
   const { api, user } = useAuth();
   const { availability, toggleAvailability, loading: toggling, gpsError, onboardingStatus } = useRiderAvailability();
-  const { connected: socketConnected, socketError } = useSocket();
+  const { connected: socketConnected, socketError, reconnecting, reconnectAttempt } = useSocket();
+  const isOnline = availability === RiderAvailability.ONLINE;
+
+  // ── Persistent rider session systems ──
+
+  // Connection health: adaptive heartbeats, quality monitoring, background sync
+  const connectionHealth = useConnectionHealth(isOnline);
+
+  // Screen wake lock: prevents device sleep while rider is ONLINE
+  useWakeLock(isOnline);
+
+  // Notify service worker when rider goes online/offline for background sync
+  useEffect(() => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: isOnline ? 'RIDER_ONLINE' : 'RIDER_OFFLINE',
+      });
+    }
+  }, [isOnline]);
+
+  // Listen for background heartbeat ticks from service worker
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'HEARTBEAT_TICK' && isOnline && api) {
+        // Service worker triggered a background heartbeat — sync location
+        navigator.geolocation?.getCurrentPosition(
+          (pos) => {
+            api.post('/riders/location', {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            }).catch(() => {});
+
+            // Also try to sync via service worker background sync
+            navigator.serviceWorker.controller?.postMessage({
+              type: 'SYNC_LOCATION',
+              data: {
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                token: tokenStorage.getAccessToken(),
+                apiUrl: API_BASE_URL,
+              },
+            });
+          },
+          () => {},
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 }
+        );
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [isOnline, api]);
 
   // ── Dashboard data via React Query (cached + background refresh) ──
 
@@ -84,9 +146,24 @@ export default function DashboardPage() {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }, []);
 
-  const isOnline = availability === RiderAvailability.ONLINE;
-
   const firstName = user?.firstName || 'Rider';
+
+  // Connection quality icon helper
+  const QualityIcon = connectionHealth.quality === 'excellent' ? SignalHigh
+    : connectionHealth.quality === 'good' ? SignalMedium
+    : connectionHealth.quality === 'poor' ? SignalLow
+    : WifiOff;
+
+  // Format session duration as HH:MM:SS
+  const sessionTime = useMemo(() => {
+    const s = connectionHealth.sessionDurationSec;
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hrs > 0) return `${hrs}h ${mins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  }, [connectionHealth.sessionDurationSec]);
 
   // Derive map marker status: offline → gray, online (no rides) → green, on-route → red
   const mapStatus: RiderMapStatus = !isOnline ? 'offline' : orders.length > 0 ? 'on-route' : 'online';
@@ -107,7 +184,7 @@ export default function DashboardPage() {
           <h1 className="text-primary text-lg font-bold -mt-0.5">{firstName}</h1>
         </div>
 
-        {/* Status badge */}
+        {/* Status badge — shows connection quality when online */}
         <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold tracking-wide shadow-theme-card backdrop-blur-xl ${
           isOnline
             ? 'bg-brand-500/15 text-brand-600 dark:text-accent-400 border border-brand-500/25'
@@ -115,10 +192,21 @@ export default function DashboardPage() {
         }`}>
           <div className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
           {isOnline ? 'Online' : 'Offline'}
-          {/* Socket connection indicator */}
-          <div className={`h-2 w-2 rounded-full ${
-            socketConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'
-          }`} title={socketConnected ? 'Socket connected' : 'Socket disconnected'} />
+          {/* Connection quality indicator (only when online) */}
+          {isOnline && (
+            <QualityIcon className={`h-3.5 w-3.5 ${
+              connectionHealth.quality === 'excellent' ? 'text-green-400' :
+              connectionHealth.quality === 'good' ? 'text-brand-400' :
+              connectionHealth.quality === 'poor' ? 'text-amber-400 animate-pulse' :
+              'text-red-500 animate-pulse'
+            }`} />
+          )}
+          {/* Socket dot — fallback indicator */}
+          {!isOnline && (
+            <div className={`h-2 w-2 rounded-full ${
+              socketConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'
+            }`} title={socketConnected ? 'Socket connected' : 'Socket disconnected'} />
+          )}
         </div>
       </header>
 
@@ -149,11 +237,49 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Socket Error Banner */}
-        {!socketConnected && isOnline && (
+        {/* Session Timer — shows how long rider has been online */}
+        {isOnline && (
+          <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-brand-500/5 border border-brand-500/10 text-xs">
+            <div className="flex items-center gap-2 text-muted">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Session: <span className="text-primary font-semibold tabular-nums">{sessionTime}</span></span>
+            </div>
+            <div className="flex items-center gap-2 text-muted">
+              <Wifi className="h-3.5 w-3.5" />
+              <span className="capitalize">{connectionHealth.quality}</span>
+              {connectionHealth.latencyMs > 0 && (
+                <span className="tabular-nums text-[10px]">{connectionHealth.latencyMs}ms</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Connection Warning Banners */}
+        {isOnline && reconnecting && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium">
+            <div className="h-4 w-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
+            Reconnecting to server (attempt #{reconnectAttempt})… Your session is safe.
+          </div>
+        )}
+
+        {!socketConnected && isOnline && !reconnecting && (
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
             <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
             Socket disconnected — you won&apos;t receive delivery requests{socketError ? `: ${socketError}` : ''}
+          </div>
+        )}
+
+        {isOnline && connectionHealth.quality === 'poor' && socketConnected && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/15 text-amber-500 text-xs font-medium">
+            <SignalLow className="h-3.5 w-3.5 shrink-0" />
+            Weak connection — heartbeat increased to keep you online
+          </div>
+        )}
+
+        {isOnline && !connectionHealth.networkOnline && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+            <WifiOff className="h-3.5 w-3.5 shrink-0" />
+            No network — your session is saved. Will reconnect automatically when signal returns.
           </div>
         )}
 

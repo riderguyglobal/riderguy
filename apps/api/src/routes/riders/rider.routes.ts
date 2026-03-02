@@ -12,6 +12,7 @@ import {
 import { VehicleService } from '../../services/vehicle.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { NotificationService } from '../../services/notification.service';
+import { recordHeartbeat, forceRiderOffline } from '../../services/presence.service';
 import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
 import type { Request } from 'express';
@@ -112,6 +113,11 @@ router.patch(
       data: updateData,
     });
 
+    // Sync presence manager when rider toggles availability
+    if (availability === 'OFFLINE') {
+      await forceRiderOffline(req.user!.userId);
+    }
+
     res.status(StatusCodes.OK).json({ success: true, data: profile });
   })
 );
@@ -132,6 +138,9 @@ router.post(
         lastLocationUpdate: new Date(),
       },
     });
+
+    // Record heartbeat — keeps presence alive for the rider session
+    recordHeartbeat(req.user!.userId, { latitude, longitude });
 
     res.status(StatusCodes.OK).json({ success: true, data: { latitude, longitude } });
   })

@@ -5,6 +5,7 @@ import { logger } from './lib/logger';
 import { prisma } from '@riderguy/database';
 import { initSocketServer } from './socket';
 import { startWorkers, stopWorkers } from './jobs/workers';
+import { startPresenceManager, stopPresenceManager } from './services/presence.service';
 
 // ============================================================
 // Server bootstrap
@@ -17,6 +18,9 @@ initSocketServer(httpServer);
 
 // Start BullMQ workers (payouts, receipts, commissions)
 startWorkers();
+
+// Start rider presence manager (heartbeat tracking, stale-rider cleanup)
+startPresenceManager();
 
 const server = httpServer.listen(config.port, () => {
   logger.info(
@@ -34,6 +38,8 @@ for (const signal of signals) {
     logger.info({ signal }, 'Received shutdown signal');
     server.close(async () => {
       logger.info('HTTP server closed');
+      await stopPresenceManager();
+      logger.info('Presence manager stopped');
       await stopWorkers();
       logger.info('BullMQ workers stopped');
       await prisma.$disconnect();

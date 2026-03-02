@@ -10,6 +10,11 @@ import type {
 import { prisma } from '@riderguy/database';
 import { handleOfferResponse } from '../services/auto-dispatch.service';
 import * as ChatService from '../services/chat.service';
+import {
+  riderConnected,
+  riderDisconnected,
+  recordHeartbeat,
+} from '../services/presence.service';
 
 // ============================================================
 // Socket.IO Server — real-time layer for RiderGuy
@@ -70,6 +75,11 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
     // Auto-join role-based room for targeted broadcasts (e.g., job:new to riders only)
     socket.join(`role:${role}`);
+
+    // ── Register rider presence (keeps API gates open) ──
+    if (role === 'RIDER') {
+      await riderConnected(userId, socket.id!);
+    }
 
     // Cache user firstName to avoid DB queries on typing events
     const connectedUser = await prisma.user.findUnique({ where: { id: userId }, select: { firstName: true } });
@@ -146,11 +156,20 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
           });
         }
 
+        // Record heartbeat — keeps the rider "alive" in the presence system
+        recordHeartbeat(userId, { latitude, longitude });
+
         ack?.({ success: true });
       } catch (err) {
         logger.error({ err, userId }, 'Failed to update rider location');
         ack?.({ success: false });
       }
+    });
+
+    // ── Rider heartbeat (lightweight keep-alive, no GPS required) ──
+    socket.on('rider:heartbeat' as any, (data: any, ack: any) => {
+      recordHeartbeat(userId, data?.latitude && data?.longitude ? data : undefined);
+      ack?.({ success: true, serverTime: Date.now() });
     });
 
     // ── Subscribe to order updates (with access control) ──
@@ -341,9 +360,13 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
       });
     });
 
-    // ── Disconnect ──
-    socket.on('disconnect', (reason) => {
+    // ── Disconnect — start grace period, do NOT immediately go OFFLINE ──
+    socket.on('disconnect', async (reason) => {
       logger.info({ socketId: socket.id, userId, reason }, 'WebSocket disconnected');
+
+      if (role === 'RIDER') {
+        await riderDisconnected(userId, reason);
+      }
     });
   });
 

@@ -56,3 +56,128 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// ============================================================
+// Background Sync — keeps rider location fresh even when the
+// browser tab is backgrounded or the network briefly drops.
+//
+// When the main thread posts a 'SYNC_LOCATION' message:
+// 1. We store it in an IDB-like queue
+// 2. On next sync event (or immediately if online), POST to API
+// 3. The periodic sync keeps heartbeat alive in background
+// ============================================================
+
+// ── Background Sync: Location Queue ──
+
+const LOCATION_SYNC_TAG = 'rider-location-sync';
+const HEARTBEAT_SYNC_TAG = 'rider-heartbeat';
+
+interface QueuedLocation {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+  token: string;
+  apiUrl: string;
+}
+
+// Simple in-memory queue (persists across SW lifecycle via global scope)
+let pendingLocations: QueuedLocation[] = [];
+
+// Listen for messages from the main thread
+self.addEventListener('message', (event) => {
+  const { type, data } = event.data ?? {};
+
+  if (type === 'SYNC_LOCATION') {
+    pendingLocations.push({
+      latitude: data.latitude,
+      longitude: data.longitude,
+      timestamp: Date.now(),
+      token: data.token,
+      apiUrl: data.apiUrl,
+    });
+
+    // Try to sync immediately if online
+    if (navigator.onLine) {
+      flushLocationQueue();
+    } else {
+      // Register for background sync when connectivity returns
+      self.registration.sync?.register(LOCATION_SYNC_TAG).catch(() => {});
+    }
+  }
+
+  if (type === 'RIDER_ONLINE') {
+    // Register periodic background sync (if supported)
+    registerPeriodicSync();
+  }
+
+  if (type === 'RIDER_OFFLINE') {
+    // Flush any remaining locations
+    flushLocationQueue();
+    pendingLocations = [];
+  }
+});
+
+// ── Background Sync event handler ──
+
+self.addEventListener('sync', (event: any) => {
+  if (event.tag === LOCATION_SYNC_TAG) {
+    event.waitUntil(flushLocationQueue());
+  }
+});
+
+// ── Periodic Background Sync (keeps heartbeat alive) ──
+
+self.addEventListener('periodicsync', (event: any) => {
+  if (event.tag === HEARTBEAT_SYNC_TAG) {
+    event.waitUntil(sendBackgroundHeartbeat());
+  }
+});
+
+async function registerPeriodicSync(): Promise<void> {
+  try {
+    const registration = self.registration as any;
+    if (registration.periodicSync) {
+      await registration.periodicSync.register(HEARTBEAT_SYNC_TAG, {
+        minInterval: 60_000, // Minimum 1 minute (browser may throttle further)
+      });
+      console.log('[SW] Periodic background sync registered');
+    }
+  } catch (err) {
+    console.warn('[SW] Periodic sync not supported:', err);
+  }
+}
+
+async function flushLocationQueue(): Promise<void> {
+  if (pendingLocations.length === 0) return;
+
+  // Take the most recent location (no need to send stale ones)
+  const latest = pendingLocations[pendingLocations.length - 1];
+  pendingLocations = [];
+
+  try {
+    await fetch(`${latest.apiUrl}/riders/location`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${latest.token}`,
+      },
+      body: JSON.stringify({
+        latitude: latest.latitude,
+        longitude: latest.longitude,
+      }),
+    });
+    console.log('[SW] Background location sync successful');
+  } catch (err) {
+    console.warn('[SW] Background location sync failed:', err);
+    // Re-queue for next sync attempt
+    pendingLocations.push(latest);
+  }
+}
+
+async function sendBackgroundHeartbeat(): Promise<void> {
+  // Notify all clients to send a heartbeat
+  const clients = await self.clients.matchAll({ type: 'window' });
+  for (const client of clients) {
+    client.postMessage({ type: 'HEARTBEAT_TICK' });
+  }
+}

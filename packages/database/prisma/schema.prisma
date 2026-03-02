@@ -330,6 +330,16 @@ model RiderProfile {
   currentLatitude    Float?
   currentLongitude   Float?
   lastLocationUpdate DateTime?
+
+  // ── Presence tracking — keeps API gates open while rider is ONLINE ──
+  lastHeartbeat      DateTime?            // Server-side heartbeat timestamp (updated every ping)
+  lastSeenAt         DateTime?            // Last time any activity detected (socket or REST)
+  socketId           String?              // Current Socket.IO connection id
+  isConnected        Boolean              @default(false) // True if socket is currently alive
+  sessionStartedAt   DateTime?            // When the current ONLINE session began
+  totalOnlineSeconds Int                  @default(0)     // Cumulative online time for analytics
+  connectionQuality  String?              // "excellent" | "good" | "poor" | "disconnected"
+
   referredByPartnerId String?
   referredByPartner  PartnerProfile?      @relation("ReferredRiders", fields: [referredByPartnerId], references: [id])
   createdAt          DateTime             @default(now())
