@@ -557,7 +557,8 @@ describe('Withdrawal Admin Logic', () => {
     const found = await prisma.withdrawal.findUnique({ where: { id: 'w-2' } });
     expect(found!.status).toBe('PENDING');
 
-    await (enqueuePayoutJob as ReturnType<typeof vi.fn>)({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (enqueuePayoutJob as any)({
       withdrawalId: found!.id,
       userId: found!.userId,
       amount: Number(found!.amount),
