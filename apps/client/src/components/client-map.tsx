@@ -164,6 +164,7 @@ export default function ClientMap() {
     const handleRiderLocation = (data: { riderId: string; latitude: number; longitude: number }) => {
       const core = coreRef.current;
       if (!core) return;
+      if (!Number.isFinite(data.longitude) || !Number.isFinite(data.latitude)) return;
 
       const existing = riderMarkersRef.current.get(data.riderId);
       if (existing) {

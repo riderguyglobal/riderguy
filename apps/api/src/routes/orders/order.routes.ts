@@ -234,11 +234,19 @@ router.get(
     if (!mapboxToken) throw ApiError.internal('Map service not configured');
 
     const routeProfile = driveProfile === 'cycling' ? 'cycling' : driveProfile === 'walking' ? 'walking' : 'driving-traffic';
-    const url = `https://api.mapbox.com/directions/v5/mapbox/${routeProfile}/${coordinates}?geometries=geojson&overview=full&steps=true&alternatives=true&annotations=congestion,duration,distance&language=en&access_token=${mapboxToken}`;
-    const response = await fetch(url);
+    const baseParams = `?geometries=geojson&overview=full&steps=true&alternatives=true&annotations=congestion,duration,distance&language=en&access_token=${mapboxToken}`;
+    let url = `https://api.mapbox.com/directions/v5/mapbox/${routeProfile}/${coordinates}${baseParams}`;
+    let response = await fetch(url);
+
+    // Fallback: if driving-traffic fails (not available in all regions), retry with plain driving
+    if (!response.ok && routeProfile === 'driving-traffic') {
+      url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}${baseParams}`;
+      response = await fetch(url);
+    }
 
     if (!response.ok) {
-      throw ApiError.internal('Directions service unavailable');
+      const body = await response.text().catch(() => '');
+      throw ApiError.internal(`Directions service unavailable: ${response.status} ${body.slice(0, 200)}`);
     }
 
     const data = await response.json();

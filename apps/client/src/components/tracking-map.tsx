@@ -124,6 +124,10 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     if (!core) return;
     const { map, mapboxgl: mapboxglLib } = core;
 
+    // Helper — guard against NaN coords that crash Mapbox
+    const isValid = (c: [number, number] | null): c is [number, number] =>
+      c !== null && Number.isFinite(c[0]) && Number.isFinite(c[1]);
+
     // Clear old markers
     removeMarkers(markersRef.current);
     markersRef.current = [];
@@ -131,7 +135,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     const boundsCoords: [number, number][] = [];
 
     // Pickup marker (with Plus Code)
-    if (pickupCoords) {
+    if (isValid(pickupCoords)) {
       const pc = formatPlusCode(pickupCoords[1], pickupCoords[0]);
       const m = createPickupMarker(mapboxglLib, pickupCoords, {
         popup: `Pickup<br/><span style="font-size:11px;opacity:0.7">${pc.display}</span>`,
@@ -142,7 +146,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     }
 
     // Dropoff marker (with Plus Code)
-    if (dropoffCoords) {
+    if (isValid(dropoffCoords)) {
       const pc = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
       const m = createDropoffMarker(mapboxglLib, dropoffCoords, {
         popup: `Dropoff<br/><span style="font-size:11px;opacity:0.7">${pc.display}</span>`,
@@ -153,7 +157,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     }
 
     // Rider marker
-    if (riderCoords) {
+    if (isValid(riderCoords)) {
       if (riderMarkerRef.current) {
         riderMarkerRef.current.setLngLat(riderCoords);
       } else {
@@ -170,8 +174,8 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     }
 
     // Draw/refresh route
-    const origin = riderCoords ?? pickupCoords;
-    const dest = DELIVERY_STATUSES.has(status) ? dropoffCoords : pickupCoords;
+    const origin = isValid(riderCoords) ? riderCoords : isValid(pickupCoords) ? pickupCoords : null;
+    const dest = DELIVERY_STATUSES.has(status) ? (isValid(dropoffCoords) ? dropoffCoords : null) : (isValid(pickupCoords) ? pickupCoords : null);
 
     if (origin && dest && origin !== dest) {
       // Only refresh if rider has moved > threshold

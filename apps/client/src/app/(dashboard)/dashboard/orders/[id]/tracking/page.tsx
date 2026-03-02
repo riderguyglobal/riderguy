@@ -95,8 +95,12 @@ export default function TrackingPage() {
     const onUpdate = (data: Record<string, unknown>) => {
       if (data.orderId === id) refetch();
     };
-    const onLocation = (data: { lat: number; lng: number }) => {
-      setRiderCoords([data.lng, data.lat]);
+    const onLocation = (data: { latitude: number; longitude: number; lat?: number; lng?: number }) => {
+      const lng = data.longitude ?? data.lng;
+      const lat = data.latitude ?? data.lat;
+      if (typeof lng === 'number' && typeof lat === 'number' && !Number.isNaN(lng) && !Number.isNaN(lat)) {
+        setRiderCoords([lng, lat]);
+      }
     };
     const onMessage = (msg: { id: string; content: string; senderId: string; createdAt: string }) => {
       setMessages((prev) => [...prev, msg]);
