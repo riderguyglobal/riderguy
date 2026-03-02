@@ -4,6 +4,9 @@
 #
 # Deploy: Connect this repo on Render → it auto-detects this file.
 # Or manually: Dashboard → New → Blueprint → select this repo.
+#
+# Keys marked `sync: false` must be set manually in the Render
+# dashboard after deployment.
 # ============================================================
 
 services:
@@ -21,19 +24,26 @@ services:
     startCommand: cd apps/api && node dist/index.js
     healthCheckPath: /health
     envVars:
+      # ── Core ──
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "4000"
+
+      # ── Database (Neon PostgreSQL) ──
       - key: DATABASE_URL
-        sync: false  # Set manually — Neon pooled connection string
+        sync: false  # Neon pooled connection string
       - key: DIRECT_URL
-        sync: false  # Set manually — Neon direct (non-pooled) connection string
+        sync: false  # Neon direct (non-pooled) connection string
+
+      # ── Redis (auto-injected from riderguy-redis service) ──
       - key: REDIS_URL
         fromService:
           name: riderguy-redis
           type: redis
           property: connectionString
+
+      # ── JWT Auth ──
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -42,26 +52,56 @@ services:
         value: "15m"
       - key: JWT_REFRESH_EXPIRES_IN
         value: "7d"
-      - key: SENDGRID_API_KEY
-        sync: false  # Set manually
-      - key: EMAIL_FROM
-        value: noreply@riderguy.com
+
+      # ── S3 / Cloudflare R2 (file uploads) ──
+      - key: S3_ENDPOINT
+        sync: false  # e.g. https://<account-id>.r2.cloudflarestorage.com
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        value: riderguy-uploads
+      - key: S3_REGION
+        value: auto
+
+      # ── Paystack (payments) ──
       - key: PAYSTACK_SECRET_KEY
-        sync: false  # Set manually
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false  # Same as secret key for Paystack
+
+      # ── mNotify SMS (Ghana) ──
+      - key: MNOTIFY_API_KEY
+        sync: false
+      - key: MNOTIFY_SENDER_ID
+        value: Riderguy
+
+      # ── Email (SendGrid) ──
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        value: noreply@riderguy.com
+
+      # ── Firebase Cloud Messaging (push notifications) ──
       - key: FIREBASE_PROJECT_ID
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
-      - key: MNOTIFY_API_KEY
-        sync: false  # Set manually — mNotify SMS API key
-      - key: MNOTIFY_SENDER_ID
-        value: Riderguy
+
+      # ── Mapbox (directions & geocoding) ──
+      - key: MAPBOX_ACCESS_TOKEN
+        sync: false
+
+      # ── CORS & URLs ──
       - key: APP_URL
         value: https://app.riderguy.com
       - key: CORS_ORIGINS
-        value: "https://riderguy.com,https://app.riderguy.com,https://rider.riderguy.com,https://admin.riderguy.com"
+        value: "https://riderguy.com,https://app.riderguy.com,https://rider.riderguy.com,https://admin.riderguy.com,http://localhost:3000,http://localhost:3001,http://localhost:3002"
 
   # ── Redis (for rate limiting & BullMQ job queue) ────────────
   - type: redis
