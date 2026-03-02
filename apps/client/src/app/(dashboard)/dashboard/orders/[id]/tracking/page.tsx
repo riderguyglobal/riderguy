@@ -408,11 +408,11 @@ export default function TrackingPage() {
             </button>
           )}
 
-          {!isComplete && !isCancelled && order.status === 'PENDING' && (
+          {!isComplete && !isCancelled && ['PENDING', 'SEARCHING_RIDER'].includes(order.status) && (
             <button
               onClick={async () => {
                 try {
-                  await api!.patch(`/orders/${id}/cancel`);
+                  await api!.post(`/orders/${id}/cancel`);
                   refetch();
                 } catch { /* ignored */ }
               }}

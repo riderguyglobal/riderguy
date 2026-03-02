@@ -3,6 +3,7 @@ import { generateOrderNumber, generateDeliveryPin } from '@riderguy/utils';
 import { XpAction } from '@riderguy/types';
 import { calculatePrice } from './pricing.service';
 import { awardXp, getCommissionRate } from './gamification.service';
+import { cancelDispatch } from './auto-dispatch.service';
 import { ApiError } from '../lib/api-error';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
@@ -500,6 +501,9 @@ export async function cancelOrder(orderId: string, userId: string, reason?: stri
   if (!cancellableStatuses.includes(order.status)) {
     throw ApiError.badRequest('Order can no longer be cancelled');
   }
+
+  // Stop the auto-dispatch loop if it's actively seeking riders
+  cancelDispatch(orderId);
 
   return transitionStatus(orderId, 'CANCELLED_BY_CLIENT', userId, reason ?? 'Cancelled by client');
 }
