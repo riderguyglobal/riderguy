@@ -5,12 +5,22 @@ export const prisma = {
   order: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     aggregate: vi.fn(),
     count: vi.fn(),
   },
   user: {
     findUnique: vi.fn(),
+  },
+  riderProfile: {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    update: vi.fn(),
+  },
+  orderStatusHistory: {
+    create: vi.fn(),
   },
   withdrawal: {
     findFirst: vi.fn(),
@@ -32,5 +42,8 @@ export const prisma = {
   },
   zone: {
     findMany: vi.fn(),
+  },
+  notification: {
+    create: vi.fn(),
   },
 };
