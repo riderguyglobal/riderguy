@@ -72,17 +72,27 @@ router.get(
   })
 );
 
-/** PATCH /riders/availability */
+/** PATCH /riders/availability — also accepts initial GPS so lat/lng is never null */
 router.patch(
   '/availability',
   requireRole(UserRole.RIDER),
   validate(updateAvailabilitySchema),
   asyncHandler(async (req, res) => {
-    const { availability } = req.body;
+    const { availability, latitude, longitude } = req.body;
+
+    // Build update data — always set availability
+    const updateData: Record<string, unknown> = { availability };
+
+    // If coordinates provided (rider going ONLINE), persist initial GPS immediately
+    if (typeof latitude === 'number' && typeof longitude === 'number') {
+      updateData.currentLatitude = latitude;
+      updateData.currentLongitude = longitude;
+      updateData.lastLocationUpdate = new Date();
+    }
 
     const profile = await prisma.riderProfile.update({
       where: { userId: req.user!.userId },
-      data: { availability },
+      data: updateData,
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });

@@ -32,7 +32,7 @@ interface WalletData {
 
 export default function DashboardPage() {
   const { api, user } = useAuth();
-  const { availability, toggleAvailability, loading: toggling } = useRiderAvailability();
+  const { availability, toggleAvailability, loading: toggling, gpsError } = useRiderAvailability();
 
   // ── Dashboard data via React Query (cached + background refresh) ──
 
@@ -142,6 +142,14 @@ export default function DashboardPage() {
             )}
           </button>
         </div>
+
+        {/* GPS Error Banner */}
+        {gpsError && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+            {gpsError}
+          </div>
+        )}
 
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-3 gap-3">

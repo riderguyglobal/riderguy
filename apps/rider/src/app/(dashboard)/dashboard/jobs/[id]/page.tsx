@@ -39,7 +39,7 @@ export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { api, user } = useAuth();
-  const { socket, subscribeToOrder, unsubscribeFromOrder, emitLocation } = useSocket();
+  const { socket, subscribeToOrder, unsubscribeFromOrder } = useSocket();
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,7 +83,9 @@ export default function JobDetailPage() {
     };
   }, [id, socket, subscribeToOrder, unsubscribeFromOrder]);
 
-  // Track GPS
+  // Track GPS — only update local map marker here.
+  // The availability hook already sends location via socket + REST heartbeat,
+  // so we do NOT call emitLocation here to avoid duplicate DB writes.
   useEffect(() => {
     if (!order || order.status === 'DELIVERED' || order.status.startsWith('CANCELLED')) return;
 
@@ -91,14 +93,13 @@ export default function JobDetailPage() {
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         setRiderPos({ lat, lng });
-        emitLocation(lat, lng, pos.coords.heading ?? undefined);
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 3000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [order?.status, emitLocation]);
+  }, [order?.status]);
 
   const advanceStatus = async () => {
     if (!api || !order || updating) return;

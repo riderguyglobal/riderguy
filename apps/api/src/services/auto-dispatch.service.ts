@@ -26,9 +26,9 @@ import type { JobOffer } from '@riderguy/types';
 // ── Configuration ──
 
 const OFFER_TIMEOUT_MS = 30_000;           // 30 seconds per offer
-const MAX_SEARCH_RADIUS_KM = 25;           // Maximum search radius
+const MAX_SEARCH_RADIUS_KM = 8;            // Maximum search radius (8 km — realistic dispatch range)
 const MAX_DISPATCH_ATTEMPTS = 10;           // Max riders to try before giving up
-const MIN_GPS_FRESHNESS_MS = 15 * 60_000;  // Skip riders with GPS older than 15 min
+const MIN_GPS_FRESHNESS_MS = 10 * 60_000;  // Skip riders with GPS older than 10 min
 
 // ── Score Weights (must sum to 1.0) ──
 
@@ -72,11 +72,8 @@ export function proximityScore(distanceKm: number): number {
   if (distanceKm <= 2)   return 85;
   if (distanceKm <= 3)   return 75;
   if (distanceKm <= 5)   return 60;
-  if (distanceKm <= 8)   return 45;
-  if (distanceKm <= 12)  return 30;
-  if (distanceKm <= 20)  return 15;
-  if (distanceKm <= 25)  return 5;
-  return 0;
+  if (distanceKm <= 8)   return 30;
+  return 0; // > 8 km — too far, excluded
 }
 
 export function ratingScore(avgRating: number | null): number {
