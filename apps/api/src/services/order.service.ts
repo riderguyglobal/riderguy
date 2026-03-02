@@ -1,7 +1,7 @@
 import { prisma } from '@riderguy/database';
 import { generateOrderNumber, generateDeliveryPin } from '@riderguy/utils';
 import { XpAction } from '@riderguy/types';
-import { calculatePrice } from './pricing.service';
+import { calculatePrice, fetchRouteDistance } from './pricing.service';
 import { awardXp, getCommissionRate } from './gamification.service';
 import { cancelDispatch } from './auto-dispatch.service';
 import { ApiError } from '../lib/api-error';
@@ -49,7 +49,24 @@ export async function getEstimate(input: {
   packageType: PackageType;
   additionalStops?: number;
   scheduleType?: 'SAME_DAY' | 'NEXT_DAY' | 'RECURRING';
+  isExpress?: boolean;
+  packageWeightKg?: number;
+  paymentMethod?: PaymentMethod;
+  promoCode?: string;
+  clientId?: string;
 }) {
+  // Try to get actual route distance from Mapbox
+  let routeDistanceKm: number | undefined;
+  const routeData = await fetchRouteDistance(
+    input.pickupLatitude,
+    input.pickupLongitude,
+    input.dropoffLatitude,
+    input.dropoffLongitude,
+  );
+  if (routeData) {
+    routeDistanceKm = routeData.distanceKm;
+  }
+
   const price = await calculatePrice(
     input.pickupLatitude,
     input.pickupLongitude,
@@ -59,12 +76,19 @@ export async function getEstimate(input: {
     {
       additionalStops: input.additionalStops,
       scheduleType: input.scheduleType,
+      isExpress: input.isExpress,
+      packageWeightKg: input.packageWeightKg,
+      paymentMethod: input.paymentMethod,
+      promoCode: input.promoCode,
+      clientId: input.clientId,
+      routeDistanceKm,
     },
   );
 
   return {
     distanceKm: price.distanceKm,
     haversineDistanceKm: price.haversineDistanceKm,
+    routeDistanceKm: price.routeDistanceKm,
     roadFactor: price.roadFactor,
     estimatedDurationMinutes: price.estimatedDurationMinutes,
     baseFare: price.baseFare,
@@ -73,14 +97,29 @@ export async function getEstimate(input: {
     additionalStops: price.additionalStops,
     packageMultiplier: price.packageMultiplier,
     packageType: price.packageType,
+    weightSurcharge: price.weightSurcharge,
     surgeMultiplier: price.surgeMultiplier,
+    surgeLevel: price.surgeLevel,
+    timeOfDayMultiplier: price.timeOfDayMultiplier,
+    timeOfDayPeriod: price.timeOfDayPeriod,
+    weatherMultiplier: price.weatherMultiplier,
+    weatherCondition: price.weatherCondition,
+    crossZoneMultiplier: price.crossZoneMultiplier,
+    expressMultiplier: price.expressMultiplier,
+    isExpress: price.isExpress,
     scheduleDiscount: price.scheduleDiscount,
+    businessDiscount: price.businessDiscount,
+    promoDiscount: price.promoDiscount,
     subtotal: price.subtotal,
     serviceFee: price.serviceFee,
+    serviceFeeRate: price.serviceFeeRate,
     totalPrice: price.totalPrice,
     currency: price.currency,
     riderEarnings: price.riderEarnings,
     platformCommission: price.platformCommission,
+    commissionRate: price.commissionRate,
+    zoneId: price.zoneId,
+    zoneName: price.zoneName,
   };
 }
 
@@ -108,6 +147,9 @@ export async function createOrder(
     paymentMethod: PaymentMethod;
     isScheduled?: boolean;
     scheduledAt?: string;
+    isExpress?: boolean;
+    packageWeightKg?: number;
+    promoCode?: string;
     stops?: Array<{
       type: 'PICKUP' | 'DROPOFF';
       sequence: number;
@@ -122,14 +164,49 @@ export async function createOrder(
 ) {
   const additionalStops = input.stops ? Math.max(0, input.stops.length - 1) : 0;
 
+  // Try to get actual route distance from Mapbox
+  let routeDistanceKm: number | undefined;
+  const routeData = await fetchRouteDistance(
+    input.pickupLatitude,
+    input.pickupLongitude,
+    input.dropoffLatitude,
+    input.dropoffLongitude,
+  );
+  if (routeData) {
+    routeDistanceKm = routeData.distanceKm;
+  }
+
   const price = await calculatePrice(
     input.pickupLatitude,
     input.pickupLongitude,
     input.dropoffLatitude,
     input.dropoffLongitude,
     input.packageType,
-    { additionalStops },
+    {
+      additionalStops,
+      isExpress: input.isExpress,
+      packageWeightKg: input.packageWeightKg,
+      paymentMethod: input.paymentMethod,
+      promoCode: input.promoCode,
+      clientId,
+      routeDistanceKm,
+    },
   );
+
+  // If promo code used, record usage
+  let promoCodeId: string | undefined;
+  if (input.promoCode && price.promoDiscount > 0) {
+    const promo = await prisma.promoCode.findUnique({
+      where: { code: input.promoCode.toUpperCase().trim() },
+    });
+    if (promo) {
+      promoCodeId = promo.id;
+      await prisma.promoCode.update({
+        where: { id: promo.id },
+        data: { usedCount: { increment: 1 } },
+      });
+    }
+  }
 
   const order = await prisma.order.create({
     data: {
@@ -153,10 +230,22 @@ export async function createOrder(
       packagePhotoUrl: input.packagePhotoUrl,
       paymentMethod: input.paymentMethod,
       distanceKm: price.distanceKm,
+      routeDistanceKm: price.routeDistanceKm,
       estimatedDurationMinutes: price.estimatedDurationMinutes,
       baseFare: price.baseFare,
       distanceCharge: price.distanceCharge,
       surgeMultiplier: price.surgeMultiplier,
+      timeOfDayMultiplier: price.timeOfDayMultiplier,
+      weatherMultiplier: price.weatherMultiplier,
+      crossZoneMultiplier: price.crossZoneMultiplier,
+      expressMultiplier: price.expressMultiplier,
+      isExpress: price.isExpress,
+      weightSurcharge: price.weightSurcharge,
+      packageWeightKg: input.packageWeightKg,
+      businessDiscount: price.businessDiscount,
+      promoDiscount: price.promoDiscount,
+      promoCodeId,
+      serviceFeeRate: price.serviceFeeRate,
       serviceFee: price.serviceFee,
       totalPrice: price.totalPrice,
       currency: price.currency,
@@ -193,6 +282,18 @@ export async function createOrder(
       statusHistory: { orderBy: { createdAt: 'asc' } },
     },
   });
+
+  // Record promo usage with orderId
+  if (promoCodeId && price.promoDiscount > 0) {
+    await prisma.promoCodeUsage.create({
+      data: {
+        promoCodeId,
+        userId: clientId,
+        orderId: order.id,
+        discount: price.promoDiscount,
+      },
+    }).catch(() => {}); // Don't block order creation
+  }
 
   return order;
 }

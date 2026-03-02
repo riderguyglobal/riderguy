@@ -20,6 +20,7 @@ import {
   Calendar,
   Layers,
   AlertCircle,
+  Zap,
 } from 'lucide-react';
 
 interface LocationData {
@@ -40,6 +41,7 @@ interface OrderConfirmationProps {
   scheduleType: string;
   additionalStops: number;
   packagePhotos: { file: File; preview: string }[];
+  isExpress?: boolean;
   /** Callback that does the actual order creation; returns order ID on success */
   onConfirm: () => Promise<string | null>;
 }
@@ -61,6 +63,7 @@ export function OrderConfirmation({
   scheduleType,
   additionalStops,
   packagePhotos,
+  isExpress,
   onConfirm,
 }: OrderConfirmationProps) {
   const [confirming, setConfirming] = useState(false);
@@ -179,6 +182,11 @@ export function OrderConfirmation({
             {additionalStops > 0 && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-100 text-xs font-medium text-surface-600">
                 <Layers className="h-3.5 w-3.5" /> +{additionalStops} stop{additionalStops > 1 ? 's' : ''}
+              </span>
+            )}
+            {isExpress && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-50 text-xs font-semibold text-brand-700">
+                <Zap className="h-3.5 w-3.5" /> Express
               </span>
             )}
           </div>

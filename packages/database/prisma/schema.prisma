@@ -266,6 +266,9 @@ model User {
   // Community places (user-contributed locations)
   communityPlaces       CommunityPlace[]
 
+  // Promo code usages
+  promoCodeUsages       PromoCodeUsage[]
+
   @@index([phone])
   @@index([email])
   @@index([role, status])
@@ -534,13 +537,28 @@ model Order {
 
   // Pricing
   distanceKm            Float
+  routeDistanceKm       Float?             // Actual route distance from Mapbox (null = haversine used)
   estimatedDurationMinutes  Int
   baseFare              Decimal            @db.Decimal(12, 2)
   distanceCharge        Decimal            @db.Decimal(12, 2)
   surgeMultiplier       Float              @default(1.0)
+  timeOfDayMultiplier   Float              @default(1.0)
+  weatherMultiplier     Float              @default(1.0)
+  crossZoneMultiplier   Float              @default(1.0)
+  expressMultiplier     Float              @default(1.0)
+  weightSurcharge       Decimal            @default(0) @db.Decimal(12, 2)
+  packageWeightKg       Float?             // Declared weight
+  waitTimeCharge        Decimal            @default(0) @db.Decimal(12, 2)
+  waitTimeMinutes       Int                @default(0)
+  businessDiscount      Float              @default(0)   // 0–1 discount rate
+  promoDiscount         Decimal            @default(0) @db.Decimal(12, 2)
+  promoCodeId           String?
+  promoCode             PromoCode?         @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
   serviceFee            Decimal            @db.Decimal(12, 2)
+  serviceFeeRate        Float              @default(0.10) // Actual rate used (may vary by payment method)
   totalPrice            Decimal            @db.Decimal(12, 2)
   currency              String             @default("GHS")
+  isExpress             Boolean            @default(false)
 
   // Payment
   paymentMethod         PaymentMethod
@@ -601,6 +619,7 @@ model Order {
   @@index([paymentStatus])
   @@index([createdAt])
   @@index([scheduledDeliveryId])
+  @@index([promoCodeId])
   @@map("orders")
 }
 
@@ -830,9 +849,12 @@ model Zone {
   minimumFare     Float
   surgeMultiplier Float      @default(1.0)
   commissionRate  Float      // percentage 0-100
+  roadFactor      Float      @default(1.3)  // Zone-specific road factor
+  avgSpeedKmh     Float      @default(20)   // Zone-specific avg speed
   currency        String     @default("GHS")
   totalRiders     Int        @default(0)
   activeRiders    Int        @default(0)
+  pendingOrders   Int        @default(0)    // For dynamic surge calculation
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -841,8 +863,64 @@ model Zone {
   orders      Order[]
   mentorships Mentorship[]
   events      Event[]
+  promoCodes  PromoCode[]
 
   @@map("zones")
+}
+
+// ============================================================
+// PROMO CODES / COUPONS
+// ============================================================
+
+model PromoCode {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  description     String?
+  discountType    DiscountType @default(PERCENTAGE)
+  discountValue   Float        // percentage (0–100) or flat GHS amount
+  minOrderAmount  Decimal?     @db.Decimal(12, 2) // Minimum order subtotal to qualify
+  maxDiscountGhs  Decimal?     @db.Decimal(12, 2) // Cap for percentage discounts
+  maxUses         Int?         // Total uses allowed (null = unlimited)
+  maxUsesPerUser  Int          @default(1)
+  usedCount       Int          @default(0)
+  validFrom       DateTime     @default(now())
+  validUntil      DateTime?
+  isActive        Boolean      @default(true)
+  // Targeting
+  zoneId          String?      // Restrict to specific zone
+  zone            Zone?        @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  packageTypes    String[]     // Restrict to specific package types (empty = all)
+  forNewUsersOnly Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  orders          Order[]
+  usages          PromoCodeUsage[]
+
+  @@index([code])
+  @@index([isActive, validUntil])
+  @@map("promo_codes")
+}
+
+model PromoCodeUsage {
+  id          String    @id @default(cuid())
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId     String?
+  discount    Decimal   @db.Decimal(12, 2)
+  usedAt      DateTime  @default(now())
+
+  @@unique([promoCodeId, userId, orderId])
+  @@index([userId])
+  @@map("promo_code_usages")
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FLAT
 }
 
 // ============================================================

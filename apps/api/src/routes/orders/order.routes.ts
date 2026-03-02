@@ -98,7 +98,10 @@ router.post(
   '/estimate',
   validate(priceEstimateSchema),
   asyncHandler(async (req, res) => {
-    const estimate = await OrderService.getEstimate(req.body);
+    const estimate = await OrderService.getEstimate({
+      ...req.body,
+      clientId: req.user?.userId,
+    });
     res.status(StatusCodes.OK).json({ success: true, data: estimate });
   }),
 );

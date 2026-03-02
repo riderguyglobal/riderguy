@@ -51,9 +51,16 @@ export const createOrderSchema = z.object({
   packageType: packageTypeEnum,
   packageDescription: z.string().max(500).optional(),
   packagePhotoUrl: z.string().max(1000).optional(),
+  packageWeightKg: z.number().min(0).max(30).optional(),
 
   // Payment
   paymentMethod: paymentMethodEnum,
+
+  // Express delivery
+  isExpress: z.boolean().default(false),
+
+  // Promo code
+  promoCode: z.string().max(50).optional(),
 
   // Scheduling
   isScheduled: z.boolean().default(false),
@@ -94,6 +101,14 @@ export const priceEstimateSchema = z.object({
   additionalStops: z.number().int().min(0).max(10).optional(),
   // Schedule type affects discounts
   scheduleType: z.enum(['NOW', 'SAME_DAY', 'NEXT_DAY', 'RECURRING']).optional(),
+  // Express delivery option
+  isExpress: z.boolean().optional(),
+  // Package weight in kg (for weight surcharge)
+  packageWeightKg: z.number().min(0).max(30).optional(),
+  // Payment method (affects service fee rate)
+  paymentMethod: paymentMethodEnum.optional(),
+  // Promo code (for discount)
+  promoCode: z.string().max(50).optional(),
   // Optional extra stops with coordinates for precise multi-stop pricing
   stops: z.array(z.object({
     type: stopType,

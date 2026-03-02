@@ -37,13 +37,27 @@ export interface Order {
 
   // Pricing
   distanceKm: number;
+  routeDistanceKm: number | null;
   estimatedDurationMinutes: number;
   baseFare: number;
   distanceCharge: number;
   surgeMultiplier: number;
+  timeOfDayMultiplier: number;
+  weatherMultiplier: number;
+  crossZoneMultiplier: number;
+  expressMultiplier: number;
+  weightSurcharge: number;
+  packageWeightKg: number | null;
+  waitTimeCharge: number;
+  waitTimeMinutes: number;
+  businessDiscount: number;
+  promoDiscount: number;
+  promoCodeId: string | null;
   serviceFee: number;
+  serviceFeeRate: number;
   totalPrice: number;
   currency: string;
+  isExpress: boolean;
 
   // Payment
   paymentMethod: PaymentMethod;
@@ -118,11 +132,39 @@ export interface CreateOrderInput {
 /** Price estimate returned before order creation */
 export interface PriceEstimate {
   distanceKm: number;
+  routeDistanceKm: number | null;
+  haversineDistanceKm: number;
+  roadFactor: number;
   estimatedDurationMinutes: number;
   baseFare: number;
   distanceCharge: number;
+  stopSurcharges: number;
+  additionalStops: number;
+  packageMultiplier: number;
+  packageType: string;
   surgeMultiplier: number;
+  timeOfDayMultiplier: number;
+  weatherMultiplier: number;
+  crossZoneMultiplier: number;
+  expressMultiplier: number;
+  weightSurcharge: number;
+  waitTimeCharge: number;
+  businessDiscount: number;
+  promoDiscount: number;
+  scheduleDiscount: number;
+  subtotal: number;
   serviceFee: number;
+  serviceFeeRate: number;
   totalPrice: number;
   currency: string;
+  isExpress: boolean;
+  zoneId: string | null;
+  zoneName: string | null;
+  riderEarnings: number;
+  platformCommission: number;
+  commissionRate: number;
+  /** Dynamic surge info for UI display */
+  surgeLevel: string;
+  weatherCondition: string;
+  timeOfDayPeriod: string;
 }

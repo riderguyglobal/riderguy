@@ -17,9 +17,12 @@ export interface Zone {
   minimumFare: number;
   surgeMultiplier: number;
   commissionRate: number; // platform commission percentage (0-100)
+  roadFactor: number;
+  avgSpeedKmh: number;
   currency: string;
   totalRiders: number;
   activeRiders: number;
+  pendingOrders: number;
   createdAt: Date;
   updatedAt: Date;
 }

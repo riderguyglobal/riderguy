@@ -23,6 +23,9 @@ import {
   Camera,
   Trash2,
   Plus,
+  Zap,
+  Tag,
+  Weight,
 } from 'lucide-react';
 
 // Lazy-load route preview map (SSR-unsafe)
@@ -65,6 +68,9 @@ export default function SendPackagePage() {
   const [packageType, setPackageType] = useState('SMALL_PARCEL');
   const [paymentMethod, setPaymentMethod] = useState('MOBILE_MONEY');
   const [scheduleType, setScheduleType] = useState('NOW');
+  const [isExpress, setIsExpress] = useState(false);
+  const [packageWeightKg, setPackageWeightKg] = useState<number | undefined>(undefined);
+  const [promoCode, setPromoCode] = useState('');
   const [showAllPackages, setShowAllPackages] = useState(false);
 
   // ── Estimate state ──
@@ -174,6 +180,7 @@ export default function SendPackagePage() {
       dropoffLatitude: lat2,
       dropoffLongitude: lng2,
       packageType,
+      paymentMethod,
     };
 
     // Include additional stops count
@@ -185,6 +192,21 @@ export default function SendPackagePage() {
     // Include schedule type
     if (scheduleType !== 'NOW') {
       body.scheduleType = scheduleType;
+    }
+
+    // Include express delivery option
+    if (isExpress) {
+      body.isExpress = true;
+    }
+
+    // Include package weight
+    if (packageWeightKg && packageWeightKg > 0) {
+      body.packageWeightKg = packageWeightKg;
+    }
+
+    // Include promo code
+    if (promoCode.trim()) {
+      body.promoCode = promoCode.trim().toUpperCase();
     }
 
     api
@@ -204,8 +226,12 @@ export default function SendPackagePage() {
     pickup.location.coordinates,
     dropoff.location.coordinates,
     packageType,
+    paymentMethod,
     scheduleType,
     additionalStops,
+    isExpress,
+    packageWeightKg,
+    promoCode,
     api,
   ]);
 
@@ -259,6 +285,10 @@ export default function SendPackagePage() {
         paymentMethod,
       };
 
+      if (isExpress) body.isExpress = true;
+      if (packageWeightKg && packageWeightKg > 0) body.packageWeightKg = packageWeightKg;
+      if (promoCode.trim()) body.promoCode = promoCode.trim().toUpperCase();
+
       if (photoUrls.length > 0) body.packagePhotoUrl = photoUrls[0];
       if (pickup.contactName) body.pickupContactName = pickup.contactName;
       if (pickup.contactPhone) body.pickupContactPhone = pickup.contactPhone;
@@ -305,7 +335,7 @@ export default function SendPackagePage() {
       setSubmitting(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, canSubmit, pickup, dropoff, packageType, paymentMethod, additionalStops, scheduleType, packagePhotos]);
+  }, [api, canSubmit, pickup, dropoff, packageType, paymentMethod, additionalStops, scheduleType, packagePhotos, isExpress, packageWeightKg, promoCode]);
 
   // ── Render ──
 
@@ -506,7 +536,81 @@ export default function SendPackagePage() {
         </div>
 
         {/* ═══════════════════════════════════════════
-            Section 5: Optional Details (collapsible)
+            Section 5: Express, Weight & Promo
+            ═══════════════════════════════════════════ */}
+        <div className="space-y-3">
+          {/* Express toggle */}
+          <button
+            onClick={() => setIsExpress(!isExpress)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all btn-press ${
+              isExpress
+                ? 'bg-brand-50 border-2 border-brand-500'
+                : 'bg-surface-50 border-2 border-transparent'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Zap className={`h-4 w-4 ${isExpress ? 'text-brand-600' : 'text-surface-400'}`} />
+              <div className="text-left">
+                <p className={`text-sm font-semibold ${isExpress ? 'text-brand-700' : 'text-surface-700'}`}>
+                  Express Delivery
+                </p>
+                <p className="text-[11px] text-surface-400">Priority pickup, 50% faster</p>
+              </div>
+            </div>
+            <div className={`h-6 w-11 rounded-full transition-colors flex items-center ${
+              isExpress ? 'bg-brand-500 justify-end' : 'bg-surface-300 justify-start'
+            }`}>
+              <div className="h-5 w-5 rounded-full bg-white shadow-sm mx-0.5" />
+            </div>
+          </button>
+
+          {/* Weight input */}
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-xl">
+            <Weight className="h-4 w-4 text-surface-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-surface-500">Est. weight (kg)</p>
+              <input
+                type="number"
+                min="0"
+                max="30"
+                step="0.5"
+                value={packageWeightKg ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value ? parseFloat(e.target.value) : undefined;
+                  setPackageWeightKg(v && v > 0 ? v : undefined);
+                }}
+                placeholder="Optional"
+                className="w-full bg-transparent text-sm text-surface-800 font-medium outline-none placeholder:text-surface-300 mt-0.5"
+              />
+            </div>
+            {packageWeightKg && packageWeightKg > 5 && (
+              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                +surcharge
+              </span>
+            )}
+          </div>
+
+          {/* Promo code input */}
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-xl">
+            <Tag className="h-4 w-4 text-surface-400 shrink-0" />
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              placeholder="Promo code"
+              maxLength={20}
+              className="flex-1 bg-transparent text-sm text-surface-800 font-semibold outline-none placeholder:text-surface-300 uppercase tracking-wider"
+            />
+            {promoCode && estimate?.promoDiscount && estimate.promoDiscount > 0 && (
+              <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                Applied!
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════
+            Section 6: Optional Details (collapsible)
             ═══════════════════════════════════════════ */}
         <button
           onClick={() => setShowDetails(!showDetails)}
@@ -679,6 +783,7 @@ export default function SendPackagePage() {
           scheduleType={scheduleType}
           additionalStops={additionalStops.filter((s) => s.coordinates).length}
           packagePhotos={packagePhotos}
+          isExpress={isExpress}
           onConfirm={handleConfirm}
         />
       )}

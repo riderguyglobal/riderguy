@@ -109,6 +109,109 @@ export const CANCELLATION_FEES = {
 /** Suggested tip amounts in GHS */
 export const SUGGESTED_TIP_AMOUNTS = [2, 5, 10] as const;
 
+// ── Time-of-day pricing multipliers ─────────────────────────
+export const TIME_OF_DAY_MULTIPLIERS: Record<string, number> = {
+  // Hour ranges → multiplier
+  EARLY_MORNING: 1.0,     // 06:00–08:00
+  MORNING: 1.0,           // 08:00–11:00
+  LUNCH_RUSH: 1.1,        // 11:00–14:00
+  AFTERNOON: 1.0,         // 14:00–16:00
+  EVENING_RUSH: 1.15,     // 16:00–19:00
+  LATE_EVENING: 1.05,     // 19:00–22:00
+  NIGHT: 1.2,             // 22:00–06:00
+};
+
+/** Returns the time-of-day multiplier for a given hour (0–23) */
+export function getTimeOfDayMultiplier(hour: number): number {
+  if (hour >= 22 || hour < 6) return TIME_OF_DAY_MULTIPLIERS.NIGHT!;
+  if (hour >= 6 && hour < 8) return TIME_OF_DAY_MULTIPLIERS.EARLY_MORNING!;
+  if (hour >= 8 && hour < 11) return TIME_OF_DAY_MULTIPLIERS.MORNING!;
+  if (hour >= 11 && hour < 14) return TIME_OF_DAY_MULTIPLIERS.LUNCH_RUSH!;
+  if (hour >= 14 && hour < 16) return TIME_OF_DAY_MULTIPLIERS.AFTERNOON!;
+  if (hour >= 16 && hour < 19) return TIME_OF_DAY_MULTIPLIERS.EVENING_RUSH!;
+  return TIME_OF_DAY_MULTIPLIERS.LATE_EVENING!;
+}
+
+// ── Weather-based pricing multipliers ───────────────────────
+export const WEATHER_MULTIPLIERS: Record<string, number> = {
+  CLEAR: 1.0,
+  CLOUDY: 1.0,
+  LIGHT_RAIN: 1.1,
+  HEAVY_RAIN: 1.25,
+  STORM: 1.4,
+};
+
+// ── Express / priority delivery ─────────────────────────────
+export const EXPRESS_MULTIPLIER = 1.5;       // 50% premium for express
+export const EXPRESS_MAX_DISTANCE_KM = 15;   // Express only within 15 km
+
+// ── Package weight surcharges (GHS) ─────────────────────────
+export const WEIGHT_SURCHARGES: Record<string, number> = {
+  LIGHT: 0,        // 0–5 kg
+  MEDIUM: 2.00,    // 5–10 kg
+  HEAVY: 5.00,     // 10–20 kg
+  VERY_HEAVY: 10.00, // 20–30 kg (motorcycle limit)
+};
+export const MAX_PACKAGE_WEIGHT_KG = 30;
+
+export type WeightCategory = 'LIGHT' | 'MEDIUM' | 'HEAVY' | 'VERY_HEAVY';
+
+/** Returns weight category from kg */
+export function getWeightCategory(kg: number): WeightCategory {
+  if (kg <= 5) return 'LIGHT';
+  if (kg <= 10) return 'MEDIUM';
+  if (kg <= 20) return 'HEAVY';
+  return 'VERY_HEAVY';
+}
+
+// ── Wait time charging ──────────────────────────────────────
+export const WAIT_TIME_FREE_MINUTES = 5;       // Free wait at pickup/dropoff
+export const WAIT_TIME_RATE_PER_MINUTE = 0.50;  // GHS per minute after free period
+export const MAX_WAIT_TIME_CHARGE = 15.00;       // Cap per stop (GHS)
+
+// ── Payment method service fee adjustments ──────────────────
+export const PAYMENT_METHOD_FEE_RATES: Record<string, number> = {
+  MOBILE_MONEY: 0.10,    // standard 10%
+  CARD: 0.12,            // 12% — higher processing cost
+  WALLET: 0.08,          // 8% — cheapest, pre-funded
+  CASH: 0.10,            // standard 10%
+  BANK_TRANSFER: 0.10,   // standard 10%
+};
+
+// ── Cross-zone / out-of-zone premium ────────────────────────
+export const CROSS_ZONE_MULTIPLIER = 1.1;    // 10% premium for cross-zone
+export const OUT_OF_ZONE_MULTIPLIER = 1.2;   // 20% premium for out-of-zone drops
+
+// ── Dynamic surge thresholds (demand:supply ratio) ──────────
+export const SURGE_THRESHOLDS = {
+  LEVEL_0: { ratio: 0, multiplier: 1.0 },    // Normal
+  LEVEL_1: { ratio: 2, multiplier: 1.2 },    // 2+ orders per rider
+  LEVEL_2: { ratio: 4, multiplier: 1.4 },    // 4+ orders per rider
+  LEVEL_3: { ratio: 6, multiplier: 1.6 },    // 6+ orders per rider
+  LEVEL_4: { ratio: 8, multiplier: 1.8 },    // 8+ orders per rider (MAX)
+} as const;
+
+// ── Business volume discounts ───────────────────────────────
+export const BUSINESS_VOLUME_DISCOUNTS: Array<{ minOrders: number; discount: number }> = [
+  { minOrders: 0, discount: 0 },
+  { minOrders: 51, discount: 0.05 },    // 5% off for 51–200 monthly orders
+  { minOrders: 201, discount: 0.08 },   // 8% off for 201–500
+  { minOrders: 500, discount: 0.12 },   // 12% off for 500+
+];
+
+/** Get business discount based on monthly order count */
+export function getBusinessDiscount(monthlyOrders: number): number {
+  let discount = 0;
+  for (const tier of BUSINESS_VOLUME_DISCOUNTS) {
+    if (monthlyOrders >= tier.minOrders) discount = tier.discount;
+  }
+  return discount;
+}
+
+// ── Rider distance to pickup compensation ───────────────────
+export const RIDER_PICKUP_DISTANCE_FREE_KM = 2;     // First 2 km to pickup = no extra
+export const RIDER_PICKUP_DISTANCE_RATE = 1.00;     // GHS per km beyond free distance
+
 /** Rider location update interval in milliseconds */
 export const LOCATION_UPDATE_INTERVAL_MS = 5000;
 
