@@ -11,12 +11,8 @@ export const MAPBOX_TOKEN: string =
 export const PAYSTACK_PUBLIC_KEY: string =
   process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
 
-export const MAP_STYLE = 'mapbox://styles/mapbox/light-v11';
-
 /** Accra default center */
 export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];
-
-export const LOCATION_INTERVAL = 10_000;
 
 export const PACKAGE_TYPES = [
   { value: 'DOCUMENT', label: 'Document', emoji: '📄' },

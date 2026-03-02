@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
 import { useSocket } from './use-socket';
-import { API_BASE_URL, LOCATION_INTERVAL } from '@/lib/constants';
+import { LOCATION_INTERVAL, HEARTBEAT_INTERVAL } from '@/lib/constants';
 import { RiderAvailability } from '@riderguy/types';
 
 export function useRiderAvailability() {
@@ -18,7 +18,7 @@ export function useRiderAvailability() {
   // Fetch initial availability
   useEffect(() => {
     let mounted = true;
-    api?.get(`${API_BASE_URL}/riders/profile`)
+    api?.get('/riders/profile')
       .then((res) => {
         if (mounted) setAvailability(res.data.data?.availability ?? RiderAvailability.OFFLINE);
       })
@@ -45,12 +45,12 @@ export function useRiderAvailability() {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
-          api?.post(`${API_BASE_URL}/riders/location`, { latitude, longitude }).catch(() => {});
+          api?.post('/riders/location', { latitude, longitude }).catch(() => {});
         },
         () => {},
         { enableHighAccuracy: true, maximumAge: 5_000 }
       );
-    }, LOCATION_INTERVAL * 6); // 30s heartbeat
+    }, HEARTBEAT_INTERVAL);
 
     return () => {
       if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
@@ -63,7 +63,7 @@ export function useRiderAvailability() {
     setLoading(true);
     const next: RiderAvailability = availability === RiderAvailability.ONLINE ? RiderAvailability.OFFLINE : RiderAvailability.ONLINE;
     try {
-      await api?.patch(`${API_BASE_URL}/riders/availability`, { availability: next });
+      await api?.patch('/riders/availability', { availability: next });
       setAvailability(next);
     } catch {
       // silently fail

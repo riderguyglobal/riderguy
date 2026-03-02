@@ -9,7 +9,10 @@ import { API_BASE_URL } from '@/lib/constants';
 // Profile upgrade, public card, spotlights
 // ============================================================
 
-const BASE = `${API_BASE_URL}/rider-identity`;
+/** Full URL for public (unauthenticated) fetch calls */
+const PUBLIC_BASE = `${API_BASE_URL}/rider-identity`;
+/** Relative path for authenticated api calls */
+const BASE = '/rider-identity';
 
 // ────── Types ──────
 
@@ -114,7 +117,7 @@ export function useRiderIdentity() {
     async (slug: string) => {
       setLoading(true);
       try {
-        const res = await fetch(`${BASE}/card/${slug}`);
+        const res = await fetch(`${PUBLIC_BASE}/card/${slug}`);
         const json = await res.json();
         if (json.success) setPublicCard(json.data);
       } catch (err) {
@@ -132,7 +135,7 @@ export function useRiderIdentity() {
       try {
         const params = new URLSearchParams();
         if (page) params.set('page', String(page));
-        const res = await fetch(`${BASE}/spotlights?${params}`);
+        const res = await fetch(`${PUBLIC_BASE}/spotlights?${params}`);
         const json = await res.json();
         if (json.success) setSpotlights(json.data.spotlights);
       } catch (err) {
@@ -146,7 +149,7 @@ export function useRiderIdentity() {
 
   const fetchLatestSpotlight = useCallback(async () => {
     try {
-      const res = await fetch(`${BASE}/spotlights/latest`);
+      const res = await fetch(`${PUBLIC_BASE}/spotlights/latest`);
       const json = await res.json();
       if (json.success) setLatestSpotlight(json.data);
     } catch (err) {

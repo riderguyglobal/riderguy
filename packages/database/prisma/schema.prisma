@@ -532,11 +532,11 @@ model Order {
   // Pricing
   distanceKm            Float
   estimatedDurationMinutes  Int
-  baseFare              Decimal
-  distanceCharge        Decimal
+  baseFare              Decimal            @db.Decimal(12, 2)
+  distanceCharge        Decimal            @db.Decimal(12, 2)
   surgeMultiplier       Float              @default(1.0)
-  serviceFee            Decimal
-  totalPrice            Decimal
+  serviceFee            Decimal            @db.Decimal(12, 2)
+  totalPrice            Decimal            @db.Decimal(12, 2)
   currency              String             @default("GHS")
 
   // Payment
@@ -553,9 +553,9 @@ model Order {
   deliveryPinCode       String?
 
   // Earnings
-  riderEarnings         Decimal?
-  platformCommission    Decimal?
-  tipAmount             Decimal            @default(0)
+  riderEarnings         Decimal?           @db.Decimal(12, 2)
+  platformCommission    Decimal?           @db.Decimal(12, 2)
+  tipAmount             Decimal            @default(0) @db.Decimal(12, 2)
 
   // Ratings
   clientRating          Int?
@@ -693,7 +693,7 @@ model ScheduledDelivery {
   packageDescription  String?
 
   // Pricing & payment
-  estimatedPrice      Decimal?
+  estimatedPrice      Decimal?             @db.Decimal(12, 2)
   currency            String                   @default("GHS")
   paymentMethod       PaymentMethod?
 

@@ -62,29 +62,30 @@ export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
     if (!containerRef.current || !MAPBOX_TOKEN) return;
     let cancelled = false;
 
+    const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
+
+    // Initialize map immediately with default center — don't block on geolocation
     (async () => {
-      const userPos = await getUserPosition();
-      if (cancelled) return;
-
-      const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
-
       const core = await initMapCore({
         container: containerRef.current!,
         token: MAPBOX_TOKEN,
         style,
-        center: userPos ?? DEFAULT_CENTER,
-        zoom: userPos ? MAP_ZOOM.close : MAP_ZOOM.default,
+        center: DEFAULT_CENTER,
+        zoom: MAP_ZOOM.default,
         onLoad: (map, mapboxglLib) => {
           addTrafficLayer(map);
+          setMapReady(true);
 
-          // Rider status dot at user position
-          if (userPos) {
+          // Resolve geolocation in the background and update map + dot
+          getUserPosition().then((userPos) => {
+            if (cancelled || !userPos) return;
+
+            map.flyTo({ center: userPos, zoom: MAP_ZOOM.close, duration: 1200 });
+
             const dot = createRiderStatusDot(mapboxglLib, userPos, status);
             dot.marker.addTo(map);
             statusDotRef.current = dot;
-          }
-
-          setMapReady(true);
+          });
         },
       });
 

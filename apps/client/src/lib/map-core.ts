@@ -239,51 +239,10 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
   return { map, mapboxgl, geolocate, destroy };
 }
 
-// ── Style Switching (preserves camera) ──────────────────
-
-/**
- * Switch map style while preserving camera position and features.
- * Re-adds 3D buildings, fog, and traffic after style change.
- */
-export function switchMapStyle(
-  map: mapboxgl.Map,
-  newStyle: string,
-  callbacks?: {
-    onStyleLoad?: () => void;
-  },
-): void {
-  // Capture camera state
-  const center = map.getCenter();
-  const zoom = map.getZoom();
-  const bearing = map.getBearing();
-  const pitch = map.getPitch();
-
-  map.setStyle(newStyle);
-
-  map.once('style.load', () => {
-    // Restore camera
-    map.setCenter(center);
-    map.setZoom(zoom);
-    map.setBearing(bearing);
-    map.setPitch(pitch);
-
-    // Re-add 3D buildings
-    const isDark = newStyle.includes('dark') || newStyle.includes('night');
-    try {
-      add3DBuildings(map, isDark);
-    } catch { /* ignore */ }
-
-    // Re-add fog
-    setFog(map, isDark);
-
-    callbacks?.onStyleLoad?.();
-  });
-}
-
 // ── Camera Utilities ────────────────────────────────────
 
 /** Fly to coordinates with consistent animation */
-export function flyToPoint(
+function flyToPoint(
   map: mapboxgl.Map,
   center: [number, number],
   options?: { zoom?: number; pitch?: number; bearing?: number; duration?: number },
@@ -295,19 +254,6 @@ export function flyToPoint(
     bearing: options?.bearing ?? map.getBearing(),
     duration: options?.duration ?? MAP_ANIMATION.flyTo,
     essential: true,
-  });
-}
-
-/** Ease to coordinates (linear camera motion, less dramatic than flyTo) */
-export function easeToPoint(
-  map: mapboxgl.Map,
-  center: [number, number],
-  options?: { zoom?: number; duration?: number },
-): void {
-  map.easeTo({
-    center,
-    zoom: options?.zoom ?? map.getZoom(),
-    duration: options?.duration ?? MAP_ANIMATION.easeTo,
   });
 }
 

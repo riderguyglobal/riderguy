@@ -197,10 +197,16 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
 
   map.once('idle', () => map.resize());
 
-  // ── Load Event ────────────────────────────────────────
+  // ── Load Event (with timeout to prevent hanging) ──────
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    const loadTimeout = setTimeout(() => {
+      reject(new Error('Map failed to load within 15 seconds. Check your connection and try again.'));
+    }, 15_000);
+
     map.on('load', () => {
+      clearTimeout(loadTimeout);
+
       if (options.buildings3D !== false) {
         try {
           add3DBuildings(map, options.style?.includes('dark') || options.style?.includes('night'));

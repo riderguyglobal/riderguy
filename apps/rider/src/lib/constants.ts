@@ -6,9 +6,6 @@ export const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ??
   '';
 
-/** Dark navigation map style for rider app */
-export const MAP_STYLE = 'mapbox://styles/mapbox/navigation-night-v1';
-
 /** Google Maps-like light style */
 export const MAP_STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';
 
@@ -20,6 +17,9 @@ export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];
 
 /** Rider location update interval in ms */
 export const LOCATION_INTERVAL = 5_000;
+
+/** Heartbeat interval for REST-based location updates (ms) */
+export const HEARTBEAT_INTERVAL = 30_000;
 
 /** Job offer countdown seconds */
 export const OFFER_COUNTDOWN = 30;

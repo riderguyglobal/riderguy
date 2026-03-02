@@ -38,8 +38,6 @@ interface LocationInputProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Additional class on the root wrapper */
   className?: string;
-  /** Brand color accent for the dot indicator */
-  accentColor?: 'brand' | 'dark';
 }
 
 export function LocationInput({
@@ -50,7 +48,6 @@ export function LocationInput({
   autoFocus = false,
   inputRef: externalRef,
   className = '',
-  accentColor = 'dark',
 }: LocationInputProps) {
   const ac = useMapboxAutocomplete();
   const internalRef = useRef<HTMLInputElement>(null);
@@ -263,4 +260,4 @@ function getPlaceTypeIcon(type?: string, category?: string) {
   }
 }
 
-export default LocationInput;
+

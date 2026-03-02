@@ -29,7 +29,7 @@ import {
 } from '@riderguy/utils';
 import { tokenStorage } from '@riderguy/auth';
 import { useTheme } from '@/lib/theme';
-import { initMapCore, switchMapStyle, easeToPoint, fitBoundsToCoords, type MapCoreInstance } from '@/lib/map-core';
+import { initMapCore, switchMapStyle, fitBoundsToCoords, type MapCoreInstance } from '@/lib/map-core';
 import {
   createPickupMarker,
   createDropoffMarker,
@@ -43,7 +43,6 @@ import {
   toggleTraffic,
   hasTrafficLayer,
   removeRoute,
-  fitBoundsToCoords as routeFitBounds,
   type RoutePhase,
 } from '@/lib/map-route';
 

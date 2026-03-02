@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { OtpInput, PhoneInput } from '@riderguy/ui';
+import { phoneSchema, emailSchema, passwordSchema } from '@riderguy/validators';
 import { AlertCircle, CheckCircle, ArrowLeft, ArrowRight, Smartphone, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,6 +22,14 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+
+  // OTP resend cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   // Redirect authenticated users to dashboard (don't redirect during step 3 success)
   useEffect(() => {
@@ -31,11 +40,17 @@ export default function RegisterPage() {
 
   const handleSendOtp = async () => {
     if (!phone) return;
+    const result = phoneSchema.safeParse(phone);
+    if (!result.success) {
+      setError(result.error.errors[0]?.message ?? 'Invalid phone number');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       await requestOtp(phone, 'REGISTRATION');
       setStep(1);
+      setCooldown(60);
     } catch {
       setError('Failed to send code.');
     } finally {
@@ -60,6 +75,16 @@ export default function RegisterPage() {
 
   const handleRegister = async () => {
     if (!firstName || !lastName || !email || !password) return;
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      setError(emailResult.error.errors[0]?.message ?? 'Invalid email');
+      return;
+    }
+    const pwResult = passwordSchema.safeParse(password);
+    if (!pwResult.success) {
+      setError(pwResult.error.errors[0]?.message ?? 'Invalid password');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -157,6 +182,13 @@ export default function RegisterPage() {
             ) : (
               <>Verify <ArrowRight className="h-4 w-4" /></>
             )}
+          </button>
+          <button
+            onClick={handleSendOtp}
+            disabled={loading || cooldown > 0}
+            className="w-full text-sm text-surface-500 font-medium hover:text-brand-500 transition-colors disabled:opacity-50"
+          >
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
           </button>
         </div>
       )}

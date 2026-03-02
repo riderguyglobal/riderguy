@@ -2,19 +2,22 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@riderguy/ui';
+import { useTheme } from '@/lib/theme';
+import { MAX_FILE_SIZE_BYTES, ALLOWED_IMAGE_TYPES } from '@riderguy/utils';
 import { Camera, ImageIcon, X, Check } from 'lucide-react';
 
 type ProofType = 'PHOTO' | 'SIGNATURE' | 'PIN_CODE';
 
 interface ProofOfDeliveryProps {
-  orderId: string;
   deliveryPin?: string;
-  onSubmit: (proof: { type: ProofType; data: string }) => Promise<void>;
+  onSubmit: (proof: { type: ProofType; data: string; file?: File }) => Promise<void>;
 }
 
-export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliveryProps) {
+export function ProofOfDelivery({ deliveryPin, onSubmit }: ProofOfDeliveryProps) {
+  const { resolvedTheme } = useTheme();
   const [proofType, setProofType] = useState<ProofType>('PHOTO');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -27,6 +30,21 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate file type
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type as typeof ALLOWED_IMAGE_TYPES[number])) {
+      setError('Only JPEG, PNG, and WebP images are allowed');
+      return;
+    }
+
+    // Validate file size (10 MB max)
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError(`Photo must be under ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`);
+      return;
+    }
+
+    setError('');
+    setPhotoFile(file);
     const reader = new FileReader();
     reader.onload = () => setPhotoPreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -37,7 +55,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
     let data = '';
 
     if (proofType === 'PHOTO') {
-      if (!photoPreview) { setError('Take or upload a photo'); return; }
+      if (!photoPreview || !photoFile) { setError('Take or upload a photo'); return; }
       data = photoPreview;
     } else if (proofType === 'SIGNATURE') {
       const canvas = canvasRef.current;
@@ -50,7 +68,7 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
 
     setSubmitting(true);
     try {
-      await onSubmit({ type: proofType, data });
+      await onSubmit({ type: proofType, data, file: proofType === 'PHOTO' ? photoFile ?? undefined : undefined });
     } catch {
       setError('Failed to submit proof');
     } finally {
@@ -85,10 +103,10 @@ export function ProofOfDelivery({ orderId, deliveryPin, onSubmit }: ProofOfDeliv
     const y = touch ? touch.clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = resolvedTheme === 'dark' ? '#fff' : '#1a1a2e';
     ctx.lineTo(x, y);
     ctx.stroke();
-  }, []);
+  }, [resolvedTheme]);
 
   const stopDraw = useCallback(() => { isDrawing.current = false; }, []);
 

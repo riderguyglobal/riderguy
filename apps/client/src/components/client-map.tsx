@@ -15,11 +15,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type mapboxgl from 'mapbox-gl';
-import { MAPBOX_TOKEN, DEFAULT_CENTER, API_BASE_URL } from '@/lib/constants';
+import { MAPBOX_TOKEN, DEFAULT_CENTER } from '@/lib/constants';
 import { MAP_ZOOM, LOCATION_INTERVALS } from '@riderguy/utils';
-import { tokenStorage } from '@riderguy/auth';
-import { connectSocket, disconnectSocket } from '@/hooks/use-socket';
-import { initMapCore, easeToPoint, type MapCoreInstance } from '@/lib/map-core';
+import { useAuth } from '@riderguy/auth';
+import { useSocket } from '@/hooks/use-socket';
+import { initMapCore, type MapCoreInstance } from '@/lib/map-core';
 import { createSmallRiderMarker, createUserDotMarker, removeMarkers } from '@/lib/map-markers';
 import { addTrafficLayer, toggleTraffic, hasTrafficLayer } from '@/lib/map-route';
 
@@ -42,6 +42,10 @@ export default function ClientMap() {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [trafficOn, setTrafficOn] = useState(true);
   const [mapReady, setMapReady] = useState(false);
+  const { socket } = useSocket();
+  const { api } = useAuth();
+  const apiRef = useRef(api);
+  apiRef.current = api;
 
   // ── Get user position ─────────────────────────────────
   const getUserPosition = useCallback((): Promise<[number, number] | null> => {
@@ -59,17 +63,13 @@ export default function ClientMap() {
   const fetchNearbyRiders = useCallback(
     async (map: mapboxgl.Map, mapboxglLib: typeof import('mapbox-gl').default, center: [number, number]) => {
       try {
-        const token = tokenStorage.getAccessToken();
-        if (!token) return;
+        const currentApi = apiRef.current;
+        if (!currentApi) return;
 
         const [lng, lat] = center;
-        const res = await fetch(
-          `${API_BASE_URL}/riders/nearby?latitude=${lat}&longitude=${lng}&radius=5`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!res.ok) return;
-
-        const json = await res.json();
+        const { data: json } = await currentApi.get('/riders/nearby', {
+          params: { latitude: lat, longitude: lng, radius: 5 },
+        });
         const riders: NearbyRider[] = json.data ?? [];
         const currentIds = new Set(riders.map((r) => r.id));
 
@@ -159,9 +159,7 @@ export default function ClientMap() {
 
   // ── WebSocket for live rider locations ────────────────
   useEffect(() => {
-    if (!mapReady) return;
-
-    const socket = connectSocket();
+    if (!mapReady || !socket) return;
 
     const handleRiderLocation = (data: { riderId: string; latitude: number; longitude: number }) => {
       const core = coreRef.current;
@@ -181,9 +179,8 @@ export default function ClientMap() {
 
     return () => {
       socket.off('rider:location', handleRiderLocation);
-      disconnectSocket();
     };
-  }, [mapReady]);
+  }, [mapReady, socket]);
 
   // ── Traffic toggle ────────────────────────────────────
   useEffect(() => {

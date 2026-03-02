@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
-import type { RiderLevel } from '@riderguy/types';
 
 // ────── Sprint 9 types ──────
 
@@ -141,7 +139,7 @@ export function useGamification() {
   const fetchProfile = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/profile`);
+      const res = await api.get('/gamification/profile');
       const data = res.data.data;
       // Ensure arrays are never undefined (API may omit them for new users)
       if (data) {
@@ -167,7 +165,7 @@ export function useGamification() {
       if (options?.category) params.set('category', options.category);
       if (options?.timeRange) params.set('timeRange', options.timeRange);
       if (options?.zoneId) params.set('zoneId', options.zoneId);
-      const res = await api.get(`${API_BASE_URL}/gamification/leaderboard?${params}`);
+      const res = await api.get(`/gamification/leaderboard?${params}`);
       setLeaderboard(res.data.data ?? []);
     } catch {
       // silent fail
@@ -177,7 +175,7 @@ export function useGamification() {
   const markBadgesSeen = useCallback(async (badgeIds: string[]) => {
     if (!api || badgeIds.length === 0) return;
     try {
-      await api.post(`${API_BASE_URL}/gamification/badges/seen`, { badgeIds });
+      await api.post('/gamification/badges/seen', { badgeIds });
       setProfile(prev => {
         if (!prev) return prev;
         return {
@@ -196,7 +194,7 @@ export function useGamification() {
   const fetchStreak = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/streak`);
+      const res = await api.get('/gamification/streak');
       setStreak(res.data.data);
     } catch {
       // silent fail
@@ -207,7 +205,7 @@ export function useGamification() {
   const fetchChallenges = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/challenges`);
+      const res = await api.get('/gamification/challenges');
       setChallenges(res.data.data ?? []);
     } catch {
       // silent fail
@@ -217,7 +215,7 @@ export function useGamification() {
   const fetchCompletedChallenges = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/challenges/completed`);
+      const res = await api.get('/gamification/challenges/completed');
       setCompletedChallenges(res.data.data ?? []);
     } catch {
       // silent fail
@@ -227,7 +225,7 @@ export function useGamification() {
   const joinChallenge = useCallback(async (challengeId: string) => {
     if (!api) return false;
     try {
-      await api.post(`${API_BASE_URL}/gamification/challenges/join`, { challengeId });
+      await api.post('/gamification/challenges/join', { challengeId });
       await fetchChallenges();
       return true;
     } catch {
@@ -240,7 +238,7 @@ export function useGamification() {
     if (!api) return;
     try {
       const params = category ? `?category=${category}` : '';
-      const res = await api.get(`${API_BASE_URL}/gamification/rewards${params}`);
+      const res = await api.get(`/gamification/rewards${params}`);
       setRewardItems(res.data.data ?? []);
     } catch {
       // silent fail
@@ -250,7 +248,7 @@ export function useGamification() {
   const fetchRewardBalance = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/rewards/balance`);
+      const res = await api.get('/gamification/rewards/balance');
       setRewardBalance(res.data.data?.balance ?? 0);
     } catch {
       // silent fail
@@ -260,7 +258,7 @@ export function useGamification() {
   const fetchRedemptionHistory = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/rewards/history`);
+      const res = await api.get('/gamification/rewards/history');
       setRedemptionHistory(res.data.data?.redemptions ?? []);
     } catch {
       // silent fail
@@ -270,7 +268,7 @@ export function useGamification() {
   const redeemReward = useCallback(async (itemId: string) => {
     if (!api) return false;
     try {
-      await api.post(`${API_BASE_URL}/gamification/rewards/redeem`, { itemId });
+      await api.post('/gamification/rewards/redeem', { itemId });
       await Promise.all([fetchRewardBalance(), fetchRedemptionHistory()]);
       return true;
     } catch {
@@ -282,7 +280,7 @@ export function useGamification() {
   const fetchBonusEvents = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/gamification/bonus-events`);
+      const res = await api.get('/gamification/bonus-events');
       setBonusEvents(res.data.data ?? []);
     } catch {
       // silent fail

@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
 import { ORDER_STATUS_CONFIG } from '@/lib/constants';
+import { isActiveStatus, isTerminalStatus } from '@/lib/order-statuses';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
+import type { Order } from '@riderguy/types';
 import { Badge, Skeleton } from '@riderguy/ui';
 import {
   Search,
@@ -147,16 +149,14 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-1">
-              {recentOrders.map((order: Record<string, unknown>) => {
-                const id = order.id as string;
-                const status = ORDER_STATUS_CONFIG[(order.status as string)] ?? { label: order.status as string, color: 'text-surface-600', bg: 'bg-surface-100' };
-                const statusStr = order.status as string;
-                const isActive = ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(statusStr);
-                const isCancelledOrFailed = statusStr.startsWith('CANCELLED') || statusStr === 'FAILED';
+              {recentOrders.map((order: Order) => {
+                const isActive = isActiveStatus(order.status);
+                const isCancelledOrFailed = isTerminalStatus(order.status);
+                const statusCfg = ORDER_STATUS_CONFIG[order.status] ?? { label: order.status, color: 'text-surface-600', bg: 'bg-surface-100' };
                 return (
                   <button
-                    key={id}
-                    onClick={() => router.push(isActive ? `/dashboard/orders/${id}/tracking` : isCancelledOrFailed ? '/dashboard/orders' : `/dashboard/orders/${id}/rate`)}
+                    key={order.id}
+                    onClick={() => router.push(isActive ? `/dashboard/orders/${order.id}/tracking` : isCancelledOrFailed ? '/dashboard/orders' : `/dashboard/orders/${order.id}/rate`)}
                     className="w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl hover:bg-surface-50 transition-colors text-left btn-press group"
                   >
                     <div className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 group-hover:bg-surface-200 transition-colors">
@@ -168,15 +168,15 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-surface-900 truncate">
-                        {(order.dropoffAddress as string) || 'Delivery'}
+                        {order.dropoffAddress || 'Delivery'}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-surface-400">
-                          {timeAgo(new Date(order.createdAt as string))}
+                          {timeAgo(new Date(order.createdAt))}
                         </span>
                         {isActive && (
-                          <Badge className={`${status.bg} ${status.color} text-[10px] font-semibold px-1.5 py-0`}>
-                            {status.label}
+                          <Badge className={`${statusCfg.bg} ${statusCfg.color} text-[10px] font-semibold px-1.5 py-0`}>
+                            {statusCfg.label}
                           </Badge>
                         )}
                       </div>
@@ -184,7 +184,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {!!order.totalPrice && (
                         <span className="text-sm font-bold text-surface-900">
-                          {formatCurrency(order.totalPrice as number)}
+                          {formatCurrency(order.totalPrice)}
                         </span>
                       )}
                       <ChevronRight className="h-4 w-4 text-surface-300" />

@@ -318,25 +318,4 @@ function fitRouteGeometry(
   });
 }
 
-/** Fit map to coordinate array */
-export function fitBoundsToCoords(
-  map: mapboxgl.Map,
-  mapboxgl: typeof import('mapbox-gl').default,
-  coords: [number, number][],
-  padding?: mapboxgl.PaddingOptions | number,
-): void {
-  if (coords.length === 0) return;
-  if (coords.length === 1) {
-    map.flyTo({ center: coords[0], zoom: MAP_ZOOM.close, duration: MAP_ANIMATION.flyToFast });
-    return;
-  }
-  const bounds = coords.reduce(
-    (b, c) => b.extend(c),
-    new mapboxgl.LngLatBounds(coords[0]!, coords[0]!),
-  );
-  map.fitBounds(bounds, {
-    padding: padding ?? MAP_PADDING.navigation,
-    maxZoom: MAP_ZOOM.routeFit,
-    duration: MAP_ANIMATION.fitBounds,
-  });
-}
+

@@ -1,4 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
+
+// ── Ensure Prisma Decimal serializes to JSON numbers ────────
+// Without this, Decimal fields (totalPrice, baseFare, etc.)
+// serialize as strings in res.json(), causing NaN on the frontend.
+Prisma.Decimal.prototype.toJSON = function () {
+  return Number(this);
+};
 
 // ============================================================
 // Prisma Client Singleton

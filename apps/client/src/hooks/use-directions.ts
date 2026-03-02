@@ -17,8 +17,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { tokenStorage } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
+import { useAuth } from '@riderguy/auth';
 
 // ── Types ───────────────────────────────────────────────
 
@@ -101,6 +100,7 @@ export interface UseDirectionsReturn {
 // ── Hook ────────────────────────────────────────────────
 
 export function useDirections(): UseDirectionsReturn {
+  const { api } = useAuth();
   const [routes, setRoutes] = useState<DirectionsRoute[]>([]);
   const [waypoints, setWaypoints] = useState<DirectionsWaypoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -126,29 +126,18 @@ export function useDirections(): UseDirectionsReturn {
       setError(null);
 
       try {
-        const token = tokenStorage.getAccessToken();
-        if (!token) throw new Error('Not authenticated');
+        if (!api) throw new Error('Not authenticated');
 
         // Format coordinates: lng,lat;lng,lat;...
         const coordStr = coordinates.map(([lng, lat]) => `${lng},${lat}`).join(';');
-        const url = `${API_BASE_URL}/orders/directions?coordinates=${encodeURIComponent(coordStr)}&profile=${profile}`;
 
-        const res = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+        const { data: json } = await api.get<{ success: boolean; data: DirectionsResult }>(
+          '/orders/directions',
+          {
+            params: { coordinates: coordStr, profile },
+            signal: controller.signal,
           },
-        });
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(
-            body?.error?.message ?? `Directions request failed (${res.status})`,
-          );
-        }
-
-        const json = (await res.json()) as { success: boolean; data: DirectionsResult };
+        );
 
         if (!json.success || !json.data?.routes?.length) {
           throw new Error('No route found between these locations');
@@ -160,14 +149,16 @@ export function useDirections(): UseDirectionsReturn {
         return result.routes;
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return null;
-        const msg = err instanceof Error ? err.message : 'Failed to fetch directions';
+        if ((err as { code?: string })?.code === 'ERR_CANCELED') return null;
+        const axiosMsg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+        const msg = axiosMsg ?? (err instanceof Error ? err.message : 'Failed to fetch directions');
         setError(msg);
         return null;
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [api],
   );
 
   const reset = useCallback(() => {

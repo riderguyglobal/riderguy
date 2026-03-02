@@ -20,6 +20,44 @@ import { autoDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
 import { prisma } from '@riderguy/database';
 import type { OrderStatus } from '@prisma/client';
+import multer from 'multer';
+import type { Request } from 'express';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import fsSync from 'node:fs';
+import fs from 'node:fs/promises';
+
+// ============================================================
+// Multer config for package photo & proof-of-delivery uploads
+// ============================================================
+
+const tempStorage = multer.diskStorage({
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) =>
+    cb(null, os.tmpdir()),
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `riderguy-order-${crypto.randomUUID()}${ext}`);
+  },
+});
+
+const packagePhotoUpload = multer({
+  storage: tempStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB for videos
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
+    cb(null, ALLOWED.includes(file.mimetype));
+  },
+});
+
+const proofUpload = multer({
+  storage: tempStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+    cb(null, ALLOWED.includes(file.mimetype));
+  },
+});
 
 // ============================================================
 // Order Routes — Sprint 4+5: Core Delivery Flow + Tracking
@@ -33,45 +71,23 @@ router.use(authenticate);
 // Price Estimation & Geocoding (public to authenticated users)
 // ─────────────────────────────────────────────────────────────
 
-/** POST /orders/upload-photo — Upload a package photo/video before creating order */
+/** POST /orders/upload-photo — Upload a package photo/video (multipart) */
 router.post(
   '/upload-photo',
+  packagePhotoUpload.single('file'),
   asyncHandler(async (req, res) => {
-    const { fileData, fileName, mimeType } = req.body;
+    const file = req.file;
+    if (!file) throw ApiError.badRequest('No file uploaded');
 
-    if (!fileData || !fileName || !mimeType) {
-      throw ApiError.badRequest('fileData, fileName, and mimeType are required');
-    }
-
-    // Validate MIME type
-    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
-    if (!ALLOWED_TYPES.includes(mimeType)) {
-      throw ApiError.badRequest(`File type ${mimeType} is not allowed. Allowed: ${ALLOWED_TYPES.join(', ')}`);
-    }
-
-    // Validate size (max 10MB for images, 25MB for videos)
-    const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
-    const estimatedSize = Math.ceil(base64Data.length * 0.75);
-    const isVideo = mimeType.startsWith('video/');
-    const maxSize = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
-
-    if (estimatedSize > maxSize) {
-      throw ApiError.badRequest(`File exceeds maximum size of ${isVideo ? '25MB' : '10MB'}`);
-    }
-
-    // Save to uploads/packages/ directory
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const { randomUUID } = await import('crypto');
-    const ext = path.extname(fileName).toLowerCase() || (isVideo ? '.mp4' : '.jpg');
-    const storedName = `pkg-${randomUUID()}${ext}`;
+    // Move from temp → uploads/packages/
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const storedName = `pkg-${crypto.randomUUID()}${ext}`;
     const uploadsDir = path.resolve(process.cwd(), 'uploads', 'packages');
     await fs.mkdir(uploadsDir, { recursive: true });
-    const filePath = path.join(uploadsDir, storedName);
-    await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+    const destPath = path.join(uploadsDir, storedName);
+    await fs.rename(file.path, destPath);
 
     const photoUrl = `/api/v1/uploads/packages/${storedName}`;
-
     res.status(StatusCodes.OK).json({ success: true, data: { url: photoUrl } });
   }),
 );
@@ -517,30 +533,20 @@ router.get(
   }),
 );
 
-/** POST /orders/:id/proof — Upload proof of delivery (photo or signature) */
+/** POST /orders/:id/proof — Upload proof of delivery (multipart photo or JSON signature/PIN) */
 router.post(
   '/:id/proof',
   requireRole(UserRole.RIDER),
+  proofUpload.single('file'),
   asyncHandler(async (req, res) => {
     const orderId = req.params.id as string;
-    const { proofType, proofData } = req.body;
+    const proofType = (req.body.proofType ?? req.query.proofType) as string;
 
-    if (!proofType || !proofData) {
-      throw ApiError.badRequest('proofType and proofData are required');
-    }
+    if (!proofType) throw ApiError.badRequest('proofType is required');
 
-    // Validate proofType against allowed values
     const ALLOWED_PROOF_TYPES = ['PHOTO', 'SIGNATURE', 'PIN_CODE'];
     if (!ALLOWED_PROOF_TYPES.includes(proofType)) {
       throw ApiError.badRequest(`proofType must be one of: ${ALLOWED_PROOF_TYPES.join(', ')}`);
-    }
-
-    // Validate base64 payload size (max 5MB decoded)
-    const MAX_PROOF_SIZE = 5 * 1024 * 1024;
-    const base64Data = proofData.replace(/^data:image\/\w+;base64,/, '');
-    const estimatedSize = Math.ceil(base64Data.length * 0.75);
-    if (estimatedSize > MAX_PROOF_SIZE) {
-      throw ApiError.badRequest('Proof image exceeds maximum size of 5MB');
     }
 
     // Verify rider is assigned
@@ -554,24 +560,42 @@ router.post(
       throw ApiError.forbidden('You are not assigned to this order');
     }
 
-    // Store proof data (base64 image or signature data saved as local file)
-    const fileName = `proof-${orderId}-${Date.now()}.png`;
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const uploadsDir = path.resolve(process.cwd(), 'uploads', 'proofs');
-    await fs.mkdir(uploadsDir, { recursive: true });
+    let proofUrl: string;
 
-    // base64Data already extracted and size-validated above
-    const filePath = path.join(uploadsDir, fileName);
-    await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+    if (proofType === 'PIN_CODE') {
+      // PIN code doesn't need a file — just validate the pin
+      const proofData = req.body.proofData as string;
+      if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
+      proofUrl = `pin:${proofData}`;
+    } else if (req.file) {
+      // Multipart file upload (PHOTO or SIGNATURE)
+      const fileName = `proof-${orderId}-${Date.now()}${path.extname(req.file.originalname) || '.png'}`;
+      const uploadsDir = path.resolve(process.cwd(), 'uploads', 'proofs');
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const destPath = path.join(uploadsDir, fileName);
+      await fs.rename(req.file.path, destPath);
+      proofUrl = `/api/v1/uploads/proofs/${fileName}`;
+    } else if (req.body.proofData) {
+      // Fallback: accept base64 for backward compatibility (signatures)
+      const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');
+      const estimatedSize = Math.ceil(base64Data.length * 0.75);
+      if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
 
-    const proofUrl = `/api/v1/uploads/proofs/${fileName}`;
+      const fileName = `proof-${orderId}-${Date.now()}.png`;
+      const uploadsDir = path.resolve(process.cwd(), 'uploads', 'proofs');
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, fileName);
+      await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+      proofUrl = `/api/v1/uploads/proofs/${fileName}`;
+    } else {
+      throw ApiError.badRequest('File upload or proofData is required');
+    }
 
     await prisma.order.update({
       where: { id: orderId },
       data: {
         proofOfDeliveryUrl: proofUrl,
-        proofOfDeliveryType: proofType, // PHOTO, SIGNATURE, PIN_CODE
+        proofOfDeliveryType: proofType as 'PHOTO' | 'SIGNATURE' | 'PIN_CODE',
       },
     });
 

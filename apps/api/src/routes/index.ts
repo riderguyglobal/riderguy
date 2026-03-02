@@ -18,6 +18,9 @@ import { mentorshipRouter } from './mentorship/mentorship.routes';
 import { eventRouter } from './events/events.routes';
 import { featureRequestRouter } from './feature-requests/feature-requests.routes';
 import { riderIdentityRouter } from './rider-identity/rider-identity.routes';
+import { savedAddressRouter } from './saved-addresses/saved-address.routes';
+import { favoriteRiderRouter } from './favorite-riders/favorite-rider.routes';
+import { scheduledDeliveryRouter } from './scheduled-deliveries/scheduled-delivery.routes';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../lib/async-handler';
 import { ApiError } from '../lib/api-error';
@@ -41,6 +44,9 @@ router.use('/mentorship', mentorshipRouter);
 router.use('/events', eventRouter);
 router.use('/feature-requests', featureRequestRouter);
 router.use('/rider-identity', riderIdentityRouter);
+router.use('/saved-addresses', savedAddressRouter);
+router.use('/favorite-riders', favoriteRiderRouter);
+router.use('/scheduled-deliveries', scheduledDeliveryRouter);
 
 // ────── Authenticated file serving (protects PII uploads) ──────
 router.get(

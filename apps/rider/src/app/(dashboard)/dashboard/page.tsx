@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useAuth } from '@riderguy/auth';
@@ -33,50 +34,55 @@ export default function DashboardPage() {
   const { api, user } = useAuth();
   const { availability, toggleAvailability, loading: toggling } = useRiderAvailability();
 
-  const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [profile, setProfile] = useState<{ completedDeliveries: number; rating: number } | null>(null);
-  const [gamification, setGamification] = useState<{
-    totalXp: number; currentLevel: number; levelName: string;
-    progressPercent: number; isMaxLevel: boolean; nextLevelXp: number;
-  } | null>(null);
-  const [greeting, setGreeting] = useState('Good morning');
+  // ── Dashboard data via React Query (cached + background refresh) ──
 
-  const isOnline = availability === RiderAvailability.ONLINE;
+  const { data: wallet } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: () => api!.get('/wallets').then(r => r.data.data as WalletData),
+    enabled: !!api,
+  });
 
-  // Greeting based on time
-  useEffect(() => {
+  const { data: orders = [] } = useQuery({
+    queryKey: ['orders', 'active-rider'],
+    queryFn: () => api!.get('/orders', {
+      params: { role: 'rider', status: 'ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF', limit: 5 },
+    }).then(r => (r.data.data ?? []) as Order[]),
+    enabled: !!api,
+    refetchInterval: 30_000, // Poll active orders every 30s
+  });
+
+  const { data: profile } = useQuery({
+    queryKey: ['rider-profile'],
+    queryFn: () => api!.get('/riders/profile').then(r => {
+      const d = r.data.data;
+      return { completedDeliveries: d?.completedDeliveries ?? 0, rating: d?.rating ?? 0 };
+    }),
+    enabled: !!api,
+  });
+
+  const { data: gamification } = useQuery({
+    queryKey: ['gamification-profile'],
+    queryFn: () => api!.get('/gamification/profile').then(r => {
+      const d = r.data.data;
+      if (!d) return null;
+      return {
+        totalXp: d.totalXp ?? 0,
+        currentLevel: d.currentLevel ?? 1,
+        levelName: d.levelName ?? 'Rookie',
+        progressPercent: d.progressPercent ?? 0,
+        isMaxLevel: d.isMaxLevel ?? false,
+        nextLevelXp: d.nextLevelXp ?? 500,
+      };
+    }),
+    enabled: !!api,
+  });
+
+  const greeting = useMemo(() => {
     const h = new Date().getHours();
-    setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening');
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }, []);
 
-  // Fetch data
-  useEffect(() => {
-    if (!api) return;
-    api.get('/wallets').then(r => setWallet(r.data.data)).catch(() => {});
-    api.get('/orders', { params: { role: 'rider', status: 'ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF', limit: 5 } })
-      .then(r => setOrders(r.data.data ?? []))
-      .catch(() => {});
-    api.get('/riders/profile')
-      .then(r => {
-        const d = r.data.data;
-        setProfile({ completedDeliveries: d?.completedDeliveries ?? 0, rating: d?.rating ?? 0 });
-      })
-      .catch(() => {});
-    api.get('/gamification/profile')
-      .then(r => {
-        const d = r.data.data;
-        if (d) setGamification({
-          totalXp: d.totalXp ?? 0,
-          currentLevel: d.currentLevel ?? 1,
-          levelName: d.levelName ?? 'Rookie',
-          progressPercent: d.progressPercent ?? 0,
-          isMaxLevel: d.isMaxLevel ?? false,
-          nextLevelXp: d.nextLevelXp ?? 500,
-        });
-      })
-      .catch(() => {});
-  }, [api]);
+  const isOnline = availability === RiderAvailability.ONLINE;
 
   const firstName = user?.firstName || 'Rider';
 

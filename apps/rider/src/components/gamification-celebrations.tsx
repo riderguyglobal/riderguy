@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Sparkles, Crown, ChevronUp } from 'lucide-react';
+import { X, Sparkles, ChevronUp } from 'lucide-react';
 import type { GamificationBadge } from '@/hooks/use-gamification';
 
 // ── Level-Up Celebration Modal ──────────────────────────────
@@ -54,7 +54,7 @@ export function LevelUpCelebration({ level, levelName, onDismiss }: LevelUpProps
       {particles.map(p => (
         <div
           key={p.id}
-          className="absolute rounded-full bg-amber-400/40 animate-float pointer-events-none"
+          className="absolute rounded-full bg-amber-400/40 animate-celebration-float pointer-events-none"
           style={{
             left: `${p.x}%`,
             top: `${p.y}%`,
@@ -128,11 +128,11 @@ export function LevelUpCelebration({ level, levelName, onDismiss }: LevelUpProps
 
       {/* Global float animation */}
       <style jsx global>{`
-        @keyframes float {
+        @keyframes celebration-float {
           0%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
           50% { transform: translateY(-30px) scale(1.2); opacity: 0.8; }
         }
-        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-celebration-float { animation: celebration-float 3s ease-in-out infinite; }
       `}</style>
     </div>
   );

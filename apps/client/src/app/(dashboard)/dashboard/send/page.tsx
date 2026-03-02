@@ -51,16 +51,6 @@ const QUICK_PACKAGES = PACKAGE_TYPES.filter((p) =>
 
 const MAX_ADDITIONAL_STOPS = 3;
 
-// ── File to base64 ──────────────────────────────────
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 // ── Page Component ──────────────────────────────────
 
@@ -91,6 +81,8 @@ export default function SendPackagePage() {
   const [packagePhotos, setPackagePhotos] = useState<{ file: File; preview: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropoffInputRef = useRef<HTMLInputElement>(null);
+  const photosRef = useRef(packagePhotos);
+  photosRef.current = packagePhotos;
 
   // ── Location handlers ──
 
@@ -157,9 +149,8 @@ export default function SendPackagePage() {
   // Cleanup preview URLs on unmount
   useEffect(() => {
     return () => {
-      packagePhotos.forEach((p) => URL.revokeObjectURL(p.preview));
+      photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Price estimation ──
@@ -225,11 +216,10 @@ export default function SendPackagePage() {
     const urls: string[] = [];
     for (const { file } of packagePhotos) {
       try {
-        const base64 = await fileToBase64(file);
-        const res = await api.post('/orders/upload-photo', {
-          fileData: base64,
-          fileName: file.name,
-          mimeType: file.type,
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await api.post('/orders/upload-photo', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
         if (res.data?.data?.url) urls.push(res.data.data.url);
       } catch {

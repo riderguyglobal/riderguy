@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
+import { phoneSchema, emailSchema, passwordSchema } from '@riderguy/validators';
 import { Eye, EyeOff, Mail, Phone, AlertCircle } from 'lucide-react';
 
 type Method = 'phone' | 'email';
@@ -23,15 +24,24 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
+  // OTP resend cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   useEffect(() => {
     if (isAuthenticated) router.replace('/dashboard');
   }, [isAuthenticated, router]);
 
   const handleRequestOtp = async () => {
-    if (!phone || phone.length < 10) {
-      setError('Enter a valid phone number');
+    const result = phoneSchema.safeParse(phone);
+    if (!result.success) {
+      setError(result.error.errors[0]?.message ?? 'Invalid phone number');
       return;
     }
     setSubmitting(true);
@@ -39,6 +49,7 @@ export default function LoginPage() {
     try {
       await requestOtp(phone, 'LOGIN');
       setPhoneStage('otp');
+      setCooldown(60);
     } catch (err: unknown) {
       const msg = (err as any)?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));
@@ -65,8 +76,14 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Enter your email and password');
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      setError(emailResult.error.errors[0]?.message ?? 'Invalid email');
+      return;
+    }
+    const pwResult = passwordSchema.safeParse(password);
+    if (!pwResult.success) {
+      setError(pwResult.error.errors[0]?.message ?? 'Invalid password');
       return;
     }
     setSubmitting(true);
@@ -158,10 +175,10 @@ export default function LoginPage() {
               <div className="text-center mt-4">
                 <button
                   onClick={handleRequestOtp}
-                  disabled={submitting}
-                  className="text-sm text-muted hover:text-brand-400 transition-colors font-medium"
+                  disabled={submitting || cooldown > 0}
+                  className="text-sm text-muted hover:text-brand-400 transition-colors font-medium disabled:opacity-50"
                 >
-                  Resend code
+                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
                 </button>
               </div>
             </>

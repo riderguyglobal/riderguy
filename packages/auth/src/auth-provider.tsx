@@ -24,8 +24,10 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   error: string | null;
   api: AxiosInstance;
-  /** Raw JWT access token (for raw fetch calls) */
+  /** Raw JWT access token (for raw fetch calls). Always reads the latest value. */
   accessToken: string | null;
+  /** Get a fresh access token — always reads from storage, never stale */
+  getAccessToken: () => string | null;
 
   /** Login with phone & OTP code */
   loginWithOtp: (phone: string, otp: string) => Promise<void>;
@@ -205,6 +207,8 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     storeLogout();
   }, [api, storeLogout]);
 
+  const getAccessToken = useCallback(() => tokenStorage.getAccessToken(), []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -213,6 +217,7 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       error,
       api,
       accessToken: tokenStorage.getAccessToken(),
+      getAccessToken,
       loginWithOtp,
       loginWithPassword,
       register,
@@ -227,6 +232,7 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       isAuthenticated,
       error,
       api,
+      getAccessToken,
       loginWithOtp,
       loginWithPassword,
       register,

@@ -14,7 +14,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { API_BASE_URL, DEFAULT_CENTER } from '@/lib/constants';
-import { tokenStorage } from '@riderguy/auth';
+import { useAuth, tokenStorage } from '@riderguy/auth';
 
 export interface MapboxFeature {
   id: string;
@@ -61,6 +61,7 @@ function uuid() {
 
 export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}) {
   const { debounce = 250 } = options;
+  const { api } = useAuth();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchSuggestion[]>([]);
@@ -99,17 +100,13 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     setLoading(true);
 
     try {
+      if (!api) { setLoading(false); return; }
       const prox = userLocationRef.current || DEFAULT_CENTER;
-      const url = `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}&lat=${prox[1]}&lng=${prox[0]}&session_token=${sessionTokenRef.current}`;
-      const token = tokenStorage.getAccessToken();
-      const res = await fetch(url, {
+      const { data: json } = await api.get('/orders/autocomplete', {
+        params: { q, lat: prox[1], lng: prox[0], session_token: sessionTokenRef.current },
         signal: ctrl.signal,
-        credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
-      if (!res.ok) throw new Error('Autocomplete failed');
-      const json = await res.json();
       const suggestions: SearchSuggestion[] = (json.data ?? []).map((s: Record<string, unknown>) => ({
         id: s.id as string,
         text: s.text as string,
@@ -127,7 +124,7 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   /** Retrieve full place details (coordinates) for a selected suggestion */
   const retrieve = useCallback(async (suggestion: SearchSuggestion): Promise<RetrievedPlace | null> => {
@@ -149,15 +146,12 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     // Legacy path: Search Box IDs that need a retrieve call for coordinates
     setRetrieving(true);
     try {
-      const url = `${API_BASE_URL}/orders/retrieve-place/${encodeURIComponent(suggestion.id)}?session_token=${sessionTokenRef.current}`;
-      const token = tokenStorage.getAccessToken();
-      const res = await fetch(url, {
-        credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      if (!api) return null;
+      const { data: json } = await api.get(
+        `/orders/retrieve-place/${encodeURIComponent(suggestion.id)}`,
+        { params: { session_token: sessionTokenRef.current } },
+      );
 
-      if (!res.ok) return null;
-      const json = await res.json();
       const place = json.data as RetrievedPlace | undefined;
 
       // Start a new session for the next search

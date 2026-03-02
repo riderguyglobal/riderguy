@@ -6,7 +6,7 @@ import { useAuth } from '@riderguy/auth';
 import { useQuery } from '@tanstack/react-query';
 import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
-import { connectSocket, disconnectSocket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } from '@/hooks/use-socket';
+import { useSocket } from '@/hooks/use-socket';
 import { Avatar, AvatarImage, AvatarFallback, Skeleton } from '@riderguy/ui';
 import {
   ArrowLeft,
@@ -48,6 +48,7 @@ export default function TrackingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { api, user } = useAuth();
+  const { socket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } = useSocket();
   const [riderCoords, setRiderCoords] = useState<[number, number] | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [msgInput, setMsgInput] = useState('');
@@ -56,6 +57,19 @@ export default function TrackingPage() {
   const [typing, setTyping] = useState(false);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const historyLoadedRef = useRef(false);
+
+  // Load existing chat messages
+  useEffect(() => {
+    if (!api || !id || historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+    api.get(`/orders/${id}/messages`)
+      .then((res) => {
+        const existing = res.data.data ?? [];
+        if (existing.length > 0) setMessages(existing);
+      })
+      .catch(() => {});
+  }, [api, id]);
 
   // Auto-verify payment if redirected from Paystack with a reference
   const paymentRef = searchParams.get('reference') || searchParams.get('trxref');
@@ -75,8 +89,7 @@ export default function TrackingPage() {
   });
 
   useEffect(() => {
-    if (!id) return;
-    const socket = connectSocket();
+    if (!id || !socket) return;
     subscribeToOrder(id);
 
     const onUpdate = (data: Record<string, unknown>) => {
@@ -108,9 +121,8 @@ export default function TrackingPage() {
       socket.off('message:new', onMessage);
       socket.off('message:typing', onTyping);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      disconnectSocket();
     };
-  }, [id, refetch, user?.id]);
+  }, [id, socket, refetch, user?.id, subscribeToOrder, unsubscribeFromOrder]);
 
   const handleSendMessage = () => {
     if (!msgInput.trim()) return;

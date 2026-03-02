@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { useSocket } from './use-socket';
 import type { CommunityChatMessage, CommunityTypingIndicator } from '@riderguy/types';
 
@@ -11,7 +10,7 @@ import type { CommunityChatMessage, CommunityTypingIndicator } from '@riderguy/t
 // Chat rooms, forum posts, announcements, moderation
 // ============================================================
 
-const BASE = `${API_BASE_URL}/community`;
+const BASE = '/community';
 
 // ────── Types ──────
 
@@ -255,8 +254,25 @@ export function useCommunityChat() {
           }];
         });
       }
-      // Update room list to show latest message
-      fetchRooms();
+      // Update room list locally — bump the room with the latest message to the top
+      setRooms(prev => {
+        const idx = prev.findIndex(r => r.id === data.roomId);
+        if (idx === -1) return prev; // Unknown room — periodic refresh will pick it up
+        const updated = [...prev];
+        const room: ChatRoom = {
+          ...updated[idx]!,
+          lastMessage: {
+            id: data.id,
+            content: data.content,
+            senderName: data.senderName,
+            senderId: data.senderId,
+            createdAt: data.createdAt,
+          },
+          hasUnread: data.roomId !== activeRoomRef.current,
+        };
+        updated.splice(idx, 1);
+        return [room, ...updated];
+      });
     };
 
     const handleTyping = (data: CommunityTypingIndicator) => {
@@ -290,8 +306,11 @@ export function useCommunityChat() {
     return () => {
       socket.off('community:message', handleMessage);
       socket.off('community:typing', handleTyping);
+      // Clear all pending typing timers to prevent leaks
+      typingTimersRef.current.forEach((timer) => clearTimeout(timer));
+      typingTimersRef.current.clear();
     };
-  }, [socket, user?.id, fetchRooms]);
+  }, [socket, user?.id]);
 
   return {
     rooms,

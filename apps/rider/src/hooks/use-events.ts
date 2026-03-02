@@ -2,13 +2,12 @@
 
 import { useCallback, useState } from 'react';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 
 // ============================================================
 // Events Hook — Sprint 12
 // ============================================================
 
-const BASE = `${API_BASE_URL}/events`;
+const BASE = '/events';
 
 // ────── Types ──────
 

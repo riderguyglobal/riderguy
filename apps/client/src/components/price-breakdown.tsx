@@ -138,7 +138,7 @@ function ExpandedBreakdown({ estimate }: { estimate: PriceEstimate }) {
     items.push({
       icon: <Calendar className="h-3.5 w-3.5" />,
       label: `Schedule discount (${pct}%)`,
-      value: `−${formatCurrency(estimate.subtotal * (1 - estimate.scheduleDiscount) / estimate.scheduleDiscount, estimate.currency)}`,
+      value: `−${formatCurrency(estimate.subtotal * (1 - estimate.scheduleDiscount), estimate.currency)}`,
       accent: true,
     });
   }

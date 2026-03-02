@@ -205,14 +205,7 @@ export default function PaymentPage() {
     }
   }, [api, id, router]);
 
-  // Auto-initiate payment when ready
-  useEffect(() => {
-    if (state === 'ready' && order && PAYSTACK_PUBLIC_KEY) {
-      // Small delay to allow Paystack script to load
-      const timer = setTimeout(() => initiatePayment(), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [state, order, initiatePayment]);
+  // No auto-initiation — user must explicitly click "Pay Now"
 
   // ── Loading ──
   if (state === 'loading') {
@@ -316,8 +309,19 @@ export default function PaymentPage() {
 
         {/* ── Status-specific UI ── */}
 
+        {/* Ready — Pay Now button */}
+        {state === 'ready' && (
+          <button
+            onClick={initiatePayment}
+            className="w-full h-14 rounded-2xl bg-surface-900 text-white font-bold text-base shadow-lg hover:bg-surface-800 transition-all btn-press flex items-center justify-center gap-2.5"
+          >
+            <CreditCard className="h-5 w-5" />
+            Pay {order ? formatCurrency(order.totalPrice) : ''}
+          </button>
+        )}
+
         {/* Processing */}
-        {(state === 'processing' || state === 'ready') && (
+        {state === 'processing' && (
           <div className="py-8 text-center animate-pulse">
             <div className="relative inline-flex mb-4">
               <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl scale-150" />

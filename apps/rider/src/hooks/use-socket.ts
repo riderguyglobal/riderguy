@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { tokenStorage } from '@riderguy/auth';
 
@@ -10,7 +10,7 @@ let sharedSocket: Socket | null = null;
 let listenerCount = 0;
 
 function getOrCreateSocket(): Socket {
-  if (sharedSocket?.connected) return sharedSocket;
+  if (sharedSocket && !sharedSocket.disconnected) return sharedSocket;
 
   sharedSocket = io(API_WS_URL, {
     auth: (cb) => cb({ token: tokenStorage.getAccessToken() }),
@@ -24,24 +24,25 @@ function getOrCreateSocket(): Socket {
 }
 
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const socket = getOrCreateSocket();
-    socketRef.current = socket;
+    const s = getOrCreateSocket();
     listenerCount++;
+    if (!s.connected) s.connect();
+    setSocket(s);
 
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    if (socket.connected) setConnected(true);
+    s.on('connect', onConnect);
+    s.on('disconnect', onDisconnect);
+    if (s.connected) setConnected(true);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
+      s.off('connect', onConnect);
+      s.off('disconnect', onDisconnect);
       listenerCount--;
       if (listenerCount <= 0 && sharedSocket) {
         sharedSocket.disconnect();
@@ -52,31 +53,31 @@ export function useSocket() {
   }, []);
 
   const emitLocation = useCallback((lat: number, lng: number, heading?: number) => {
-    socketRef.current?.emit('rider:updateLocation', { latitude: lat, longitude: lng, heading });
+    sharedSocket?.emit('rider:updateLocation', { latitude: lat, longitude: lng, heading });
   }, []);
 
   const subscribeToOrder = useCallback((orderId: string) => {
-    socketRef.current?.emit('order:subscribe', { orderId });
+    sharedSocket?.emit('order:subscribe', { orderId });
   }, []);
 
   const unsubscribeFromOrder = useCallback((orderId: string) => {
-    socketRef.current?.emit('order:unsubscribe', { orderId });
+    sharedSocket?.emit('order:unsubscribe', { orderId });
   }, []);
 
   const sendMessage = useCallback((orderId: string, content: string) => {
-    socketRef.current?.emit('message:send', { orderId, content });
+    sharedSocket?.emit('message:send', { orderId, content });
   }, []);
 
   const sendTyping = useCallback((orderId: string) => {
-    socketRef.current?.emit('message:typing', { orderId });
+    sharedSocket?.emit('message:typing', { orderId });
   }, []);
 
   const respondToOffer = useCallback((orderId: string, accepted: boolean) => {
-    socketRef.current?.emit('job:offer:respond', { orderId, accepted });
+    sharedSocket?.emit('job:offer:respond', { orderId, accepted });
   }, []);
 
   return {
-    socket: socketRef.current,
+    socket,
     connected,
     emitLocation,
     subscribeToOrder,

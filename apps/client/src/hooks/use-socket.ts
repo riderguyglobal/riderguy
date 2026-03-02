@@ -1,16 +1,20 @@
 'use client';
 
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useState, useCallback } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { API_BASE_URL } from '@/lib/constants';
 import { tokenStorage } from '@riderguy/auth';
 
-let socket: Socket | null = null;
+// ── Shared singleton with reference counting ────────────
+const API_WS_URL = API_BASE_URL.replace('/api/v1', '');
 
-export function getSocket(): Socket {
-  if (socket) return socket;
+let sharedSocket: Socket | null = null;
+let refCount = 0;
 
-  const baseUrl = API_BASE_URL.replace('/api/v1', '');
-  socket = io(baseUrl, {
+function getOrCreateSocket(): Socket {
+  if (sharedSocket && !sharedSocket.disconnected) return sharedSocket;
+
+  sharedSocket = io(API_WS_URL, {
     autoConnect: false,
     transports: ['websocket', 'polling'],
     reconnectionAttempts: 10,
@@ -21,33 +25,61 @@ export function getSocket(): Socket {
     },
   });
 
-  return socket;
+  return sharedSocket;
 }
 
-export function connectSocket() {
-  const s = getSocket();
-  if (!s.connected) s.connect();
-  return s;
-}
+// ── Hook — manages lifecycle via reference counting ─────
+export function useSocket() {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [connected, setConnected] = useState(false);
 
-export function disconnectSocket() {
-  if (socket?.connected) {
-    socket.disconnect();
-  }
-}
+  useEffect(() => {
+    const s = getOrCreateSocket();
+    refCount++;
+    if (!s.connected) s.connect();
+    setSocket(s);
 
-export function subscribeToOrder(orderId: string) {
-  getSocket().emit('order:subscribe', { orderId });
-}
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
 
-export function unsubscribeFromOrder(orderId: string) {
-  getSocket().emit('order:unsubscribe', { orderId });
-}
+    s.on('connect', onConnect);
+    s.on('disconnect', onDisconnect);
+    if (s.connected) setConnected(true);
 
-export function sendMessage(orderId: string, content: string) {
-  getSocket().emit('message:send', { orderId, content });
-}
+    return () => {
+      s.off('connect', onConnect);
+      s.off('disconnect', onDisconnect);
+      refCount--;
+      if (refCount <= 0 && sharedSocket) {
+        sharedSocket.disconnect();
+        sharedSocket = null;
+        refCount = 0;
+      }
+    };
+  }, []);
 
-export function sendTyping(orderId: string) {
-  getSocket().emit('message:typing', { orderId });
+  const subscribeToOrder = useCallback((orderId: string) => {
+    sharedSocket?.emit('order:subscribe', { orderId });
+  }, []);
+
+  const unsubscribeFromOrder = useCallback((orderId: string) => {
+    sharedSocket?.emit('order:unsubscribe', { orderId });
+  }, []);
+
+  const sendMessage = useCallback((orderId: string, content: string) => {
+    sharedSocket?.emit('message:send', { orderId, content });
+  }, []);
+
+  const sendTyping = useCallback((orderId: string) => {
+    sharedSocket?.emit('message:typing', { orderId });
+  }, []);
+
+  return {
+    socket,
+    connected,
+    subscribeToOrder,
+    unsubscribeFromOrder,
+    sendMessage,
+    sendTyping,
+  };
 }

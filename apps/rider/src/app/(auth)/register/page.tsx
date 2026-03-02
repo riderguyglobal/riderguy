@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
+import { phoneSchema, pinSchema } from '@riderguy/validators';
 import { AlertCircle, CheckCircle2, Bike, Sparkles, Lock } from 'lucide-react';
 
 const STEPS = [{ label: 'Phone' }, { label: 'Verify' }, { label: 'Details' }];
@@ -22,15 +23,24 @@ export default function RegisterPage() {
   const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
+  // OTP resend cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   useEffect(() => {
     if (isAuthenticated) router.replace('/dashboard');
   }, [isAuthenticated, router]);
 
   const handleSendOtp = async () => {
-    if (!phone || phone.length < 10) {
-      setError('Enter a valid phone number');
+    const result = phoneSchema.safeParse(phone);
+    if (!result.success) {
+      setError(result.error.errors[0]?.message ?? 'Invalid phone number');
       return;
     }
     setSubmitting(true);
@@ -38,6 +48,7 @@ export default function RegisterPage() {
     try {
       await requestOtp(phone, 'REGISTRATION');
       setStep(1);
+      setCooldown(60);
     } catch (err: unknown) {
       const msg = (err as any)?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));
@@ -69,8 +80,9 @@ export default function RegisterPage() {
       setError('Enter your full name');
       return;
     }
-    if (pin.length !== 6) {
-      setError('Please set a 6-digit PIN');
+    const pinResult = pinSchema.safeParse(pin);
+    if (!pinResult.success) {
+      setError(pinResult.error.errors[0]?.message ?? 'Please set a 6-digit PIN');
       return;
     }
     setSubmitting(true);
@@ -183,8 +195,8 @@ export default function RegisterPage() {
             Verify & Continue
           </Button>
           <div className="text-center">
-            <button onClick={handleSendOtp} disabled={submitting} className="text-sm text-muted hover:text-brand-400 font-medium transition-colors">
-              Resend code
+            <button onClick={handleSendOtp} disabled={submitting || cooldown > 0} className="text-sm text-muted hover:text-brand-400 font-medium transition-colors disabled:opacity-50">
+              {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
             </button>
           </div>
         </div>

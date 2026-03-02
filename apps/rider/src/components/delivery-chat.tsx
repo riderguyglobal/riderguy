@@ -6,7 +6,6 @@ import { Button, Input } from '@riderguy/ui';
 import { timeAgo } from '@riderguy/utils';
 import { useSocket } from '@/hooks/use-socket';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 
 interface Message {
   id: string;
@@ -36,7 +35,7 @@ export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
   useEffect(() => {
     if (!open || loadedRef.current || !api) return;
     loadedRef.current = true;
-    api.get(`${API_BASE_URL}/orders/${orderId}/messages`)
+    api.get(`/orders/${orderId}/messages`)
       .then((res) => {
         const existing = res.data.data ?? [];
         if (existing.length > 0) setMessages(existing);
@@ -67,6 +66,7 @@ export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
     return () => {
       socket.off('message:new', handleMessage);
       socket.off('message:typing', handleTyping);
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
     };
   }, [socket, open, userId]);
 

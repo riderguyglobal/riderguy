@@ -8,6 +8,31 @@ import { Button } from '@riderguy/ui';
 import { MapPin, Clock, Package, X, Check } from 'lucide-react';
 import type { JobOffer } from '@riderguy/types';
 
+/** Generate a notification tone using Web Audio API when .mp3 is unavailable */
+function playNotificationTone() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const playBeep = (freq: number, start: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + duration);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + duration);
+    };
+    // Three ascending tones
+    playBeep(880, 0, 0.15);
+    playBeep(1100, 0.18, 0.15);
+    playBeep(1320, 0.36, 0.2);
+  } catch {
+    // Web Audio API not available — silent
+  }
+}
+
 export function IncomingRequest() {
   const { socket, respondToOffer } = useSocket();
   const [offer, setOffer] = useState<JobOffer | null>(null);
@@ -30,11 +55,17 @@ export function IncomingRequest() {
       setOffer(data);
       setCountdown(OFFER_COUNTDOWN);
 
-      // Try to play sound
+      // Play notification sound — try .mp3 first, fallback to Web Audio API tone
       try {
-        audioRef.current = new Audio('/sounds/incoming.mp3');
-        audioRef.current.play().catch(() => {});
-      } catch {}
+        const audio = new Audio('/sounds/incoming.mp3');
+        audioRef.current = audio;
+        audio.play().catch(() => {
+          // .mp3 not available — generate a notification tone via Web Audio API
+          playNotificationTone();
+        });
+      } catch {
+        playNotificationTone();
+      }
 
       // Vibrate
       navigator.vibrate?.([200, 100, 200]);
