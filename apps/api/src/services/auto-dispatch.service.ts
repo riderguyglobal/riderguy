@@ -205,7 +205,8 @@ export async function autoDispatch(orderId: string): Promise<void> {
   const riders = await prisma.riderProfile.findMany({
     where: {
       availability: 'ONLINE',
-      onboardingStatus: 'ACTIVATED',
+      // TODO: Re-enable after trial — temporarily bypassed for end-to-end testing
+      // onboardingStatus: 'ACTIVATED',
       currentLatitude: { not: null },
       currentLongitude: { not: null },
     },

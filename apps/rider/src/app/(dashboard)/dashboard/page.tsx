@@ -152,6 +152,7 @@ export default function DashboardPage() {
         )}
 
         {/* Onboarding Banner — show when rider hasn't been activated yet */}
+        {/* TODO: Re-enable after trial — temporarily hidden for end-to-end testing
         {onboardingStatus && onboardingStatus !== 'ACTIVATED' && !gpsError && (
           <Link
             href="/dashboard/onboarding"
@@ -162,6 +163,7 @@ export default function DashboardPage() {
             <ChevronRight className="h-4 w-4 shrink-0" />
           </Link>
         )}
+        */}
 
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-3 gap-3">
