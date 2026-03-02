@@ -5,7 +5,8 @@ import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { StatusCodes } from 'http-status-codes';
 import { prisma } from '@riderguy/database';
-import { parseGoogleMapsUrl, parseRawCoordinates, formatPlusCode } from '@riderguy/utils';
+import { parseGoogleMapsUrl, parseRawCoordinates, isGoogleMapsShortLink, formatPlusCode } from '@riderguy/utils';
+import axios from 'axios';
 import { reverseGeocode } from '../../services/geocoding.service';
 
 // ============================================================
@@ -58,6 +59,53 @@ const nearbySchema = z.object({
 // ── Routes ──────────────────────────────────────────────
 
 /**
+ * POST /places/resolve-link — Resolve a Google Maps short URL and extract coordinates.
+ *
+ * Short URLs like https://maps.app.goo.gl/abc123 redirect to a full
+ * Google Maps URL containing coordinates. This endpoint follows the
+ * redirect and parses the resulting URL.
+ */
+router.post(
+  '/resolve-link',
+  asyncHandler(async (req, res) => {
+    const { url } = req.body as { url: string };
+    if (!url || typeof url !== 'string') {
+      throw ApiError.badRequest('URL is required');
+    }
+
+    // Resolve short link if needed
+    const resolvedUrl = isGoogleMapsShortLink(url)
+      ? await resolveGoogleMapsShortLink(url)
+      : url;
+
+    if (!resolvedUrl) {
+      throw ApiError.badRequest('Could not resolve the Google Maps link.');
+    }
+
+    // Parse the resolved URL
+    const parsed = parseGoogleMapsUrl(resolvedUrl);
+    if (!parsed) {
+      res.status(StatusCodes.OK).json({
+        success: false,
+        resolvedUrl,
+        error: 'Could not extract coordinates from the resolved URL.',
+      });
+      return;
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        latitude: parsed.latitude,
+        longitude: parsed.longitude,
+        placeName: parsed.placeName,
+        resolvedUrl,
+      },
+    });
+  }),
+);
+
+/**
  * POST /places/from-link — Create a community place from a Google Maps URL.
  *
  * Parses the URL to extract coordinates, reverse-geocodes the location,
@@ -70,8 +118,12 @@ router.post(
   asyncHandler(async (req, res) => {
     const { googleMapsUrl, name, category } = req.body as z.infer<typeof createFromLinkSchema>;
 
-    // Parse coordinates from the Google Maps URL
-    const parsed = parseGoogleMapsUrl(googleMapsUrl);
+    // Resolve short link if needed, then parse
+    const urlToparse = isGoogleMapsShortLink(googleMapsUrl)
+      ? await resolveGoogleMapsShortLink(googleMapsUrl) ?? googleMapsUrl
+      : googleMapsUrl;
+
+    const parsed = parseGoogleMapsUrl(urlToparse);
     if (!parsed) {
       throw ApiError.badRequest(
         'Could not extract coordinates from the Google Maps link. ' +
@@ -341,6 +393,57 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Resolve a Google Maps short link by following its redirect chain.
+ * Returns the final full URL, or null if resolution fails.
+ */
+async function resolveGoogleMapsShortLink(shortUrl: string): Promise<string | null> {
+  try {
+    // Follow redirects manually to capture the final URL
+    const response = await axios.get(shortUrl, {
+      maxRedirects: 5,
+      timeout: 8000,
+      // We just need the final URL, not the full page
+      validateStatus: (status) => status < 400,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Riderguy/1.0)',
+        'Accept': 'text/html',
+      },
+    });
+
+    // axios follows redirects automatically; the final URL is in response.request.res.responseUrl
+    // or we can check response.config.url after redirects
+    const finalUrl: string | undefined =
+      response.request?.res?.responseUrl ||
+      response.request?.responseURL ||
+      response.config?.url;
+
+    if (finalUrl && finalUrl !== shortUrl) {
+      console.log(`[ResolveLink] ${shortUrl} → ${finalUrl}`);
+      return finalUrl;
+    }
+
+    // If axios didn't capture the redirect URL, check the response data
+    // for meta refresh or canonical URL
+    const html = typeof response.data === 'string' ? response.data : '';
+    const metaMatch = html.match(/content="\d;url=([^"]+)"/i);
+    if (metaMatch?.[1]) {
+      return metaMatch[1];
+    }
+
+    // Try extracting from response headers
+    const locationHeader = response.headers?.['location'];
+    if (locationHeader) {
+      return locationHeader;
+    }
+
+    return finalUrl || null;
+  } catch (error) {
+    console.warn(`[ResolveLink] Failed to resolve ${shortUrl}:`, error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 export { router as placesRouter };

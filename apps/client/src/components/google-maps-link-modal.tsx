@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { parseGoogleMapsUrl, parseRawCoordinates } from '@riderguy/utils';
+import { parseGoogleMapsUrl, parseRawCoordinates, isGoogleMapsShortLink } from '@riderguy/utils';
 import { useAuth } from '@riderguy/auth';
 import { reverseGeocode } from '@/hooks/use-mapbox-autocomplete';
 import type { LocationValue } from './location-input';
@@ -72,6 +72,23 @@ export function GoogleMapsLinkModal({
       // Also try raw coordinates if URL parse failed
       if (!parsed) {
         parsed = parseRawCoordinates(trimmed);
+      }
+
+      // If still no result and it's a short link, resolve via API
+      if (!parsed && isGoogleMapsShortLink(trimmed) && api) {
+        try {
+          const { data: resolveResult } = await api.post('/places/resolve-link', { url: trimmed });
+          if (resolveResult?.success && resolveResult?.data) {
+            parsed = {
+              latitude: resolveResult.data.latitude,
+              longitude: resolveResult.data.longitude,
+              placeName: resolveResult.data.placeName,
+              rawUrl: trimmed,
+            };
+          }
+        } catch {
+          console.warn('[GoogleMapsLink] Short link resolution failed');
+        }
       }
 
       if (!parsed) {
