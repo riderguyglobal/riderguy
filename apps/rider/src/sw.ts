@@ -154,6 +154,8 @@ async function flushLocationQueue(): Promise<void> {
   const latest = pendingLocations[pendingLocations.length - 1];
   pendingLocations = [];
 
+  if (!latest) return;
+
   try {
     await fetch(`${latest.apiUrl}/riders/location`, {
       method: 'POST',
