@@ -10,7 +10,6 @@ import {
   Phone, Mail, AlertCircle, Eye, EyeOff, ArrowRight, ArrowLeft,
   Fingerprint, KeyRound, MessageSquare, ShieldCheck, Smartphone,
 } from 'lucide-react';
-import Link from 'next/link';
 
 type Tab = 'phone' | 'email';
 type Stage = 'input' | 'method-select' | 'pin' | 'otp' | 'biometric';
