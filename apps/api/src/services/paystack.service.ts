@@ -18,6 +18,10 @@ export class PaystackService {
   private webhookSecret: string;
 
   constructor() {
+    if (!config.paystack.secretKey) {
+      logger.warn('PAYSTACK_SECRET_KEY is not set — payment features will fail');
+    }
+
     this.client = axios.create({
       baseURL: PAYSTACK_BASE_URL,
       headers: {

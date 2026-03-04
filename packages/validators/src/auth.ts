@@ -83,6 +83,18 @@ export const webauthnLoginVerifySchema = z.object({
   credential: z.any(), // AuthenticationResponseJSON — verified by @simplewebauthn/server
 });
 
+// Set PIN (first-time setup — authenticated)
+export const setPinSchema = z.object({
+  pin: pinSchema,
+});
+
+// Reset forgotten PIN via OTP (public — no auth required)
+export const resetPinSchema = z.object({
+  phone: phoneSchema,
+  otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
+  newPin: pinSchema,
+});
+
 // Check what auth methods are available for a phone number
 export const checkAuthMethodsSchema = z.object({
   phone: phoneSchema,
@@ -97,4 +109,6 @@ export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ChangePinInput = z.infer<typeof changePinSchema>;
+export type SetPinInput = z.infer<typeof setPinSchema>;
+export type ResetPinInput = z.infer<typeof resetPinSchema>;
 export type CheckAuthMethodsInput = z.infer<typeof checkAuthMethodsSchema>;

@@ -55,7 +55,7 @@ export default function SettingsPage() {
 
   // Load biometric credentials
   useEffect(() => {
-    if (!biometricSupported) return;
+    if (!biometricSupported || !api) return;
     api
       .get('/auth/webauthn/credentials')
       .then((res) => setBiometricCredentials(res.data?.data ?? []))

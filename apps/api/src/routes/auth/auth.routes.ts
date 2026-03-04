@@ -11,6 +11,8 @@ import {
   loginWithPasswordSchema,
   changePasswordSchema,
   changePinSchema,
+  setPinSchema,
+  resetPinSchema,
   checkAuthMethodsSchema,
   webauthnRegisterOptionsSchema,
   webauthnRegisterVerifySchema,
@@ -107,6 +109,7 @@ router.post(
 router.post(
   '/set-pin',
   authenticate,
+  validate(setPinSchema),
   asyncHandler(AuthController.setPin)
 );
 
@@ -114,6 +117,7 @@ router.post(
 router.post(
   '/reset-pin',
   authRateLimit,
+  validate(resetPinSchema),
   asyncHandler(AuthController.resetPin)
 );
 
@@ -140,6 +144,7 @@ router.post(
 router.post(
   '/webauthn/login/verify',
   authRateLimit,
+  validate(webauthnLoginVerifySchema),
   asyncHandler(AuthController.webauthnLoginVerify)
 );
 

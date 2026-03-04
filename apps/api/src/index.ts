@@ -6,6 +6,7 @@ import { prisma } from '@riderguy/database';
 import { initSocketServer } from './socket';
 import { startWorkers, stopWorkers } from './jobs/workers';
 import { startPresenceManager, stopPresenceManager } from './services/presence.service';
+import { recoverStuckDispatches } from './services/auto-dispatch.service';
 import { closeRedis } from './lib/redis';
 
 // ============================================================
@@ -28,6 +29,11 @@ const server = httpServer.listen(config.port, () => {
     { port: config.port, env: config.nodeEnv },
     `RiderGuy API server running on http://localhost:${config.port}`
   );
+
+  // Recover any orders stuck in SEARCHING_RIDER from previous crash/restart
+  recoverStuckDispatches().catch((err) => {
+    logger.error({ err }, 'Failed to recover stuck dispatches on startup');
+  });
 });
 
 // ---------- Graceful shutdown ----------

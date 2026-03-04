@@ -163,7 +163,7 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     } finally {
       setRetrieving(false);
     }
-  }, []);
+  }, [api]);
 
   const onChange = useCallback((value: string) => {
     setQuery(value);

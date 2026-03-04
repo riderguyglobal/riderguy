@@ -64,6 +64,8 @@ export function useConnectionHealth() {
 
   const heartbeatTimer = useRef<NodeJS.Timeout | null>(null);
   const missedCount = useRef(0);
+  const qualityRef = useRef<ConnectionQuality>('disconnected');
+  const isBackgroundedRef = useRef(false);
 
   // ── Determine connection quality ──
   const evaluateQuality = useCallback((): ConnectionQuality => {
@@ -115,37 +117,52 @@ export function useConnectionHealth() {
         missedHeartbeats: 0,
         quality: latency > 2000 ? 'poor' : latency > 500 ? 'good' : 'excellent',
       }));
+      // Update quality ref (timer reads this without re-triggering the effect)
+      qualityRef.current = latency > 2000 ? 'poor' : latency > 500 ? 'good' : 'excellent';
     });
   }, [socket, socketConnected, evaluateQuality]);
 
   // ── Adaptive heartbeat timer ──
+  // Uses refs for quality/backgrounded to avoid infinite re-render loop
+  const sendHeartbeatRef = useRef(sendHeartbeat);
+  sendHeartbeatRef.current = sendHeartbeat;
+
   useEffect(() => {
     if (!health.networkOnline) {
       if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
       return;
     }
 
-    // Determine interval based on current quality & visibility
-    const interval = health.isBackgrounded
-      ? BACKGROUND_HEARTBEAT_MS
-      : HEARTBEAT_INTERVALS[health.quality] ?? HEARTBEAT_INTERVALS.good;
+    const scheduleNext = () => {
+      if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
 
-    // Clear existing timer
-    if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
+      const interval = isBackgroundedRef.current
+        ? BACKGROUND_HEARTBEAT_MS
+        : HEARTBEAT_INTERVALS[qualityRef.current] ?? HEARTBEAT_INTERVALS.good;
+
+      heartbeatTimer.current = setInterval(() => {
+        sendHeartbeatRef.current();
+      }, interval);
+    };
 
     // Send immediate heartbeat then schedule recurring
-    sendHeartbeat();
-    heartbeatTimer.current = setInterval(sendHeartbeat, interval);
+    sendHeartbeatRef.current();
+    scheduleNext();
+
+    // Re-evaluate interval every 30s to adapt to quality changes
+    const adaptTimer = setInterval(scheduleNext, 30_000);
 
     return () => {
       if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
+      clearInterval(adaptTimer);
     };
-  }, [health.networkOnline, health.quality, health.isBackgrounded, sendHeartbeat]);
+  }, [health.networkOnline]);
 
   // ── Visibility change detection ──
   useEffect(() => {
     const handleVisibility = () => {
       const isBackgrounded = document.visibilityState === 'hidden';
+      isBackgroundedRef.current = isBackgrounded;
       setHealth((h) => ({ ...h, isBackgrounded }));
 
       // When returning to foreground, send immediate heartbeat

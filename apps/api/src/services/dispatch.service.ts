@@ -38,11 +38,10 @@ export async function assignRider(
   }
 
   // Validate rider eligibility
-  // TODO: Re-enable after trial — temporarily bypassed for end-to-end testing
-  // (Must match the bypass in auto-dispatch.service.ts)
-  // if (rider.onboardingStatus !== 'ACTIVATED') {
-  //   throw ApiError.badRequest('Rider is not activated', 'RIDER_NOT_ACTIVATED');
-  // }
+  // Bypass only when BYPASS_ONBOARDING_CHECK=true (for testing)
+  if (process.env.BYPASS_ONBOARDING_CHECK !== 'true' && rider.onboardingStatus !== 'ACTIVATED') {
+    throw ApiError.badRequest('Rider is not activated', 'RIDER_NOT_ACTIVATED');
+  }
   if (rider.availability !== 'ONLINE') {
     throw ApiError.badRequest(
       `Rider is currently ${rider.availability}`,

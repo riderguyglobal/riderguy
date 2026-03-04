@@ -49,6 +49,7 @@ export default function JobDetailPage() {
   const [showFailDialog, setShowFailDialog] = useState(false);
   const [failReason, setFailReason] = useState('');
   const [showProof, setShowProof] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const fetchOrder = useCallback(async () => {
     if (!api || !id) return;
@@ -117,7 +118,10 @@ export default function JobDetailPage() {
     try {
       await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: nextStatus });
       setOrder((prev) => prev ? { ...prev, status: nextStatus as Order['status'] } : prev);
-    } catch {} finally {
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to update status';
+      setActionError(msg);
+    } finally {
       setUpdating(false);
     }
   };
@@ -125,22 +129,30 @@ export default function JobDetailPage() {
   const handleProofSubmit = async (proof: { type: string; data: string; file?: File }) => {
     if (!api || !id) return;
 
-    if (proof.type === 'PHOTO' && proof.file) {
-      // Multipart upload for photo proofs
-      const formData = new FormData();
-      formData.append('file', proof.file);
-      formData.append('proofType', proof.type);
-      await api.post(`${API_BASE_URL}/orders/${id}/proof`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    } else {
-      // JSON for signature (base64) and PIN code
-      await api.post(`${API_BASE_URL}/orders/${id}/proof`, { proofType: proof.type, proofData: proof.data });
-    }
+    setUpdating(true);
+    try {
+      if (proof.type === 'PHOTO' && proof.file) {
+        // Multipart upload for photo proofs
+        const formData = new FormData();
+        formData.append('file', proof.file);
+        formData.append('proofType', proof.type);
+        await api.post(`${API_BASE_URL}/orders/${id}/proof`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        // JSON for signature (base64) and PIN code
+        await api.post(`${API_BASE_URL}/orders/${id}/proof`, { proofType: proof.type, proofData: proof.data });
+      }
 
-    await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: 'DELIVERED' });
-    setOrder((prev) => prev ? { ...prev, status: 'DELIVERED' as Order['status'] } : prev);
-    setShowProof(false);
+      await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: 'DELIVERED' });
+      setOrder((prev) => prev ? { ...prev, status: 'DELIVERED' as Order['status'] } : prev);
+      setShowProof(false);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to submit proof of delivery';
+      setActionError(msg);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleFail = async () => {
@@ -150,7 +162,10 @@ export default function JobDetailPage() {
       await api.post(`${API_BASE_URL}/orders/${id}/fail`, { reason: failReason.trim() });
       setOrder((prev) => prev ? { ...prev, status: 'FAILED' as Order['status'] } : prev);
       setShowFailDialog(false);
-    } catch {} finally {
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to report delivery issue';
+      setActionError(msg);
+    } finally {
       setUpdating(false);
     }
   };
@@ -394,6 +409,13 @@ export default function JobDetailPage() {
       {/* Bottom action bar */}
       {!isComplete && !showProof && (
         <div className="sticky bottom-0 z-10 px-4 py-3 bg-nav backdrop-blur-2xl border-t border-themed safe-area-bottom">
+          {actionError && (
+            <div className="mb-2 px-3 py-2 rounded-xl bg-danger-500/15 border border-danger-500/30 text-danger-400 text-xs font-medium flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">{actionError}</span>
+              <button onClick={() => setActionError('')} className="text-danger-300 hover:text-danger-200 text-xs font-bold">✕</button>
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={() => setShowFailDialog(true)}

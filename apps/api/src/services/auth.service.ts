@@ -483,7 +483,7 @@ export class AuthService {
       sessionId: session.id,
     });
 
-    // Extend session
+    // Extend session and update lastActiveAt
     await prisma.session.update({
       where: { id: session.id },
       data: {
@@ -737,12 +737,13 @@ export class AuthService {
    * Flow: enter phone → request OTP → verify OTP → set new PIN.
    */
   static async resetPinWithOtp(phone: string, otpCode: string, newPin: string) {
-    // Validate OTP
+    // Validate OTP — only match unconsumed OTPs (verified: false)
     const otp = await prisma.otp.findFirst({
       where: {
         phone,
         code: otpCode,
         purpose: 'PASSWORD_RESET',
+        verified: false,
         expiresAt: { gt: new Date() },
       },
       orderBy: { createdAt: 'desc' },

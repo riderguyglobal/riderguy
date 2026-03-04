@@ -140,12 +140,23 @@ router.get(
 
     const order = await prisma.order.findFirst({
       where: { paymentReference: reference as string },
+      include: { rider: { select: { userId: true } } },
     });
 
     if (!order) {
       res.status(StatusCodes.NOT_FOUND).json({
         success: false,
         error: { code: 'NOT_FOUND', message: 'No order found for this payment reference' },
+      });
+      return;
+    }
+
+    // Ownership check — only the order's client or assigned rider can verify
+    const userId = req.user!.userId;
+    if (order.clientId !== userId && order.rider?.userId !== userId) {
+      res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You are not authorized to verify this payment' },
       });
       return;
     }

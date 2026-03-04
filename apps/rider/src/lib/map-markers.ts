@@ -32,6 +32,17 @@ const SVG = {
   whiteDot: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="4" fill="white"/></svg>`,
 };
 
+// ── HTML Escape utility (prevents XSS in popup content) ──
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── Pickup Marker ───────────────────────────────────────
 
 export function createPickupMarker(
@@ -58,7 +69,7 @@ export function createPickupMarker(
   if (options.popup) {
     marker.setPopup(
       new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`),
+        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
     );
   }
 
@@ -91,7 +102,7 @@ export function createDropoffMarker(
   if (options.popup) {
     marker.setPopup(
       new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`),
+        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
     );
   }
 
@@ -127,7 +138,7 @@ export function createStopMarker(
   if (options.popup) {
     marker.setPopup(
       new mapboxgl.Popup({ offset: 20, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`),
+        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
     );
   }
 
@@ -159,7 +170,7 @@ export function createRiderMarker(
   if (options.popup) {
     marker.setPopup(
       new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`),
+        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
     );
   }
 

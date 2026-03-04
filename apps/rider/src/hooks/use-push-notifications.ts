@@ -69,7 +69,7 @@ export function usePushNotifications() {
         const body = payload?.notification?.body ?? 'You have an update';
         new Notification(title, {
           body,
-          icon: '/icons/icon-192x192.png',
+          icon: '/icons/icon-192.png',
           tag: data?.orderId ? `order-${data.orderId}` : 'general',
         });
       }

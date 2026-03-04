@@ -241,16 +241,9 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
             });
           }
 
-          // Also broadcast to all clients so the nearby-riders map updates in real-time
-          io.to('role:CLIENT').emit('rider:location', {
-            orderId: '',
-            riderId: riderProfile.id,
-            latitude,
-            longitude,
-            heading,
-            speed,
-            timestamp: new Date().toISOString(),
-          });
+          // NOTE: Removed broadcast of all rider locations to all clients
+          // (was: io.to('role:CLIENT').emit('rider:location', ...))
+          // Only clients tracking a specific order should receive rider locations
         }
 
         // Record heartbeat — keeps the rider "alive" in the presence system
@@ -331,6 +324,12 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         const isClient = order.clientId === userId;
         const isRider = order.rider?.userId === userId;
         if (!isClient && !isRider) {
+          ack?.({ success: false });
+          return;
+        }
+
+        // Limit message content size (prevent abuse)
+        if (!content || typeof content !== 'string' || content.length > 2000) {
           ack?.({ success: false });
           return;
         }

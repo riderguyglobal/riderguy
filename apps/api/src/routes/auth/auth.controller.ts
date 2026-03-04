@@ -288,22 +288,7 @@ export class AuthController {
   static async resetPin(req: Request, res: Response) {
     const { phone, otp, newPin } = req.body;
 
-    if (!phone || !otp || !newPin) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'VALIDATION', message: 'phone, otp, and newPin are required' },
-      });
-      return;
-    }
-
-    if (typeof newPin !== 'string' || newPin.length < 4 || newPin.length > 6) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'VALIDATION', message: 'PIN must be 4-6 digits' },
-      });
-      return;
-    }
-
+    // Validation is now handled by Zod middleware (resetPinSchema)
     const result = await AuthService.resetPinWithOtp(phone, otp, newPin);
     res.status(StatusCodes.OK).json({
       success: true,

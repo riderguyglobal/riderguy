@@ -258,8 +258,8 @@ self.addEventListener('push', (event: any) => {
     event.waitUntil(
       self.registration.showNotification(title ?? 'RiderGuy', {
         body: body ?? 'You have an update',
-        icon: icon ?? '/icons/icon-192x192.png',
-        badge: '/icons/icon-72x72.png',
+        icon: icon ?? '/icons/icon-192.png',
+        badge: '/icons/icon-32.png',
         data: notifData,
         tag: notifData?.orderId ? `order-${notifData.orderId}` : 'general',
         requireInteraction: notifData?.type === 'job:offer', // Job offers stay until interacted
@@ -273,7 +273,7 @@ self.addEventListener('push', (event: any) => {
     event.waitUntil(
       self.registration.showNotification('RiderGuy', {
         body: event.data.text(),
-        icon: '/icons/icon-192x192.png',
+        icon: '/icons/icon-192.png',
       })
     );
   }

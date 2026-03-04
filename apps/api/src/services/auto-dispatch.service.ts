@@ -205,8 +205,8 @@ export async function autoDispatch(orderId: string): Promise<void> {
   const riders = await prisma.riderProfile.findMany({
     where: {
       availability: 'ONLINE',
-      // TODO: Re-enable after trial — temporarily bypassed for end-to-end testing
-      // onboardingStatus: 'ACTIVATED',
+      // Bypass onboarding check only when BYPASS_ONBOARDING_CHECK=true (for testing)
+      ...(process.env.BYPASS_ONBOARDING_CHECK !== 'true' ? { onboardingStatus: 'ACTIVATED' } : {}),
       currentLatitude: { not: null },
       currentLongitude: { not: null },
     },
@@ -616,4 +616,36 @@ export function getPendingOfferForRider(userId: string): { orderId: string; rema
     }
   }
   return null;
+}
+
+/**
+ * Recover orders stuck in SEARCHING_RIDER after a server restart.
+ * The in-memory activeDispatches Map is lost on restart, so we need to
+ * re-dispatch any orders that were mid-search.
+ */
+export async function recoverStuckDispatches(): Promise<void> {
+  try {
+    const stuckOrders = await prisma.order.findMany({
+      where: { status: 'SEARCHING_RIDER' },
+      select: { id: true, orderNumber: true },
+    });
+
+    if (stuckOrders.length === 0) return;
+
+    logger.info(
+      { count: stuckOrders.length },
+      '[AutoDispatch] Recovering stuck SEARCHING_RIDER orders after restart',
+    );
+
+    for (const order of stuckOrders) {
+      // Small delay between re-dispatches to avoid thundering herd
+      await new Promise((r) => setTimeout(r, 500));
+      logger.info({ orderId: order.id, orderNumber: order.orderNumber }, '[AutoDispatch] Re-dispatching stuck order');
+      autoDispatch(order.id).catch((err) => {
+        logger.error({ err, orderId: order.id }, '[AutoDispatch] Failed to recover stuck order');
+      });
+    }
+  } catch (err) {
+    logger.error({ err }, '[AutoDispatch] Failed to query stuck orders for recovery');
+  }
 }

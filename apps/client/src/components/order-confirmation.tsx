@@ -89,6 +89,7 @@ export function OrderConfirmation({
     'Now';
 
   const handleConfirm = async () => {
+    if (confirming) return; // Prevent double-submit
     setConfirming(true);
     setError('');
     try {
@@ -99,6 +100,7 @@ export function OrderConfirmation({
         err?.response?.data?.message ||
         (err instanceof Error ? err.message : 'Failed to create order.');
       setError(message);
+    } finally {
       setConfirming(false);
     }
   };

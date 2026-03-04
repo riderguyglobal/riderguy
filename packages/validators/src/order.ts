@@ -81,10 +81,12 @@ export const createOrderSchema = z.object({
   (data) => {
     // Multi-stop must have at least 1 stop if provided
     if (data.stops && data.stops.length > 0) {
-      // Ensure at least one pickup and one dropoff exist across all stops
-      const hasPickup = data.stops.some(s => s.type === 'PICKUP') || true; // primary pickup always exists
-      const hasDropoff = data.stops.some(s => s.type === 'DROPOFF') || true; // primary dropoff always exists
-      return hasPickup && hasDropoff;
+      // Ensure at least one explicit pickup and one explicit dropoff exist across extra stops
+      const hasPickup = data.stops.some(s => s.type === 'PICKUP');
+      const hasDropoff = data.stops.some(s => s.type === 'DROPOFF');
+      // Primary pickup/dropoff fields are always required, so at least one of each always exists.
+      // Extra stops just need valid types — this validates stop configuration is sensible.
+      return hasPickup || hasDropoff;
     }
     return true;
   },
