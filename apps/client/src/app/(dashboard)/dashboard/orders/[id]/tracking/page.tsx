@@ -73,7 +73,7 @@ function playRiderFoundChime() {
 }
 
 export default function TrackingPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>() ?? {};
   const router = useRouter();
   const searchParams = useSearchParams();
   const { api, user } = useAuth();
@@ -107,7 +107,7 @@ export default function TrackingPage() {
   }, [api, id]);
 
   // Auto-verify payment if redirected from Paystack with a reference
-  const paymentRef = searchParams.get('reference') || searchParams.get('trxref');
+  const paymentRef = searchParams?.get('reference') || searchParams?.get('trxref');
   useEffect(() => {
     if (!api || !paymentRef) return;
     api.get(`/payments/verify/${paymentRef}`).catch(() => {});
@@ -253,7 +253,7 @@ export default function TrackingPage() {
   }, [order?.status]);
 
   const handleSendMessage = () => {
-    if (!msgInput.trim()) return;
+    if (!msgInput.trim() || !id) return;
     sendMessage(id, msgInput.trim());
     setMsgInput('');
   };
@@ -500,7 +500,7 @@ export default function TrackingPage() {
               <div className="flex items-center gap-2">
                 <input
                   value={msgInput}
-                  onChange={(e) => { setMsgInput(e.target.value); sendTyping(id); }}
+                  onChange={(e) => { setMsgInput(e.target.value); if (id) sendTyping(id); }}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="Type a message..."
                   className="flex-1 h-11 px-4 bg-surface-100 rounded-xl text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all"

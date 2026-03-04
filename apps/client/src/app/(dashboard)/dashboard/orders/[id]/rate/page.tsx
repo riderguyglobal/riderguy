@@ -8,7 +8,7 @@ import { Star, ArrowLeft, CheckCircle, AlertCircle, Heart } from 'lucide-react';
 const TIP_OPTIONS = [0, 2, 5, 10];
 
 export default function RatePage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>() ?? {};
   const router = useRouter();
   const { api } = useAuth();
   const [rating, setRating] = useState(0);

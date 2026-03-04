@@ -19,7 +19,7 @@ import {
 export default function ForumPostPage() {
   const params = useParams();
   const router = useRouter();
-  const postId = params.postId as string;
+  const postId = params?.postId as string;
   const { user } = useAuth();
   const { getPost, getComments, addComment, vote, voteComment, votePoll, deletePost: removePost } = useForum();
 

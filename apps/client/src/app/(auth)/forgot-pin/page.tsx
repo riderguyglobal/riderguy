@@ -21,7 +21,7 @@ export default function ForgotPinPage() {
 function ForgotPinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialPhone = searchParams.get('phone') ?? '';
+  const initialPhone = searchParams?.get('phone') ?? '';
 
   const [stage, setStage] = useState<Stage>('phone');
   const [phone, setPhone] = useState(initialPhone);

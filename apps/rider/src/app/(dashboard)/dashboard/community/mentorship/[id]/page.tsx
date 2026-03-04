@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function MentorshipDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>() ?? {};
   const {
     currentMentorship,
     checkIns,

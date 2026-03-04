@@ -17,7 +17,7 @@ const NAV_ITEMS = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
 
   const hideNav =
     pathname.startsWith('/dashboard/jobs/') ||

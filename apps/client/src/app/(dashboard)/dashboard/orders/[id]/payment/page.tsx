@@ -62,7 +62,7 @@ interface OrderData {
 }
 
 export default function PaymentPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>() ?? {};
   const router = useRouter();
   const { api, user } = useAuth();
 

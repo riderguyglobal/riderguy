@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export default function EventDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>() ?? {};
   const { currentEvent, loading, fetchEvent, rsvp, cancelRsvp } = useEvents();
   const [rsvpLoading, setRsvpLoading] = useState(false);
 

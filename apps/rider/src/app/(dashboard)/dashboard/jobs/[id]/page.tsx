@@ -36,7 +36,7 @@ const NEXT_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function JobDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>() ?? {};
   const router = useRouter();
   const { api, user } = useAuth();
   const { socket, subscribeToOrder, unsubscribeFromOrder } = useSocket();
@@ -415,7 +415,7 @@ export default function JobDetailPage() {
       )}
 
       {/* Chat */}
-      {!isComplete && user && <DeliveryChat orderId={id} userId={user.id} />}
+      {!isComplete && user && id && <DeliveryChat orderId={id} userId={user.id} />}
 
       {/* Failed delivery dialog */}
       <Dialog open={showFailDialog} onOpenChange={setShowFailDialog}>
