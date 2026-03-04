@@ -28,6 +28,7 @@ import {
   Shield,
   PartyPopper,
   X,
+  UserX,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -85,10 +86,13 @@ export default function TrackingPage() {
   const [messages, setMessages] = useState<Array<{ id: string; content: string; senderId: string; createdAt: string }>>([]);
   const [typing, setTyping] = useState(false);
   const [riderFoundCelebration, setRiderFoundCelebration] = useState(false);
+  const [noRidersMessage, setNoRidersMessage] = useState<string | null>(null);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const historyLoadedRef = useRef(false);
   const previousStatusRef = useRef<string | null>(null);
+  const searchStartRef = useRef<number | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load existing chat messages
   useEffect(() => {
@@ -177,12 +181,26 @@ export default function TrackingPage() {
     socket.on('message:new', onMessage);
     socket.on('message:typing', onTyping);
 
+    // Listen for "no riders found" from auto-dispatch
+    const onNoRiders = (data: { orderId: string; reason: string }) => {
+      if (data.orderId === id) {
+        setNoRidersMessage(data.reason || 'No riders are available right now. Your order is still in the queue.');
+        // Auto-dismiss after 15 seconds
+        setTimeout(() => setNoRidersMessage(null), 15000);
+        // Refetch to get latest status
+        queryClient.invalidateQueries({ queryKey: ['order', id] });
+        refetch();
+      }
+    };
+    socket.on('order:no-riders', onNoRiders);
+
     return () => {
       unsubscribeFromOrder(id);
       socket.off('order:status', onStatusUpdate);
       socket.off('rider:location', onLocation);
       socket.off('message:new', onMessage);
       socket.off('message:typing', onTyping);
+      socket.off('order:no-riders', onNoRiders);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [id, socket, refetch, user?.id, subscribeToOrder, unsubscribeFromOrder, queryClient]);
@@ -198,6 +216,41 @@ export default function TrackingPage() {
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [id, refetch, queryClient]);
+
+  // Search timeout: if searching for more than 3 minutes, show a gentle message
+  useEffect(() => {
+    if (!order?.status) return;
+    const isStillSearching = order.status === 'PENDING' || order.status === 'SEARCHING_RIDER';
+
+    if (isStillSearching && !searchStartRef.current) {
+      searchStartRef.current = Date.now();
+    }
+
+    if (isStillSearching && !searchTimerRef.current) {
+      searchTimerRef.current = setTimeout(() => {
+        setNoRidersMessage(
+          'It\'s taking longer than usual to find a rider. Your order is still in the queue — you can wait or cancel and try again later.',
+        );
+      }, 3 * 60 * 1000); // 3 minutes
+    }
+
+    // Clear the timeout if a rider is found or order is cancelled
+    if (!isStillSearching) {
+      searchStartRef.current = null;
+      setNoRidersMessage(null);
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
+    };
+  }, [order?.status]);
 
   const handleSendMessage = () => {
     if (!msgInput.trim()) return;
@@ -279,6 +332,24 @@ export default function TrackingPage() {
               <p className="text-xs text-white/80">Your rider is on the way to pick up your package</p>
             </div>
             <button onClick={() => setRiderFoundCelebration(false)} className="text-white/60 hover:text-white">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── No Riders Available Banner ─── */}
+      {noRidersMessage && !riderFoundCelebration && (
+        <div className="fixed top-0 left-0 right-0 z-50 safe-area-top animate-slide-down">
+          <div className="mx-4 mt-3 p-4 rounded-2xl bg-amber-500 shadow-elevated flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+              <UserX className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-white">No Riders Available</p>
+              <p className="text-xs text-white/80">{noRidersMessage}</p>
+            </div>
+            <button onClick={() => setNoRidersMessage(null)} className="text-white/60 hover:text-white shrink-0">
               <X className="h-4 w-4" />
             </button>
           </div>

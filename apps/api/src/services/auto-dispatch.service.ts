@@ -19,7 +19,7 @@ import { prisma } from '@riderguy/database';
 import { haversineDistance } from '@riderguy/utils';
 import { logger } from '../lib/logger';
 import { assignRider } from './dispatch.service';
-import { getIO } from '../socket';
+import { getIO, emitOrderStatusUpdate } from '../socket';
 import { SmsService } from './sms.service';
 import type { JobOffer } from '@riderguy/types';
 
@@ -233,6 +233,15 @@ export async function autoDispatch(orderId: string): Promise<void> {
       where: { id: orderId },
       data: { status: 'PENDING' },
     });
+    // Notify the client that no riders are currently available
+    try {
+      const io = getIO();
+      io.to(`order:${orderId}`).emit('order:no-riders', {
+        orderId,
+        reason: 'No riders are currently online in your area',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
     return;
   }
 
@@ -302,6 +311,15 @@ export async function autoDispatch(orderId: string): Promise<void> {
       where: { id: orderId },
       data: { status: 'PENDING' },
     });
+    // Notify the client that no riders are nearby
+    try {
+      const io = getIO();
+      io.to(`order:${orderId}`).emit('order:no-riders', {
+        orderId,
+        reason: 'No riders are available near your pickup location right now',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
     return;
   }
 
@@ -361,6 +379,15 @@ function sendOfferToNextRider(
     prisma.order
       .update({ where: { id: state.orderId }, data: { status: 'PENDING' } })
       .catch(() => {});
+    // Notify the client that all nearby riders were tried
+    try {
+      const io = getIO();
+      io.to(`order:${state.orderId}`).emit('order:no-riders', {
+        orderId: state.orderId,
+        reason: 'All nearby riders are currently busy. Your order is still in the queue.',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
     return;
   }
 

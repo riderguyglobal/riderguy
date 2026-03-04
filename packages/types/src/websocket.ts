@@ -23,6 +23,9 @@ export interface ServerToClientEvents {
   'job:offer:expired': (data: { orderId: string }) => void;
   'job:offer:taken': (data: { orderId: string }) => void;
 
+  // ── Auto-dispatch search exhausted ──
+  'order:no-riders': (data: { orderId: string; reason: string; timestamp: string }) => void;
+
   // ── Generic notification ──
   'notification': (data: { title: string; body: string; orderId?: string }) => void;
 
