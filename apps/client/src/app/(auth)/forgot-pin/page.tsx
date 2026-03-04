@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { OtpInput, PhoneInput } from '@riderguy/ui';
@@ -11,6 +11,14 @@ import { ArrowLeft, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Phone, Arro
 type Stage = 'phone' | 'otp' | 'new-pin' | 'confirm-pin' | 'success';
 
 export default function ForgotPinPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-md mx-auto animate-pulse p-8" />}>
+      <ForgotPinContent />
+    </Suspense>
+  );
+}
+
+function ForgotPinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialPhone = searchParams.get('phone') ?? '';
