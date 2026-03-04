@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, hasBiometricForPhone, isBiometricSupported } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
-import { phoneSchema, pinSchema } from '@riderguy/validators';
-import { Fingerprint, KeyRound, MessageSquare, Phone, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { phoneSchema, pinSchema, emailSchema, passwordSchema } from '@riderguy/validators';
+import { Fingerprint, KeyRound, MessageSquare, Phone, Mail, AlertCircle, ArrowLeft, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
-type Stage = 'phone' | 'method-select' | 'pin' | 'otp' | 'biometric';
+type Tab = 'phone' | 'email';
+type Stage = 'input' | 'method-select' | 'pin' | 'otp' | 'biometric';
 
 const LAST_PHONE_KEY = 'riderguy_last_phone';
 const LAST_METHOD_KEY = 'riderguy_last_login_method';
@@ -19,13 +20,18 @@ export default function LoginPage() {
     loginWithOtp,
     loginWithPin,
     loginWithBiometric,
+    loginWithPassword,
     requestOtp,
     checkAuthMethods,
     isAuthenticated,
   } = useAuth();
 
-  const [stage, setStage] = useState<Stage>('phone');
+  const [tab, setTab] = useState<Tab>('phone');
+  const [stage, setStage] = useState<Stage>('input');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [pin, setPin] = useState('');
   const [otp, setOtp] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -185,12 +191,36 @@ export default function LoginPage() {
     }
   }, [phone, loginWithBiometric, router]);
 
+  // ---- Email+Password Flow ----
+  const handleEmailLogin = async () => {
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      setError(emailResult.error.errors[0]?.message ?? 'Invalid email');
+      return;
+    }
+    if (!password) {
+      setError('Enter your password');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await loginWithPassword(email, password);
+      router.replace('/dashboard');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Invalid email or password'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const goBack = () => {
     setError('');
     setPin('');
     setOtp('');
     if (stage === 'method-select') {
-      setStage('phone');
+      setStage('input');
       setMethods(null);
     } else {
       setStage('method-select');
@@ -200,7 +230,7 @@ export default function LoginPage() {
   return (
     <div>
       {/* Header */}
-      {stage === 'phone' ? (
+      {stage === 'input' ? (
         <>
           <h2 className="text-3xl font-extrabold text-primary mb-1 tracking-tight">Welcome back</h2>
           <p className="text-muted mb-8">Sign in to continue delivering</p>
@@ -220,21 +250,95 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* ====== Stage: Phone Input ====== */}
-      {stage === 'phone' && (
+      {/* ====== Stage: Input (Phone or Email) ====== */}
+      {stage === 'input' && (
         <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
-            <PhoneInput value={phone} onValueChange={setPhone} />
+          {/* Phone / Email toggle */}
+          <div className="flex p-1 rounded-xl bg-card border border-themed-strong">
+            <button
+              type="button"
+              onClick={() => { setTab('phone'); setError(''); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                tab === 'phone'
+                  ? 'gradient-brand text-white shadow-md'
+                  : 'text-muted hover:text-secondary'
+              }`}
+            >
+              <Phone className="h-4 w-4" />
+              Phone
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('email'); setError(''); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                tab === 'email'
+                  ? 'gradient-brand text-white shadow-md'
+                  : 'text-muted hover:text-secondary'
+              }`}
+            >
+              <Mail className="h-4 w-4" />
+              Email
+            </button>
           </div>
-          <Button
-            size="xl"
-            className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
-            onClick={handlePhoneContinue}
-            loading={submitting}
-          >
-            Continue
-          </Button>
+
+          {tab === 'phone' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
+                <PhoneInput value={phone} onValueChange={setPhone} />
+              </div>
+              <Button
+                size="xl"
+                className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+                onClick={handlePhoneContinue}
+                loading={submitting}
+              >
+                Continue
+              </Button>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-2.5">Email</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-2.5">Password</label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    onKeyDown={(e) => e.key === 'Enter' && handleEmailLogin()}
+                    className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20 pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <Button
+                size="xl"
+                className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+                onClick={handleEmailLogin}
+                loading={submitting}
+              >
+                Sign In
+              </Button>
+            </>
+          )}
+
           <p className="text-center text-sm text-muted mt-6">
             Don&apos;t have an account?{' '}
             <Link href="/register" className="text-brand-400 font-semibold hover:underline">
