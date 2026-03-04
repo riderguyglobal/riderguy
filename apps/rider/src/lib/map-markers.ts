@@ -126,7 +126,7 @@ export function createStopMarker(
   el.innerHTML = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
       <div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.3),0 0 0 1px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;">
-        <span style="color:white;font-size:12px;font-weight:700;line-height:1;">${label}</span>
+        <span style="color:white;font-size:12px;font-weight:700;line-height:1;">${escapeHtml(label)}</span>
       </div>
       <div style="width:2px;height:6px;background:${color};border-radius:0 0 2px 2px;"></div>
     </div>

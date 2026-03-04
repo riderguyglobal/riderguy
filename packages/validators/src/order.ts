@@ -86,7 +86,7 @@ export const createOrderSchema = z.object({
       const hasDropoff = data.stops.some(s => s.type === 'DROPOFF');
       // Primary pickup/dropoff fields are always required, so at least one of each always exists.
       // Extra stops just need valid types — this validates stop configuration is sensible.
-      return hasPickup || hasDropoff;
+      return hasPickup && hasDropoff;
     }
     return true;
   },

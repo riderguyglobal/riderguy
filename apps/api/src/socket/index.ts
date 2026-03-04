@@ -39,6 +39,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     },
     pingInterval: 25000,
     pingTimeout: 20000,
+    maxHttpBufferSize: 100_000,
     transports: ['websocket', 'polling'],
   });
 

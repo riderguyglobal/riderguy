@@ -465,7 +465,7 @@ export class AuthService {
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.status === 'BANNED' || user.status === 'DEACTIVATED') {
+    if (!user || user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
       throw ApiError.forbidden('Account is not active');
     }
 

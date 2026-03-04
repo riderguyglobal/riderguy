@@ -63,6 +63,7 @@ export default function SettingsPage() {
   }, [api, biometricSupported]);
 
   const handleSetupBiometric = async () => {
+    if (!api) return;
     setBiometricLoading(true);
     setBiometricError('');
     try {
@@ -85,6 +86,7 @@ export default function SettingsPage() {
   };
 
   const handleRemoveBiometric = async (credId: string) => {
+    if (!api) return;
     try {
       await api.delete(`/auth/webauthn/credentials/${credId}`);
       setBiometricCredentials((prev) => prev.filter((c) => c.id !== credId));
