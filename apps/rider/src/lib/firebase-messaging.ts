@@ -21,7 +21,7 @@ const firebaseConfig = {
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
-let app: FirebaseApp | null = null;
+let app: FirebaseApp | undefined = undefined;
 let messaging: Messaging | null = null;
 
 /**

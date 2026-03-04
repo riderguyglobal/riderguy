@@ -22,7 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const hideNav = /\/orders\/[^/]+\/(tracking|payment|rate)/.test(pathname);
 
   // Resync data when client returns from background (e.g. after switching apps)
-  useForegroundRecovery(true);
+  useForegroundRecovery();
 
   // Push notifications: register FCM token + handle foreground messages
   usePushNotifications();

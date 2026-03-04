@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { OtpInput, PhoneInput } from '@riderguy/ui';
 import { phoneSchema } from '@riderguy/validators';
-import { getApiUrl } from '@riderguy/utils';
+import { API_BASE_URL } from '@/lib/constants';
 import { ArrowLeft, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Phone, ArrowRight } from 'lucide-react';
 
 type Stage = 'phone' | 'otp' | 'new-pin' | 'confirm-pin' | 'success';
@@ -49,7 +49,7 @@ export default function ForgotPinPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${getApiUrl()}/auth/otp/request`, {
+      const res = await fetch(`${API_BASE_URL}/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, purpose: 'PASSWORD_RESET' }),
@@ -91,7 +91,7 @@ export default function ForgotPinPage() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch(`${getApiUrl()}/auth/reset-pin`, {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, otp, newPin }),
@@ -147,7 +147,7 @@ export default function ForgotPinPage() {
             <p className="text-xs text-surface-400">We&apos;ll send a verification code</p>
           </div>
 
-          <PhoneInput value={phone} onChange={setPhone} variant="light" />
+          <PhoneInput value={phone} onValueChange={setPhone} />
 
           <button
             onClick={handleRequestOtp}
