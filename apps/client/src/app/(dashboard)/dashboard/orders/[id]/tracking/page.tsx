@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ORDER_STATUS_CONFIG } from '@/lib/constants';
 import { formatCurrency } from '@riderguy/utils';
 import { useSocket } from '@/hooks/use-socket';
@@ -26,6 +26,8 @@ import {
   ChevronDown,
   ChevronUp,
   Shield,
+  PartyPopper,
+  X,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -43,11 +45,38 @@ const STATUS_STEPS = [
   { key: 'DELIVERED', label: 'Package delivered!', icon: CheckCircle },
 ];
 
+/** Play a short celebration chime using Web Audio API */
+function playRiderFoundChime() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const playNote = (freq: number, start: number, dur: number, vol = 0.25) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(vol, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur);
+    };
+    // Ascending celebration tones
+    playNote(523, 0, 0.15);      // C5
+    playNote(659, 0.12, 0.15);   // E5
+    playNote(784, 0.24, 0.15);   // G5
+    playNote(1047, 0.36, 0.25);  // C6 (hold longer)
+  } catch {
+    // Web Audio API not available
+  }
+}
+
 export default function TrackingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { api, user } = useAuth();
+  const queryClient = useQueryClient();
   const { socket, subscribeToOrder, unsubscribeFromOrder, sendMessage, sendTyping } = useSocket();
   const [riderCoords, setRiderCoords] = useState<[number, number] | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -55,9 +84,11 @@ export default function TrackingPage() {
   const [showChat, setShowChat] = useState(false);
   const [messages, setMessages] = useState<Array<{ id: string; content: string; senderId: string; createdAt: string }>>([]);
   const [typing, setTyping] = useState(false);
+  const [riderFoundCelebration, setRiderFoundCelebration] = useState(false);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const historyLoadedRef = useRef(false);
+  const previousStatusRef = useRef<string | null>(null);
 
   // Load existing chat messages
   useEffect(() => {
@@ -78,6 +109,9 @@ export default function TrackingPage() {
     api.get(`/payments/verify/${paymentRef}`).catch(() => {});
   }, [api, paymentRef]);
 
+  // Adaptive polling: faster while searching for rider, normal otherwise
+  const isSearching = previousStatusRef.current === 'SEARCHING_RIDER' || previousStatusRef.current === 'PENDING' || previousStatusRef.current === null;
+
   const { data: order, isLoading, refetch } = useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
@@ -85,15 +119,39 @@ export default function TrackingPage() {
       return res.data.data;
     },
     enabled: !!api && !!id,
-    refetchInterval: 15000,
+    refetchInterval: isSearching ? 5000 : 15000,
   });
+
+  // Track status transitions for "Rider Found" celebration
+  useEffect(() => {
+    if (!order?.status) return;
+    const prev = previousStatusRef.current;
+    const curr = order.status;
+
+    // Detect the SEARCHING_RIDER → ASSIGNED transition
+    if (prev && (prev === 'PENDING' || prev === 'SEARCHING_RIDER') && curr === 'ASSIGNED') {
+      // Rider found! Celebrate!
+      setRiderFoundCelebration(true);
+      playRiderFoundChime();
+      navigator.vibrate?.([200, 100, 200, 100, 300]);
+
+      // Auto-dismiss celebration after 5 seconds
+      setTimeout(() => setRiderFoundCelebration(false), 5000);
+    }
+
+    previousStatusRef.current = curr;
+  }, [order?.status]);
 
   useEffect(() => {
     if (!id || !socket) return;
     subscribeToOrder(id);
 
-    const onUpdate = (data: Record<string, unknown>) => {
-      if (data.orderId === id) refetch();
+    const onStatusUpdate = (data: { orderId: string; status: string; previousStatus: string }) => {
+      if (data.orderId === id) {
+        // Immediately invalidate cache and refetch for instant UI update
+        queryClient.invalidateQueries({ queryKey: ['order', id] });
+        refetch();
+      }
     };
     const onLocation = (data: { latitude: number; longitude: number; lat?: number; lng?: number }) => {
       const lng = data.longitude ?? data.lng;
@@ -105,28 +163,41 @@ export default function TrackingPage() {
     const onMessage = (msg: { id: string; content: string; senderId: string; createdAt: string }) => {
       setMessages((prev) => [...prev, msg]);
     };
-    const onTyping = (data: { userId: string }) => {
-      if (data.userId !== user?.id) {
+    const onTyping = (data: { userId: string; senderId?: string }) => {
+      const senderId = data.userId ?? data.senderId;
+      if (senderId !== user?.id) {
         setTyping(true);
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => setTyping(false), 2000);
       }
     };
 
-    socket.on('order:updated', onUpdate);
+    socket.on('order:status', onStatusUpdate);
     socket.on('rider:location', onLocation);
     socket.on('message:new', onMessage);
     socket.on('message:typing', onTyping);
 
     return () => {
       unsubscribeFromOrder(id);
-      socket.off('order:updated', onUpdate);
+      socket.off('order:status', onStatusUpdate);
       socket.off('rider:location', onLocation);
       socket.off('message:new', onMessage);
       socket.off('message:typing', onTyping);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [id, socket, refetch, user?.id, subscribeToOrder, unsubscribeFromOrder]);
+  }, [id, socket, refetch, user?.id, subscribeToOrder, unsubscribeFromOrder, queryClient]);
+
+  // Foreground recovery: refetch when app returns from background
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && id) {
+        queryClient.invalidateQueries({ queryKey: ['order', id] });
+        refetch();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [id, refetch, queryClient]);
 
   const handleSendMessage = () => {
     if (!msgInput.trim()) return;
@@ -196,6 +267,24 @@ export default function TrackingPage() {
         </div>
       </div>
 
+      {/* ─── Rider Found Celebration Banner ─── */}
+      {riderFoundCelebration && (
+        <div className="fixed top-0 left-0 right-0 z-50 safe-area-top animate-slide-down">
+          <div className="mx-4 mt-3 p-4 rounded-2xl bg-accent-500 shadow-elevated flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center animate-bounce">
+              <PartyPopper className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-white">Rider Found!</p>
+              <p className="text-xs text-white/80">Your rider is on the way to pick up your package</p>
+            </div>
+            <button onClick={() => setRiderFoundCelebration(false)} className="text-white/60 hover:text-white">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Bottom Sheet ─── */}
       <div className={`bottom-sheet transition-all duration-500 ease-out ${expanded ? 'max-h-[75dvh]' : 'max-h-[45dvh]'} overflow-y-auto`}>
         {/* Drag handle + expand toggle */}
@@ -213,14 +302,16 @@ export default function TrackingPage() {
           {currentStep && (
           <div className="flex items-center gap-3">
             <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-              isComplete ? 'bg-accent-50' : isCancelled ? 'bg-danger-50' : 'bg-brand-50'
+              isComplete ? 'bg-accent-50' : isCancelled ? 'bg-danger-50' : riderFoundCelebration ? 'bg-accent-50 animate-pulse' : 'bg-brand-50'
             }`}>
               <currentStep.icon className={`h-5 w-5 ${
-                isComplete ? 'text-accent-500' : isCancelled ? 'text-danger-500' : 'text-brand-500'
+                isComplete ? 'text-accent-500' : isCancelled ? 'text-danger-500' : riderFoundCelebration ? 'text-accent-500' : 'text-brand-500'
               }`} />
             </div>
             <div className="flex-1">
-              <p className="text-[15px] font-bold text-surface-900">{currentStep.label}</p>
+              <p className="text-[15px] font-bold text-surface-900">
+                {riderFoundCelebration ? 'Rider Found!' : currentStep.label}
+              </p>
               <p className="text-xs text-surface-400">Order #{id?.slice(-6).toUpperCase()}</p>
             </div>
           </div>

@@ -187,10 +187,10 @@ export function createRiderStatusDot(
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', `Rider status: ${status}`);
   el.innerHTML = `
-    <div style="position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;">
+    <div style="position:relative;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
       <div data-ring class="rg-pulse" style="position:absolute;inset:0;border-radius:50%;background:${c.ring};${status === 'offline' ? 'animation-play-state:paused;' : ''}"></div>
-      <div data-glow style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;box-shadow:0 0 20px 6px ${c.glow};"></div>
-      <div data-dot style="position:relative;z-index:1;width:24px;height:24px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));">
+      <div data-glow style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;box-shadow:0 0 8px 3px ${c.glow};"></div>
+      <div data-dot style="position:relative;z-index:1;width:14px;height:14px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.3));">
         ${SVG.dot(c.main)}
       </div>
     </div>
@@ -212,7 +212,7 @@ export function updateRiderStatusDot(el: HTMLDivElement, status: RiderMapStatus)
     ringEl.style.background = c.ring;
     ringEl.style.animationPlayState = status === 'offline' ? 'paused' : 'running';
   }
-  if (glowEl) glowEl.style.boxShadow = `0 0 20px 6px ${c.glow}`;
+  if (glowEl) glowEl.style.boxShadow = `0 0 8px 3px ${c.glow}`;
   if (dotEl) dotEl.innerHTML = SVG.dot(c.main);
 }
 

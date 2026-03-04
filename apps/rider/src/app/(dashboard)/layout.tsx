@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
 import { Home, Package, DollarSign, User, Users } from 'lucide-react';
 import { IncomingRequest } from '@/components/incoming-request';
+import { SecuritySetupPrompt } from '@/components/security-setup-prompt';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', icon: Home },
@@ -96,6 +97,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Incoming delivery request overlay */}
         <IncomingRequest />
+
+        {/* One-time prompt to set up faster login (PIN/biometric) */}
+        <SecuritySetupPrompt />
       </div>
     </ProtectedRoute>
   );

@@ -19,7 +19,7 @@
     "@riderguy/utils": "*",
     "@riderguy/validators": "*",
     "@sendgrid/mail": "^8.1.6",
-    "@types/bcryptjs": "^2.4.6",
+    "@simplewebauthn/server": "^13.2.3",    "@socket.io/redis-adapter": "^8.3.0",    "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",

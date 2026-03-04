@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { SessionManager } from '@riderguy/auth';
@@ -7,7 +8,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '@riderguy/ui';
 import { getInitials } from '@riderguy/utils';
 import {
   User, Shield, Bell, HelpCircle, FileText, LogOut,
-  ChevronRight, Bike, Settings, Sun, Moon, Monitor
+  ChevronRight, Bike, Settings, Sun, Moon, Monitor,
+  Fingerprint, Plus, Trash2, Loader2
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 
@@ -22,8 +24,53 @@ const MENU_ITEMS = [
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, setupBiometric, isBiometricSupported: biometricSupported, api } = useAuth();
   const { theme, setTheme } = useTheme();
+
+  // Biometric credentials state
+  const [biometricCredentials, setBiometricCredentials] = useState<Array<{ id: string; friendlyName: string | null; deviceType: string | null; createdAt: string }>>([]);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [biometricError, setBiometricError] = useState('');
+
+  // Load biometric credentials
+  useEffect(() => {
+    if (!biometricSupported) return;
+    api.get('/auth/webauthn/credentials')
+      .then((res) => setBiometricCredentials(res.data?.data ?? []))
+      .catch(() => {});
+  }, [api, biometricSupported]);
+
+  const handleSetupBiometric = async () => {
+    setBiometricLoading(true);
+    setBiometricError('');
+    try {
+      const deviceName = navigator.userAgent.includes('iPhone')
+        ? 'iPhone'
+        : navigator.userAgent.includes('Android')
+        ? 'Android Device'
+        : navigator.userAgent.includes('Windows')
+        ? 'Windows PC'
+        : 'My Device';
+
+      await setupBiometric(deviceName);
+      // Refresh credentials list
+      const res = await api.get('/auth/webauthn/credentials');
+      setBiometricCredentials(res.data?.data ?? []);
+    } catch (err: any) {
+      setBiometricError(err.message ?? 'Failed to register biometric');
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
+
+  const handleRemoveBiometric = async (credId: string) => {
+    try {
+      await api.delete(`/auth/webauthn/credentials/${credId}`);
+      setBiometricCredentials((prev) => prev.filter((c) => c.id !== credId));
+    } catch {
+      setBiometricError('Failed to remove credential');
+    }
+  };
 
   const THEME_OPTIONS = [
     { value: 'light' as const, icon: Sun, label: 'Light' },
@@ -131,6 +178,65 @@ export default function SettingsPage() {
             <SessionManager />
           </div>
         </div>
+
+        {/* Biometric / Fingerprint Setup */}
+        {biometricSupported && (
+          <div className="glass-elevated rounded-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-themed">
+              <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+                <Fingerprint className="h-4 w-4 text-brand-400" />
+                Biometric Login
+              </h3>
+              <p className="text-xs text-muted mt-1">
+                Use fingerprint or Face ID for quick sign-in
+              </p>
+            </div>
+            <div className="p-4 space-y-3">
+              {biometricError && (
+                <p className="text-xs text-danger-400 bg-danger-500/10 rounded-lg px-3 py-2">{biometricError}</p>
+              )}
+
+              {/* Existing credentials */}
+              {biometricCredentials.map((cred) => (
+                <div key={cred.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-themed">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                      <Fingerprint className="h-4 w-4 text-brand-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-primary font-medium">{cred.friendlyName ?? 'Biometric Credential'}</p>
+                      <p className="text-[11px] text-muted">
+                        Added {new Date(cred.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveBiometric(cred.id)}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted hover:text-danger-400 hover:bg-danger-500/10 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add new biometric */}
+              <button
+                onClick={handleSetupBiometric}
+                disabled={biometricLoading}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-themed hover:border-brand-500/50 text-muted hover:text-brand-400 transition-all disabled:opacity-50"
+              >
+                {biometricLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                <span className="text-sm font-medium">
+                  {biometricCredentials.length > 0 ? 'Add another device' : 'Set up fingerprint / Face ID'}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Logout */}
         <button

@@ -6,6 +6,7 @@ import { prisma } from '@riderguy/database';
 import { initSocketServer } from './socket';
 import { startWorkers, stopWorkers } from './jobs/workers';
 import { startPresenceManager, stopPresenceManager } from './services/presence.service';
+import { closeRedis } from './lib/redis';
 
 // ============================================================
 // Server bootstrap
@@ -42,6 +43,8 @@ for (const signal of signals) {
       logger.info('Presence manager stopped');
       await stopWorkers();
       logger.info('BullMQ workers stopped');
+      await closeRedis();
+      logger.info('Redis connections closed');
       await prisma.$disconnect();
       logger.info('Database connections closed');
       process.exit(0);

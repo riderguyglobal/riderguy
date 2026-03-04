@@ -12,7 +12,8 @@ import type { UserRole } from '@riderguy/types';
 
 export interface AuthPayload {
   userId: string;
-  role: UserRole;
+  role: UserRole;     // primary / active role (backwards compat)
+  roles?: UserRole[]; // all roles the user holds
   sessionId: string;
 }
 
@@ -47,13 +48,17 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
 
 /**
  * Require one of the listed roles (must be used AFTER authenticate).
+ * Checks against both the `roles` array and the legacy `role` field.
  */
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
       throw ApiError.unauthorized();
     }
-    if (!roles.includes(req.user.role)) {
+    // Check against roles array (multi-role) or fall back to single role
+    const userRoles = req.user.roles?.length ? req.user.roles : [req.user.role];
+    const hasPermission = userRoles.some(r => roles.includes(r));
+    if (!hasPermission) {
       throw ApiError.forbidden('You do not have permission to perform this action');
     }
     next();

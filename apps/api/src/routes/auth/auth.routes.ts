@@ -7,8 +7,15 @@ import {
   registerSchema,
   refreshTokenSchema,
   loginWithOtpSchema,
+  loginWithPinSchema,
   loginWithPasswordSchema,
   changePasswordSchema,
+  changePinSchema,
+  checkAuthMethodsSchema,
+  webauthnRegisterOptionsSchema,
+  webauthnRegisterVerifySchema,
+  webauthnLoginOptionsSchema,
+  webauthnLoginVerifySchema,
 } from '@riderguy/validators';
 import { asyncHandler } from '../../lib/async-handler';
 
@@ -44,10 +51,25 @@ router.post(
 );
 
 router.post(
+  '/login/pin',
+  authRateLimit,
+  validate(loginWithPinSchema),
+  asyncHandler(AuthController.loginWithPin)
+);
+
+router.post(
   '/login/password',
   authRateLimit,
   validate(loginWithPasswordSchema),
   asyncHandler(AuthController.loginWithPassword)
+);
+
+// Check available auth methods for a phone number
+router.post(
+  '/methods',
+  authRateLimit,
+  validate(checkAuthMethodsSchema),
+  asyncHandler(AuthController.checkAuthMethods)
 );
 
 router.post(
@@ -66,12 +88,72 @@ router.get('/sessions', authenticate, asyncHandler(AuthController.listSessions))
 router.delete('/sessions/:id', authenticate, asyncHandler(AuthController.revokeSession));
 router.delete('/sessions', authenticate, asyncHandler(AuthController.revokeAllSessions));
 
-// Password management
+// Password & PIN management
 router.post(
   '/change-password',
   authenticate,
   validate(changePasswordSchema),
   asyncHandler(AuthController.changePassword)
+);
+
+router.post(
+  '/change-pin',
+  authenticate,
+  validate(changePinSchema),
+  asyncHandler(AuthController.changePin)
+);
+
+// First-time PIN setup (no existing PIN required, just authenticated)
+router.post(
+  '/set-pin',
+  authenticate,
+  asyncHandler(AuthController.setPin)
+);
+
+// Reset forgotten PIN via OTP (public — no auth required)
+router.post(
+  '/reset-pin',
+  authRateLimit,
+  asyncHandler(AuthController.resetPin)
+);
+
+// WebAuthn (Biometric) — registration requires auth, login is public
+router.post(
+  '/webauthn/register/options',
+  authenticate,
+  asyncHandler(AuthController.webauthnRegisterOptions)
+);
+
+router.post(
+  '/webauthn/register/verify',
+  authenticate,
+  asyncHandler(AuthController.webauthnRegisterVerify)
+);
+
+router.post(
+  '/webauthn/login/options',
+  authRateLimit,
+  validate(webauthnLoginOptionsSchema),
+  asyncHandler(AuthController.webauthnLoginOptions)
+);
+
+router.post(
+  '/webauthn/login/verify',
+  authRateLimit,
+  asyncHandler(AuthController.webauthnLoginVerify)
+);
+
+// WebAuthn credential management (authenticated)
+router.get(
+  '/webauthn/credentials',
+  authenticate,
+  asyncHandler(AuthController.listWebAuthnCredentials)
+);
+
+router.delete(
+  '/webauthn/credentials/:id',
+  authenticate,
+  asyncHandler(AuthController.removeWebAuthnCredential)
 );
 
 export { router as authRouter };

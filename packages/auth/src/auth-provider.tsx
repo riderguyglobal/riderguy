@@ -12,6 +12,12 @@ import React, {
 import { useAuthStore, type AuthUser } from './auth-store';
 import { getApiClient, initApiClient } from './api-client';
 import { tokenStorage } from './token-storage';
+import {
+  authenticateWithBiometric,
+  registerBiometric as registerBiometricFn,
+  isBiometricSupported,
+  hasBiometricForPhone,
+} from './biometric';
 import type { AxiosInstance } from 'axios';
 
 // ============================================================
@@ -31,6 +37,10 @@ interface AuthContextValue {
 
   /** Login with phone & OTP code */
   loginWithOtp: (phone: string, otp: string) => Promise<void>;
+  /** Login with phone & 6-digit PIN */
+  loginWithPin: (phone: string, pin: string) => Promise<void>;
+  /** Login with fingerprint / Face ID (biometric) */
+  loginWithBiometric: (phone: string) => Promise<void>;
   /** Login with email & password */
   loginWithPassword: (email: string, password: string) => Promise<void>;
   /** Register a new account */
@@ -52,6 +62,16 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   /** Refresh user data from the server */
   refreshUser: () => Promise<void>;
+
+  // Biometric helpers
+  /** Register a biometric credential for the current user */
+  setupBiometric: (friendlyName?: string) => Promise<boolean>;
+  /** Check if this device supports biometric auth */
+  isBiometricSupported: boolean;
+  /** Check what auth methods are available for a phone number */
+  checkAuthMethods: (phone: string) => Promise<{ otp: boolean; pin: boolean; biometric: boolean }>;
+  /** Check if biometric is registered locally for a phone */
+  hasBiometricForPhone: (phone: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -99,11 +119,15 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     if (sessionRestored.current) return;
     sessionRestored.current = true;
 
-    if (tokenStorage.hasTokens()) {
-      refreshUser().finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // First attempt to restore tokens from IndexedDB backup
+    // (covers cases where mobile browser evicted localStorage)
+    tokenStorage.restoreFromBackup().then(() => {
+      if (tokenStorage.hasTokens()) {
+        refreshUser().finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -143,6 +167,50 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       } catch (err: any) {
         const message =
           err.response?.data?.error?.message ?? 'Login failed. Please try again.';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setLoading, setError, storeLogin]
+  );
+
+  const loginWithPin = useCallback(
+    async (phone: string, pin: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.post('/auth/login/pin', { phone, pin });
+        storeLogin(
+          { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
+          data.data.user
+        );
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ?? 'Invalid PIN. Please try again.';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setLoading, setError, storeLogin]
+  );
+
+  const loginWithBiometric = useCallback(
+    async (phone: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await authenticateWithBiometric(api, phone);
+        storeLogin(
+          { accessToken: result.accessToken, refreshToken: result.refreshToken },
+          result.user
+        );
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ?? err.message ?? 'Biometric login failed.';
         setError(message);
         throw err;
       } finally {
@@ -207,6 +275,24 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     storeLogout();
   }, [api, storeLogout]);
 
+  const setupBiometric = useCallback(
+    async (friendlyName?: string): Promise<boolean> => {
+      if (!user) throw new Error('Must be logged in to register biometric');
+      return registerBiometricFn(api, user.phone, friendlyName);
+    },
+    [api, user]
+  );
+
+  const checkAuthMethodsAction = useCallback(
+    async (phone: string) => {
+      const { data } = await api.post('/auth/methods', { phone });
+      return data.data as { otp: boolean; pin: boolean; biometric: boolean };
+    },
+    [api]
+  );
+
+  const biometricSupported = useMemo(() => isBiometricSupported(), []);
+
   const getAccessToken = useCallback(() => tokenStorage.getAccessToken(), []);
 
   const value = useMemo<AuthContextValue>(
@@ -219,12 +305,18 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       accessToken: tokenStorage.getAccessToken(),
       getAccessToken,
       loginWithOtp,
+      loginWithPin,
+      loginWithBiometric,
       loginWithPassword,
       register,
       requestOtp,
       verifyOtp,
       logout: logoutAction,
       refreshUser,
+      setupBiometric,
+      isBiometricSupported: biometricSupported,
+      checkAuthMethods: checkAuthMethodsAction,
+      hasBiometricForPhone,
     }),
     [
       user,
@@ -234,12 +326,17 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       api,
       getAccessToken,
       loginWithOtp,
+      loginWithPin,
+      loginWithBiometric,
       loginWithPassword,
       register,
       requestOtp,
       verifyOtp,
       logoutAction,
       refreshUser,
+      setupBiometric,
+      biometricSupported,
+      checkAuthMethodsAction,
     ]
   );
 

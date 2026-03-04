@@ -574,3 +574,19 @@ export function isDispatching(orderId: string): boolean {
   const state = activeDispatches.get(orderId);
   return !!state && !state.resolved;
 }
+
+/**
+ * Get any pending offer currently targeting a specific rider (by userId).
+ * Used to re-emit offers when a rider reconnects after being backgrounded.
+ * Returns the orderId + time remaining if found, null otherwise.
+ */
+export function getPendingOfferForRider(userId: string): { orderId: string; remainingMs: number } | null {
+  for (const [orderId, state] of activeDispatches) {
+    if (state.resolved) continue;
+    const rider = state.rankedRiders[state.currentIndex];
+    if (rider && rider.userId === userId) {
+      return { orderId, remainingMs: OFFER_TIMEOUT_MS }; // approximate
+    }
+  }
+  return null;
+}

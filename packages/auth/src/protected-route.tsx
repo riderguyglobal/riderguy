@@ -50,7 +50,7 @@ export function ProtectedRoute({
       return;
     }
 
-    if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    if (allowedRoles && user && !allowedRoles.some(r => user.roles?.includes(r) || user.role === r)) {
       redirectedRef.current = true;
       // Logout first to clear tokens — prevents infinite loop where
       // the login page restores the session and redirects back here.
@@ -80,7 +80,7 @@ export function ProtectedRoute({
     return spinner;
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user && !allowedRoles.some(r => user.roles?.includes(r) || user.role === r)) {
     return spinner;
   }
 

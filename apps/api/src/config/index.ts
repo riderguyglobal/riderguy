@@ -33,7 +33,7 @@ export const config = {
     accessSecret: requireEnv('JWT_ACCESS_SECRET'),
     refreshSecret: requireEnv('JWT_REFRESH_SECRET'),
     accessExpiresIn: optionalEnv('JWT_ACCESS_EXPIRES_IN', '15m') as StringValue,
-    refreshExpiresIn: optionalEnv('JWT_REFRESH_EXPIRES_IN', '7d') as StringValue,
+    refreshExpiresIn: optionalEnv('JWT_REFRESH_EXPIRES_IN', '30d') as StringValue,
   },
 
   // Database (handled by Prisma via DATABASE_URL)
@@ -91,5 +91,12 @@ export const config = {
   // CORS
   cors: {
     origins: optionalEnv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003').split(',').map(s => s.trim()),
+  },
+
+  // WebAuthn (biometric login)
+  webauthn: {
+    rpName: optionalEnv('WEBAUTHN_RP_NAME', 'RiderGuy'),
+    rpID: optionalEnv('WEBAUTHN_RP_ID', 'localhost'),
+    origin: optionalEnv('WEBAUTHN_ORIGIN', 'http://localhost:3002').split(',').map(s => s.trim()),
   },
 } as const;

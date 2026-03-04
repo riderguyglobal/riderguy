@@ -18,6 +18,11 @@ export const loginWithOtpSchema = z.object({
   otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
 });
 
+export const loginWithPinSchema = z.object({
+  phone: phoneSchema,
+  pin: pinSchema,
+});
+
 export const loginWithPasswordSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, 'Password is required'),
@@ -49,10 +54,47 @@ export const changePasswordSchema = z
     path: ['confirmPassword'],
   });
 
+export const changePinSchema = z
+  .object({
+    currentPin: pinSchema,
+    newPin: pinSchema,
+  })
+  .refine((data) => data.currentPin !== data.newPin, {
+    message: 'New PIN must be different from current PIN',
+    path: ['newPin'],
+  });
+
+// WebAuthn schemas
+export const webauthnRegisterOptionsSchema = z.object({
+  friendlyName: z.string().max(100).optional(),
+});
+
+export const webauthnRegisterVerifySchema = z.object({
+  credential: z.any(), // RegistrationResponseJSON — verified by @simplewebauthn/server
+  friendlyName: z.string().max(100).optional(),
+});
+
+export const webauthnLoginOptionsSchema = z.object({
+  phone: phoneSchema,
+});
+
+export const webauthnLoginVerifySchema = z.object({
+  phone: phoneSchema,
+  credential: z.any(), // AuthenticationResponseJSON — verified by @simplewebauthn/server
+});
+
+// Check what auth methods are available for a phone number
+export const checkAuthMethodsSchema = z.object({
+  phone: phoneSchema,
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginWithOtpInput = z.infer<typeof loginWithOtpSchema>;
+export type LoginWithPinInput = z.infer<typeof loginWithPinSchema>;
 export type LoginWithPasswordInput = z.infer<typeof loginWithPasswordSchema>;
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type ChangePinInput = z.infer<typeof changePinSchema>;
+export type CheckAuthMethodsInput = z.infer<typeof checkAuthMethodsSchema>;

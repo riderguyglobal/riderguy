@@ -2,6 +2,7 @@ import type { Config } from 'tailwindcss';
 import riderguyPreset from '@riderguy/config/tailwind';
 
 const config: Config = {
+  darkMode: 'class',
   presets: [riderguyPreset],
   content: [
     './src/**/*.{ts,tsx}',

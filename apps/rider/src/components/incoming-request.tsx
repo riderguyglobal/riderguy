@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/use-socket';
+import { useQueryClient } from '@tanstack/react-query';
 import { OFFER_COUNTDOWN } from '@/lib/constants';
 import { formatCurrency, formatDistance } from '@riderguy/utils';
 import { Button } from '@riderguy/ui';
-import { MapPin, Clock, Package, X, Check } from 'lucide-react';
+import { MapPin, Clock, Package, X, Check, Loader2 } from 'lucide-react';
 import type { JobOffer } from '@riderguy/types';
 
 /** Generate a notification tone using Web Audio API when .mp3 is unavailable */
@@ -34,10 +36,13 @@ function playNotificationTone() {
 }
 
 export function IncomingRequest() {
-  const { socket, respondToOffer } = useSocket();
+  const router = useRouter();
+  const { socket, respondToOfferAsync } = useSocket();
+  const queryClient = useQueryClient();
   const [offer, setOffer] = useState<JobOffer | null>(null);
   const [countdown, setCountdown] = useState(OFFER_COUNTDOWN);
   const [responding, setResponding] = useState(false);
+  const [respondError, setRespondError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -108,9 +113,43 @@ export function IncomingRequest() {
   const handleRespond = async (accepted: boolean) => {
     if (!offer || responding) return;
     setResponding(true);
-    respondToOffer(offer.orderId, accepted);
-    clearOffer();
-    setResponding(false);
+    setRespondError(null);
+
+    try {
+      const result = await respondToOfferAsync(offer.orderId, accepted);
+
+      if (accepted && result.success) {
+        // Success! Stop the countdown, clear the modal, navigate to job page
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        audioRef.current?.pause();
+
+        // Immediately invalidate active orders cache so dashboard reflects the new job
+        queryClient.invalidateQueries({ queryKey: ['active-orders'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-stats'] });
+
+        const orderId = offer.orderId;
+        clearOffer();
+
+        // Navigate to the active delivery page
+        router.push(`/dashboard/jobs/${orderId}`);
+      } else if (accepted && !result.success) {
+        // Job was already taken or another error
+        setRespondError(result.error || 'This job was already taken by another rider');
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+          clearOffer();
+          setRespondError(null);
+        }, 3000);
+      } else {
+        // Declined — just close
+        clearOffer();
+      }
+    } catch {
+      setRespondError('Failed to respond. Please try again.');
+      setTimeout(() => setRespondError(null), 3000);
+    } finally {
+      setResponding(false);
+    }
   };
 
   if (!offer) return null;
@@ -200,6 +239,13 @@ export function IncomingRequest() {
           </div>
         </div>
 
+        {/* Error message */}
+        {respondError && (
+          <div className="mx-5 mb-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+            <p className="text-sm text-red-400 text-center font-medium">{respondError}</p>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3 px-5 pb-5">
           <Button
@@ -216,10 +262,19 @@ export function IncomingRequest() {
             size="xl"
             className="flex-1 gradient-accent text-white shadow-lg glow-accent btn-press rounded-2xl font-semibold"
             onClick={() => handleRespond(true)}
-            loading={responding}
+            disabled={responding}
           >
-            <Check className="h-5 w-5 mr-1" />
-            Accept
+            {responding ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-1 animate-spin" />
+                Accepting...
+              </>
+            ) : (
+              <>
+                <Check className="h-5 w-5 mr-1" />
+                Accept
+              </>
+            )}
           </Button>
         </div>
       </div>

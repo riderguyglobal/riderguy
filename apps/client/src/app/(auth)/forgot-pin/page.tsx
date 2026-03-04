@@ -1,0 +1,270 @@
+'use client';
+
+import { useState, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { OtpInput, PhoneInput } from '@riderguy/ui';
+import { phoneSchema } from '@riderguy/validators';
+import { getApiUrl } from '@riderguy/utils';
+import { ArrowLeft, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Phone, ArrowRight } from 'lucide-react';
+
+type Stage = 'phone' | 'otp' | 'new-pin' | 'confirm-pin' | 'success';
+
+export default function ForgotPinPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialPhone = searchParams.get('phone') ?? '';
+
+  const [stage, setStage] = useState<Stage>('phone');
+  const [phone, setPhone] = useState(initialPhone);
+  const [otp, setOtp] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+
+  const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const pinRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const confirmPinRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
+  const startCooldown = useCallback(() => {
+    setCooldown(60);
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // Step 1: Request OTP
+  const handleRequestOtp = async () => {
+    setError('');
+    const parsed = phoneSchema.safeParse(phone);
+    if (!parsed.success) {
+      setError('Enter a valid Ghana phone number');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/otp/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, purpose: 'PASSWORD_RESET' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? 'Failed to send OTP');
+
+      startCooldown();
+      setStage('otp');
+    } catch (err: any) {
+      setError(err.message ?? 'Something went wrong');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Step 2: Verify OTP → move to new PIN
+  const handleOtpComplete = (code: string) => {
+    setError('');
+    setOtp(code);
+    setStage('new-pin');
+  };
+
+  // Step 3: New PIN
+  const handleNewPinComplete = (code: string) => {
+    setNewPin(code);
+    setStage('confirm-pin');
+  };
+
+  // Step 4: Confirm + reset
+  const handleConfirmPinComplete = async (code: string) => {
+    setConfirmPin(code);
+    if (code !== newPin) {
+      setError('PINs do not match — try again');
+      confirmPinRef.current?.clear();
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/reset-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp, newPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? 'Failed to reset PIN');
+
+      setStage('success');
+    } catch (err: any) {
+      setError(err.message ?? 'Something went wrong');
+      if (err.message?.includes('OTP') || err.message?.includes('expired')) {
+        setStage('otp');
+        otpRef.current?.clear();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto space-y-6 animate-fade-in">
+      {/* Back link */}
+      <Link
+        href="/login"
+        className="inline-flex items-center gap-1.5 text-sm text-surface-400 hover:text-brand-500 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to login
+      </Link>
+
+      <div>
+        <h1 className="text-2xl font-bold text-surface-900">Reset your PIN</h1>
+        <p className="text-surface-400 text-sm mt-1">
+          We&apos;ll send a code to verify your phone, then you can set a new PIN.
+        </p>
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* ====== Stage: Phone ====== */}
+      {stage === 'phone' && (
+        <div className="space-y-4">
+          <div className="card-elevated p-5 text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-amber-50 flex items-center justify-center">
+              <Phone className="h-6 w-6 text-amber-500" />
+            </div>
+            <p className="text-sm font-semibold text-surface-900">Enter your phone number</p>
+            <p className="text-xs text-surface-400">We&apos;ll send a verification code</p>
+          </div>
+
+          <PhoneInput value={phone} onChange={setPhone} variant="light" />
+
+          <button
+            onClick={handleRequestOtp}
+            disabled={submitting || !phone}
+            className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>Send Code <ArrowRight className="h-4 w-4" /></>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ====== Stage: OTP ====== */}
+      {stage === 'otp' && (
+        <div className="space-y-5">
+          <div className="card-elevated p-5 text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-sky-50 flex items-center justify-center">
+              <ShieldCheck className="h-6 w-6 text-sky-500" />
+            </div>
+            <p className="text-sm font-semibold text-surface-900">Enter verification code</p>
+            <p className="text-xs text-surface-400">Sent to {phone}</p>
+          </div>
+
+          <OtpInput
+            ref={otpRef}
+            length={6}
+            variant="light"
+            onChange={setOtp}
+            onComplete={handleOtpComplete}
+            disabled={submitting}
+          />
+
+          <div className="text-center">
+            <button
+              onClick={handleRequestOtp}
+              disabled={cooldown > 0 || submitting}
+              className="text-sm text-surface-400 hover:text-brand-500 transition-colors disabled:opacity-40"
+            >
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ====== Stage: New PIN ====== */}
+      {stage === 'new-pin' && (
+        <div className="space-y-5">
+          <div className="card-elevated p-5 text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <KeyRound className="h-6 w-6 text-emerald-500" />
+            </div>
+            <p className="text-sm font-semibold text-surface-900">Create a new PIN</p>
+            <p className="text-xs text-surface-400">Enter a 6-digit PIN you&apos;ll remember</p>
+          </div>
+
+          <OtpInput
+            ref={pinRef}
+            length={6}
+            variant="light"
+            onChange={setNewPin}
+            onComplete={handleNewPinComplete}
+            disabled={submitting}
+          />
+        </div>
+      )}
+
+      {/* ====== Stage: Confirm PIN ====== */}
+      {stage === 'confirm-pin' && (
+        <div className="space-y-5">
+          <div className="card-elevated p-5 text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <KeyRound className="h-6 w-6 text-emerald-500" />
+            </div>
+            <p className="text-sm font-semibold text-surface-900">Confirm your PIN</p>
+            <p className="text-xs text-surface-400">Re-enter the same 6-digit PIN</p>
+          </div>
+
+          <OtpInput
+            ref={confirmPinRef}
+            length={6}
+            variant="light"
+            onChange={setConfirmPin}
+            onComplete={handleConfirmPinComplete}
+            disabled={submitting}
+          />
+
+          {submitting && (
+            <div className="flex items-center justify-center gap-2 text-surface-400 text-sm">
+              <div className="h-4 w-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              Resetting PIN…
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ====== Stage: Success ====== */}
+      {stage === 'success' && (
+        <div className="space-y-5 text-center">
+          <div className="card-elevated p-8">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center">
+              <CheckCircle className="h-8 w-8 text-emerald-500" />
+            </div>
+            <h2 className="text-xl font-bold text-surface-900 mb-2">PIN Reset Successfully!</h2>
+            <p className="text-surface-400 text-sm">You can now log in with your new PIN.</p>
+          </div>
+
+          <button
+            onClick={() => router.push('/login')}
+            className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press flex items-center justify-center gap-2"
+          >
+            Go to Login <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,31 +1,55 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@riderguy/auth';
+import { useAuth, hasBiometricForPhone, isBiometricSupported } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
-import { phoneSchema, emailSchema, passwordSchema } from '@riderguy/validators';
-import { Eye, EyeOff, Mail, Phone, AlertCircle } from 'lucide-react';
+import { phoneSchema, pinSchema } from '@riderguy/validators';
+import { Fingerprint, KeyRound, MessageSquare, Phone, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
 
-type Method = 'phone' | 'email';
-type PhoneStage = 'input' | 'otp';
+type Stage = 'phone' | 'method-select' | 'pin' | 'otp' | 'biometric';
+
+const LAST_PHONE_KEY = 'riderguy_last_phone';
+const LAST_METHOD_KEY = 'riderguy_last_login_method';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginWithOtp, loginWithPassword, requestOtp, isAuthenticated } = useAuth();
+  const {
+    loginWithOtp,
+    loginWithPin,
+    loginWithBiometric,
+    requestOtp,
+    checkAuthMethods,
+    isAuthenticated,
+  } = useAuth();
 
-  const [method, setMethod] = useState<Method>('phone');
-  const [phoneStage, setPhoneStage] = useState<PhoneStage>('input');
+  const [stage, setStage] = useState<Stage>('phone');
   const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
   const [otp, setOtp] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(0);
+  const [methods, setMethods] = useState<{ otp: boolean; pin: boolean; biometric: boolean } | null>(null);
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const pinRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
+  // Biometric support (client-side check)
+  const biometricAvailable = isBiometricSupported();
+
+  // Restore last-used phone on mount
+  useEffect(() => {
+    try {
+      const lastPhone = localStorage.getItem(LAST_PHONE_KEY);
+      if (lastPhone) setPhone(lastPhone);
+    } catch { /* SSR / no localStorage */ }
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) router.replace('/dashboard');
+  }, [isAuthenticated, router]);
 
   // OTP resend cooldown timer
   useEffect(() => {
@@ -34,24 +58,74 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  useEffect(() => {
-    if (isAuthenticated) router.replace('/dashboard');
-  }, [isAuthenticated, router]);
-
-  const handleRequestOtp = async () => {
+  // ---- Step 1: Check available methods for the phone ----
+  const handlePhoneContinue = async () => {
     const result = phoneSchema.safeParse(phone);
     if (!result.success) {
       setError(result.error.errors[0]?.message ?? 'Invalid phone number');
       return;
     }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      // Remember phone for next visit
+      localStorage.setItem(LAST_PHONE_KEY, phone);
+
+      // Check available methods from server
+      const serverMethods = await checkAuthMethods(phone);
+
+      // Also check local biometric availability
+      const localBiometric = biometricAvailable && hasBiometricForPhone(phone);
+      const finalMethods = {
+        ...serverMethods,
+        biometric: serverMethods.biometric && localBiometric,
+      };
+      setMethods(finalMethods);
+
+      // Smart auto-routing: if user has a preferred method from last time, jump there
+      const lastMethod = localStorage.getItem(LAST_METHOD_KEY);
+
+      if (lastMethod === 'biometric' && finalMethods.biometric) {
+        setStage('biometric');
+        // Auto-trigger biometric immediately
+        handleBiometricLogin();
+        return;
+      }
+
+      if (lastMethod === 'pin' && finalMethods.pin) {
+        setStage('pin');
+        return;
+      }
+
+      // If only OTP is available, go straight to OTP
+      if (!finalMethods.pin && !finalMethods.biometric) {
+        await handleSendOtp();
+        return;
+      }
+
+      // Show method selection
+      setStage('method-select');
+    } catch (err: any) {
+      // If methods check fails, fall back to showing all options
+      setMethods({ otp: true, pin: true, biometric: false });
+      setStage('method-select');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ---- OTP Flow ----
+  const handleSendOtp = async () => {
     setSubmitting(true);
     setError('');
     try {
       await requestOtp(phone, 'LOGIN');
-      setPhoneStage('otp');
+      setStage('otp');
       setCooldown(60);
-    } catch (err: unknown) {
-      const msg = (err as any)?.response?.data?.error?.message;
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));
     } finally {
       setSubmitting(false);
@@ -63,9 +137,10 @@ export default function LoginPage() {
     setError('');
     try {
       await loginWithOtp(phone, code);
+      localStorage.setItem(LAST_METHOD_KEY, 'otp');
       router.replace('/dashboard');
-    } catch (err: unknown) {
-      const msg = (err as any)?.response?.data?.error?.message;
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Invalid OTP'));
       otpRef.current?.clear();
       otpRef.current?.focus();
@@ -74,35 +149,68 @@ export default function LoginPage() {
     }
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      setError(emailResult.error.errors[0]?.message ?? 'Invalid email');
-      return;
-    }
-    const pwResult = passwordSchema.safeParse(password);
-    if (!pwResult.success) {
-      setError(pwResult.error.errors[0]?.message ?? 'Invalid password');
-      return;
-    }
+  // ---- PIN Flow ----
+  const handlePinComplete = async (code: string) => {
     setSubmitting(true);
     setError('');
     try {
-      await loginWithPassword(email, password);
+      await loginWithPin(phone, code);
+      localStorage.setItem(LAST_METHOD_KEY, 'pin');
       router.replace('/dashboard');
-    } catch (err: unknown) {
-      const msg = (err as any)?.response?.data?.error?.message;
-      setError(msg || (err instanceof Error ? err.message : 'Invalid credentials'));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Invalid PIN'));
+      pinRef.current?.clear();
+      pinRef.current?.focus();
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ---- Biometric Flow ----
+  const handleBiometricLogin = useCallback(async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await loginWithBiometric(phone);
+      localStorage.setItem(LAST_METHOD_KEY, 'biometric');
+      router.replace('/dashboard');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message ?? err?.message;
+      setError(msg || 'Biometric login failed');
+      // If biometric fails, show method select so user can try another way
+      setStage('method-select');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [phone, loginWithBiometric, router]);
+
+  const goBack = () => {
+    setError('');
+    setPin('');
+    setOtp('');
+    if (stage === 'method-select') {
+      setStage('phone');
+      setMethods(null);
+    } else {
+      setStage('method-select');
+    }
+  };
+
   return (
     <div>
-      <h2 className="text-3xl font-extrabold text-primary mb-1 tracking-tight">Welcome back</h2>
-      <p className="text-muted mb-8">Sign in to continue delivering</p>
+      {/* Header */}
+      {stage === 'phone' ? (
+        <>
+          <h2 className="text-3xl font-extrabold text-primary mb-1 tracking-tight">Welcome back</h2>
+          <p className="text-muted mb-8">Sign in to continue delivering</p>
+        </>
+      ) : (
+        <button onClick={goBack} className="flex items-center gap-2 text-muted hover:text-primary transition-colors mb-6 group">
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+      )}
 
       {/* Error banner */}
       {error && (
@@ -112,121 +220,218 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Premium segmented control */}
-      <div className="relative flex p-1 rounded-2xl bg-card border border-themed mb-8">
-        <div
-          className="absolute top-1 bottom-1 rounded-xl gradient-brand transition-all duration-300 ease-out shadow-lg glow-brand"
-          style={{ width: 'calc(50% - 4px)', left: method === 'phone' ? '4px' : 'calc(50% + 0px)' }}
-        />
-        {(['phone', 'email'] as Method[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => { setMethod(m); setError(''); setPhoneStage('input'); }}
-            className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors btn-press ${
-              method === m ? 'text-primary' : 'text-muted hover:text-secondary'
-            }`}
-          >
-            {m === 'phone' ? <Phone className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
-            {m === 'phone' ? 'Phone' : 'Email'}
-          </button>
-        ))}
-      </div>
-
-      {method === 'phone' ? (
+      {/* ====== Stage: Phone Input ====== */}
+      {stage === 'phone' && (
         <div className="space-y-6">
-          {phoneStage === 'input' ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
-                <PhoneInput value={phone} onValueChange={setPhone} />
-              </div>
-              <Button
-                size="xl"
-                className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
-                onClick={handleRequestOtp}
-                loading={submitting}
-              >
-                Send OTP
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="text-center mb-4 glass-elevated rounded-2xl p-5">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
-                  <Phone className="h-6 w-6 text-brand-400" />
-                </div>
-                <p className="text-secondary text-sm">
-                  We sent a code to <span className="text-primary font-semibold">{phone}</span>
-                </p>
-                <button onClick={() => setPhoneStage('input')} className="text-brand-400 text-sm mt-2 hover:underline font-medium">
-                  Change number
-                </button>
-              </div>
-              <OtpInput ref={otpRef} length={6} onChange={(code) => setOtp(code)} onComplete={handleOtpComplete} disabled={submitting} />
-              <Button
-                size="xl"
-                className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
-                onClick={() => handleOtpComplete(otp)}
-                loading={submitting}
-                disabled={submitting || otp.length < 6}
-              >
-                Verify & Sign In
-              </Button>
-              <div className="text-center mt-4">
-                <button
-                  onClick={handleRequestOtp}
-                  disabled={submitting || cooldown > 0}
-                  className="text-sm text-muted hover:text-brand-400 transition-colors font-medium disabled:opacity-50"
-                >
-                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
-        <form onSubmit={handleEmailLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-secondary mb-2.5">Email</label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
-            />
+            <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
+            <PhoneInput value={phone} onValueChange={setPhone} />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-2.5">Password</label>
-            <div className="relative">
-              <Input
-                type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="bg-card border-themed-strong text-primary placeholder:text-subtle pr-11 rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-secondary transition-colors"
-              >
-                {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-          </div>
-          <Button type="submit" size="xl" className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold" loading={submitting}>
-            Sign In
+          <Button
+            size="xl"
+            className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+            onClick={handlePhoneContinue}
+            loading={submitting}
+          >
+            Continue
           </Button>
-        </form>
+          <p className="text-center text-sm text-muted mt-6">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-brand-400 font-semibold hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </div>
       )}
 
-      <p className="text-center text-sm text-muted mt-8">
-        Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-brand-400 font-semibold hover:underline">
-          Sign up
-        </Link>
-      </p>
+      {/* ====== Stage: Method Selection ====== */}
+      {stage === 'method-select' && (
+        <div className="space-y-4">
+          <div className="text-center mb-6">
+            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
+              <ShieldCheck className="h-6 w-6 text-brand-400" />
+            </div>
+            <p className="text-secondary text-sm">
+              Choose how to sign in as <span className="text-primary font-semibold">{phone}</span>
+            </p>
+          </div>
+
+          {/* Biometric option */}
+          {methods?.biometric && biometricAvailable && (
+            <button
+              onClick={handleBiometricLogin}
+              disabled={submitting}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-themed hover:border-brand-500/50 transition-all group btn-press disabled:opacity-50"
+            >
+              <div className="h-12 w-12 rounded-xl gradient-brand flex items-center justify-center shrink-0 shadow-lg glow-brand">
+                <Fingerprint className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="text-primary font-semibold">Fingerprint / Face ID</p>
+                <p className="text-muted text-xs mt-0.5">Quick and secure biometric login</p>
+              </div>
+              <div className="text-xs text-brand-400 font-medium px-2 py-1 rounded-lg bg-brand-500/10">
+                Fastest
+              </div>
+            </button>
+          )}
+
+          {/* PIN option */}
+          {methods?.pin && (
+            <button
+              onClick={() => { setError(''); setStage('pin'); }}
+              disabled={submitting}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-themed hover:border-brand-500/50 transition-all group btn-press disabled:opacity-50"
+            >
+              <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <KeyRound className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="text-primary font-semibold">Enter PIN</p>
+                <p className="text-muted text-xs mt-0.5">Use your 6-digit security PIN</p>
+              </div>
+            </button>
+          )}
+
+          {/* OTP option */}
+          <button
+            onClick={handleSendOtp}
+            disabled={submitting}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-themed hover:border-brand-500/50 transition-all group btn-press disabled:opacity-50"
+          >
+            <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+              <MessageSquare className="h-6 w-6 text-blue-400" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="text-primary font-semibold">Send OTP</p>
+              <p className="text-muted text-xs mt-0.5">Get a one-time code via SMS</p>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* ====== Stage: PIN Entry ====== */}
+      {stage === 'pin' && (
+        <div className="space-y-6">
+          <div className="text-center mb-4 glass-elevated rounded-2xl p-5">
+            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+              <KeyRound className="h-6 w-6 text-emerald-400" />
+            </div>
+            <p className="text-primary font-semibold mb-1">Enter your PIN</p>
+            <p className="text-muted text-sm">
+              6-digit PIN for <span className="text-secondary font-medium">{phone}</span>
+            </p>
+          </div>
+
+          <OtpInput
+            ref={pinRef}
+            length={6}
+            onChange={(code) => setPin(code)}
+            onComplete={handlePinComplete}
+            disabled={submitting}
+          />
+
+          <Button
+            size="xl"
+            className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+            onClick={() => handlePinComplete(pin)}
+            loading={submitting}
+            disabled={submitting || pin.length < 6}
+          >
+            Sign In
+          </Button>
+
+          <div className="text-center space-y-2">
+            <button
+              onClick={() => { setError(''); setStage('method-select'); }}
+              className="text-sm text-muted hover:text-brand-400 transition-colors font-medium"
+            >
+              Try a different method
+            </button>
+            <div>
+              <Link
+                href={`/forgot-pin?phone=${encodeURIComponent(phone)}`}
+                className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium"
+              >
+                Forgot PIN?
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== Stage: OTP Entry ====== */}
+      {stage === 'otp' && (
+        <div className="space-y-6">
+          <div className="text-center mb-4 glass-elevated rounded-2xl p-5">
+            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <MessageSquare className="h-6 w-6 text-blue-400" />
+            </div>
+            <p className="text-primary font-semibold mb-1">Enter verification code</p>
+            <p className="text-secondary text-sm">
+              We sent a code to <span className="font-semibold">{phone}</span>
+            </p>
+          </div>
+
+          <OtpInput
+            ref={otpRef}
+            length={6}
+            onChange={(code) => setOtp(code)}
+            onComplete={handleOtpComplete}
+            disabled={submitting}
+          />
+
+          <Button
+            size="xl"
+            className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
+            onClick={() => handleOtpComplete(otp)}
+            loading={submitting}
+            disabled={submitting || otp.length < 6}
+          >
+            Verify & Sign In
+          </Button>
+
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => { setError(''); setStage('method-select'); }}
+              className="text-sm text-muted hover:text-brand-400 transition-colors font-medium"
+            >
+              Try a different method
+            </button>
+            <button
+              onClick={handleSendOtp}
+              disabled={submitting || cooldown > 0}
+              className="text-sm text-muted hover:text-brand-400 transition-colors font-medium disabled:opacity-50"
+            >
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ====== Stage: Biometric in progress ====== */}
+      {stage === 'biometric' && (
+        <div className="space-y-6">
+          <div className="text-center py-8">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-2xl gradient-brand flex items-center justify-center shadow-lg glow-brand animate-pulse">
+              <Fingerprint className="h-8 w-8 text-white" />
+            </div>
+            <p className="text-primary font-semibold text-lg mb-1">Waiting for biometric...</p>
+            <p className="text-muted text-sm">
+              Use your fingerprint or Face ID to sign in
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            size="xl"
+            className="w-full rounded-2xl font-semibold"
+            onClick={() => { setError(''); setStage('method-select'); }}
+          >
+            Cancel & choose another method
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

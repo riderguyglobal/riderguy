@@ -11,6 +11,9 @@ import { useRiderAvailability } from '@/hooks/use-rider-availability';
 import { useSocket } from '@/hooks/use-socket';
 import { useConnectionHealth } from '@/hooks/use-connection-health';
 import { useWakeLock } from '@/hooks/use-wake-lock';
+import { useAudioKeepAlive } from '@/hooks/use-audio-keep-alive';
+import { useForegroundRecovery } from '@/hooks/use-foreground-recovery';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { STATUS_CONFIG, PACKAGE_TYPES, API_BASE_URL } from '@/lib/constants';
 import { tokenStorage } from '@riderguy/auth';
 import {
@@ -53,6 +56,15 @@ export default function DashboardPage() {
 
   // Screen wake lock: prevents device sleep while rider is ONLINE
   useWakeLock(isOnline);
+
+  // Audio keep-alive: prevents browser from suspending PWA during phone calls/app switches
+  useAudioKeepAlive(isOnline);
+
+  // Foreground recovery: resync all state when returning from background
+  useForegroundRecovery(isOnline);
+
+  // Push notifications: register FCM token + handle foreground messages
+  usePushNotifications();
 
   // Notify service worker when rider goes online/offline for background sync
   useEffect(() => {
@@ -112,7 +124,7 @@ export default function DashboardPage() {
       params: { role: 'rider', status: 'ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF', limit: 5 },
     }).then(r => (r.data.data ?? []) as Order[]),
     enabled: !!api,
-    refetchInterval: 30_000, // Poll active orders every 30s
+    refetchInterval: 10_000, // Poll active orders every 10s
   });
 
   const { data: profile } = useQuery({

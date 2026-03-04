@@ -80,21 +80,82 @@ interface QueuedLocation {
   apiUrl: string;
 }
 
-// Simple in-memory queue (persists across SW lifecycle via global scope)
-let pendingLocations: QueuedLocation[] = [];
+// ── IndexedDB-backed queue (survives SW restarts) ───────────
+
+const IDB_NAME = 'riderguy-sw';
+const IDB_STORE = 'location-queue';
+const IDB_VERSION = 1;
+
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbPush(item: QueuedLocation): Promise<void> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).add(item);
+    await new Promise<void>((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+  } catch {
+    // Fallback: silently fail (location will be sent on next heartbeat anyway)
+  }
+}
+
+async function idbGetAll(): Promise<QueuedLocation[]> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    const items: QueuedLocation[] = await new Promise((res, rej) => {
+      const req = store.getAll();
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    db.close();
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+async function idbClear(): Promise<void> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).clear();
+    await new Promise<void>((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+  } catch {
+    // Silently fail
+  }
+}
 
 // Listen for messages from the main thread
 self.addEventListener('message', (event) => {
   const { type, data } = event.data ?? {};
 
   if (type === 'SYNC_LOCATION') {
-    pendingLocations.push({
+    const item: QueuedLocation = {
       latitude: data.latitude,
       longitude: data.longitude,
       timestamp: Date.now(),
       token: data.token,
       apiUrl: data.apiUrl,
-    });
+    };
+
+    // Store in IndexedDB (persistent across SW restarts)
+    idbPush(item);
 
     // Try to sync immediately if online
     if (navigator.onLine) {
@@ -113,7 +174,6 @@ self.addEventListener('message', (event) => {
   if (type === 'RIDER_OFFLINE') {
     // Flush any remaining locations
     flushLocationQueue();
-    pendingLocations = [];
   }
 });
 
@@ -148,11 +208,13 @@ async function registerPeriodicSync(): Promise<void> {
 }
 
 async function flushLocationQueue(): Promise<void> {
-  if (pendingLocations.length === 0) return;
+  const pending = await idbGetAll();
+  if (pending.length === 0) return;
 
   // Take the most recent location (no need to send stale ones)
-  const latest = pendingLocations[pendingLocations.length - 1];
-  pendingLocations = [];
+  const latest = pending[pending.length - 1];
+  // Clear the queue before sending (prevents duplicates)
+  await idbClear();
 
   if (!latest) return;
 
@@ -172,7 +234,7 @@ async function flushLocationQueue(): Promise<void> {
   } catch (err) {
     console.warn('[SW] Background location sync failed:', err);
     // Re-queue for next sync attempt
-    pendingLocations.push(latest);
+    await idbPush(latest);
   }
 }
 
@@ -183,3 +245,64 @@ async function sendBackgroundHeartbeat(): Promise<void> {
     client.postMessage({ type: 'HEARTBEAT_TICK' });
   }
 }
+
+// ── Push notification handler ──
+
+self.addEventListener('push', (event: any) => {
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json();
+    const { title, body, icon, data: notifData } = payload;
+
+    event.waitUntil(
+      self.registration.showNotification(title ?? 'RiderGuy', {
+        body: body ?? 'You have an update',
+        icon: icon ?? '/icons/icon-192x192.png',
+        badge: '/icons/icon-72x72.png',
+        data: notifData,
+        tag: notifData?.orderId ? `order-${notifData.orderId}` : 'general',
+        requireInteraction: notifData?.type === 'job:offer', // Job offers stay until interacted
+        actions: notifData?.orderId
+          ? [{ action: 'view', title: 'View Details' }]
+          : [],
+      } as NotificationOptions)
+    );
+  } catch {
+    // If not JSON, show as plain text
+    event.waitUntil(
+      self.registration.showNotification('RiderGuy', {
+        body: event.data.text(),
+        icon: '/icons/icon-192x192.png',
+      })
+    );
+  }
+});
+
+// ── Notification click handler ──
+
+self.addEventListener('notificationclick', (event: any) => {
+  event.notification.close();
+
+  const notifData = event.notification.data;
+  let url = '/dashboard';
+
+  if (notifData?.orderId) {
+    url = `/dashboard/jobs/${notifData.orderId}`;
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus existing window if available
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          client.navigate(url);
+          return;
+        }
+      }
+      // Otherwise open a new window
+      return self.clients.openWindow(url);
+    })
+  );
+});

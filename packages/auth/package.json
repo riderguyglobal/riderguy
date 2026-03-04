@@ -14,8 +14,9 @@
   "dependencies": {
     "@riderguy/types": "*",
     "@riderguy/validators": "*",
-    "zustand": "^5.0.0",
-    "axios": "^1.7.0"
+    "@simplewebauthn/browser": "^13.2.2",
+    "axios": "^1.7.0",
+    "zustand": "^5.0.0"
   },
   "peerDependencies": {
     "react": "^18.3.0",

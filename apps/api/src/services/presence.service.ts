@@ -51,9 +51,14 @@ const DISPATCH_FRESHNESS_MS = 10 * 60_000; // 10 minutes
 /** DB sync interval — flush in-memory presence to Prisma (ms) */
 const DB_SYNC_INTERVAL_MS = 60_000; // 1 minute
 
+/** Minimum interval between heartbeats per rider (ms) — prevents flooding */
+const HEARTBEAT_THROTTLE_MS = 3_000; // 3 seconds
+
 // ── In-memory presence store ────────────────────────────────
 
 const presenceMap = new Map<string, RiderPresence>();
+/** Last accepted heartbeat timestamp per userId for throttling */
+const lastHeartbeatTime = new Map<string, number>();
 
 let sweepTimer: NodeJS.Timeout | null = null;
 let dbSyncTimer: NodeJS.Timeout | null = null;
@@ -237,9 +242,17 @@ export function recordHeartbeat(
   const presence = presenceMap.get(userId);
   if (!presence) return;
 
-  const now = new Date();
-  presence.lastHeartbeat = now;
-  presence.lastSeenAt = now;
+  // Per-userId throttle — reject rapid-fire heartbeats
+  const now = Date.now();
+  const lastTime = lastHeartbeatTime.get(userId);
+  if (lastTime && now - lastTime < HEARTBEAT_THROTTLE_MS) {
+    return; // Too soon — skip
+  }
+  lastHeartbeatTime.set(userId, now);
+
+  const nowDate = new Date(now);
+  presence.lastHeartbeat = nowDate;
+  presence.lastSeenAt = nowDate;
   presence.missedHeartbeats = 0;
 
   if (coords) {
@@ -328,6 +341,7 @@ export async function forceRiderOffline(userId: string): Promise<void> {
     });
 
     presenceMap.delete(userId);
+    lastHeartbeatTime.delete(userId);
     logger.info({ userId, sessionSeconds, totalOnlineSeconds }, '[Presence] Rider forced OFFLINE');
   } else {
     // Not in memory — just update DB

@@ -148,6 +148,32 @@ export function useSocket() {
     sharedSocket?.emit('job:offer:respond', { orderId, response } as any);
   }, []);
 
+  /** Respond to a job offer and await the server acknowledgement */
+  const respondToOfferAsync = useCallback(
+    (orderId: string, accepted: boolean): Promise<{ success: boolean; error?: string }> => {
+      return new Promise((resolve) => {
+        if (!sharedSocket?.connected) {
+          resolve({ success: false, error: 'Not connected to server' });
+          return;
+        }
+        const response = accepted ? 'accept' : 'decline';
+        // Use Socket.IO acknowledgement callback
+        sharedSocket.emit(
+          'job:offer:respond',
+          { orderId, response } as any,
+          (ack: { success: boolean; error?: string }) => {
+            resolve(ack ?? { success: false, error: 'No response from server' });
+          },
+        );
+        // Timeout after 10 seconds if server doesn't respond
+        setTimeout(() => {
+          resolve({ success: false, error: 'Server response timed out' });
+        }, 10_000);
+      });
+    },
+    [],
+  );
+
   return {
     socket,
     connected,
@@ -160,5 +186,6 @@ export function useSocket() {
     sendMessage,
     sendTyping,
     respondToOffer,
+    respondToOfferAsync,
   };
 }

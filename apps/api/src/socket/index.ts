@@ -3,17 +3,19 @@ import { Server as SocketIOServer } from 'socket.io';
 import { verify } from 'jsonwebtoken';
 import { config } from '../config';
 import { logger } from '../lib/logger';
+import { getRedisPubSub } from '../lib/redis';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
 } from '@riderguy/types';
 import { prisma } from '@riderguy/database';
-import { handleOfferResponse } from '../services/auto-dispatch.service';
+import { handleOfferResponse, getPendingOfferForRider } from '../services/auto-dispatch.service';
 import * as ChatService from '../services/chat.service';
 import {
   riderConnected,
   riderDisconnected,
   recordHeartbeat,
+  getOnlineRiders,
 } from '../services/presence.service';
 
 // ============================================================
@@ -40,6 +42,19 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     transports: ['websocket', 'polling'],
   });
 
+  // ── Redis adapter for multi-instance support ──
+  const redisPubSub = getRedisPubSub();
+  if (redisPubSub) {
+    try {
+      // Dynamic import to avoid hard dependency
+      const { createAdapter } = require('@socket.io/redis-adapter');
+      io.adapter(createAdapter(redisPubSub.pub, redisPubSub.sub));
+      logger.info('[Socket] Redis adapter attached — multi-instance support enabled');
+    } catch (err) {
+      logger.warn({ err }, '[Socket] @socket.io/redis-adapter not installed — using in-memory adapter');
+    }
+  }
+
   // ── Authentication middleware ──
   io.use((socket, next) => {
     const token =
@@ -54,31 +69,113 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
       const payload = verify(token, config.jwt.accessSecret) as {
         userId: string;
         role: string;
+        roles?: string[];
       };
       (socket.data as any).userId = payload.userId;
       (socket.data as any).role = payload.role;
+      (socket.data as any).roles = payload.roles || [payload.role];
       next();
     } catch {
       next(new Error('Invalid or expired token'));
     }
   });
 
+  // ── Per-socket event rate limiter ──
+  // Prevents any single connection from flooding with events
+  const SOCKET_RATE_LIMIT = 60; // max events per window
+  const SOCKET_RATE_WINDOW_MS = 10_000; // 10 second window
+
+  io.use((socket, next) => {
+    let eventCount = 0;
+    let windowStart = Date.now();
+
+    const originalOnEvent = (socket as any).onevent;
+    (socket as any).onevent = function (packet: any) {
+      const now = Date.now();
+      if (now - windowStart > SOCKET_RATE_WINDOW_MS) {
+        // Reset window
+        eventCount = 0;
+        windowStart = now;
+      }
+      eventCount++;
+      if (eventCount > SOCKET_RATE_LIMIT) {
+        logger.warn(
+          { socketId: socket.id, userId: (socket.data as any)?.userId },
+          '[Socket] Rate limited — too many events',
+        );
+        return; // Drop the event silently
+      }
+      return originalOnEvent.call(this, packet);
+    };
+    next();
+  });
+
   // ── Connection handler ──
   io.on('connection', async (socket) => {
     const userId = (socket.data as any).userId as string;
     const role = (socket.data as any).role as string;
+    const roles = (socket.data as any).roles as string[];
 
-    logger.info({ socketId: socket.id, userId, role }, 'WebSocket connected');
+    logger.info({ socketId: socket.id, userId, role, roles }, 'WebSocket connected');
 
     // Auto-join the user's own room for direct notifications
     socket.join(`user:${userId}`);
 
-    // Auto-join role-based room for targeted broadcasts (e.g., job:new to riders only)
-    socket.join(`role:${role}`);
+    // Auto-join role-based rooms for targeted broadcasts (e.g., job:new to riders)
+    // With multi-role support, a user may belong to more than one role room
+    for (const r of roles) {
+      socket.join(`role:${r}`);
+    }
 
     // ── Register rider presence (keeps API gates open) ──
-    if (role === 'RIDER') {
+    if (roles.includes('RIDER')) {
       await riderConnected(userId, socket.id!);
+
+      // Re-emit any pending offer if this rider reconnects while an offer is active
+      // This handles the case where the rider's PWA was backgrounded and the socket dropped
+      const pendingOffer = getPendingOfferForRider(userId);
+      if (pendingOffer) {
+        logger.info({ userId, orderId: pendingOffer.orderId }, '[Socket] Re-emitting pending offer on reconnect');
+        // Fetch the order data again to build the offer payload
+        const pendingOrder = await prisma.order.findUnique({
+          where: { id: pendingOffer.orderId },
+          select: {
+            id: true, orderNumber: true, pickupAddress: true, dropoffAddress: true,
+            pickupLatitude: true, pickupLongitude: true, dropoffLatitude: true, dropoffLongitude: true,
+            distanceKm: true, estimatedDurationMinutes: true, totalPrice: true,
+            serviceFee: true, riderEarnings: true, packageType: true,
+            packageDescription: true, currency: true, isMultiStop: true,
+          },
+        });
+        if (pendingOrder) {
+          const totalPrice = typeof pendingOrder.totalPrice === 'number' ? pendingOrder.totalPrice : Number(pendingOrder.totalPrice);
+          const serviceFee = typeof pendingOrder.serviceFee === 'number' ? pendingOrder.serviceFee : Number(pendingOrder.serviceFee);
+          const riderEarnings = pendingOrder.riderEarnings != null
+            ? (typeof pendingOrder.riderEarnings === 'number' ? pendingOrder.riderEarnings : Number(pendingOrder.riderEarnings))
+            : (totalPrice - serviceFee);
+          socket.emit('job:offer', {
+            orderId: pendingOrder.id,
+            orderNumber: pendingOrder.orderNumber,
+            pickupAddress: pendingOrder.pickupAddress,
+            dropoffAddress: pendingOrder.dropoffAddress,
+            pickupLat: pendingOrder.pickupLatitude,
+            pickupLng: pendingOrder.pickupLongitude,
+            dropoffLat: pendingOrder.dropoffLatitude,
+            dropoffLng: pendingOrder.dropoffLongitude,
+            distanceKm: pendingOrder.distanceKm,
+            estimatedDurationMinutes: pendingOrder.estimatedDurationMinutes,
+            totalPrice,
+            serviceFee,
+            riderEarnings,
+            packageType: pendingOrder.packageType,
+            packageDescription: pendingOrder.packageDescription ?? undefined,
+            currency: pendingOrder.currency,
+            distanceToPickup: 0,  // re-emit, distance already calculated
+            expiresAt: new Date(Date.now() + 25_000).toISOString(), // give ~25s remaining
+            isMultiStop: pendingOrder.isMultiStop ?? false,
+          });
+        }
+      }
     }
 
     // Cache user firstName to avoid DB queries on typing events
@@ -169,6 +266,11 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     // ── Rider heartbeat (lightweight keep-alive, no GPS required) ──
     socket.on('rider:heartbeat' as any, (data: any, ack: any) => {
       recordHeartbeat(userId, data?.latitude && data?.longitude ? data : undefined);
+      ack?.({ success: true, serverTime: Date.now() });
+    });
+
+    // ── Client heartbeat (lightweight keep-alive for order tracking) ──
+    socket.on('client:heartbeat' as any, (_data: any, ack: any) => {
       ack?.({ success: true, serverTime: Date.now() });
     });
 
@@ -364,7 +466,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     socket.on('disconnect', async (reason) => {
       logger.info({ socketId: socket.id, userId, reason }, 'WebSocket disconnected');
 
-      if (role === 'RIDER') {
+      if (roles.includes('RIDER')) {
         await riderDisconnected(userId, reason);
       }
     });
@@ -401,13 +503,16 @@ export function emitOrderStatusUpdate(data: {
 }
 
 /**
- * Emit a new job notification to all riders in a zone.
+ * Emit a new job notification to riders near the pickup location.
+ * Falls back to broadcasting to all riders if no pickup coords provided.
  */
 export function emitNewJob(zoneId: string | null, data: {
   orderId: string;
   orderNumber: string;
   pickupAddress: string;
   dropoffAddress: string;
+  pickupLat?: number;
+  pickupLng?: number;
   distanceKm: number;
   totalPrice: number;
   packageType: string;
@@ -422,8 +527,52 @@ export function emitNewJob(zoneId: string | null, data: {
     totalStops: data.totalStops ?? 2,
     isScheduled: data.isScheduled ?? false,
   };
-  // Always broadcast to all riders — zone rooms are not joined by riders,
-  // so zone-targeted emission was going to nobody.
-  io.to('role:RIDER').emit('job:new', payload);
-  logger.info({ orderId: data.orderId, zoneId }, '[Socket] Broadcast job:new to all riders');
+
+  // Zone-targeted: only notify riders within 10km of pickup
+  const MAX_BROADCAST_RADIUS_KM = 10;
+
+  if (data.pickupLat && data.pickupLng) {
+    const onlineRiders = getOnlineRiders();
+    let notifiedCount = 0;
+
+    for (const rider of onlineRiders) {
+      if (rider.latitude == null || rider.longitude == null) continue;
+
+      // Haversine distance check
+      const dist = haversineKm(
+        data.pickupLat, data.pickupLng,
+        rider.latitude, rider.longitude,
+      );
+
+      if (dist <= MAX_BROADCAST_RADIUS_KM) {
+        io.to(`user:${rider.userId}`).emit('job:new', payload);
+        notifiedCount++;
+      }
+    }
+
+    logger.info(
+      { orderId: data.orderId, zoneId, notifiedCount, totalOnline: onlineRiders.length },
+      `[Socket] Broadcast job:new to ${notifiedCount} nearby riders (${MAX_BROADCAST_RADIUS_KM}km radius)`,
+    );
+  } else {
+    // Fallback: no pickup coords — broadcast to all
+    io.to('role:RIDER').emit('job:new', payload);
+    logger.info({ orderId: data.orderId, zoneId }, '[Socket] Broadcast job:new to ALL riders (no pickup coords)');
+  }
+}
+
+/**
+ * Haversine formula — distance in km between two GPS points.
+ */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }

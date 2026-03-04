@@ -19,3 +19,12 @@ export { ProtectedRoute } from './protected-route';
 
 // Session management UI
 export { SessionManager } from './session-manager';
+
+// Biometric (WebAuthn) helpers
+export {
+  isBiometricSupported,
+  hasBiometricForPhone,
+  removeBiometricPhone,
+  registerBiometric,
+  authenticateWithBiometric,
+} from './biometric';

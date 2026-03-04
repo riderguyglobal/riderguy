@@ -3,7 +3,8 @@ import { UserRole } from './enums';
 /** JWT access token payload */
 export interface JwtPayload {
   sub: string; // user ID
-  role: UserRole;
+  role: UserRole; // primary / active role (for backwards compat)
+  roles: UserRole[]; // all roles the user has
   sessionId: string;
   iat: number;
   exp: number;
