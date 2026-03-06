@@ -11,7 +11,7 @@ import { VehicleType } from '@riderguy/types';
 const VEHICLE_TYPES: { value: VehicleType; label: string; icon: string }[] = [
   { value: 'MOTORCYCLE' as VehicleType, label: 'Motorcycle', icon: '🏍️' },
   { value: 'BICYCLE' as VehicleType, label: 'Bicycle', icon: '🚲' },
-  { value: 'CAR' as VehicleType, label: 'Car', icon: '🚗' },
+  { value: 'CAR' as VehicleType, label: 'Cart', icon: '🛒' },
   { value: 'VAN' as VehicleType, label: 'Van', icon: '🚐' },
 ];
 

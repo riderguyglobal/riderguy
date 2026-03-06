@@ -7,24 +7,24 @@ import { ArrowLeft, Plus, X, BarChart3 } from 'lucide-react';
 
 const CATEGORIES = [
   'GENERAL',
-  'TIPS_AND_TRICKS',
+  'TIPS_TRICKS',
   'ROUTES',
   'EARNINGS',
   'SAFETY',
   'VEHICLE_MAINTENANCE',
-  'MEETUPS',
+  'EVENTS',
   'FEATURE_REQUESTS',
   'OFF_TOPIC',
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
   GENERAL: '💬 General',
-  TIPS_AND_TRICKS: '💡 Tips & Tricks',
+  TIPS_TRICKS: '💡 Tips & Tricks',
   ROUTES: '🗺️ Routes',
   EARNINGS: '💰 Earnings',
   SAFETY: '🛡️ Safety',
   VEHICLE_MAINTENANCE: '🔧 Vehicle',
-  MEETUPS: '🤝 Meetups',
+  EVENTS: '🤝 Meetups',
   FEATURE_REQUESTS: '✨ Features',
   OFF_TOPIC: '🎯 Off Topic',
 };
