@@ -9,7 +9,7 @@ import { getInitials } from '@riderguy/utils';
 import {
   User, Shield, Bell, HelpCircle, FileText, LogOut,
   ChevronRight, Bike, Settings, Sun, Moon, Monitor,
-  Fingerprint, Plus, Trash2, Loader2
+  Fingerprint, Plus, Trash2, Loader2, Lock, KeyRound
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 
@@ -27,10 +27,21 @@ export default function SettingsPage() {
   const { user, logout, setupBiometric, isBiometricSupported: biometricSupported, api } = useAuth();
   const { theme, setTheme } = useTheme();
 
+  // PIN management state
+  const [hasPinSet, setHasPinSet] = useState(false);
+
   // Biometric credentials state
   const [biometricCredentials, setBiometricCredentials] = useState<Array<{ id: string; friendlyName: string | null; deviceType: string | null; createdAt: string }>>([]);
   const [biometricLoading, setBiometricLoading] = useState(false);
   const [biometricError, setBiometricError] = useState('');
+
+  // Check if user has PIN set
+  useEffect(() => {
+    if (!user?.phone) return;
+    api.get('/auth/methods', { params: { phone: user.phone } })
+      .then((res) => setHasPinSet(res.data?.data?.pin === true))
+      .catch(() => {});
+  }, [api, user?.phone]);
 
   // Load biometric credentials
   useEffect(() => {
@@ -163,6 +174,59 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* PIN Management */}
+        <div className="glass-elevated rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-themed">
+            <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+              <Lock className="h-4 w-4 text-brand-400" />
+              PIN Security
+            </h3>
+            <p className="text-xs text-muted mt-1">
+              {hasPinSet ? 'Manage your 6-digit transaction PIN' : 'Set up a PIN for secure transactions'}
+            </p>
+          </div>
+          <div className="p-4 space-y-2">
+            {hasPinSet ? (
+              <>
+                <button
+                  onClick={() => router.push('/dashboard/settings/security/change-pin')}
+                  className="w-full flex items-center gap-3.5 p-3 rounded-xl bg-card border border-themed hover:border-brand-500/40 hover:bg-hover-themed transition-all btn-press"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
+                    <KeyRound className="h-4 w-4 text-brand-400" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="text-sm text-primary font-medium">Change PIN</p>
+                    <p className="text-[11px] text-muted">Update your 6-digit PIN</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-subtle" />
+                </button>
+                <button
+                  onClick={() => router.push('/forgot-pin')}
+                  className="w-full flex items-center gap-3.5 p-3 rounded-xl bg-card border border-themed hover:border-brand-500/40 hover:bg-hover-themed transition-all btn-press"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <HelpCircle className="h-4 w-4 text-amber-400" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="text-sm text-primary font-medium">Forgot PIN</p>
+                    <p className="text-[11px] text-muted">Reset via phone verification</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-subtle" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => router.push('/dashboard/settings/security/set-pin')}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-themed hover:border-brand-500/50 text-muted hover:text-brand-400 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="text-sm font-medium">Set up a PIN</span>
+              </button>
+            )}
           </div>
         </div>
 

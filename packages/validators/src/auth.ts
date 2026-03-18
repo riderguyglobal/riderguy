@@ -79,12 +79,45 @@ export const changePinSchema = z
   });
 
 // WebAuthn schemas
+
+// Structural shape for RegistrationResponseJSON from @simplewebauthn/types
+const registrationResponseSchema = z.object({
+  id: z.string(),
+  rawId: z.string(),
+  response: z.object({
+    clientDataJSON: z.string(),
+    attestationObject: z.string(),
+    authenticatorData: z.string().optional(),
+    transports: z.array(z.string()).optional(),
+    publicKeyAlgorithm: z.number().optional(),
+    publicKey: z.string().optional(),
+  }),
+  authenticatorAttachment: z.string().optional(),
+  clientExtensionResults: z.record(z.unknown()),
+  type: z.literal('public-key'),
+});
+
+// Structural shape for AuthenticationResponseJSON from @simplewebauthn/types
+const authenticationResponseSchema = z.object({
+  id: z.string(),
+  rawId: z.string(),
+  response: z.object({
+    clientDataJSON: z.string(),
+    authenticatorData: z.string(),
+    signature: z.string(),
+    userHandle: z.string().optional(),
+  }),
+  authenticatorAttachment: z.string().optional(),
+  clientExtensionResults: z.record(z.unknown()),
+  type: z.literal('public-key'),
+});
+
 export const webauthnRegisterOptionsSchema = z.object({
   friendlyName: z.string().max(100).optional(),
 });
 
 export const webauthnRegisterVerifySchema = z.object({
-  credential: z.any(), // RegistrationResponseJSON — verified by @simplewebauthn/server
+  credential: registrationResponseSchema,
   friendlyName: z.string().max(100).optional(),
 });
 
@@ -94,7 +127,7 @@ export const webauthnLoginOptionsSchema = z.object({
 
 export const webauthnLoginVerifySchema = z.object({
   phone: phoneSchema,
-  credential: z.any(), // AuthenticationResponseJSON — verified by @simplewebauthn/server
+  credential: authenticationResponseSchema,
 });
 
 // Set PIN (first-time setup — authenticated)

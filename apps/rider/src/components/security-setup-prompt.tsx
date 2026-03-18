@@ -26,9 +26,13 @@ export function SecuritySetupPrompt() {
   useEffect(() => {
     if (!api || !user) return;
 
-    // Don't show if already dismissed this session / this device
+    // Don't show if dismissed within the last 7 days
     const dismissed = localStorage.getItem(DISMISS_KEY);
-    if (dismissed) return;
+    if (dismissed) {
+      const dismissedAt = parseInt(dismissed, 10);
+      if (!isNaN(dismissedAt) && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) return;
+      localStorage.removeItem(DISMISS_KEY);
+    }
 
     // Check what methods the user has
     api.post('/auth/methods', { phone: user.phone }).then(({ data }) => {

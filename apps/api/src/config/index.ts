@@ -105,3 +105,13 @@ export const config = {
     origin: optionalEnv('WEBAUTHN_ORIGIN', 'http://localhost:3002').split(',').map(s => s.trim()),
   },
 } as const;
+
+// Production safety checks
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.WEBAUTHN_RP_ID || config.webauthn.rpID === 'localhost') {
+    console.warn('[CONFIG] WARNING: WEBAUTHN_RP_ID is not set or is "localhost" in production. Biometric login will fail.');
+  }
+  if (!process.env.WEBAUTHN_ORIGIN || config.webauthn.origin.some(o => o.includes('localhost'))) {
+    console.warn('[CONFIG] WARNING: WEBAUTHN_ORIGIN contains localhost in production. Biometric login will fail.');
+  }
+}

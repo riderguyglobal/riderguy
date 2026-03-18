@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
+import { removeBiometricPhone } from '@riderguy/auth';
 import { Avatar, AvatarImage, AvatarFallback } from '@riderguy/ui';
 import { SessionManager } from '@riderguy/auth';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +25,8 @@ import {
   Trash2,
   Loader2,
   Settings,
+  Lock,
+  KeyRound,
 } from 'lucide-react';
 
 const MENU_ITEMS = [
@@ -52,6 +55,18 @@ export default function SettingsPage() {
   >([]);
   const [biometricLoading, setBiometricLoading] = useState(false);
   const [biometricError, setBiometricError] = useState('');
+
+  // PIN status state
+  const [hasPinSet, setHasPinSet] = useState<boolean | null>(null);
+
+  // Check if user has PIN set
+  useEffect(() => {
+    if (!api || !user?.phone) return;
+    api
+      .post('/auth/methods', { phone: user.phone })
+      .then((res) => setHasPinSet(res.data?.data?.pin ?? false))
+      .catch(() => {});
+  }, [api, user?.phone]);
 
   // Load biometric credentials
   useEffect(() => {
@@ -87,9 +102,15 @@ export default function SettingsPage() {
 
   const handleRemoveBiometric = async (credId: string) => {
     if (!api) return;
+    setBiometricError('');
     try {
       await api.delete(`/auth/webauthn/credentials/${credId}`);
-      setBiometricCredentials((prev) => prev.filter((c) => c.id !== credId));
+      const remaining = biometricCredentials.filter((c) => c.id !== credId);
+      setBiometricCredentials(remaining);
+      // Clean up localStorage when last credential is removed
+      if (remaining.length === 0 && user?.phone) {
+        removeBiometricPhone(user.phone);
+      }
     } catch {
       setBiometricError('Failed to remove credential');
     }
@@ -191,6 +212,62 @@ export default function SettingsPage() {
           </div>
           <div className="p-4">
             <SessionManager />
+          </div>
+        </div>
+
+        {/* PIN Management */}
+        <div className="bg-white rounded-2xl overflow-hidden border border-surface-100">
+          <div className="px-4 py-3 border-b border-surface-100">
+            <h3 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
+              <Lock className="h-4 w-4 text-brand-500" />
+              PIN Login
+            </h3>
+            <p className="text-xs text-surface-400 mt-1">
+              Use a 6-digit PIN for quick sign-in
+            </p>
+          </div>
+          <div className="p-4">
+            {hasPinSet === null ? (
+              <div className="flex items-center justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-surface-300" />
+              </div>
+            ) : hasPinSet ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-surface-50 rounded-xl border border-surface-100">
+                  <div className="h-9 w-9 rounded-lg bg-green-50 flex items-center justify-center">
+                    <Lock className="h-4 w-4 text-green-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-surface-900 font-medium">PIN is set</p>
+                    <p className="text-[11px] text-surface-400">You can log in using your PIN</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => router.push('/dashboard/settings/security/change-pin')}
+                    className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors"
+                  >
+                    <KeyRound className="h-4 w-4 text-surface-500" />
+                    <span className="text-sm font-medium text-surface-700">Change PIN</span>
+                  </button>
+                  <button
+                    onClick={() => router.push('/forgot-pin')}
+                    className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors"
+                  >
+                    <HelpCircle className="h-4 w-4 text-surface-500" />
+                    <span className="text-sm font-medium text-surface-700">Forgot PIN</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => router.push('/dashboard/settings/security/set-pin')}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-surface-200 hover:border-brand-400 text-surface-400 hover:text-brand-500 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="text-sm font-medium">Set up a PIN</span>
+              </button>
+            )}
           </div>
         </div>
 

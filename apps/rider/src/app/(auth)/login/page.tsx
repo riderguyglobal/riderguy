@@ -356,6 +356,11 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+              <div className="text-right">
+                <Link href="/forgot-password" className="text-sm text-brand-400 font-medium hover:text-brand-300 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <Button
                 size="xl"
                 className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"

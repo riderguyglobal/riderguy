@@ -28,6 +28,12 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_WEBAUTHN_CREDENTIALS = 10;
+
+/** SHA-256 hash a token for storage (fast, sufficient for high-entropy JWTs). */
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 /**
  * Get the effective roles array for a user, handling migration from
@@ -93,6 +99,19 @@ export class AuthService {
   }
 
   static async createOtp(phone: string, purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET') {
+    // For LOGIN and PASSWORD_RESET, only send SMS if user exists (saves SMS credits).
+    // Always return the same shape to avoid phone-number enumeration.
+    if (purpose !== 'REGISTRATION') {
+      const userExists = await prisma.user.findUnique({
+        where: { phone },
+        select: { id: true },
+      });
+      if (!userExists) {
+        logger.info({ phone, purpose }, 'OTP requested for non-existent user — suppressing SMS');
+        return { id: 'suppressed', phone, purpose, expiresAt: new Date(Date.now() + 5 * 60 * 1000) } as any;
+      }
+    }
+
     const code = this.generateOtpCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
@@ -119,7 +138,11 @@ export class AuthService {
     return otp;
   }
 
-  static async verifyOtp(
+  /**
+   * Core OTP verification with attempt tracking and constant-time comparison.
+   * Used by verifyOtp, loginWithOtp, and resetPinWithOtp.
+   */
+  private static async _verifyOtpCode(
     phone: string,
     code: string,
     purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET'
@@ -142,15 +165,11 @@ export class AuthService {
     }
 
     // Constant-time comparison to mitigate timing attacks.
-    // OTPs are short-lived (5 min) and attempt-limited (5 tries),
-    // so timing attacks are impractical — but defence in depth.
-    // Always run timingSafeEqual (no short-circuit on length) to prevent length oracle.
     const padded = (s: string) => s.padEnd(6, '\0').slice(0, 6);
     const lengthOk = otp.code.length === code.length;
     const bytesMatch = crypto.timingSafeEqual(Buffer.from(padded(otp.code)), Buffer.from(padded(code)));
-    const codeMatch = lengthOk && bytesMatch;
 
-    if (!codeMatch) {
+    if (!(lengthOk && bytesMatch)) {
       await prisma.otp.update({
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },
@@ -164,6 +183,15 @@ export class AuthService {
       data: { verified: true },
     });
 
+    return otp;
+  }
+
+  static async verifyOtp(
+    phone: string,
+    code: string,
+    purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET'
+  ) {
+    await this._verifyOtpCode(phone, code, purpose);
     return true;
   }
 
@@ -201,10 +229,8 @@ export class AuthService {
     }
 
     // ---- 2. Uniqueness checks ----
-    const existing = await prisma.user.findUnique({ where: { phone: input.phone } });
-    if (existing) {
-      throw ApiError.conflict('A user with this phone number already exists', 'PHONE_EXISTS');
-    }
+    // Note: phone uniqueness is handled in the user creation block below,
+    // which supports multi-role registration (same phone, different role).
 
     if (input.email) {
       const emailExists = await prisma.user.findUnique({ where: { email: input.email } });
@@ -214,8 +240,8 @@ export class AuthService {
     }
 
     // ---- 3. Credential hashing (optional for phone-only signups) ----
-    const credential = input.password || input.pin;
-    const passwordHash = credential ? await this.hashPassword(credential) : null;
+    const passwordHash = input.password ? await this.hashPassword(input.password) : null;
+    const pinHash = input.pin ? await this.hashPassword(input.pin) : null;
 
     // ---- 4. Create user + profile + wallet + session sequentially ----
     // NOTE: We avoid prisma.$transaction(async callback) because Neon's
@@ -255,6 +281,7 @@ export class AuthService {
             lastName: input.lastName,
             email: input.email ?? null,
             passwordHash,
+            pinHash,
             role: input.role as PrismaUserRole,
             roles: [input.role as PrismaUserRole],
             phoneVerified: true,
@@ -344,6 +371,8 @@ export class AuthService {
       userId: user.id,
       sessionId: session.id,
     });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
 
     logger.info({ userId: user.id, role: user.role, phone: user.phone }, 'User registered');
 
@@ -449,6 +478,8 @@ export class AuthService {
       userId: user.id,
       sessionId: session.id,
     });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
 
     logger.info({ userId: user.id, role: user.role, email: user.email }, 'User registered via email');
 
@@ -601,6 +632,8 @@ export class AuthService {
       sessionId: session.id,
     });
 
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
+
     logger.info(
       { userId: user.id, role: user.role, email: user.email, isNewUser },
       'User authenticated via Google',
@@ -626,43 +659,8 @@ export class AuthService {
   // ---- Login with OTP ----
 
   static async loginWithOtp(phone: string, otpCode: string, deviceInfo?: string, ipAddress?: string) {
-    // Verify the OTP first
-    const otp = await prisma.otp.findFirst({
-      where: { phone, purpose: 'LOGIN', verified: false },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!otp) {
-      throw ApiError.badRequest('No pending OTP found. Please request a new code.', 'OTP_NOT_FOUND');
-    }
-
-    if (otp.attempts >= 5) {
-      throw ApiError.tooManyRequests('Too many OTP attempts. Please request a new code.');
-    }
-
-    if (new Date() > otp.expiresAt) {
-      throw ApiError.badRequest('OTP has expired. Please request a new code.', 'OTP_EXPIRED');
-    }
-
-    // Constant-time comparison — always run timingSafeEqual to prevent length oracle
-    const padded2 = (s: string) => s.padEnd(6, '\0').slice(0, 6);
-    const lengthOk2 = otp.code.length === otpCode.length;
-    const bytesMatch2 = crypto.timingSafeEqual(Buffer.from(padded2(otp.code)), Buffer.from(padded2(otpCode)));
-    const codeMatch = lengthOk2 && bytesMatch2;
-
-    if (!codeMatch) {
-      await prisma.otp.update({
-        where: { id: otp.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw ApiError.badRequest('Invalid OTP code', 'OTP_INVALID');
-    }
-
-    // Mark OTP as verified/consumed
-    await prisma.otp.update({
-      where: { id: otp.id },
-      data: { verified: true },
-    });
+    // Verify the OTP using shared helper
+    await this._verifyOtpCode(phone, otpCode, 'LOGIN');
 
     const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
@@ -694,6 +692,8 @@ export class AuthService {
       userId: user.id,
       sessionId: session.id,
     });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
 
     // Update last login
     await prisma.user.update({
@@ -727,6 +727,14 @@ export class AuthService {
       throw ApiError.unauthorized('Session expired or invalid');
     }
 
+    // Refresh-token rotation: verify the presented token matches the stored hash
+    if (session.refreshTokenHash && hashToken(token) !== session.refreshTokenHash) {
+      // Token reuse detected — likely stolen token replay. Revoke entire session.
+      logger.warn({ userId, sessionId }, 'Refresh-token reuse detected, revoking session');
+      await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
+      throw ApiError.unauthorized('Token reuse detected');
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
       throw ApiError.forbidden('Account is not active');
@@ -746,14 +754,25 @@ export class AuthService {
       sessionId: session.id,
     });
 
-    // Extend session and update lastActiveAt
-    await prisma.session.update({
-      where: { id: session.id },
+    // Atomically extend session + store new hash (conditional on old hash to prevent race)
+    const updated = await prisma.session.updateMany({
+      where: {
+        id: session.id,
+        // Match the exact current hash (or null for legacy sessions without rotation)
+        refreshTokenHash: session.refreshTokenHash,
+      },
       data: {
         lastActiveAt: new Date(),
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+        refreshTokenHash: hashToken(refreshToken),
       },
     });
+
+    if (updated.count === 0) {
+      // Another concurrent refresh beat us — treat as reuse
+      logger.warn({ userId, sessionId }, 'Concurrent refresh-token race detected');
+      throw ApiError.unauthorized('Session was refreshed concurrently. Please retry.');
+    }
 
     return { accessToken, refreshToken };
   }
@@ -813,6 +832,8 @@ export class AuthService {
       userId: user.id,
       sessionId: session.id,
     });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
 
     await prisma.user.update({
       where: { id: user.id },
@@ -940,6 +961,8 @@ export class AuthService {
       sessionId: session.id,
     });
 
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
+
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
@@ -971,11 +994,13 @@ export class AuthService {
       throw ApiError.notFound('User not found');
     }
 
-    if (user.pinHash) {
-      const isValid = await this.comparePassword(currentPin, user.pinHash);
-      if (!isValid) {
-        throw ApiError.badRequest('Current PIN is incorrect', 'INVALID_PIN');
-      }
+    if (!user.pinHash) {
+      throw ApiError.badRequest('No PIN set. Use set-pin instead.', 'NO_PIN_SET');
+    }
+
+    const isValid = await this.comparePassword(currentPin, user.pinHash);
+    if (!isValid) {
+      throw ApiError.badRequest('Current PIN is incorrect', 'INVALID_PIN');
     }
 
     const newHash = await this.hashPassword(newPin);
@@ -1018,27 +1043,8 @@ export class AuthService {
    * Flow: enter phone → request OTP → verify OTP → set new PIN.
    */
   static async resetPinWithOtp(phone: string, otpCode: string, newPin: string) {
-    // Validate OTP — only match unconsumed OTPs (verified: false)
-    const otp = await prisma.otp.findFirst({
-      where: {
-        phone,
-        code: otpCode,
-        purpose: 'PASSWORD_RESET',
-        verified: false,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!otp) {
-      throw ApiError.badRequest('Invalid or expired OTP', 'INVALID_OTP');
-    }
-
-    // Mark OTP as consumed
-    await prisma.otp.update({
-      where: { id: otp.id },
-      data: { verified: true },
-    });
+    // Validate OTP using shared helper (constant-time comparison + attempt tracking)
+    await this._verifyOtpCode(phone, otpCode, 'PASSWORD_RESET');
 
     const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
@@ -1080,12 +1086,14 @@ export class AuthService {
       },
     });
 
-    // Don't reveal whether the phone is registered — always return methods
-    // but they'll fail at login time if the account doesn't exist.
+    // Don't reveal whether the phone is registered.
+    // Always return the same shape — unregistered phones look like
+    // "only OTP available" which is indistinguishable from a real user
+    // who hasn't set up PIN or biometric yet.
     return {
-      otp: true, // always available
-      pin: !!user?.pinHash,
-      biometric: (user?.webauthnCredentials?.length ?? 0) > 0,
+      otp: true,
+      pin: user ? !!user.pinHash : false,
+      biometric: user ? (user.webauthnCredentials.length > 0) : false,
     };
   }
 
@@ -1238,11 +1246,14 @@ export class AuthService {
       throw ApiError.forbidden('Your account is not active');
     }
 
-    // Mark token as used
-    await prisma.emailToken.update({
-      where: { id: emailToken.id },
+    // Atomically mark token as used (prevents TOCTOU race with concurrent requests)
+    const tokenUpdate = await prisma.emailToken.updateMany({
+      where: { id: emailToken.id, usedAt: null },
       data: { usedAt: new Date() },
     });
+    if (tokenUpdate.count === 0) {
+      throw ApiError.badRequest('This link has already been used', 'TOKEN_USED');
+    }
 
     // Hash new password and update
     const passwordHash = await this.hashPassword(newPassword);
@@ -1352,6 +1363,7 @@ export class AuthService {
         phone: true,
         firstName: true,
         lastName: true,
+        status: true,
         webauthnCredentials: {
           select: { credentialId: true, transports: true },
         },
@@ -1360,6 +1372,17 @@ export class AuthService {
 
     if (!user) {
       throw ApiError.notFound('User not found');
+    }
+
+    if (user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
+      throw ApiError.forbidden('Your account is not active');
+    }
+
+    if (user.webauthnCredentials.length >= MAX_WEBAUTHN_CREDENTIALS) {
+      throw ApiError.badRequest(
+        `Maximum of ${MAX_WEBAUTHN_CREDENTIALS} biometric credentials reached. Please remove one before adding another.`,
+        'MAX_CREDENTIALS_REACHED',
+      );
     }
 
     const options = await generateRegistrationOptions({
@@ -1394,7 +1417,9 @@ export class AuthService {
     // Clean up old expired challenges in background
     prisma.webAuthnChallenge.deleteMany({
       where: { expiresAt: { lt: new Date() } },
-    }).catch(() => {});
+    }).catch((err) => {
+      logger.error({ err }, 'Failed to cleanup expired WebAuthn challenges');
+    });
 
     return options;
   }
@@ -1440,6 +1465,15 @@ export class AuthService {
     }
 
     const { credential: regCredential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+
+    // Defence-in-depth: re-check credential count before storing
+    const existingCount = await prisma.webAuthnCredential.count({ where: { userId } });
+    if (existingCount >= MAX_WEBAUTHN_CREDENTIALS) {
+      throw ApiError.badRequest(
+        `Maximum of ${MAX_WEBAUTHN_CREDENTIALS} biometric credentials reached.`,
+        'MAX_CREDENTIALS_REACHED',
+      );
+    }
 
     // Store the credential
     await prisma.webAuthnCredential.create({
@@ -1611,6 +1645,8 @@ export class AuthService {
       userId: user.id,
       sessionId: session.id,
     });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
 
     await prisma.user.update({
       where: { id: user.id },

@@ -84,11 +84,27 @@ function ForgotPinContent() {
     }
   };
 
-  // Step 2: Verify OTP → move to new PIN
-  const handleOtpComplete = (code: string) => {
+  // Step 2: Verify OTP server-side before proceeding to PIN entry
+  const handleOtpComplete = async (code: string) => {
     setError('');
-    setOtp(code);
-    setStage('new-pin');
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code, purpose: 'PASSWORD_RESET' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? 'Invalid OTP');
+
+      setOtp(code);
+      setStage('new-pin');
+    } catch (err: any) {
+      setError(err.message ?? 'Invalid OTP code');
+      otpRef.current?.clear();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Step 3: New PIN

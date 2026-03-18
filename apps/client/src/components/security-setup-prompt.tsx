@@ -23,7 +23,11 @@ export function SecuritySetupPrompt() {
   useEffect(() => {
     if (!api || !user) return;
     const dismissed = localStorage.getItem(DISMISS_KEY);
-    if (dismissed) return;
+    if (dismissed) {
+      const dismissedAt = parseInt(dismissed, 10);
+      if (!isNaN(dismissedAt) && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) return;
+      localStorage.removeItem(DISMISS_KEY);
+    }
 
     api.post('/auth/methods', { phone: user.phone }).then(({ data }) => {
       const methods = data.data as { otp: boolean; pin: boolean; biometric: boolean };

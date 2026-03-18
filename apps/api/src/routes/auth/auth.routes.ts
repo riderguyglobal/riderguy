@@ -174,12 +174,14 @@ router.post(
 router.post(
   '/webauthn/register/options',
   authenticate,
+  validate(webauthnRegisterOptionsSchema),
   asyncHandler(AuthController.webauthnRegisterOptions)
 );
 
 router.post(
   '/webauthn/register/verify',
   authenticate,
+  validate(webauthnRegisterVerifySchema),
   asyncHandler(AuthController.webauthnRegisterVerify)
 );
 

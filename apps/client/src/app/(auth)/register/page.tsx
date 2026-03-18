@@ -136,7 +136,10 @@ export default function RegisterPage() {
     if (!GOOGLE_CLIENT_ID) { setError('Google sign-in is not configured yet.'); return; }
     const redirectUri = window.location.origin + '/auth/google/callback';
     const scope = 'openid email profile';
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=select_account`;
+    // Generate CSRF state nonce
+    const state = crypto.randomUUID();
+    try { sessionStorage.setItem('google_oauth_state', state); } catch {}
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=select_account&state=${encodeURIComponent(state)}`;
     window.location.href = url;
   };
 

@@ -28,7 +28,7 @@ export default function GoogleCallbackPage() {
       return;
     }
 
-    loginWithGoogle(accessToken, 'CLIENT')
+    loginWithGoogle(accessToken, 'RIDER')
       .then(() => router.replace('/dashboard'))
       .catch((err: any) => {
         const msg = err?.response?.data?.error?.message;
@@ -38,12 +38,12 @@ export default function GoogleCallbackPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-screen flex items-center justify-center bg-page p-6">
         <div className="text-center space-y-4">
-          <p className="text-red-600 text-sm">{error}</p>
+          <p className="text-danger-400 text-sm">{error}</p>
           <button
             onClick={() => router.replace('/register')}
-            className="text-brand-500 font-semibold text-sm hover:text-brand-400"
+            className="text-brand-400 font-semibold text-sm hover:text-brand-300"
           >
             Back to Register
           </button>
@@ -53,8 +53,8 @@ export default function GoogleCallbackPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="h-8 w-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen flex items-center justify-center bg-page">
+      <div className="h-8 w-8 border-3 border-brand-400 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }

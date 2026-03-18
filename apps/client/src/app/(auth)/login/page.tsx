@@ -115,7 +115,7 @@ export default function LoginPage() {
       }
       setStage('method-select');
     } catch {
-      setMethods({ otp: true, pin: true, biometric: false });
+      setMethods({ otp: true, pin: false, biometric: false });
       setStage('method-select');
     } finally {
       setLoading(false);
