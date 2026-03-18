@@ -1,9 +1,72 @@
 import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
+import { config } from '../config';
+import { logger } from '../lib/logger';
 
 // ============================================================
 // Location Service — REST endpoints for rider location data
 // ============================================================
+
+/**
+ * Haversine distance between two GPS coords in kilometres.
+ */
+export function haversineKm(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number {
+  const R = 6371; // Earth radius in km
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Calculate ETA from rider position to destination using Mapbox Directions API.
+ * Falls back to haversine estimate if Mapbox is unavailable.
+ *
+ * Returns duration in seconds and distance in km.
+ */
+export async function getETA(
+  riderLat: number,
+  riderLng: number,
+  destLat: number,
+  destLng: number,
+): Promise<{ durationSeconds: number; distanceKm: number }> {
+  const token = config.mapbox.accessToken;
+
+  if (token) {
+    try {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${riderLng},${riderLat};${destLng},${destLat}?access_token=${encodeURIComponent(token)}&overview=false`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const json = (await response.json()) as {
+          routes?: Array<{ duration: number; distance: number }>;
+        };
+        const route = json.routes?.[0];
+        if (route) {
+          return {
+            durationSeconds: Math.round(route.duration),
+            distanceKm: Math.round((route.distance / 1000) * 10) / 10,
+          };
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Mapbox ETA fetch failed, using haversine fallback');
+    }
+  }
+
+  // Fallback: straight-line distance at average 25 km/h city speed
+  const distKm = haversineKm(riderLat, riderLng, destLat, destLng);
+  const AVG_SPEED_KMH = 25;
+  return {
+    durationSeconds: Math.round((distKm / AVG_SPEED_KMH) * 3600),
+    distanceKm: Math.round(distKm * 10) / 10,
+  };
+}
 
 /**
  * Get the latest location for a rider assigned to a given order.

@@ -38,15 +38,17 @@ export function useInstallPrompt() {
       mq.addEventListener('change', handler);
 
       // Check if user dismissed within the last 7 days
-      const dismissedAt = localStorage.getItem('pwa-install-dismissed');
-      if (dismissedAt) {
-        const oneWeek = 7 * 24 * 60 * 60 * 1000;
-        if (Date.now() - parseInt(dismissedAt, 10) < oneWeek) {
-          setDismissed(true);
-        } else {
-          localStorage.removeItem('pwa-install-dismissed');
+      try {
+        const dismissedAt = localStorage.getItem('pwa-install-dismissed');
+        if (dismissedAt) {
+          const oneWeek = 7 * 24 * 60 * 60 * 1000;
+          if (Date.now() - parseInt(dismissedAt, 10) < oneWeek) {
+            setDismissed(true);
+          } else {
+            localStorage.removeItem('pwa-install-dismissed');
+          }
         }
-      }
+      } catch { /* iOS private browsing */ }
 
       return () => mq.removeEventListener('change', handler);
     }
@@ -87,7 +89,7 @@ export function useInstallPrompt() {
 
   const dismiss = useCallback(() => {
     setDismissed(true);
-    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    try { localStorage.setItem('pwa-install-dismissed', Date.now().toString()); } catch {}
   }, []);
 
   return {

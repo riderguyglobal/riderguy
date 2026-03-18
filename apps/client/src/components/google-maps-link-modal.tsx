@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   Link2,
@@ -40,6 +40,19 @@ export function GoogleMapsLinkModal({
   const [link, setLink] = useState('');
   const [error, setError] = useState('');
   const [resolved, setResolved] = useState<ResolvedLocation | null>(null);
+
+  // Android back button trap — close modal instead of navigating away
+  useEffect(() => {
+    if (!open) return;
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; onClose(); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -147,7 +160,12 @@ export function GoogleMapsLinkModal({
   };
 
   const openGoogleMaps = () => {
-    window.open('https://maps.google.com', '_blank');
+    // Use location.href in standalone PWA to avoid breaking out of the app shell
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      window.location.href = 'https://maps.google.com';
+    } else {
+      window.open('https://maps.google.com', '_blank', 'noopener,noreferrer');
+    }
   };
 
   return (

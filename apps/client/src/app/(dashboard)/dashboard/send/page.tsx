@@ -72,6 +72,18 @@ export default function SendPackagePage() {
   const [packageWeightKg, setPackageWeightKg] = useState<number | undefined>(undefined);
   const [promoCode, setPromoCode] = useState('');
   const [showAllPackages, setShowAllPackages] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // ── Detect iOS virtual keyboard via visualViewport ──
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const onResize = () => {
+      setKeyboardOpen(vv.height < window.innerHeight * 0.75);
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
 
   // ── Estimate state ──
   const [estimate, setEstimate] = useState<PriceEstimate | null>(null);
@@ -267,7 +279,7 @@ export default function SendPackagePage() {
   // ── Submit handler ──
 
   const handleConfirm = useCallback(async (): Promise<string | null> => {
-    if (!api || !canSubmit) return null;
+    if (!api || !canSubmit || submitting) return null;
     setSubmitting(true);
     setError('');
 
@@ -570,10 +582,9 @@ export default function SendPackagePage() {
             <div className="flex-1">
               <p className="text-xs font-medium text-surface-500">Est. weight (kg)</p>
               <input
-                type="number"
-                min="0"
-                max="30"
-                step="0.5"
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9.]*"
                 value={packageWeightKg ?? ''}
                 onChange={(e) => {
                   const v = e.target.value ? parseFloat(e.target.value) : undefined;
@@ -599,6 +610,8 @@ export default function SendPackagePage() {
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               placeholder="Promo code"
               maxLength={20}
+              autoComplete="off"
+              autoCapitalize="characters"
               className="flex-1 bg-transparent text-sm text-surface-800 font-semibold outline-none placeholder:text-surface-300 uppercase tracking-wider"
             />
             {promoCode && estimate?.promoDiscount && estimate.promoDiscount > 0 && (
@@ -635,6 +648,8 @@ export default function SendPackagePage() {
                   className="input-uber text-sm !h-12"
                 />
                 <input
+                  type="tel"
+                  inputMode="tel"
                   value={pickup.contactPhone}
                   onChange={(e) => setPickup({ ...pickup, contactPhone: e.target.value })}
                   placeholder="Phone"
@@ -660,6 +675,8 @@ export default function SendPackagePage() {
                   className="input-uber text-sm !h-12"
                 />
                 <input
+                  type="tel"
+                  inputMode="tel"
                   value={dropoff.contactPhone}
                   onChange={(e) => setDropoff({ ...dropoff, contactPhone: e.target.value })}
                   placeholder="Phone"
@@ -739,7 +756,9 @@ export default function SendPackagePage() {
 
       {/* ═══════════════════════════════════════════
           Bottom Bar: Price Summary + Review Button
+          — Hidden when iOS keyboard is open to prevent floating
           ═══════════════════════════════════════════ */}
+      {!keyboardOpen && (
       <div className="fixed bottom-0 inset-x-0 bg-white border-t border-surface-100 safe-area-bottom z-30">
         <div className="px-5 py-4 flex items-center gap-4">
           {/* Price summary */}
@@ -767,6 +786,7 @@ export default function SendPackagePage() {
           </button>
         </div>
       </div>
+      )}
 
       {/* ═══════════════════════════════════════════
           Confirmation Bottom Sheet

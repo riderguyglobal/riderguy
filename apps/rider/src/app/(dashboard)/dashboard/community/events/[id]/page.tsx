@@ -135,15 +135,21 @@ export default function EventDetailPage() {
           )}
 
           {ev.virtualLink && (
-            <a
-              href={ev.virtualLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 text-sm text-brand-400 hover:text-brand-300"
+            <button
+              type="button"
+              onClick={() => {
+                // In PWA standalone mode, open in same window to avoid breaking out
+                if (window.matchMedia('(display-mode: standalone)').matches) {
+                  window.location.href = ev.virtualLink!;
+                } else {
+                  window.open(ev.virtualLink!, '_blank', 'noopener,noreferrer');
+                }
+              }}
+              className="flex items-center gap-3 text-sm text-brand-400 hover:text-brand-300 text-left"
             >
               <ExternalLink className="h-5 w-5 flex-shrink-0" />
               <span>Join Virtual Meeting</span>
-            </a>
+            </button>
           )}
 
           <div className="flex items-center gap-3 text-sm">

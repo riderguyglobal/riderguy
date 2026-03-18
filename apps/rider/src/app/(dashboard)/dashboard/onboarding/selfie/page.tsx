@@ -45,8 +45,17 @@ export default function SelfiePage() {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Cap canvas resolution to avoid iOS Safari 16M-pixel canvas limit
+    const MAX_DIM = 1920;
+    let w = video.videoWidth;
+    let h = video.videoHeight;
+    if (w > MAX_DIM || h > MAX_DIM) {
+      const scale = MAX_DIM / Math.max(w, h);
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -68,11 +77,11 @@ export default function SelfiePage() {
     startCamera();
   };
 
-  const flipCamera = () => {
+  const flipCamera = async () => {
     const next = facingMode === 'user' ? 'environment' : 'user';
     facingModeRef.current = next;
     setFacingMode(next);
-    setTimeout(startCamera, 100);
+    await startCamera();
   };
 
   const upload = async () => {

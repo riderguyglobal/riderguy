@@ -24,70 +24,28 @@ interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-// ── Helpers ────────────────────────────────────────────
-function getSystemTheme(): ResolvedTheme {
-  if (typeof window === 'undefined') return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-function resolveTheme(theme: Theme): ResolvedTheme {
-  return theme === 'system' ? getSystemTheme() : theme;
-}
-
-function applyTheme(resolved: ResolvedTheme) {
-  const root = document.documentElement;
-  root.classList.toggle('dark', resolved === 'dark');
-
-  // Update theme-color meta tag for mobile browser chrome
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    meta.setAttribute('content', resolved === 'dark' ? '#0a0a0a' : '#22c55e');
-  }
-}
-
 // ── Context ────────────────────────────────────────────
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-// ── Provider ───────────────────────────────────────────
+// ── Provider (light-only) ──────────────────────────────
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
+  const [theme] = useState<Theme>('light');
+  const resolvedTheme: ResolvedTheme = 'light';
 
-  // Hydrate from localStorage on mount
+  // Ensure dark class is never on the root
   useEffect(() => {
-    const stored = localStorage.getItem('riderguy-client-theme') as Theme | null;
-    const initial = stored ?? 'system';
-    setThemeState(initial);
-    const resolved = resolveTheme(initial);
-    setResolvedTheme(resolved);
-    applyTheme(resolved);
+    document.documentElement.classList.remove('dark');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', '#22c55e');
   }, []);
 
-  // React to OS-level preference changes when set to "system"
-  useEffect(() => {
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      const resolved = getSystemTheme();
-      setResolvedTheme(resolved);
-      applyTheme(resolved);
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
-
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-    localStorage.setItem('riderguy-client-theme', next);
-    const resolved = resolveTheme(next);
-    setResolvedTheme(resolved);
-    applyTheme(resolved);
+  const setTheme = useCallback((_theme: Theme) => {
+    // No-op: light theme only
   }, []);
 
   const toggleTheme = useCallback(() => {
-    const next: ResolvedTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-  }, [resolvedTheme, setTheme]);
+    // No-op: light theme only
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme }}>

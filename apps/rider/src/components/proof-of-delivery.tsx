@@ -51,6 +51,7 @@ export function ProofOfDelivery({ deliveryPin, onSubmit }: ProofOfDeliveryProps)
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
     setError('');
     let data = '';
 

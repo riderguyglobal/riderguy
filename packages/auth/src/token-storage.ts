@@ -120,8 +120,10 @@ export const tokenStorage = {
 
   setTokens(accessToken: string, refreshToken: string): void {
     if (!isBrowser()) return;
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    try {
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    } catch { /* iOS private browsing — QuotaExceededError */ }
     // Backup to IndexedDB (fire-and-forget)
     idbWrite(accessToken, refreshToken);
   },
@@ -145,8 +147,10 @@ export const tokenStorage = {
     }
     const backup = await idbRead();
     if (backup?.accessToken && backup?.refreshToken) {
-      localStorage.setItem(ACCESS_TOKEN_KEY, backup.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, backup.refreshToken);
+      try {
+        localStorage.setItem(ACCESS_TOKEN_KEY, backup.accessToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, backup.refreshToken);
+      } catch { /* iOS private browsing */ }
       return true;
     }
     return false;

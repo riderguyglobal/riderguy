@@ -33,6 +33,7 @@ import {
   SignalLow,
   SignalMedium,
   SignalHigh,
+  Bell,
 } from 'lucide-react';
 
 const RiderMap = dynamic(() => import('@/components/rider-map').then(mod => mod.RiderMap), { ssr: false });
@@ -153,6 +154,18 @@ export default function DashboardPage() {
     enabled: !!api,
   });
 
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications-unread-count'],
+    queryFn: async () => {
+      const res = await api!.get('/notifications', { params: { pageSize: '1' } });
+      const all = res.data.data ?? [];
+      return { unread: all.filter((n: { isRead: boolean }) => !n.isRead).length };
+    },
+    enabled: !!api,
+    refetchInterval: 30000,
+  });
+  const unreadCount = notifData?.unread ?? 0;
+
   const greeting = useMemo(() => {
     const h = new Date().getHours();
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -196,8 +209,19 @@ export default function DashboardPage() {
           <h1 className="text-primary text-lg font-bold -mt-0.5">{firstName}</h1>
         </div>
 
-        {/* Status badge — shows connection quality when online */}
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold tracking-wide shadow-theme-card backdrop-blur-xl ${
+        <div className="flex items-center gap-2">
+          {/* Notification bell */}
+          <Link href="/dashboard/notifications" className="relative h-10 w-10 rounded-2xl bg-white/70 dark:bg-surface-900/70 backdrop-blur-xl shadow-theme-card flex items-center justify-center">
+            <Bell className="h-5 w-5 text-primary" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </Link>
+
+          {/* Status badge — shows connection quality when online */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold tracking-wide shadow-theme-card backdrop-blur-xl ${
           isOnline
             ? 'bg-brand-500/15 text-brand-600 dark:text-accent-400 border border-brand-500/25'
             : 'bg-white/70 dark:bg-surface-800/60 text-muted border border-themed'
@@ -219,6 +243,7 @@ export default function DashboardPage() {
               socketConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'
             }`} title={socketConnected ? 'Socket connected' : 'Socket disconnected'} />
           )}
+        </div>
         </div>
       </header>
 

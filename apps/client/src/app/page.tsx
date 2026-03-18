@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { Zap, Shield, Clock } from 'lucide-react';
 import { AuthGate } from '@/components/auth-gate';
 import { LandingCTAs } from '@/components/landing-ctas';
@@ -21,16 +20,11 @@ export default function LandingPage() {
         <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
           {/* Logo */}
           <div className="relative mb-8 animate-bounce-in">
-            <div className="absolute inset-0 rounded-3xl bg-brand-500/20 blur-2xl scale-150" />
-            <div className="relative h-20 w-20 rounded-3xl brand-gradient-radial flex items-center justify-center shadow-brand overflow-hidden">
-              <Image
-                src="/images/branding/logo-white.png"
-                alt="RiderGuy"
-                width={56}
-                height={56}
-                className="h-14 w-14 object-contain"
-                priority
-              />
+            <div className="absolute inset-0 rounded-3xl bg-brand-500/10 blur-2xl scale-150" />
+            <div className="relative h-24 w-24 rounded-[1.75rem] bg-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(34,197,94,0.12)] border border-surface-100 overflow-hidden">
+              <span className="text-lg font-bold tracking-tight select-none">
+                <span className="text-black">rider</span><span className="text-brand-500">guy</span>
+              </span>
             </div>
           </div>
 

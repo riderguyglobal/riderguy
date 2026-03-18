@@ -82,21 +82,20 @@ router.patch(
     const { availability, latitude, longitude } = req.body;
 
     // Gate: only ACTIVATED riders can go ONLINE
-    // TODO: Re-enable after trial — temporarily bypassed for end-to-end testing
-    // if (availability === 'ONLINE') {
-    //   const currentProfile = await prisma.riderProfile.findUnique({
-    //     where: { userId: req.user!.userId },
-    //     select: { onboardingStatus: true },
-    //   });
-    //   if (!currentProfile) {
-    //     throw ApiError.notFound('Rider profile not found');
-    //   }
-    //   if (currentProfile.onboardingStatus !== 'ACTIVATED') {
-    //     throw ApiError.forbidden(
-    //       'Your account is not yet activated. Please complete onboarding and wait for admin approval before going online.',
-    //     );
-    //   }
-    // }
+    if (availability === 'ONLINE') {
+      const currentProfile = await prisma.riderProfile.findUnique({
+        where: { userId: req.user!.userId },
+        select: { onboardingStatus: true },
+      });
+      if (!currentProfile) {
+        throw ApiError.notFound('Rider profile not found');
+      }
+      if (currentProfile.onboardingStatus !== 'ACTIVATED') {
+        throw ApiError.forbidden(
+          'Your account is not yet activated. Please complete onboarding and wait for admin approval before going online.',
+        );
+      }
+    }
 
     // Build update data — always set availability
     const updateData: Record<string, unknown> = { availability };
@@ -141,6 +140,22 @@ router.post(
 
     // Record heartbeat — keeps presence alive for the rider session
     recordHeartbeat(req.user!.userId, { latitude, longitude });
+
+    // Write LocationHistory breadcrumbs for any active orders (REST fallback)
+    const activeOrders = await prisma.order.findMany({
+      where: { riderId: profile.id, status: { in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'] } },
+      select: { id: true },
+    });
+    if (activeOrders.length > 0) {
+      prisma.locationHistory.createMany({
+        data: activeOrders.map((o) => ({
+          riderId: profile.id,
+          orderId: o.id,
+          latitude,
+          longitude,
+        })),
+      }).catch(() => {});
+    }
 
     res.status(StatusCodes.OK).json({ success: true, data: { latitude, longitude } });
   })

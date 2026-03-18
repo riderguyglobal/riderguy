@@ -81,7 +81,7 @@ router.get(
   '/chat/rooms/:roomId/messages',
   asyncHandler(async (req: Request, res: Response) => {
     const cursor = req.query.cursor as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
     const data = await ChatService.getMessages(req.params.roomId as string, req.user!.userId, cursor, limit);
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
@@ -178,7 +178,7 @@ router.get(
       category: req.query.category as string | undefined,
       sort: (req.query.sort as 'newest' | 'trending' | 'top') || 'newest',
       page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 20,
+      limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
       userId: req.user!.userId,
     });
     res.status(StatusCodes.OK).json({ success: true, data });
@@ -319,7 +319,7 @@ router.get(
     const data = await AnnouncementService.getPublishedAnnouncements({
       role: req.user!.role,
       page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 20,
+      limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
     });
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
@@ -334,7 +334,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const data = await AnnouncementService.listAnnouncementsAdmin({
       page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 20,
+      limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
     });
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
@@ -401,7 +401,7 @@ router.get(
       status: req.query.status as string | undefined,
       entityType: req.query.entityType as string | undefined,
       page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 20,
+      limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
     });
     res.status(StatusCodes.OK).json({ success: true, data });
   }),

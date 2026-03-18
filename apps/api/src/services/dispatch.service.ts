@@ -49,8 +49,8 @@ export async function assignRider(
     );
   }
 
-  // Sequential writes (interactive $transaction not supported on Neon/PgBouncer)
-  // Use updateMany with a WHERE guard to prevent double-assignment
+  // Sequential writes with optimistic concurrency guard (interactive transactions
+  // are supported via directUrl, but sequential writes are preferred here for perf)
   const { count } = await prisma.order.updateMany({
     where: { id: orderId, status: { in: ['PENDING', 'SEARCHING_RIDER'] }, riderId: null },
     data: {
@@ -145,7 +145,8 @@ export async function unassignRider(orderId: string, actor: string) {
 
   const prevRiderId = order.riderId;
 
-  // Sequential writes (interactive $transaction not supported on Neon/PgBouncer)
+  // Sequential writes (interactive transactions supported via directUrl, but
+  // sequential writes preferred here as atomicity isn't critical for unassign)
   const updated = await prisma.order.update({
     where: { id: orderId },
     data: {

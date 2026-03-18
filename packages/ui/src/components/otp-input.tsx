@@ -14,6 +14,7 @@ import { cn } from '../lib/utils';
 
 // ============================================================
 // OTP Input — 6-digit code entry (individual boxes)
+// iOS Safari compatible: pattern, setTimeout focus, visibility-aware
 // ============================================================
 
 export interface OtpInputProps {
@@ -59,21 +60,30 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const hiddenRef = useRef<HTMLInputElement | null>(null);
 
+  // iOS-safe focus helper — uses setTimeout to avoid keyboard dismissal on Safari
+  const safeFocus = useCallback((el: HTMLInputElement | null | undefined) => {
+    if (!el) return;
+    setTimeout(() => el.focus(), 0);
+  }, []);
+
   // Expose imperative handle
   useImperativeHandle(ref, () => ({
     clear() {
       setValues(Array(length).fill(''));
-      inputRefs.current[0]?.focus();
+      // Don't auto-focus after clear — let user tap (iOS ignores programmatic focus outside gestures)
     },
     focus() {
       const idx = values.findIndex((v) => v === '');
-      inputRefs.current[idx >= 0 ? idx : 0]?.focus();
+      safeFocus(inputRefs.current[idx >= 0 ? idx : 0]);
     },
   }));
 
   useEffect(() => {
     if (autoFocus) {
-      inputRefs.current[0]?.focus();
+      // Use requestAnimationFrame for best-effort autofocus; iOS may still block this
+      requestAnimationFrame(() => {
+        inputRefs.current[0]?.focus();
+      });
     }
   }, [autoFocus]);
 
@@ -93,7 +103,6 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
             setValues(next);
             onChange?.(digits);
             onComplete?.(digits);
-            inputRefs.current[length - 1]?.focus();
           }
         }
       })
@@ -118,7 +127,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
         const code = next.join('');
         onChange?.(code);
         const focusIdx = Math.min(index + cleaned.length, length - 1);
-        inputRefs.current[focusIdx]?.focus();
+        safeFocus(inputRefs.current[focusIdx]);
         if (code.length === length && !next.includes('')) {
           onComplete?.(code);
         }
@@ -134,15 +143,16 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
       const code = next.join('');
       onChange?.(code);
 
+      // Auto-advance: use setTimeout to prevent iOS keyboard flickering
       if (cleaned && index < length - 1) {
-        inputRefs.current[index + 1]?.focus();
+        safeFocus(inputRefs.current[index + 1]);
       }
 
       if (code.length === length && !next.includes('')) {
         onComplete?.(code);
       }
     },
-    [values, length, onChange, onComplete]
+    [values, length, onChange, onComplete, safeFocus]
   );
 
   const handleKeyDown = useCallback(
@@ -151,17 +161,17 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
         if (values[index]) {
           handleChange(index, '');
         } else if (index > 0) {
-          inputRefs.current[index - 1]?.focus();
+          safeFocus(inputRefs.current[index - 1]);
           handleChange(index - 1, '');
         }
         e.preventDefault();
       } else if (e.key === 'ArrowLeft' && index > 0) {
-        inputRefs.current[index - 1]?.focus();
+        safeFocus(inputRefs.current[index - 1]);
       } else if (e.key === 'ArrowRight' && index < length - 1) {
-        inputRefs.current[index + 1]?.focus();
+        safeFocus(inputRefs.current[index + 1]);
       }
     },
-    [values, handleChange, length]
+    [values, handleChange, length, safeFocus]
   );
 
   const handlePaste = useCallback(
@@ -181,23 +191,24 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
 
       if (code.length === length && !next.includes('')) {
         onComplete?.(code);
-        inputRefs.current[length - 1]?.focus();
       } else {
-        inputRefs.current[Math.min(index + text.length, length - 1)]?.focus();
+        safeFocus(inputRefs.current[Math.min(index + text.length, length - 1)]);
       }
     },
-    [values, length, onChange, onComplete]
+    [values, length, onChange, onComplete, safeFocus]
   );
 
   return (
     <div className={cn('flex items-center justify-center gap-2 sm:gap-3', className)}>
-      {/* Hidden input for browser OTP autofill suggestions */}
+      {/* Hidden input for iOS Safari OTP autofill — positioned over digit boxes so iOS detects it */}
       <input
         ref={hiddenRef}
         type="text"
         autoComplete="one-time-code"
         inputMode="numeric"
-        className="sr-only"
+        pattern="[0-9]*"
+        className="absolute opacity-0 pointer-events-none"
+        style={{ width: 1, height: 1 }}
         tabIndex={-1}
         aria-hidden="true"
         onChange={(e) => {
@@ -207,7 +218,6 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
             setValues(next);
             onChange?.(digits);
             onComplete?.(digits);
-            inputRefs.current[length - 1]?.focus();
           }
         }}
       />
@@ -219,6 +229,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           }}
           type="text"
           inputMode="numeric"
+          pattern="[0-9]*"
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={1}
           value={values[i]}

@@ -29,16 +29,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.CLIENT]}>
-      <div className="min-h-[100dvh] bg-surface-50 dark:bg-surface-950 pb-20">
+      <div className="min-h-[100dvh] bg-surface-50 pb-20">
         {children}
 
         {/* One-time prompt to set up PIN/biometric for faster login */}
         <SecuritySetupPrompt />
 
         {!hideNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom">
-            {/* Frosted glass nav */}
-            <div className="mx-4 mb-2 rounded-2xl bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl border border-white/60 dark:border-surface-800/60 shadow-elevated overflow-hidden">
+          <nav className="fixed bottom-0 inset-x-0 z-40">
+            {/* Frosted glass nav — inset for home indicator on modern iPhones */}
+            <div className="mx-4 mb-2 pb-[env(safe-area-inset-bottom)] rounded-2xl bg-white/80 backdrop-blur-xl border border-surface-100 shadow-elevated overflow-hidden">
               <div className="flex items-center justify-around h-16 max-w-lg mx-auto relative">
                 {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
                   const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
@@ -47,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       key={href}
                       href={href}
                       className={`relative flex flex-col items-center gap-0.5 px-4 py-1.5 transition-all duration-300 btn-press ${
-                        active ? 'text-brand-500' : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'
+                        active ? 'text-brand-500' : 'text-surface-400 hover:text-surface-600'
                       }`}
                     >
                       <div className={`relative transition-transform duration-300 ${active ? 'scale-110 -translate-y-0.5' : ''}`}>

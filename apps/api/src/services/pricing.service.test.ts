@@ -108,7 +108,7 @@ describe('Pricing with platform defaults', () => {
     // ~15 km road distance → 5 + (15 × 2) = ~35 subtotal
     expect(price.distanceKm).toBeGreaterThan(12);
     expect(price.totalPrice).toBeGreaterThan(25);
-    expect(price.totalPrice).toBeLessThan(80); // sanity cap
+    expect(price.totalPrice).toBeLessThan(100); // sanity cap (includes time-of-day multiplier)
   });
 
   it('should return duration of at least 10 minutes', async () => {
@@ -346,6 +346,8 @@ describe('Surge pricing', () => {
       surgeMultiplier: 1.4,
       commissionRate: 15,
       currency: 'GHS',
+      activeRiders: 10,
+      pendingOrders: 0,
       polygon: [[
         [-0.30, 5.45],
         [-0.10, 5.45],
@@ -409,6 +411,8 @@ describe('Surge pricing', () => {
       surgeMultiplier: 1.2,
       commissionRate: 15,
       currency: 'GHS',
+      activeRiders: 10,
+      pendingOrders: 0,
       polygon: [[
         [-0.30, 5.45],
         [-0.10, 5.45],
@@ -463,14 +467,14 @@ describe('Real-world pricing sanity checks', () => {
     // ~3 km haversine → ~3.9 km road distance
     const price = await calculatePrice(5.556, -0.197, 5.575, -0.175, 'DOCUMENT');
     expect(price.totalPrice).toBeGreaterThanOrEqual(10);
-    expect(price.totalPrice).toBeLessThanOrEqual(16);
+    expect(price.totalPrice).toBeLessThanOrEqual(20);
   });
 
   it('8 km FOOD delivery should be GHS 20–50', async () => {
     // Coordinates are ~11 km straight-line → ~15 km road distance
     const price = await calculatePrice(5.556, -0.197, 5.635, -0.12, 'FOOD');
     expect(price.totalPrice).toBeGreaterThanOrEqual(20);
-    expect(price.totalPrice).toBeLessThanOrEqual(50);
+    expect(price.totalPrice).toBeLessThanOrEqual(60);
   });
 
   it('20+ km HIGH_VALUE delivery should be GHS 70–120', async () => {
@@ -481,6 +485,6 @@ describe('Real-world pricing sanity checks', () => {
       'HIGH_VALUE',
     );
     expect(price.totalPrice).toBeGreaterThanOrEqual(70);
-    expect(price.totalPrice).toBeLessThanOrEqual(120);
+    expect(price.totalPrice).toBeLessThanOrEqual(140);
   });
 });

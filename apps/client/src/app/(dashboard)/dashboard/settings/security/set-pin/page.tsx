@@ -54,13 +54,13 @@ export default function SetPinPage() {
   const currentPin = step === 'enter' ? pin : confirmPin;
 
   return (
-    <div className="min-h-[100dvh] bg-surface-50 dark:bg-surface-950">
-      <div className="sticky top-0 z-10 bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl border-b border-surface-100 dark:border-surface-800">
+    <div className="min-h-[100dvh] bg-surface-50">
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-surface-100">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.back()} className="p-2 -ml-2 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
-            <ArrowLeft className="h-5 w-5 text-surface-700 dark:text-surface-300" />
+          <button onClick={() => router.back()} className="p-2 -ml-2 rounded-xl hover:bg-surface-100 transition-colors">
+            <ArrowLeft className="h-5 w-5 text-surface-700" />
           </button>
-          <h1 className="text-lg font-bold text-surface-900 dark:text-white">Set PIN</h1>
+          <h1 className="text-lg font-bold text-surface-900">Set PIN</h1>
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export default function SetPinPage() {
             <div className="mx-auto w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center">
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
-            <h2 className="text-xl font-bold text-surface-900 dark:text-white">PIN Set!</h2>
+            <h2 className="text-xl font-bold text-surface-900">PIN Set!</h2>
             <p className="text-surface-500">Log in with your phone + PIN next time.</p>
           </div>
         ) : (
@@ -79,7 +79,7 @@ export default function SetPinPage() {
               <div className="mx-auto w-16 h-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
                 <Lock className="h-8 w-8 text-brand-500" />
               </div>
-              <h2 className="text-xl font-bold text-surface-900 dark:text-white">
+              <h2 className="text-xl font-bold text-surface-900">
                 {step === 'enter' ? 'Create your PIN' : 'Confirm your PIN'}
               </h2>
               <p className="text-sm text-surface-500 mt-1">
@@ -92,7 +92,7 @@ export default function SetPinPage() {
                 <div
                   key={i}
                   className={`w-4 h-4 rounded-full transition-all duration-200 ${
-                    i < currentPin.length ? 'bg-brand-500 scale-110' : 'bg-surface-200 dark:bg-surface-700'
+                    i < currentPin.length ? 'bg-brand-500 scale-110' : 'bg-surface-200'
                   }`}
                 />
               ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { Star, ArrowLeft, CheckCircle, AlertCircle, Heart } from 'lucide-react';
@@ -18,6 +18,22 @@ export default function RatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [riderInfo, setRiderInfo] = useState<{ id: string; name: string } | null>(null);
+  const [favorited, setFavorited] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
+
+  useEffect(() => {
+    if (!api || !id) return;
+    api.get(`/orders/${id}`).then((res: any) => {
+      const rider = res.data?.data?.rider;
+      if (rider) {
+        setRiderInfo({
+          id: rider.id,
+          name: [rider.user?.firstName, rider.user?.lastName].filter(Boolean).join(' ') || 'Your rider',
+        });
+      }
+    }).catch(() => {});
+  }, [api, id]);
 
   const handleSubmit = async () => {
     if (!api || rating === 0) return;
@@ -45,6 +61,35 @@ export default function RatePage() {
         </div>
         <h2 className="text-xl font-bold text-surface-900 mb-2">Thank you!</h2>
         <p className="text-surface-500 text-sm mb-8">Your feedback helps improve our service.</p>
+
+        {riderInfo && !favorited && (
+          <button
+            onClick={async () => {
+              if (!api || favoriting) return;
+              setFavoriting(true);
+              try {
+                await api.post(`/favorite-riders/${riderInfo.id}`);
+                setFavorited(true);
+              } catch {
+                // silently ignore — may already be favorited
+                setFavorited(true);
+              } finally {
+                setFavoriting(false);
+              }
+            }}
+            disabled={favoriting}
+            className="mb-4 h-12 px-6 rounded-xl bg-pink-50 text-pink-600 font-semibold text-sm btn-press inline-flex items-center gap-2 hover:bg-pink-100 transition-colors disabled:opacity-50"
+          >
+            <Heart className="h-4 w-4" />
+            {favoriting ? 'Adding...' : `Add ${riderInfo.name} to favorites`}
+          </button>
+        )}
+        {favorited && (
+          <p className="mb-4 text-sm text-pink-500 font-medium flex items-center gap-1.5 animate-scale-in">
+            <Heart className="h-4 w-4 fill-pink-500" /> Added to favorites!
+          </p>
+        )}
+
         <button
           onClick={() => router.replace('/dashboard')}
           className="h-13 px-8 rounded-xl bg-surface-900 text-white font-semibold text-sm btn-press inline-flex items-center gap-2 hover:bg-surface-800 transition-colors"

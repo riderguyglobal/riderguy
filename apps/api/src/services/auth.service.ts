@@ -138,9 +138,11 @@ export class AuthService {
     // Constant-time comparison to mitigate timing attacks.
     // OTPs are short-lived (5 min) and attempt-limited (5 tries),
     // so timing attacks are impractical — but defence in depth.
-    const codeMatch =
-      otp.code.length === code.length &&
-      crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(code));
+    // Always run timingSafeEqual (no short-circuit on length) to prevent length oracle.
+    const padded = (s: string) => s.padEnd(6, '\0').slice(0, 6);
+    const lengthOk = otp.code.length === code.length;
+    const bytesMatch = crypto.timingSafeEqual(Buffer.from(padded(otp.code)), Buffer.from(padded(code)));
+    const codeMatch = lengthOk && bytesMatch;
 
     if (!codeMatch) {
       await prisma.otp.update({
@@ -382,10 +384,11 @@ export class AuthService {
       throw ApiError.badRequest('OTP has expired. Please request a new code.', 'OTP_EXPIRED');
     }
 
-    // Constant-time comparison
-    const codeMatch =
-      otp.code.length === otpCode.length &&
-      crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(otpCode));
+    // Constant-time comparison — always run timingSafeEqual to prevent length oracle
+    const padded2 = (s: string) => s.padEnd(6, '\0').slice(0, 6);
+    const lengthOk2 = otp.code.length === otpCode.length;
+    const bytesMatch2 = crypto.timingSafeEqual(Buffer.from(padded2(otp.code)), Buffer.from(padded2(otpCode)));
+    const codeMatch = lengthOk2 && bytesMatch2;
 
     if (!codeMatch) {
       await prisma.otp.update({
@@ -1039,11 +1042,19 @@ export class AuthService {
       throw ApiError.badRequest('Biometric verification failed', 'WEBAUTHN_VERIFY_FAILED');
     }
 
-    // Update credential counter (to prevent replay attacks)
-    await prisma.webAuthnCredential.update({
-      where: { id: storedCredential.id },
+    // Update credential counter atomically — only succeeds if counter matches
+    // what we read, preventing replay attacks from concurrent requests.
+    const counterUpdate = await prisma.webAuthnCredential.updateMany({
+      where: {
+        id: storedCredential.id,
+        counter: storedCredential.counter, // Must still match what we verified against
+      },
       data: { counter: BigInt(verification.authenticationInfo.newCounter) },
     });
+
+    if (counterUpdate.count === 0) {
+      throw ApiError.badRequest('Biometric credential was used concurrently (replay detected)', 'WEBAUTHN_REPLAY');
+    }
 
     // Clean up challenge
     await prisma.webAuthnChallenge.delete({ where: { id: challengeRecord.id } }).catch(() => {});

@@ -46,6 +46,11 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   // ---- Prevent clickjacking ----
   res.setHeader('X-Frame-Options', 'DENY');
 
+  // ---- HTTP Strict Transport Security ----
+  if (config.nodeEnv === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
   // ── HTTP Parameter Pollution Protection ──
   // Strip duplicate query params (keep last value)
   if (req.query) {

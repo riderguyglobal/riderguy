@@ -136,6 +136,8 @@ function makeOrder(overrides: Record<string, any> = {}) {
     currency: 'GHS',
     isMultiStop: false,
     zoneId: 'zone-accra-central',
+    paymentMethod: 'CASH',
+    paymentStatus: 'COMPLETED',
     ...overrides,
   };
 }

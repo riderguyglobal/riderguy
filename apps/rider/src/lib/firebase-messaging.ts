@@ -58,6 +58,14 @@ function getFirebaseMessaging(): Messaging | null {
 export async function requestPushToken(): Promise<string | null> {
   if (!('Notification' in window) || !('serviceWorker' in navigator)) return null;
 
+  // iOS only supports push in standalone (home screen installed) mode
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (!isStandalone) return null;
+  }
+
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return null;
 

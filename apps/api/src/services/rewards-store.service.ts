@@ -108,35 +108,37 @@ export async function redeemItem(riderId: string, itemId: string) {
     );
   }
 
-  // Sequential writes: deduct points with optimistic guard, decrement inventory, create redemption
-  const deducted = await prisma.riderProfile.updateMany({
-    where: { id: riderId, rewardPoints: { gte: item.pointsCost } },
-    data: { rewardPoints: { decrement: item.pointsCost } },
-  });
-
-  if (deducted.count === 0) {
-    throw ApiError.badRequest(
-      `Not enough points. You need ${item.pointsCost} but have insufficient balance.`,
-    );
-  }
-
-  // Decrement inventory (if not unlimited)
-  if (item.inventory > 0) {
-    await prisma.rewardStoreItem.update({
-      where: { id: itemId },
-      data: { inventory: { decrement: 1 } },
+  // Atomic transaction: deduct points + decrement inventory + create redemption
+  const redemption = await prisma.$transaction(async (tx) => {
+    const deducted = await tx.riderProfile.updateMany({
+      where: { id: riderId, rewardPoints: { gte: item.pointsCost } },
+      data: { rewardPoints: { decrement: item.pointsCost } },
     });
-  }
 
-  // Create redemption record
-  const redemption = await prisma.rewardRedemption.create({
-    data: {
-      riderId,
-      itemId,
-      pointsSpent: item.pointsCost,
-      status: 'PENDING',
-    },
-    include: { item: true },
+    if (deducted.count === 0) {
+      throw ApiError.badRequest(
+        `Not enough points. You need ${item.pointsCost} but have insufficient balance.`,
+      );
+    }
+
+    // Decrement inventory (if not unlimited)
+    if (item.inventory > 0) {
+      await tx.rewardStoreItem.update({
+        where: { id: itemId },
+        data: { inventory: { decrement: 1 } },
+      });
+    }
+
+    // Create redemption record
+    return tx.rewardRedemption.create({
+      data: {
+        riderId,
+        itemId,
+        pointsSpent: item.pointsCost,
+        status: 'PENDING',
+      },
+      include: { item: true },
+    });
   });
 
   // Notify rider

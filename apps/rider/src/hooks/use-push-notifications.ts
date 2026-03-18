@@ -63,15 +63,24 @@ export function usePushNotifications() {
         queryClient.invalidateQueries({ queryKey: ['order', data.orderId] });
       }
 
-      // Show a native notification even when foregrounded
+      // Show a notification even when foregrounded
+      // Use ServiceWorkerRegistration.showNotification() for Android Chrome compatibility
+      // (new Notification() constructor is blocked on Android)
       if ('Notification' in window && Notification.permission === 'granted') {
         const title = payload?.notification?.title ?? 'RiderGuy';
         const body = payload?.notification?.body ?? 'You have an update';
-        new Notification(title, {
+        const opts = {
           body,
           icon: '/icons/icon-192.png',
           tag: data?.orderId ? `order-${data.orderId}` : 'general',
-        });
+        };
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.ready
+            .then(reg => reg.showNotification(title, opts))
+            .catch(() => { try { new Notification(title, opts); } catch {} });
+        } else {
+          try { new Notification(title, opts); } catch {}
+        }
       }
     });
 

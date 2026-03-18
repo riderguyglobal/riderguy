@@ -3,8 +3,9 @@ import { config } from '../config';
 import { logger } from '../lib/logger';
 import { prisma } from '@riderguy/database';
 import { paystackService } from '../services/paystack.service';
+import { EmailService } from '../services/email.service';
 import { redisEnabled } from './queues';
-import type { PayoutJobData, ReceiptJobData, CommissionJobData } from './queues';
+import type { PayoutJobData, ReceiptJobData, CommissionJobData, PushJobData } from './queues';
 
 // ============================================================
 // BullMQ Workers — Sprint 6
@@ -35,10 +36,11 @@ function parseRedisUrl(url: string): Record<string, unknown> {
 let payoutWorker: Worker | null = null;
 let receiptWorker: Worker | null = null;
 let commissionWorker: Worker | null = null;
+let pushWorker: Worker | null = null;
 
 // ── Start all workers (only when Redis is configured) ──
 
-export function startWorkers(): void {
+export async function startWorkers(): Promise<void> {
   if (!redisEnabled) {
     logger.warn('BullMQ workers NOT started — Redis not configured. Set REDIS_URL to enable.');
     return;
@@ -129,7 +131,7 @@ export function startWorkers(): void {
 
           const wallet = await tx.wallet.findUnique({ where: { userId } });
           if (wallet) {
-            await tx.wallet.update({
+            const updatedWallet = await tx.wallet.update({
               where: { id: wallet.id },
               data: { balance: { increment: amount } },
             });
@@ -139,7 +141,7 @@ export function startWorkers(): void {
                 walletId: wallet.id,
                 type: 'REFUND',
                 amount: amount,
-                balanceAfter: Number(wallet.balance) + amount,
+                balanceAfter: Number(updatedWallet.balance),
                 description: `Refund for failed withdrawal #${withdrawalId.slice(0, 8)}`,
                 referenceId: withdrawalId,
                 referenceType: 'withdrawal',
@@ -223,6 +225,25 @@ export function startWorkers(): void {
         { orderId, receiptNumber: receiptData.receiptNumber, total: receiptData.total },
         'Receipt generated',
       );
+
+      // Send receipt email to client
+      if (receiptData.client.email) {
+        await EmailService.sendDeliveryReceipt(receiptData.client.email, {
+          firstName: order.client.firstName,
+          orderNumber,
+          deliveredAt: receiptData.date
+            ? new Date(receiptData.date).toLocaleString('en-GH', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })
+            : 'N/A',
+          riderName: receiptData.rider?.name ?? 'RiderGuy Driver',
+          totalPrice: Number(order.totalPrice),
+          tipAmount: Number(order.tipAmount),
+          currency,
+        });
+      }
+
       return { receiptNumber: receiptData.receiptNumber };
     },
     {
@@ -304,7 +325,39 @@ export function startWorkers(): void {
     logger.error({ jobId: job?.id, err: err.message }, 'Commission job failed');
   });
 
-  logger.info('BullMQ workers started: payouts, receipts, commissions');
+  // ── Push Notification Worker ──
+  const { PushService } = await import('../services/push.service');
+
+  pushWorker = new Worker(
+    'push-notifications',
+    async (job: Job<PushJobData>) => {
+      const { userId, title, body, data } = job.data;
+
+      logger.info({ userId, title, attempt: job.attemptsMade + 1 }, 'Sending push notification');
+
+      const result = await PushService.sendToUser(userId, title, body, data);
+
+      if (result.successCount === 0 && result.failureCount > 0) {
+        throw new Error(`All ${result.failureCount} FCM token(s) failed`);
+      }
+
+      return { successCount: result.successCount, failureCount: result.failureCount };
+    },
+    {
+      connection: redisConnection,
+      concurrency: 10,
+    },
+  );
+
+  pushWorker.on('completed', (job: Job) => {
+    logger.info({ jobId: job.id }, 'Push notification job completed');
+  });
+
+  pushWorker.on('failed', (job: Job | undefined, err: Error) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Push notification job failed');
+  });
+
+  logger.info('BullMQ workers started: payouts, receipts, commissions, push-notifications');
 }
 
 // ── Graceful shutdown ──
@@ -314,6 +367,7 @@ export async function stopWorkers(): Promise<void> {
   if (payoutWorker) closing.push(payoutWorker.close());
   if (receiptWorker) closing.push(receiptWorker.close());
   if (commissionWorker) closing.push(commissionWorker.close());
+  if (pushWorker) closing.push(pushWorker.close());
   if (closing.length > 0) {
     await Promise.all(closing);
     logger.info('BullMQ workers stopped');

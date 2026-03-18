@@ -4,6 +4,7 @@ import { StatusCodes } from 'http-status-codes';
 import { logger } from '../../lib/logger';
 import { z } from 'zod';
 import { validate, authRateLimit } from '../../middleware';
+import { EmailService } from '../../services/email.service';
 
 const router = Router();
 
@@ -22,7 +23,6 @@ const contactSchema = z.object({
 /**
  * POST /contact
  * Receive contact form submissions from marketing site.
- * In production: send email notification to support team.
  */
 router.post(
   '/',
@@ -31,14 +31,22 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { firstName, lastName, email, subject, message } = req.body;
 
-    // Log the submission (in production: email, store in DB, or send to CRM)
     logger.info(
       { firstName, lastName, email, subject, messageLength: message.length },
       'Contact form submission received',
     );
 
-    // TODO: In production, send email via SendGrid/Resend and store in DB
-    // For now, we acknowledge the submission
+    // Send acknowledgement to submitter (non-blocking)
+    EmailService.sendContactAck(email, firstName, subject).catch(() => {});
+
+    // Notify support team (non-blocking)
+    EmailService.sendContactNotification({
+      firstName,
+      lastName,
+      email,
+      subject,
+      message,
+    }).catch(() => {});
 
     res.status(StatusCodes.OK).json({
       success: true,

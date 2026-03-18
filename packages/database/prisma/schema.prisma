@@ -390,6 +390,7 @@ model RiderProfile {
   rewardRedemptions  RewardRedemption[]
   rewardPoints       Int                  @default(0) // Reward store points balance
   favoritedByClients FavoriteRider[]
+  locationHistory    LocationHistory[]
 
   // Sprint 12 — Identity & Mentorship
   bio                String?              @db.Text
@@ -807,6 +808,26 @@ model OrderMessage {
 }
 
 // ============================================================
+// LOCATION HISTORY (GPS breadcrumb trail)
+// ============================================================
+
+model LocationHistory {
+  id        String   @id @default(cuid())
+  riderId   String
+  rider     RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  orderId   String?
+  latitude  Float
+  longitude Float
+  heading   Float?
+  speed     Float?
+  createdAt DateTime @default(now())
+
+  @@index([riderId, createdAt])
+  @@index([orderId, createdAt])
+  @@map("location_history")
+}
+
+// ============================================================
 // WALLET & FINANCE
 // ============================================================
 
@@ -909,6 +930,7 @@ model Zone {
   events      Event[]
   promoCodes  PromoCode[]
 
+  @@index([status])
   @@map("zones")
 }
 

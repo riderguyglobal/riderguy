@@ -1,77 +1,82 @@
 import Image from 'next/image';
-import { MapPin, Zap, Shield } from 'lucide-react';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[100dvh] flex flex-col lg:flex-row">
-      {/* ── Branded panel — desktop only ── */}
-      <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 flex-col items-center justify-center px-12 relative overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-16 left-16 w-40 h-40 rounded-full bg-white/[0.06]" />
-          <div className="absolute bottom-20 right-12 w-72 h-72 rounded-full bg-white/[0.04]" />
-          <div className="absolute top-1/2 left-1/3 w-24 h-24 rounded-full bg-white/[0.05] animate-float" />
-        </div>
-
-        <div className="relative z-10 text-center max-w-sm">
-          <div className="h-20 w-20 rounded-3xl bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-8 shadow-xl overflow-hidden">
-            <Image
-              src="/images/branding/logo-white.png"
-              alt="RiderGuy"
-              width={56}
-              height={56}
-              className="h-14 w-14 object-contain"
-              priority
-            />
-          </div>
-          <h2 className="text-3xl font-extrabold text-white mb-3">RiderGuy</h2>
-          <p className="text-white/70 text-base mb-10">
-            Send packages across the city. Fast delivery, real-time tracking, reliable riders.
-          </p>
-
-          {/* Feature cards */}
-          <div className="space-y-3 text-left">
-            {[
-              { icon: Zap, text: 'Pickup in Minutes', desc: 'Riders dispatched instantly' },
-              { icon: MapPin, text: 'Live Tracking', desc: 'Watch your delivery in real-time' },
-              { icon: Shield, text: 'Safe & Insured', desc: 'Your packages are protected' },
-            ].map(({ icon: Icon, text, desc }) => (
-              <div key={text} className="flex items-center gap-3 bg-white/[0.08] rounded-2xl px-4 py-3">
-                <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                  <Icon className="h-5 w-5 text-white/80" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">{text}</p>
-                  <p className="text-xs text-white/50">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
+    <div className="min-h-[100dvh] bg-white">
       {/* ── Mobile header ── */}
-      <div className="lg:hidden safe-area-top bg-white border-b border-surface-100/60">
-        <div className="flex items-center gap-3 px-5 py-4">
-          <div className="h-10 w-10 rounded-2xl brand-gradient flex items-center justify-center shadow-brand overflow-hidden">
-            <Image
-              src="/images/branding/logo-white.png"
-              alt="RiderGuy"
-              width={28}
-              height={28}
-              className="h-7 w-7 object-contain"
-              priority
-            />
-          </div>
-          <span className="text-lg font-extrabold text-surface-900">
-            Rider<span className="text-brand-500">Guy</span>
-          </span>
+      <div className="lg:hidden safe-area-top border-b border-surface-100">
+        <div className="px-5 py-4">
+          <Image src="/images/branding/logo-header-black.svg" alt="RiderGuy" width={140} height={36} className="h-8 w-auto" priority />
         </div>
       </div>
 
-      {/* ── Form area ── */}
-      <div className="flex-1 flex items-start lg:items-center justify-center p-6 lg:p-12 bg-surface-50 lg:bg-white">
-        <div className="w-full max-w-md animate-page-enter">{children}</div>
+      {/* ── Desktop layout ── */}
+      <div className="hidden lg:flex min-h-[100dvh] relative overflow-hidden">
+
+        {/* ── Subtle ambient glow ── */}
+        <div className="absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full bg-brand-500/[0.04] blur-[140px] pointer-events-none" />
+        <div className="absolute -bottom-20 left-[28%] w-[500px] h-[400px] rounded-full bg-brand-500/[0.03] blur-[120px] pointer-events-none" />
+
+        {/* ═══ LEFT HALF — brand hero ═══ */}
+        <div className="w-[54%] relative flex flex-col justify-center items-center px-16 xl:px-24 py-14 overflow-hidden border-r border-surface-100 bg-surface-50/50">
+
+          {/* Fine green grid overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgba(34,197,94,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(34,197,94,0.06) 1px, transparent 1px)',
+              backgroundSize: '56px 56px',
+              maskImage: 'radial-gradient(ellipse 75% 75% at 35% 45%, black 20%, transparent 100%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 75% 75% at 35% 45%, black 20%, transparent 100%)',
+            }}
+          />
+
+          {/* Ghost watermark "RG" */}
+          <div
+            className="absolute -right-6 bottom-0 text-[22rem] font-black leading-none select-none pointer-events-none z-0"
+            style={{ WebkitTextStroke: '1.5px rgba(34,197,94,0.06)', color: 'transparent' }}
+          >
+            RG
+          </div>
+
+          {/* Logo */}
+          <div className="absolute top-14 left-16 xl:left-24 z-10">
+            <Image src="/images/branding/logo-header-black.svg" alt="RiderGuy" width={160} height={40} className="h-9 w-auto" priority />
+          </div>
+
+          {/* Center: Hero copy */}
+          <div className="relative z-10 space-y-6 max-w-lg">
+            <div className="w-10 h-[3px] bg-brand-500 rounded-full" />
+            <h1 className="text-[6.5rem] xl:text-[8.5rem] font-black leading-[0.88] tracking-tight text-surface-900">
+              Send.<br />
+              <span className="text-brand-500">Track.</span><br />
+              Arrive.
+            </h1>
+            <p className="text-surface-400 text-[15px] leading-relaxed max-w-[300px]">
+              Ghana&apos;s fastest delivery platform. Real‑time tracking, instant pickup, zero guesswork.
+            </p>
+          </div>
+
+          {/* Bottom: Live badge */}
+          <div className="absolute bottom-14 left-16 xl:left-24 z-10 flex items-center gap-2.5">
+            <div className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
+            </div>
+            <span className="text-surface-400 text-[10px] tracking-widest uppercase font-medium">Live across Ghana</span>
+          </div>
+        </div>
+
+        {/* ═══ RIGHT HALF — form ═══ */}
+        <div className="w-[46%] flex items-center justify-center px-16 xl:px-24 relative z-10 bg-white">
+          <div className="w-full max-w-[520px] animate-page-enter">{children}</div>
+        </div>
+      </div>
+
+      {/* ── Mobile form area ── */}
+      <div className="lg:hidden px-5 pt-6 pb-12">
+        <div className="w-full max-w-[440px] mx-auto animate-page-enter">{children}</div>
       </div>
     </div>
   );

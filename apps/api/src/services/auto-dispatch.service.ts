@@ -26,7 +26,8 @@ import type { JobOffer } from '@riderguy/types';
 // ── Configuration ──
 
 const OFFER_TIMEOUT_MS = 30_000;           // 30 seconds per offer
-const MAX_SEARCH_RADIUS_KM = 8;            // Maximum search radius (8 km — realistic dispatch range)
+const SEARCH_RADIUS_TIERS_KM = [5, 8, 12]; // Progressive radius expansion (nearest tier first)
+const MAX_SEARCH_RADIUS_KM = SEARCH_RADIUS_TIERS_KM[SEARCH_RADIUS_TIERS_KM.length - 1]!; // Outer boundary for initial filter
 const MAX_DISPATCH_ATTEMPTS = 10;           // Max riders to try before giving up
 const MIN_GPS_FRESHNESS_MS = 10 * 60_000;  // Skip riders with GPS older than 10 min
 
@@ -49,6 +50,9 @@ interface DispatchState {
   currentIndex: number;
   timeoutHandle: ReturnType<typeof setTimeout> | null;
   resolved: boolean;
+  offerSentAt: number; // Date.now() when current offer was emitted
+  currentTierIndex: number; // which SEARCH_RADIUS_TIERS_KM tier we're on
+  allScored: ScoredRider[]; // all scored riders from outer radius query
 }
 
 interface ScoredRider {
@@ -155,6 +159,8 @@ export async function autoDispatch(orderId: string): Promise<void> {
       id: true,
       orderNumber: true,
       status: true,
+      paymentMethod: true,
+      paymentStatus: true,
       pickupAddress: true,
       dropoffAddress: true,
       pickupLatitude: true,
@@ -181,6 +187,16 @@ export async function autoDispatch(orderId: string): Promise<void> {
 
   if (order.status !== 'PENDING' && order.status !== 'SEARCHING_RIDER') {
     logger.info({ orderId, status: order.status }, '[AutoDispatch] Order not in dispatchable status');
+    return;
+  }
+
+  // Don't dispatch orders that require online payment but haven't been paid yet
+  const requiresPaymentFirst = order.paymentMethod !== 'CASH' && order.paymentMethod !== 'WALLET';
+  if (requiresPaymentFirst && order.paymentStatus !== 'COMPLETED') {
+    logger.info(
+      { orderId, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
+      '[AutoDispatch] Skipping — awaiting payment confirmation',
+    );
     return;
   }
 
@@ -302,8 +318,22 @@ export async function autoDispatch(orderId: string): Promise<void> {
   // Sort by score descending (best match first)
   scored.sort((a, b) => b.score - a.score);
 
-  // Limit attempts
-  const candidates = scored.slice(0, MAX_DISPATCH_ATTEMPTS);
+  // Progressive radius: prefer the smallest tier that yields candidates
+  let candidates: ScoredRider[] = [];
+  let usedTierIndex = 0;
+  for (let i = 0; i < SEARCH_RADIUS_TIERS_KM.length; i++) {
+    const tierKm = SEARCH_RADIUS_TIERS_KM[i]!;
+    const inTier = scored.filter((r) => r.distance <= tierKm);
+    if (inTier.length > 0) {
+      candidates = inTier.slice(0, MAX_DISPATCH_ATTEMPTS);
+      usedTierIndex = i;
+      logger.info(
+        { orderId, radiusKm: tierKm, candidateCount: candidates.length },
+        '[AutoDispatch] Using radius tier',
+      );
+      break;
+    }
+  }
 
   if (candidates.length === 0) {
     logger.info({ orderId }, '[AutoDispatch] No riders within search radius');
@@ -335,6 +365,9 @@ export async function autoDispatch(orderId: string): Promise<void> {
     currentIndex: 0,
     timeoutHandle: null,
     resolved: false,
+    offerSentAt: Date.now(),
+    currentTierIndex: usedTierIndex,
+    allScored: scored,
   };
   activeDispatches.set(orderId, state);
 
@@ -371,7 +404,31 @@ function sendOfferToNextRider(
 
   const rider = state.rankedRiders[state.currentIndex];
   if (!rider) {
-    // No more riders to try
+    // All candidates in current tier exhausted — try expanding radius
+    const nextTierIndex = state.currentTierIndex + 1;
+    if (nextTierIndex < SEARCH_RADIUS_TIERS_KM.length) {
+      const nextTierKm = SEARCH_RADIUS_TIERS_KM[nextTierIndex]!;
+      const prevTierKm = SEARCH_RADIUS_TIERS_KM[state.currentTierIndex]!;
+      // Get riders in the next tier that weren't already tried
+      const triedIds = new Set(state.rankedRiders.map((r) => r.riderProfileId));
+      const expanded = state.allScored
+        .filter((r) => r.distance <= nextTierKm && !triedIds.has(r.riderProfileId))
+        .slice(0, MAX_DISPATCH_ATTEMPTS);
+
+      if (expanded.length > 0) {
+        logger.info(
+          { orderId: state.orderId, prevRadiusKm: prevTierKm, nextRadiusKm: nextTierKm, newCandidates: expanded.length },
+          '[AutoDispatch] Expanding search radius',
+        );
+        state.currentTierIndex = nextTierIndex;
+        state.rankedRiders = expanded;
+        state.currentIndex = 0;
+        sendOfferToNextRider(state, order);
+        return;
+      }
+    }
+
+    // No more tiers or no new candidates — truly exhausted
     logger.info({ orderId: state.orderId }, '[AutoDispatch] All candidates exhausted — order stays PENDING');
     state.resolved = true;
     activeDispatches.delete(state.orderId);
@@ -452,6 +509,9 @@ function sendOfferToNextRider(
 
   // Send SMS notification as a backup
   SmsService.sendNewJobAvailable(rider.phone, order.pickupAddress).catch(() => {});
+
+  // Record when this offer was sent (for accurate reconnect timer)
+  state.offerSentAt = Date.now();
 
   // Set timeout — if rider doesn't respond in 30s, try next
   state.timeoutHandle = setTimeout(() => {
@@ -612,7 +672,9 @@ export function getPendingOfferForRider(userId: string): { orderId: string; rema
     if (state.resolved) continue;
     const rider = state.rankedRiders[state.currentIndex];
     if (rider && rider.userId === userId) {
-      return { orderId, remainingMs: OFFER_TIMEOUT_MS }; // approximate
+      const elapsed = Date.now() - state.offerSentAt;
+      const remainingMs = Math.max(0, OFFER_TIMEOUT_MS - elapsed);
+      return { orderId, remainingMs };
     }
   }
   return null;

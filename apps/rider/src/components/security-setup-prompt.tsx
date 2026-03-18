@@ -49,6 +49,19 @@ export function SecuritySetupPrompt() {
     localStorage.setItem(DISMISS_KEY, Date.now().toString());
   }, []);
 
+  // Android back button trap — dismiss prompt instead of navigating away
+  useEffect(() => {
+    if (!show) return;
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; dismiss(); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
+  }, [show, dismiss]);
+
   const handleSetupBiometric = useCallback(async () => {
     setSettingUpBiometric(true);
     try {

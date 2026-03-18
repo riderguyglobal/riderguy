@@ -1,8 +1,10 @@
 import { prisma } from '@riderguy/database';
 import { generateOrderNumber, generateDeliveryPin } from '@riderguy/utils';
 import { XpAction } from '@riderguy/types';
-import { calculatePrice, fetchRouteDistance } from './pricing.service';
+import { calculatePrice, fetchRouteDistance, calculateWaitTimeCharge, calculatePickupDistanceBonus } from './pricing.service';
 import { awardXp, getCommissionRate } from './gamification.service';
+import { recordActivity as recordStreakActivity } from './streak.service';
+import { creditWallet, creditTip } from './wallet.service';
 import { cancelDispatch } from './auto-dispatch.service';
 import { ApiError } from '../lib/api-error';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
@@ -434,7 +436,7 @@ export async function transitionStatus(
   }
 
   // Re-read the updated order
-  const updated = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+  let updated = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
 
   await prisma.orderStatusHistory.create({
     data: {
@@ -455,50 +457,116 @@ export async function transitionStatus(
 
   // If delivered, update rider stats + credit wallet
   if (newStatus === 'DELIVERED' && updated.riderId) {
+    // ── Pre-compute all financial adjustments (read-only) ──
+    let waitTimeAdjustment = 0;
+    let waitTotalMinutes = 0;
+    let pickupBonus = 0;
+
+    // Wait time charge (LOGIC-05)
+    try {
+      const statusHistory = await prisma.orderStatusHistory.findMany({
+        where: { orderId, status: { in: ['AT_PICKUP', 'PICKED_UP', 'AT_DROPOFF', 'DELIVERED'] } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const tsMap = new Map<string, Date>();
+      for (const entry of statusHistory) {
+        if (!tsMap.has(entry.status)) tsMap.set(entry.status, entry.createdAt);
+      }
+      const atPickup = tsMap.get('AT_PICKUP');
+      const pickedUp = tsMap.get('PICKED_UP');
+      const atDropoff = tsMap.get('AT_DROPOFF');
+      const delivered = tsMap.get('DELIVERED');
+      const pickupWaitMin = (atPickup && pickedUp)
+        ? (pickedUp.getTime() - atPickup.getTime()) / 60_000
+        : 0;
+      const dropoffWaitMin = (atDropoff && delivered)
+        ? (delivered.getTime() - atDropoff.getTime()) / 60_000
+        : 0;
+      const waitResult = calculateWaitTimeCharge(pickupWaitMin, dropoffWaitMin);
+      if (waitResult.charge > 0) {
+        waitTimeAdjustment = waitResult.charge;
+        waitTotalMinutes = Math.round(waitResult.totalMinutes);
+      }
+    } catch (err) {
+      // Don't block delivery completion if wait time calc fails
+    }
+
+    // Pickup distance bonus (LOGIC-06)
+    try {
+      const riderProfileForBonus = await prisma.riderProfile.findUnique({
+        where: { id: updated.riderId },
+        select: { currentLatitude: true, currentLongitude: true },
+      });
+      if (
+        riderProfileForBonus?.currentLatitude != null &&
+        riderProfileForBonus?.currentLongitude != null &&
+        updated.pickupLatitude != null &&
+        updated.pickupLongitude != null
+      ) {
+        const firstBreadcrumb = await prisma.locationHistory.findFirst({
+          where: { orderId, riderId: updated.riderId },
+          orderBy: { createdAt: 'asc' },
+        });
+        const riderLat = firstBreadcrumb?.latitude ?? Number(riderProfileForBonus.currentLatitude);
+        const riderLng = firstBreadcrumb?.longitude ?? Number(riderProfileForBonus.currentLongitude);
+        pickupBonus = calculatePickupDistanceBonus(
+          riderLat,
+          riderLng,
+          Number(updated.pickupLatitude),
+          Number(updated.pickupLongitude),
+        );
+      }
+    } catch (err) {
+      // Don't block delivery completion if bonus calc fails
+    }
+
+    // ── Apply all financial adjustments atomically ──
+    const orderUpdates: Record<string, any> = {};
+    if (waitTimeAdjustment > 0) {
+      orderUpdates.waitTimeCharge = waitTimeAdjustment;
+      orderUpdates.waitTimeMinutes = waitTotalMinutes;
+    }
+    if (waitTimeAdjustment > 0 || pickupBonus > 0) {
+      // Apply order price/earnings adjustments in a single update
+      const finalOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          ...orderUpdates,
+          ...(waitTimeAdjustment > 0 ? { totalPrice: { increment: waitTimeAdjustment } } : {}),
+          ...(pickupBonus > 0 ? { riderEarnings: { increment: pickupBonus } } : {}),
+        },
+      });
+      // Use the updated order for earnings calc
+      if (finalOrder.riderEarnings) {
+        updated = { ...updated, riderEarnings: finalOrder.riderEarnings, totalPrice: finalOrder.totalPrice };
+      }
+    }
+
     await prisma.riderProfile.update({
-      where: { id: updated.riderId },
+      where: { id: updated.riderId! },
       data: {
         totalDeliveries: { increment: 1 },
         availability: 'ONLINE',
       },
     });
 
-    // Credit rider wallet
-    const earnings = updated.riderEarnings ? Number(updated.riderEarnings) : (Number(updated.totalPrice) * 0.85);
+    // Credit rider wallet (includes pickup distance bonus — platform absorbs)
+    const baseEarnings = updated.riderEarnings ? Number(updated.riderEarnings) : (Number(updated.totalPrice) * 0.85);
+    const earnings = baseEarnings;
     const riderProfile = await prisma.riderProfile.findUnique({
-      where: { id: updated.riderId },
+      where: { id: updated.riderId! },
       select: { id: true, userId: true, currentLevel: true },
     });
 
     if (riderProfile) {
-      const wallet = await prisma.wallet.upsert({
-        where: { userId: riderProfile.userId },
-        create: {
-          userId: riderProfile.userId,
-          balance: earnings,
-          totalEarned: earnings,
-        },
-        update: {
-          balance: { increment: earnings },
-          totalEarned: { increment: earnings },
-        },
-      });
-
-      // Re-read wallet to get accurate post-increment balance
-      const walletAfterEarning = await prisma.wallet.findUnique({ where: { id: wallet.id } });
-      const earningBalance = walletAfterEarning?.balance ?? wallet.balance;
-
-      await prisma.transaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'DELIVERY_EARNING',
-          amount: earnings,
-          balanceAfter: earningBalance,
-          description: `Earnings from order ${updated.orderNumber}`,
-          referenceId: updated.id,
-          referenceType: 'order',
-        },
-      });
+      await creditWallet(
+        riderProfile.userId,
+        earnings,
+        'DELIVERY_EARNING',
+        `Earnings from order ${updated.orderNumber}`,
+        updated.id,
+        'order',
+      );
 
       // Tips are handled exclusively in rateOrder() to avoid double-credit
 
@@ -511,25 +579,14 @@ export async function transitionStatus(
         if (riderLevelCommRate < zoneRate) {
           const bonus = Math.round(Number(updated.totalPrice) * ((Number(zoneRate) - riderLevelCommRate) / 100));
           if (bonus > 0) {
-            await prisma.wallet.update({
-              where: { id: wallet.id },
-              data: {
-                balance: { increment: bonus },
-                totalEarned: { increment: bonus },
-              },
-            });
-            const walletAfterBonus = await prisma.wallet.findUnique({ where: { id: wallet.id } });
-            await prisma.transaction.create({
-              data: {
-                walletId: wallet.id,
-                type: 'DELIVERY_EARNING',
-                amount: bonus,
-                balanceAfter: walletAfterBonus?.balance ? Number(walletAfterBonus.balance) : (Number(earningBalance) + bonus),
-                description: `Level ${riderProfile.currentLevel} commission bonus for order ${updated.orderNumber}`,
-                referenceId: updated.id,
-                referenceType: 'level_bonus',
-              },
-            });
+            await creditWallet(
+              riderProfile.userId,
+              bonus,
+              'DELIVERY_EARNING',
+              `Level ${riderProfile.currentLevel} commission bonus for order ${updated.orderNumber}`,
+              updated.id,
+              'level_bonus',
+            );
           }
         }
       }
@@ -583,6 +640,9 @@ export async function transitionStatus(
         orderId: updated.id,
         orderNumber: updated.orderNumber,
       }).catch(() => {});
+
+      // Update rider delivery streak
+      recordStreakActivity(updated.riderId).catch(() => {});
     }
   }
 
@@ -591,6 +651,10 @@ export async function transitionStatus(
 
 /**
  * Cancel an order (client-initiated).
+ *
+ * Cancellation fees (per platform policy):
+ *   - Before assignment (PENDING / SEARCHING_RIDER): FREE
+ *   - After assignment  (ASSIGNED / PICKUP_EN_ROUTE): GHS 3.00 → rider compensation
  */
 export async function cancelOrder(orderId: string, userId: string, reason?: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -606,7 +670,38 @@ export async function cancelOrder(orderId: string, userId: string, reason?: stri
   // Stop the auto-dispatch loop if it's actively seeking riders
   cancelDispatch(orderId);
 
-  return transitionStatus(orderId, 'CANCELLED_BY_CLIENT', userId, reason ?? 'Cancelled by client');
+  // Determine cancellation fee based on current status
+  const CANCELLATION_FEE_AFTER_ASSIGNMENT = 3.00; // GHS
+  const postAssignmentStatuses: OrderStatus[] = ['ASSIGNED', 'PICKUP_EN_ROUTE'];
+  const hasFee = postAssignmentStatuses.includes(order.status) && !!order.riderId;
+  const feeAmount = hasFee ? CANCELLATION_FEE_AFTER_ASSIGNMENT : 0;
+
+  // If there's a fee and an assigned rider, compensate the rider
+  if (hasFee && order.riderId) {
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { id: order.riderId },
+      select: { userId: true },
+    });
+
+    if (riderProfile) {
+      // Credit cancellation compensation to rider's wallet atomically
+      await creditWallet(
+        riderProfile.userId,
+        feeAmount,
+        'DELIVERY_EARNING',
+        `Cancellation compensation for order ${order.orderNumber}`,
+        order.id,
+        'cancellation',
+      );
+    }
+  }
+
+  const cancelNote = reason ?? 'Cancelled by client';
+  const noteWithFee = hasFee
+    ? `${cancelNote} (cancellation fee: GHS ${feeAmount.toFixed(2)})`
+    : cancelNote;
+
+  return transitionStatus(orderId, 'CANCELLED_BY_CLIENT', userId, noteWithFee);
 }
 
 /**
@@ -661,33 +756,13 @@ export async function rateOrder(
 
       // Credit tip to rider wallet if tip was given
       if (tipAmount && tipAmount > 0) {
-        const wallet = await prisma.wallet.upsert({
-          where: { userId: riderProfile.userId },
-          create: {
-            userId: riderProfile.userId,
-            balance: tipAmount,
-            totalTips: tipAmount,
-          },
-          update: {
-            balance: { increment: tipAmount },
-            totalTips: { increment: tipAmount },
-          },
-        });
-
-        // Re-read wallet to get accurate post-increment balance
-        const walletAfterTip = await prisma.wallet.findUnique({ where: { id: wallet.id } });
-
-        await prisma.transaction.create({
-          data: {
-            walletId: wallet.id,
-            type: 'TIP',
-            amount: tipAmount,
-            balanceAfter: walletAfterTip?.balance ?? wallet.balance,
-            description: `Tip from order ${updated.orderNumber}`,
-            referenceId: updated.id,
-            referenceType: 'order',
-          },
-        });
+        await creditTip(
+          riderProfile.userId,
+          tipAmount,
+          `Tip from order ${updated.orderNumber}`,
+          updated.id,
+          'order',
+        );
       }
     }
   }

@@ -43,6 +43,7 @@ export const redisEnabled = isRedisConfigured();
 let payoutQueue: Queue | null = null;
 let receiptQueue: Queue | null = null;
 let commissionQueue: Queue | null = null;
+let pushQueue: Queue | null = null;
 
 if (redisEnabled) {
   const redisConnection = parseRedisUrl(config.redis.url);
@@ -77,12 +78,22 @@ if (redisEnabled) {
     },
   });
 
+  pushQueue = new Queue('push-notifications', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      removeOnComplete: { count: 500 },
+      removeOnFail: { count: 200 },
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 3000 },
+    },
+  });
+
   logger.info('BullMQ queues initialized (Redis connected)');
 } else {
   logger.warn('Redis not configured — BullMQ queues disabled. Set REDIS_URL to enable.');
 }
 
-export { payoutQueue, receiptQueue, commissionQueue };
+export { payoutQueue, receiptQueue, commissionQueue, pushQueue };
 
 // ── Job data interfaces ──
 
@@ -111,6 +122,13 @@ export interface CommissionJobData {
   orderAmount: number;
   commissionRate: number;
   platformCommission: number;
+}
+
+export interface PushJobData {
+  userId: string;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
 }
 
 // ── Queue helpers — safe no-ops when Redis is not configured ──
@@ -148,23 +166,38 @@ export async function enqueueCommissionJob(data: CommissionJobData): Promise<voi
   logger.info({ orderId: data.orderId }, 'Commission tracking job enqueued');
 }
 
+export async function enqueuePushJob(data: PushJobData): Promise<void> {
+  if (!pushQueue) {
+    // Fallback: fire-and-forget direct send when Redis is unavailable
+    try {
+      const { PushService } = await import('../services/push.service');
+      await PushService.sendToUser(data.userId, data.title, data.body, data.data);
+    } catch {}
+    return;
+  }
+  await pushQueue.add('send-push', data);
+  logger.info({ userId: data.userId, title: data.title }, 'Push notification job enqueued');
+}
+
 // ── Get queue stats for admin dashboard ──
 
 export async function getQueueStats() {
   if (!payoutQueue || !receiptQueue || !commissionQueue) {
-    return { payouts: null, receipts: null, commissions: null, redisEnabled: false };
+    return { payouts: null, receipts: null, commissions: null, pushNotifications: null, redisEnabled: false };
   }
 
-  const [payoutCounts, receiptCounts, commissionCounts] = await Promise.all([
+  const [payoutCounts, receiptCounts, commissionCounts, pushCounts] = await Promise.all([
     payoutQueue.getJobCounts(),
     receiptQueue.getJobCounts(),
     commissionQueue.getJobCounts(),
+    pushQueue?.getJobCounts() ?? Promise.resolve(null),
   ]);
 
   return {
     payouts: payoutCounts,
     receipts: receiptCounts,
     commissions: commissionCounts,
+    pushNotifications: pushCounts,
     redisEnabled: true,
   };
 }

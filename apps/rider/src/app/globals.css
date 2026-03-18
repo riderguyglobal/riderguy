@@ -119,6 +119,8 @@
   html {
     @apply antialiased;
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     overscroll-behavior-y: none;
     scroll-behavior: smooth;
   }
@@ -391,6 +393,7 @@
 
 .mapboxgl-popup-content {
   background: var(--popup-bg) !important;
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid var(--popup-border) !important;
   border-radius: 16px !important;
@@ -454,6 +457,7 @@ html.dark .map-control-gps {
 .map-info-panel {
   background: var(--color-page);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 
@@ -513,5 +517,15 @@ html.dark .map-info-panel {
   .route-connector {
     @apply relative ml-[11px] border-l-2 border-dashed h-6;
     border-color: var(--color-border);
+  }
+}
+
+/* ── Reduced Motion (accessibility + low-end Android) ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

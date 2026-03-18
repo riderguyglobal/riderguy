@@ -111,12 +111,22 @@ export function useSocket() {
       setSocketError(null);
     }
 
+    // iOS kills WebSocket after ~30s in background — force instant reconnect on wake
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !s.connected) {
+        s.io.opts.reconnectionDelay = RECONNECT_DELAY_BASE;
+        s.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       s.off('connect', onConnect);
       s.off('disconnect', onDisconnect);
       s.off('connect_error', onConnectError);
       s.io.off('reconnect_attempt', onReconnecting);
       s.io.off('reconnect', onReconnect);
+      document.removeEventListener('visibilitychange', handleVisibility);
       refCount--;
       if (refCount <= 0 && sharedSocket) {
         sharedSocket.disconnect();

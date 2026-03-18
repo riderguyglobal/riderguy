@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { formatCurrency } from '@riderguy/utils';
@@ -68,6 +68,37 @@ export function OrderConfirmation({
 }: OrderConfirmationProps) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
+  const scrollYRef = useRef(0);
+
+  // Lock body scroll when open — prevents iOS scroll-through-modal bug
+  useEffect(() => {
+    if (!open) return;
+    scrollYRef.current = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollYRef.current}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollYRef.current);
+    };
+  }, [open]);
+
+  // Android back button trap — close modal instead of navigating away
+  useEffect(() => {
+    if (!open) return;
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; onClose(); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
+  }, [open, onClose]);
 
   if (!open) return null;
 

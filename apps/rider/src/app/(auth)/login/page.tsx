@@ -3,10 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth, hasBiometricForPhone, isBiometricSupported } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
 import { phoneSchema, pinSchema, emailSchema, passwordSchema } from '@riderguy/validators';
-import { Fingerprint, KeyRound, MessageSquare, Phone, Mail, AlertCircle, ArrowLeft, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import {
+  Fingerprint, KeyRound, MessageSquare, Phone, Mail, AlertCircle,
+  ArrowLeft, ShieldCheck, Eye, EyeOff, ChevronRight, Bike,
+} from 'lucide-react';
 
 type Tab = 'phone' | 'email';
 type Stage = 'input' | 'method-select' | 'pin' | 'otp' | 'biometric';
@@ -57,12 +61,19 @@ export default function LoginPage() {
     if (isAuthenticated) router.replace('/dashboard');
   }, [isAuthenticated, router]);
 
-  // OTP resend cooldown timer
+  // OTP resend cooldown timer — uses Date.now() delta so it stays correct when iOS backgrounds Safari
+  const cooldownEndRef = useRef(0);
   useEffect(() => {
     if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
+    const tick = () => {
+      const remaining = Math.ceil((cooldownEndRef.current - Date.now()) / 1000);
+      setCooldown(remaining > 0 ? remaining : 0);
+    };
+    const timer = setInterval(tick, 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [cooldown > 0]);
 
   // ---- Step 1: Check available methods for the phone ----
   const handlePhoneContinue = async () => {
@@ -77,7 +88,7 @@ export default function LoginPage() {
 
     try {
       // Remember phone for next visit
-      localStorage.setItem(LAST_PHONE_KEY, phone);
+      try { localStorage.setItem(LAST_PHONE_KEY, phone); } catch {}
 
       // Check available methods from server
       const serverMethods = await checkAuthMethods(phone);
@@ -130,6 +141,7 @@ export default function LoginPage() {
       await requestOtp(phone, 'LOGIN');
       setStage('otp');
       setCooldown(60);
+      cooldownEndRef.current = Date.now() + 60_000;
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));
@@ -143,7 +155,7 @@ export default function LoginPage() {
     setError('');
     try {
       await loginWithOtp(phone, code);
-      localStorage.setItem(LAST_METHOD_KEY, 'otp');
+      try { localStorage.setItem(LAST_METHOD_KEY, 'otp'); } catch {}
       router.replace('/dashboard');
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message;
@@ -161,7 +173,7 @@ export default function LoginPage() {
     setError('');
     try {
       await loginWithPin(phone, code);
-      localStorage.setItem(LAST_METHOD_KEY, 'pin');
+      try { localStorage.setItem(LAST_METHOD_KEY, 'pin'); } catch {}
       router.replace('/dashboard');
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message;
@@ -179,7 +191,7 @@ export default function LoginPage() {
     setError('');
     try {
       await loginWithBiometric(phone);
-      localStorage.setItem(LAST_METHOD_KEY, 'biometric');
+      try { localStorage.setItem(LAST_METHOD_KEY, 'biometric'); } catch {}
       router.replace('/dashboard');
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message ?? err?.message;
@@ -229,12 +241,28 @@ export default function LoginPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* ── Header area ── */}
       {stage === 'input' ? (
-        <>
-          <h2 className="text-3xl font-extrabold text-primary mb-1 tracking-tight">Welcome back</h2>
-          <p className="text-muted mb-8">Sign in to continue delivering</p>
-        </>
+        <div className="text-center space-y-4 mb-8">
+          {/* Rider illustration circle */}
+          <div className="relative mx-auto w-24 h-24">
+            <div className="absolute inset-0 rounded-full bg-brand-500/10 animate-pulse" />
+            <div className="relative w-full h-full rounded-full bg-gradient-to-br from-brand-500/20 to-brand-500/5 border border-brand-500/20 flex items-center justify-center overflow-hidden">
+              <Image
+                src="/images/illustrations/biker-train.svg"
+                alt=""
+                width={68}
+                height={68}
+                className="h-[68px] w-[68px] object-contain drop-shadow-sm"
+                priority
+              />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-2xl font-extrabold text-primary tracking-tight">Welcome back, rider</h2>
+            <p className="text-muted text-sm mt-1">Sign in to start delivering</p>
+          </div>
+        </div>
       ) : (
         <button onClick={goBack} className="flex items-center gap-2 text-muted hover:text-primary transition-colors mb-6 group">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -242,23 +270,23 @@ export default function LoginPage() {
         </button>
       )}
 
-      {/* Error banner */}
+      {/* ── Error banner ── */}
       {error && (
-        <div className="mb-6 p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-3 animate-shake backdrop-blur-sm">
-          <AlertCircle className="h-5 w-5 text-danger-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-danger-300">{error}</p>
+        <div className="mb-6 p-3 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2.5 animate-shake backdrop-blur-sm">
+          <AlertCircle className="h-4 w-4 text-danger-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-danger-300 leading-snug">{error}</p>
         </div>
       )}
 
       {/* ====== Stage: Input (Phone or Email) ====== */}
       {stage === 'input' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Phone / Email toggle */}
-          <div className="flex p-1 rounded-xl bg-card border border-themed-strong">
+          <div className="flex p-1 rounded-2xl bg-card border border-themed-strong">
             <button
               type="button"
               onClick={() => { setTab('phone'); setError(''); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 tab === 'phone'
                   ? 'gradient-brand text-white shadow-md'
                   : 'text-muted hover:text-secondary'
@@ -270,7 +298,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => { setTab('email'); setError(''); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 tab === 'email'
                   ? 'gradient-brand text-white shadow-md'
                   : 'text-muted hover:text-secondary'
@@ -284,7 +312,7 @@ export default function LoginPage() {
           {tab === 'phone' ? (
             <>
               <div>
-                <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
+                <label className="block text-sm font-medium text-secondary mb-2">Phone Number</label>
                 <PhoneInput value={phone} onValueChange={setPhone} />
               </div>
               <Button
@@ -299,7 +327,7 @@ export default function LoginPage() {
           ) : (
             <>
               <div>
-                <label className="block text-sm font-medium text-secondary mb-2.5">Email</label>
+                <label className="block text-sm font-medium text-secondary mb-2">Email</label>
                 <Input
                   type="email"
                   value={email}
@@ -309,7 +337,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-secondary mb-2.5">Password</label>
+                <label className="block text-sm font-medium text-secondary mb-2">Password</label>
                 <div className="relative">
                   <Input
                     type={showPassword ? 'text' : 'password'}
@@ -322,7 +350,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors p-1"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -339,24 +367,33 @@ export default function LoginPage() {
             </>
           )}
 
-          <p className="text-center text-sm text-muted mt-6">
-            Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-brand-400 font-semibold hover:underline">
-              Sign up
-            </Link>
-          </p>
+          {/* Divider + Sign up */}
+          <div className="pt-2">
+            <div className="relative flex items-center gap-4 mb-4">
+              <div className="flex-1 h-px bg-themed" />
+              <span className="text-xs text-subtle font-medium">or</span>
+              <div className="flex-1 h-px bg-themed" />
+            </div>
+            <p className="text-center text-sm text-muted">
+              New rider?{' '}
+              <Link href="/register" className="text-brand-400 font-semibold hover:text-brand-300 transition-colors">
+                Join the team
+              </Link>
+            </p>
+          </div>
         </div>
       )}
 
       {/* ====== Stage: Method Selection ====== */}
       {stage === 'method-select' && (
-        <div className="space-y-4">
-          <div className="text-center mb-6">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
-              <ShieldCheck className="h-6 w-6 text-brand-400" />
+        <div className="space-y-3">
+          <div className="text-center mb-5">
+            <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-brand-500/10 flex items-center justify-center ring-4 ring-brand-500/5">
+              <ShieldCheck className="h-7 w-7 text-brand-400" />
             </div>
-            <p className="text-secondary text-sm">
-              Choose how to sign in as <span className="text-primary font-semibold">{phone}</span>
+            <p className="text-sm font-semibold text-primary mb-0.5">Verify your identity</p>
+            <p className="text-muted text-xs">
+              Signing in as <span className="text-secondary font-medium">{phone}</span>
             </p>
           </div>
 
@@ -365,18 +402,19 @@ export default function LoginPage() {
             <button
               onClick={handleBiometricLogin}
               disabled={submitting}
-              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-themed hover:border-brand-500/50 transition-all group btn-press disabled:opacity-50"
+              className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-themed hover:border-brand-500/40 hover:bg-card-elevated transition-all group btn-press disabled:opacity-50"
             >
-              <div className="h-12 w-12 rounded-xl gradient-brand flex items-center justify-center shrink-0 shadow-lg glow-brand">
-                <Fingerprint className="h-6 w-6 text-white" />
+              <div className="h-11 w-11 rounded-xl gradient-brand flex items-center justify-center shrink-0 shadow-lg glow-brand group-hover:scale-105 transition-transform">
+                <Fingerprint className="h-5 w-5 text-white" />
               </div>
-              <div className="text-left flex-1">
-                <p className="text-primary font-semibold">Fingerprint / Face ID</p>
-                <p className="text-muted text-xs mt-0.5">Quick and secure biometric login</p>
+              <div className="text-left flex-1 min-w-0">
+                <p className="text-primary font-semibold text-sm">Fingerprint / Face ID</p>
+                <p className="text-muted text-xs mt-0.5">Quick and secure</p>
               </div>
-              <div className="text-xs text-brand-400 font-medium px-2 py-1 rounded-lg bg-brand-500/10">
+              <div className="text-[10px] text-brand-400 font-bold px-2 py-1 rounded-lg bg-brand-500/10 shrink-0">
                 Fastest
               </div>
+              <ChevronRight className="h-4 w-4 text-muted shrink-0" />
             </button>
           )}
 
@@ -385,15 +423,16 @@ export default function LoginPage() {
             <button
               onClick={() => { setError(''); setStage('pin'); }}
               disabled={submitting}
-              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-themed hover:border-brand-500/50 transition-all group btn-press disabled:opacity-50"
+              className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-themed hover:border-emerald-500/40 hover:bg-card-elevated transition-all group btn-press disabled:opacity-50"
             >
-              <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
-                <KeyRound className="h-6 w-6 text-emerald-400" />
+              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <KeyRound className="h-5 w-5 text-emerald-400" />
               </div>
-              <div className="text-left flex-1">
-                <p className="text-primary font-semibold">Enter PIN</p>
-                <p className="text-muted text-xs mt-0.5">Use your 6-digit security PIN</p>
+              <div className="text-left flex-1 min-w-0">
+                <p className="text-primary font-semibold text-sm">Enter PIN</p>
+                <p className="text-muted text-xs mt-0.5">Your 6-digit security PIN</p>
               </div>
+              <ChevronRight className="h-4 w-4 text-muted shrink-0" />
             </button>
           )}
 
@@ -401,28 +440,29 @@ export default function LoginPage() {
           <button
             onClick={handleSendOtp}
             disabled={submitting}
-            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-themed hover:border-brand-500/50 transition-all group btn-press disabled:opacity-50"
+            className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-themed hover:border-blue-500/40 hover:bg-card-elevated transition-all group btn-press disabled:opacity-50"
           >
-            <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-              <MessageSquare className="h-6 w-6 text-blue-400" />
+            <div className="h-11 w-11 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <MessageSquare className="h-5 w-5 text-blue-400" />
             </div>
-            <div className="text-left flex-1">
-              <p className="text-primary font-semibold">Send OTP</p>
-              <p className="text-muted text-xs mt-0.5">Get a one-time code via SMS</p>
+            <div className="text-left flex-1 min-w-0">
+              <p className="text-primary font-semibold text-sm">Send OTP</p>
+              <p className="text-muted text-xs mt-0.5">One-time code via SMS</p>
             </div>
+            <ChevronRight className="h-4 w-4 text-muted shrink-0" />
           </button>
         </div>
       )}
 
       {/* ====== Stage: PIN Entry ====== */}
       {stage === 'pin' && (
-        <div className="space-y-6">
-          <div className="text-center mb-4 glass-elevated rounded-2xl p-5">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+        <div className="space-y-5">
+          <div className="text-center glass-elevated rounded-2xl p-5">
+            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center ring-4 ring-emerald-500/5">
               <KeyRound className="h-6 w-6 text-emerald-400" />
             </div>
-            <p className="text-primary font-semibold mb-1">Enter your PIN</p>
-            <p className="text-muted text-sm">
+            <p className="text-primary font-semibold mb-0.5">Enter your PIN</p>
+            <p className="text-muted text-xs">
               6-digit PIN for <span className="text-secondary font-medium">{phone}</span>
             </p>
           </div>
@@ -445,35 +485,34 @@ export default function LoginPage() {
             Sign In
           </Button>
 
-          <div className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-3">
             <button
               onClick={() => { setError(''); setStage('method-select'); }}
               className="text-sm text-muted hover:text-brand-400 transition-colors font-medium"
             >
-              Try a different method
+              Different method
             </button>
-            <div>
-              <Link
-                href={`/forgot-pin?phone=${encodeURIComponent(phone)}`}
-                className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium"
-              >
-                Forgot PIN?
-              </Link>
-            </div>
+            <span className="text-subtle">|</span>
+            <Link
+              href={`/forgot-pin?phone=${encodeURIComponent(phone)}`}
+              className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium"
+            >
+              Forgot PIN?
+            </Link>
           </div>
         </div>
       )}
 
       {/* ====== Stage: OTP Entry ====== */}
       {stage === 'otp' && (
-        <div className="space-y-6">
-          <div className="text-center mb-4 glass-elevated rounded-2xl p-5">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+        <div className="space-y-5">
+          <div className="text-center glass-elevated rounded-2xl p-5">
+            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center ring-4 ring-blue-500/5">
               <MessageSquare className="h-6 w-6 text-blue-400" />
             </div>
-            <p className="text-primary font-semibold mb-1">Enter verification code</p>
-            <p className="text-secondary text-sm">
-              We sent a code to <span className="font-semibold">{phone}</span>
+            <p className="text-primary font-semibold mb-0.5">Enter verification code</p>
+            <p className="text-secondary text-xs">
+              Sent to <span className="font-medium">{phone}</span>
             </p>
           </div>
 
@@ -500,14 +539,18 @@ export default function LoginPage() {
               onClick={() => { setError(''); setStage('method-select'); }}
               className="text-sm text-muted hover:text-brand-400 transition-colors font-medium"
             >
-              Try a different method
+              Different method
             </button>
             <button
               onClick={handleSendOtp}
               disabled={submitting || cooldown > 0}
-              className="text-sm text-muted hover:text-brand-400 transition-colors font-medium disabled:opacity-50"
+              className="text-sm font-medium transition-colors disabled:opacity-50"
             >
-              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+              {cooldown > 0 ? (
+                <span className="text-muted">Resend in <span className="tabular-nums font-semibold text-secondary">{cooldown}s</span></span>
+              ) : (
+                <span className="text-brand-400 hover:text-brand-300">Resend code</span>
+              )}
             </button>
           </div>
         </div>
@@ -517,12 +560,12 @@ export default function LoginPage() {
       {stage === 'biometric' && (
         <div className="space-y-6">
           <div className="text-center py-8">
-            <div className="mx-auto mb-4 h-16 w-16 rounded-2xl gradient-brand flex items-center justify-center shadow-lg glow-brand animate-pulse">
-              <Fingerprint className="h-8 w-8 text-white" />
+            <div className="mx-auto mb-5 h-20 w-20 rounded-3xl gradient-brand flex items-center justify-center shadow-lg glow-brand animate-pulse">
+              <Fingerprint className="h-10 w-10 text-white" />
             </div>
-            <p className="text-primary font-semibold text-lg mb-1">Waiting for biometric...</p>
+            <p className="text-primary font-bold text-lg mb-1">Verifying identity…</p>
             <p className="text-muted text-sm">
-              Use your fingerprint or Face ID to sign in
+              Use your fingerprint or Face ID
             </p>
           </div>
 
@@ -532,7 +575,7 @@ export default function LoginPage() {
             className="w-full rounded-2xl font-semibold"
             onClick={() => { setError(''); setStage('method-select'); }}
           >
-            Cancel & choose another method
+            Cancel
           </Button>
         </div>
       )}

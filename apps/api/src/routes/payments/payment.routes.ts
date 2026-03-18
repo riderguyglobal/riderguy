@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, requireRole, validate, sensitiveRateLimit } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { prisma } from '@riderguy/database';
 import { UserRole } from '@riderguy/types';
@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { paystackService, PaystackService } from '../../services/paystack.service';
 import { logger } from '../../lib/logger';
 import { enqueuePayoutJob } from '../../jobs/queues';
+import { autoDispatch } from '../../services/auto-dispatch.service';
+import { notifyNearbyRiders } from '../../services/notification.service';
 
 const router = Router();
 
@@ -47,6 +49,7 @@ const resolveAccountSchema = z.object({
 router.post(
   '/initialize',
   authenticate,
+  sensitiveRateLimit,
   requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
   validate(initPaymentSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -193,10 +196,40 @@ router.get(
           return;
         }
 
-        await prisma.order.update({
-          where: { id: order.id },
+        // Optimistic update: only mark COMPLETED if still PROCESSING (prevents double-dispatch)
+        const paymentUpdate = await prisma.order.updateMany({
+          where: { id: order.id, paymentStatus: { not: 'COMPLETED' } },
           data: { paymentStatus: 'COMPLETED' },
         });
+
+        // If count is 0, webhook already completed this payment — skip dispatch
+        if (paymentUpdate.count === 0) {
+          res.status(StatusCodes.OK).json({
+            success: true,
+            data: {
+              status: 'success',
+              orderId: order.id,
+              amount: order.totalPrice,
+              currency: order.currency,
+            },
+          });
+          return;
+        }
+
+        // Payment verified — trigger dispatch if order is still waiting
+        if (order.status === 'PENDING' || order.status === 'SEARCHING_RIDER') {
+          autoDispatch(order.id).catch((err) => {
+            logger.error({ err, orderId: order.id }, '[Verify] autoDispatch after payment failed');
+          });
+          notifyNearbyRiders(
+            order.id,
+            order.orderNumber,
+            order.zoneId,
+            order.pickupAddress,
+          ).catch((err) => {
+            logger.error({ err, orderId: order.id }, '[Verify] notifyNearbyRiders after payment failed');
+          });
+        }
 
         res.status(StatusCodes.OK).json({
           success: true,
@@ -266,11 +299,30 @@ router.post(
         });
 
         if (order && order.paymentStatus !== 'COMPLETED') {
-          await prisma.order.update({
-            where: { id: order.id },
+          // Optimistic update: only mark COMPLETED if not already done (prevents double-dispatch with /verify)
+          const webhookUpdate = await prisma.order.updateMany({
+            where: { id: order.id, paymentStatus: { not: 'COMPLETED' } },
             data: { paymentStatus: 'COMPLETED' },
           });
-          logger.info({ orderId: order.id, reference }, 'Order payment completed via webhook');
+
+          if (webhookUpdate.count > 0) {
+            logger.info({ orderId: order.id, reference }, 'Order payment completed via webhook');
+
+            // Payment confirmed — now dispatch the order to riders
+            if (order.status === 'PENDING' || order.status === 'SEARCHING_RIDER') {
+              autoDispatch(order.id).catch((err) => {
+                logger.error({ err, orderId: order.id }, '[Webhook] autoDispatch after payment failed');
+              });
+              notifyNearbyRiders(
+                order.id,
+                order.orderNumber,
+                order.zoneId,
+                order.pickupAddress,
+              ).catch((err) => {
+                logger.error({ err, orderId: order.id }, '[Webhook] notifyNearbyRiders after payment failed');
+              });
+            }
+          }
         }
         break;
       }

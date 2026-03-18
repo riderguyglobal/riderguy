@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, Suspense } from 'react';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { OtpInput, PhoneInput } from '@riderguy/ui';
@@ -36,14 +36,24 @@ function ForgotPinContent() {
   const pinRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const confirmPinRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
+  const cooldownEndRef = useRef(0);
+
+  // Cooldown timer — uses Date.now() delta so it stays correct when iOS backgrounds Safari
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const tick = () => {
+      const remaining = Math.ceil((cooldownEndRef.current - Date.now()) / 1000);
+      setCooldown(remaining > 0 ? remaining : 0);
+    };
+    const timer = setInterval(tick, 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [cooldown > 0]);
+
   const startCooldown = useCallback(() => {
+    cooldownEndRef.current = Date.now() + 60_000;
     setCooldown(60);
-    const interval = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
   }, []);
 
   // Step 1: Request OTP
@@ -266,7 +276,7 @@ function ForgotPinContent() {
           </div>
 
           <button
-            onClick={() => router.push('/login')}
+            onClick={() => router.replace('/login')}
             className="w-full h-13 rounded-2xl brand-gradient text-white font-semibold text-sm shadow-brand hover:shadow-lg transition-all btn-press flex items-center justify-center gap-2"
           >
             Go to Login <ArrowRight className="h-4 w-4" />

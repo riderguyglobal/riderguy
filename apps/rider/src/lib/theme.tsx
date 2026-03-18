@@ -78,7 +78,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
-    localStorage.setItem('riderguy-theme', next);
+    try { localStorage.setItem('riderguy-theme', next); } catch { /* iOS private browsing */ }
     const resolved = resolveTheme(next);
     setResolvedTheme(resolved);
     applyTheme(resolved);

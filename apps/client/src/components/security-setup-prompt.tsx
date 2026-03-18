@@ -40,6 +40,19 @@ export function SecuritySetupPrompt() {
     localStorage.setItem(DISMISS_KEY, Date.now().toString());
   }, []);
 
+  // Android back button trap — dismiss prompt instead of navigating away
+  useEffect(() => {
+    if (!show) return;
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; dismiss(); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
+  }, [show, dismiss]);
+
   const handleSetupBiometric = useCallback(async () => {
     setSettingUpBiometric(true);
     try {
@@ -63,10 +76,10 @@ export function SecuritySetupPrompt() {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={dismiss} />
-      <div className="relative w-full max-w-md mx-4 mb-4 bg-white dark:bg-surface-900 rounded-2xl shadow-elevated overflow-hidden animate-slide-up">
+      <div className="relative w-full max-w-md mx-4 mb-4 bg-white rounded-2xl shadow-elevated overflow-hidden animate-slide-up">
         <button
           onClick={dismiss}
-          className="absolute top-3 right-3 p-1.5 rounded-full text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
+          className="absolute top-3 right-3 p-1.5 rounded-full text-surface-400 hover:bg-surface-100"
         >
           <X className="h-5 w-5" />
         </button>
@@ -77,11 +90,11 @@ export function SecuritySetupPrompt() {
               <Shield className="h-6 w-6 text-brand-500" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-surface-900 dark:text-white">Faster Login</h3>
+              <h3 className="text-lg font-bold text-surface-900">Faster Login</h3>
               <p className="text-sm text-surface-500">Skip OTP next time</p>
             </div>
           </div>
-          <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">
+          <p className="text-sm text-surface-600 mt-2">
             Set up a PIN or fingerprint to log in instantly — no need to wait for an SMS code each time.
           </p>
         </div>
@@ -90,13 +103,13 @@ export function SecuritySetupPrompt() {
           {!hasPIN && (
             <button
               onClick={handleSetupPIN}
-              className="w-full flex items-center gap-3 p-4 rounded-xl bg-surface-50 dark:bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors btn-press"
+              className="w-full flex items-center gap-3 p-4 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors btn-press"
             >
               <div className="p-2 rounded-lg bg-blue-500/10">
                 <Lock className="h-5 w-5 text-blue-500" />
               </div>
               <div className="flex-1 text-left">
-                <p className="font-semibold text-surface-900 dark:text-white">Set a PIN</p>
+                <p className="font-semibold text-surface-900">Set a PIN</p>
                 <p className="text-xs text-surface-500">6-digit code for quick login</p>
               </div>
               <ChevronRight className="h-5 w-5 text-surface-400" />
@@ -107,13 +120,13 @@ export function SecuritySetupPrompt() {
             <button
               onClick={handleSetupBiometric}
               disabled={settingUpBiometric}
-              className="w-full flex items-center gap-3 p-4 rounded-xl bg-surface-50 dark:bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors btn-press disabled:opacity-50"
+              className="w-full flex items-center gap-3 p-4 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors btn-press disabled:opacity-50"
             >
               <div className="p-2 rounded-lg bg-green-500/10">
                 <Fingerprint className="h-5 w-5 text-green-500" />
               </div>
               <div className="flex-1 text-left">
-                <p className="font-semibold text-surface-900 dark:text-white">
+                <p className="font-semibold text-surface-900">
                   {settingUpBiometric ? 'Setting up...' : 'Use Fingerprint'}
                 </p>
                 <p className="text-xs text-surface-500">Login with fingerprint or Face ID</p>

@@ -205,7 +205,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
 
       <button
         onClick={() => setTrafficOn((p) => !p)}
-        className="map-control-btn absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-2 text-xs font-medium shadow-md backdrop-blur transition hover:bg-white dark:bg-neutral-900/90 dark:hover:bg-neutral-800"
+        className="map-control-btn absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-2 text-xs font-medium shadow-md backdrop-blur transition hover:bg-white"
         aria-label={trafficOn ? 'Hide traffic' : 'Show traffic'}
         title={trafficOn ? 'Hide traffic' : 'Show traffic'}
       >

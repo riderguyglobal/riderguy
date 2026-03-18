@@ -175,7 +175,13 @@ export default function JobDetailPage() {
     const isPickup = ['ASSIGNED', 'PICKUP_EN_ROUTE'].includes(order.status);
     const lat = isPickup ? order.pickupLatitude : order.dropoffLatitude;
     const lng = isPickup ? order.pickupLongitude : order.dropoffLongitude;
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    // Use location.href in standalone PWA to avoid breaking out of the app shell
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   if (loading) {

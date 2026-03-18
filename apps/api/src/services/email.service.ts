@@ -325,4 +325,33 @@ export class EmailService {
     );
     return sendMail({ to, subject: 'We received your message — RiderGuy', html });
   }
+
+  static async sendContactNotification(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    subject: string;
+    message: string;
+  }) {
+    const supportEmail = process.env.SUPPORT_EMAIL ?? config.sendgrid.fromEmail;
+    const html = baseLayout(
+      'New Contact Form Submission',
+      `
+      <h2>New Contact Form Submission</h2>
+      <div class="info-row"><span class="info-label">Name</span><span class="info-value">${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}</span></div>
+      <div class="info-row"><span class="info-label">Email</span><span class="info-value">${escapeHtml(data.email)}</span></div>
+      <div class="info-row"><span class="info-label">Subject</span><span class="info-value">${escapeHtml(data.subject)}</span></div>
+      <div class="highlight">
+        <p style="margin:0"><strong>Message:</strong></p>
+        <p style="margin:8px 0 0;white-space:pre-wrap;">${escapeHtml(data.message)}</p>
+      </div>
+      <a href="mailto:${escapeHtml(data.email)}" class="btn">Reply to ${escapeHtml(data.firstName)}</a>
+    `,
+    );
+    return sendMail({
+      to: supportEmail,
+      subject: `[Contact] ${escapeHtml(data.subject)} — ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
+      html,
+    });
+  }
 }

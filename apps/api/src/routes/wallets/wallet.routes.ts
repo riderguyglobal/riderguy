@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, requireRole, validate, sensitiveRateLimit } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { prisma } from '@riderguy/database';
 import { UserRole } from '@riderguy/types';
@@ -7,6 +7,7 @@ import { requestWithdrawalSchema } from '@riderguy/validators';
 import { MIN_WITHDRAWAL_AMOUNT } from '@riderguy/utils';
 import { StatusCodes } from 'http-status-codes';
 import type { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
+import { ApiError } from '../../lib/api-error';
 
 const router = Router();
 
@@ -65,6 +66,7 @@ router.get(
 /** POST /wallets/withdraw */
 router.post(
   '/withdraw',
+  sensitiveRateLimit,
   requireRole(UserRole.RIDER, UserRole.PARTNER),
   validate(requestWithdrawalSchema),
   asyncHandler(async (req, res) => {
@@ -82,7 +84,7 @@ router.post(
       return;
     }
 
-    if (wallet.balance < amount) {
+    if (Number(wallet.balance) < amount) {
       res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance' },
@@ -101,57 +103,65 @@ router.post(
       return;
     }
 
-    // Re-read wallet and debit with optimistic balance guard to prevent race conditions
-    const freshWallet = await prisma.wallet.findUniqueOrThrow({
-      where: { id: wallet.id },
-    });
+    // Atomic debit + transaction record in a single Prisma transaction
+    // Prevents stale balanceAfter and concurrent withdrawal races
+    let withdrawal;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        // Optimistic debit: only succeeds if balance hasn't dropped below amount
+        const debitResult = await tx.wallet.updateMany({
+          where: { id: wallet.id, balance: { gte: amount } },
+          data: { balance: { decrement: amount } },
+        });
 
-    if (freshWallet.balance < amount) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance' },
+        if (debitResult.count === 0) {
+          throw new Error('INSUFFICIENT_BALANCE');
+        }
+
+        // Re-read to get the actual post-debit balance
+        const updatedWallet = await tx.wallet.findUniqueOrThrow({
+          where: { id: wallet.id },
+        });
+
+        const wd = await tx.withdrawal.create({
+          data: {
+            walletId: wallet.id,
+            userId: req.user!.userId,
+            amount,
+            method: method as PrismaPaymentMethod,
+            destination,
+            destinationName,
+            bankCode,
+            status: 'PENDING',
+          },
+        });
+
+        await tx.transaction.create({
+          data: {
+            walletId: wallet.id,
+            type: 'WITHDRAWAL',
+            amount: -amount,
+            balanceAfter: Number(updatedWallet.balance),
+            description: `Withdrawal to ${destinationName}`,
+            referenceId: wd.id,
+            referenceType: 'withdrawal',
+          },
+        });
+
+        return wd;
       });
-      return;
+
+      withdrawal = result;
+    } catch (err: any) {
+      if (err.message === 'INSUFFICIENT_BALANCE') {
+        res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance (concurrent update)' },
+        });
+        return;
+      }
+      throw err;
     }
-
-    // Optimistic debit: only succeeds if balance hasn't dropped below amount
-    const debitResult = await prisma.wallet.updateMany({
-      where: { id: wallet.id, balance: { gte: amount } },
-      data: { balance: { decrement: amount } },
-    });
-
-    if (debitResult.count === 0) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance (concurrent update)' },
-      });
-      return;
-    }
-
-    const withdrawal = await prisma.withdrawal.create({
-      data: {
-        walletId: freshWallet.id,
-        userId: req.user!.userId,
-        amount,
-        method: method as PrismaPaymentMethod,
-        destination,
-        destinationName,
-        bankCode,
-        status: 'PENDING',
-      },
-    });
-
-    await prisma.transaction.create({
-      data: {
-        walletId: freshWallet.id,
-        type: 'WITHDRAWAL',
-        amount: -amount,
-        balanceAfter: Number(freshWallet.balance) - amount,
-        description: `Withdrawal to ${destinationName}`,
-        referenceId: withdrawal.id,
-        referenceType: 'withdrawal',
-      },
-    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: withdrawal });
   })

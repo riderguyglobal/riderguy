@@ -18,7 +18,9 @@ import {
   ChevronRight,
   Navigation,
   ArrowRight,
+  Bell,
 } from 'lucide-react';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
 const ClientMap = dynamic(() => import('@/components/client-map'), { ssr: false });
@@ -44,6 +46,18 @@ export default function DashboardPage() {
     enabled: !!api,
   });
 
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications-unread-count'],
+    queryFn: async () => {
+      const res = await api!.get('/notifications', { params: { pageSize: '1' } });
+      const all = res.data.data ?? [];
+      return { unread: all.filter((n: { isRead: boolean }) => !n.isRead).length };
+    },
+    enabled: !!api,
+    refetchInterval: 30000,
+  });
+  const unreadCount = notifData?.unread ?? 0;
+
   return (
     <div className="animate-page-enter">
       {/* ─── Map Hero (dominant, like Uber) ─── */}
@@ -52,7 +66,7 @@ export default function DashboardPage() {
 
         {/* Floating greeting badge */}
         <div className="absolute top-0 left-0 right-0 safe-area-top pointer-events-none">
-          <div className="px-5 pt-4">
+          <div className="px-5 pt-4 flex items-center justify-between">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-light pointer-events-auto">
               <div className="h-7 w-7 rounded-full bg-surface-900 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">
@@ -66,6 +80,14 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
+            <Link href="/dashboard/notifications" className="relative h-10 w-10 rounded-full glass-light flex items-center justify-center pointer-events-auto">
+              <Bell className="h-5 w-5 text-surface-700" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
           </div>
         </div>
       </div>

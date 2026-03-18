@@ -15,30 +15,27 @@
     --accent: 14 165 233;
   }
 
-  .dark {
-    color-scheme: dark;
-    --brand: 34 197 94;
-    --accent: 14 165 233;
-  }
-
   html {
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior-y: none;
     scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-white dark:bg-surface-950 text-surface-900 dark:text-surface-100 antialiased;
+    @apply bg-white text-surface-900 antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
-    @apply bg-brand-500/20 text-brand-700 dark:text-brand-300;
+    @apply bg-brand-500/20 text-brand-700;
   }
 
   input, textarea, select {
-    @apply text-surface-900 dark:text-surface-100;
+    @apply text-surface-900;
   }
 }
 
@@ -154,15 +151,15 @@
 
   /* ─── Card System (Uber-subtle) ──────────── */
   .card {
-    @apply bg-white dark:bg-surface-900 rounded-2xl;
+    @apply bg-white rounded-2xl;
     box-shadow: 0 1px 3px rgba(0,0,0,.04);
   }
   .card-elevated {
-    @apply bg-white dark:bg-surface-900 rounded-2xl;
+    @apply bg-white rounded-2xl;
     box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 0 1px rgba(0,0,0,.08);
   }
   .card-interactive {
-    @apply bg-white dark:bg-surface-900 rounded-2xl transition-all duration-200;
+    @apply bg-white rounded-2xl transition-all duration-200;
     box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 0 1px rgba(0,0,0,.06);
   }
   .card-interactive:hover {
@@ -174,13 +171,13 @@
 
   /* ─── Bottom Sheet ───────────────────────── */
   .bottom-sheet {
-    @apply bg-white dark:bg-surface-900 rounded-t-[1.75rem];
+    @apply bg-white rounded-t-[1.75rem];
     box-shadow: 0 -4px 24px rgba(0,0,0,.08), 0 -1px 4px rgba(0,0,0,.04);
   }
 
   /* ─── Drag Handle ────────────────────────── */
   .drag-handle {
-    @apply w-10 h-1 rounded-full bg-surface-200 dark:bg-surface-700 mx-auto;
+    @apply w-10 h-1 rounded-full bg-surface-200 mx-auto;
   }
 
   /* ─── Button Press Effect ────────────────── */
@@ -213,7 +210,7 @@
 
   /* ─── Frosted Glass (light) ──────────────── */
   .glass-light {
-    @apply bg-white/85 dark:bg-surface-900/85 backdrop-blur-xl;
+    @apply bg-white/85 backdrop-blur-xl;
     box-shadow: 0 2px 12px rgba(0,0,0,.06);
   }
 
@@ -257,8 +254,8 @@
 
   /* ─── Uber-style Input ───────────────────── */
   .input-uber {
-    @apply w-full h-14 rounded-xl bg-surface-100 dark:bg-surface-800 px-4 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-400 dark:placeholder:text-surface-500;
-    @apply focus:outline-none focus:ring-2 focus:ring-surface-900/10 dark:focus:ring-surface-100/10 transition-all;
+    @apply w-full h-14 rounded-xl bg-surface-100 px-4 text-sm text-surface-900 placeholder:text-surface-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-surface-900/10 transition-all;
   }
 }
 
@@ -280,5 +277,14 @@
 
 /* ─── Focus Ring ─────────────────────────────── */
 *:focus-visible {
-  @apply outline-none ring-2 ring-surface-900/10 dark:ring-surface-100/10 ring-offset-2 ring-offset-white dark:ring-offset-surface-950;
+  @apply outline-none ring-2 ring-surface-900/10 ring-offset-2 ring-offset-white;
+}
+/* ─── Reduced Motion (accessibility + low-end Android) ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

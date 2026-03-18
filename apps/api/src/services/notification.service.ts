@@ -196,8 +196,7 @@ export async function notifyNearbyRiders(
 ) {
   const baseWhere: any = {
     availability: 'ONLINE',
-    // TODO: Re-enable after trial — temporarily bypassed for end-to-end testing
-    // onboardingStatus: 'ACTIVATED',
+    onboardingStatus: 'ACTIVATED',
   };
 
   // Try zone-specific riders first, fallback to all online riders

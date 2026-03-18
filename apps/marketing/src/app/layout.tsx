@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body className="bg-white font-sans text-surface-900 antialiased">
         <SiteHeader />
-        <div className="min-h-screen">{children}</div>
+        <div className="min-h-dvh">{children}</div>
         <SiteFooter />
       </body>
     </html>

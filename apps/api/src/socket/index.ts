@@ -172,7 +172,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
             packageDescription: pendingOrder.packageDescription ?? undefined,
             currency: pendingOrder.currency,
             distanceToPickup: 0,  // re-emit, distance already calculated
-            expiresAt: new Date(Date.now() + 25_000).toISOString(), // give ~25s remaining
+            expiresAt: new Date(Date.now() + pendingOffer.remainingMs).toISOString(),
             isMultiStop: pendingOrder.isMultiStop ?? false,
           });
         }
@@ -229,6 +229,22 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
             },
             select: { id: true },
           });
+
+          // Store breadcrumb for active deliveries (non-blocking)
+          if (activeOrders.length > 0) {
+            prisma.locationHistory.createMany({
+              data: activeOrders.map((order) => ({
+                riderId: riderProfile.id,
+                orderId: order.id,
+                latitude,
+                longitude,
+                heading: heading ?? null,
+                speed: speed ?? null,
+              })),
+            }).catch((err: unknown) => {
+              logger.error({ err, riderId: riderProfile.id }, 'Failed to write location breadcrumb');
+            });
+          }
 
           for (const order of activeOrders) {
             io.to(`order:${order.id}`).emit('rider:location', {

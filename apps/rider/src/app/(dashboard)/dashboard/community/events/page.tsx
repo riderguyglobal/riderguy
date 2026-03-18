@@ -200,6 +200,18 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Android back button trap — close sheet instead of navigating away
+  useEffect(() => {
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; onClose(); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
+  }, [onClose]);
+
   const handleSubmit = async () => {
     if (!form.title || !form.description || !form.date) return;
     setSubmitting(true);
@@ -286,7 +298,9 @@ function CreateEventSheet({ onClose, onCreated }: { onClose: () => void; onCreat
               />
             )}
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="Max capacity (optional)"
               value={form.capacity}
               onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}

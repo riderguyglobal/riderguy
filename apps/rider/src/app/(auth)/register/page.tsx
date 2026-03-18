@@ -31,12 +31,19 @@ export default function RegisterPage() {
   const [cooldown, setCooldown] = useState(0);
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
-  // OTP resend cooldown timer
+  // OTP resend cooldown timer — uses Date.now() delta so it stays correct when iOS backgrounds Safari
+  const cooldownEndRef = useRef(0);
   useEffect(() => {
     if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
+    const tick = () => {
+      const remaining = Math.ceil((cooldownEndRef.current - Date.now()) / 1000);
+      setCooldown(remaining > 0 ? remaining : 0);
+    };
+    const timer = setInterval(tick, 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [cooldown > 0]);
 
   useEffect(() => {
     if (isAuthenticated) router.replace('/dashboard');
@@ -54,6 +61,7 @@ export default function RegisterPage() {
       await requestOtp(phone, 'REGISTRATION');
       setStep(1);
       setCooldown(60);
+      cooldownEndRef.current = Date.now() + 60_000;
     } catch (err: unknown) {
       const msg = (err as any)?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Failed to send OTP'));

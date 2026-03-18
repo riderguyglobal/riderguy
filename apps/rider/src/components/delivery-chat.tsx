@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, X, MessageCircle } from 'lucide-react';
 import { Button, Input } from '@riderguy/ui';
 import { timeAgo } from '@riderguy/utils';
@@ -78,6 +78,36 @@ export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
   // Reset unread when opened
   useEffect(() => {
     if (open) setUnread(0);
+  }, [open]);
+
+  // Lock body scroll when chat panel is open (prevents iOS scroll-through)
+  useEffect(() => {
+    if (!open) return;
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
+  // Android back button trap — close chat instead of navigating away
+  useEffect(() => {
+    if (!open) return;
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; setOpen(false); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
   }, [open]);
 
   const handleSend = () => {

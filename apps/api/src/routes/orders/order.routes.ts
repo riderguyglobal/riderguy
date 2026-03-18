@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, requireRole, validate, sensitiveRateLimit } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import {
@@ -282,7 +282,7 @@ router.get(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DISPATCHER),
   asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const status = req.query.status as string | undefined;
     const zoneId = req.query.zoneId as string | undefined;
 
@@ -309,25 +309,36 @@ router.get(
 /** POST /orders — Create a new delivery order */
 router.post(
   '/',
+  sensitiveRateLimit,
   requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
   validate(createOrderSchema),
   asyncHandler(async (req, res) => {
     const order = await OrderService.createOrder(req.user!.userId, req.body);
 
-    // Auto-dispatch: find the best nearby rider and send targeted offer
-    autoDispatch(order.id).catch((err) => {
-      logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
-    });
+    // Only auto-dispatch immediately for payment methods that don't require
+    // external confirmation. CARD and MOBILE_MONEY orders must wait for the
+    // Paystack webhook (charge.success) before riders are dispatched.
+    const immediateDispatchMethods = ['CASH', 'WALLET'];
+    if (immediateDispatchMethods.includes(order.paymentMethod)) {
+      autoDispatch(order.id).catch((err) => {
+        logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
+      });
 
-    // Also broadcast to job feed as a fallback
-    notifyNearbyRiders(
-      order.id,
-      order.orderNumber,
-      order.zoneId,
-      order.pickupAddress,
-    ).catch((err) => {
-      logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
-    });
+      // Also broadcast to job feed as a fallback
+      notifyNearbyRiders(
+        order.id,
+        order.orderNumber,
+        order.zoneId,
+        order.pickupAddress,
+      ).catch((err) => {
+        logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
+      });
+    } else {
+      logger.info(
+        { orderId: order.id, paymentMethod: order.paymentMethod },
+        '[Orders] Dispatch deferred until payment confirmed',
+      );
+    }
 
     res.status(StatusCodes.CREATED).json({ success: true, data: order });
   }),
@@ -338,7 +349,7 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const status = req.query.status as OrderStatus | undefined;
 
     const result = await OrderService.listOrders(req.user!.userId, req.user!.role, {
@@ -450,15 +461,45 @@ router.patch(
     const role = req.user!.role;
     let previousStatus = '';
     if (role === 'RIDER') {
-      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true, status: true, riderId: true,
+          pickupLatitude: true, pickupLongitude: true,
+          dropoffLatitude: true, dropoffLongitude: true,
+        },
+      });
       if (!order) throw ApiError.notFound('Order not found');
       previousStatus = order.status;
 
       const riderProfile = await prisma.riderProfile.findUnique({
         where: { userId: req.user!.userId },
+        select: { id: true, currentLatitude: true, currentLongitude: true },
       });
       if (!riderProfile || order.riderId !== riderProfile.id) {
         throw ApiError.forbidden('You are not assigned to this order');
+      }
+
+      // Geofence validation: rider must be within 200m of target location
+      const GEOFENCE_RADIUS_KM = 0.2; // 200 metres
+      const geofenceStatuses: Record<string, { lat: number; lng: number } | null> = {
+        AT_PICKUP: { lat: order.pickupLatitude, lng: order.pickupLongitude },
+        AT_DROPOFF: { lat: order.dropoffLatitude, lng: order.dropoffLongitude },
+      };
+      const target = geofenceStatuses[status as string] ?? null;
+      if (target && riderProfile.currentLatitude && riderProfile.currentLongitude) {
+        const dist = TrackingService.haversineKm(
+          riderProfile.currentLatitude,
+          riderProfile.currentLongitude,
+          target.lat,
+          target.lng,
+        );
+        if (dist > GEOFENCE_RADIUS_KM) {
+          throw ApiError.badRequest(
+            `You must be within 200m of the ${status === 'AT_PICKUP' ? 'pickup' : 'dropoff'} location (currently ${Math.round(dist * 1000)}m away)`,
+            'GEOFENCE_VIOLATION',
+          );
+        }
       }
     } else {
       const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -531,6 +572,70 @@ router.get(
       req.user!.userId,
     );
     res.status(StatusCodes.OK).json({ success: true, data: result });
+  }),
+);
+
+/** GET /orders/:id/eta — Get estimated time of arrival for rider */
+router.get(
+  '/:id/eta',
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        clientId: true,
+        riderId: true,
+        status: true,
+        pickupLatitude: true,
+        pickupLongitude: true,
+        dropoffLatitude: true,
+        dropoffLongitude: true,
+        rider: {
+          select: {
+            userId: true,
+            currentLatitude: true,
+            currentLongitude: true,
+          },
+        },
+      },
+    });
+
+    if (!order) throw ApiError.notFound('Order not found');
+
+    const isClient = order.clientId === req.user!.userId;
+    const isRider = order.rider?.userId === req.user!.userId;
+    if (!isClient && !isRider) {
+      throw ApiError.forbidden('You do not have access to this order');
+    }
+
+    if (!order.rider?.currentLatitude || !order.rider?.currentLongitude) {
+      res.status(StatusCodes.OK).json({ success: true, data: { eta: null } });
+      return;
+    }
+
+    // Determine destination: pickup if not yet picked up, dropoff otherwise
+    const prePickupStatuses = ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP'];
+    const destLat = prePickupStatuses.includes(order.status) ? order.pickupLatitude : order.dropoffLatitude;
+    const destLng = prePickupStatuses.includes(order.status) ? order.pickupLongitude : order.dropoffLongitude;
+
+    const eta = await TrackingService.getETA(
+      order.rider.currentLatitude,
+      order.rider.currentLongitude,
+      destLat,
+      destLng,
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        eta: {
+          durationSeconds: eta.durationSeconds,
+          distanceKm: eta.distanceKm,
+          destination: prePickupStatuses.includes(order.status) ? 'PICKUP' : 'DROPOFF',
+        },
+      },
+    });
   }),
 );
 
@@ -618,6 +723,101 @@ router.post(
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: { proofUrl } });
+  }),
+);
+
+/** POST /orders/:id/stops/:stopId/complete — Complete an individual multi-stop delivery stop */
+router.post(
+  '/:id/stops/:stopId/complete',
+  requireRole(UserRole.RIDER),
+  proofUpload.single('file'),
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    const stopId = req.params.stopId as string;
+
+    // Verify rider is assigned
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, riderId: true, status: true, isMultiStop: true },
+    });
+    if (!order) throw ApiError.notFound('Order not found');
+
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { userId: req.user!.userId },
+    });
+    if (!riderProfile || order.riderId !== riderProfile.id) {
+      throw ApiError.forbidden('You are not assigned to this order');
+    }
+
+    if (!order.isMultiStop) {
+      throw ApiError.badRequest('This order is not a multi-stop delivery');
+    }
+
+    // Only allow stop completion during active delivery statuses
+    const activeStatuses = ['PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
+    if (!activeStatuses.includes(order.status)) {
+      throw ApiError.badRequest(`Cannot complete stops while order is ${order.status}`);
+    }
+
+    // Find the stop
+    const stop = await prisma.orderStop.findFirst({
+      where: { id: stopId, orderId },
+    });
+    if (!stop) throw ApiError.notFound('Stop not found');
+
+    if (stop.status === 'COMPLETED') {
+      throw ApiError.badRequest('This stop is already completed');
+    }
+    if (stop.status === 'SKIPPED' || stop.status === 'FAILED') {
+      throw ApiError.badRequest(`This stop has been ${stop.status.toLowerCase()}`);
+    }
+
+    // Handle proof submission for the stop
+    const proofType = (req.body.proofType ?? req.query.proofType) as string | undefined;
+    let proofUrl: string | undefined;
+    let pinCode: string | undefined;
+
+    if (proofType === 'PIN_CODE') {
+      const proofData = req.body.proofData as string;
+      if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
+      pinCode = proofData;
+    } else if (req.file) {
+      const result = await StorageService.uploadFromPath(
+        req.file.path,
+        req.file.originalname,
+        req.file.mimetype,
+        'proofs',
+      );
+      proofUrl = result.url;
+    } else if (req.body.proofData && proofType) {
+      const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');
+      const estimatedSize = Math.ceil(base64Data.length * 0.75);
+      if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
+
+      const result = await StorageService.upload(
+        Buffer.from(base64Data, 'base64'),
+        `stop-proof-${stopId}.png`,
+        'image/png',
+        'proofs',
+      );
+      proofUrl = result.url;
+    }
+
+    // Mark stop as complete
+    const updatedStop = await prisma.orderStop.update({
+      where: { id: stopId },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        ...(proofType ? { proofType: proofType as 'PHOTO' | 'SIGNATURE' | 'PIN_CODE' } : {}),
+        ...(proofUrl ? { proofUrl } : {}),
+        ...(pinCode ? { pinCode } : {}),
+      },
+    });
+
+    logger.info({ orderId, stopId, sequence: stop.sequence }, 'Multi-stop completed');
+
+    res.status(StatusCodes.OK).json({ success: true, data: updatedStop });
   }),
 );
 

@@ -132,7 +132,7 @@ export default function ZoneManagementPage() {
       });
 
       if (!res.ok) {
-        const json = await res.json().catch(() => null);
+        const json = await res.json().catch((): null => null);
         throw new Error(json?.error?.message ?? 'Failed to create zone');
       }
 

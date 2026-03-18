@@ -13,7 +13,8 @@ import type { JobOffer } from '@riderguy/types';
 /** Generate a notification tone using Web Audio API when .mp3 is unavailable */
 function playNotificationTone() {
   try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const ctx = getUnlockedAudioContext();
+    if (!ctx) return;
     const playBeep = (freq: number, start: number, duration: number) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -35,6 +36,46 @@ function playNotificationTone() {
   }
 }
 
+// ── iOS Audio Unlock ──
+// iOS Safari requires a user gesture before AudioContext can produce sound.
+// We create + unlock the context on the first touch/click and reuse it.
+let _audioCtx: AudioContext | null = null;
+let _audioUnlocked = false;
+
+function getUnlockedAudioContext(): AudioContext | null {
+  if (_audioCtx) return _audioCtx;
+  try {
+    _audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    return _audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function unlockAudio() {
+  if (_audioUnlocked) return;
+  const ctx = getUnlockedAudioContext();
+  if (!ctx) return;
+  // Resume suspended context (iOS puts new contexts in 'suspended' state)
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  // Play a silent buffer to fully unlock playback
+  const buf = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0);
+  _audioUnlocked = true;
+}
+
+if (typeof window !== 'undefined') {
+  const unlockEvents = ['touchstart', 'touchend', 'click'];
+  const onFirstInteraction = () => {
+    unlockAudio();
+    unlockEvents.forEach((e) => document.removeEventListener(e, onFirstInteraction, true));
+  };
+  unlockEvents.forEach((e) => document.addEventListener(e, onFirstInteraction, { capture: true, passive: true }));
+}
+
 export function IncomingRequest() {
   const router = useRouter();
   const { socket, respondToOfferAsync } = useSocket();
@@ -45,6 +86,7 @@ export function IncomingRequest() {
   const [respondError, setRespondError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scrollYRef = useRef(0);
 
   const clearOffer = useCallback(() => {
     setOffer(null);
@@ -52,6 +94,36 @@ export function IncomingRequest() {
     if (intervalRef.current) clearInterval(intervalRef.current);
     audioRef.current?.pause();
   }, []);
+
+  // Lock body scroll when offer modal is visible (prevents iOS scroll-through)
+  useEffect(() => {
+    if (!offer) return;
+    scrollYRef.current = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollYRef.current}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollYRef.current);
+    };
+  }, [offer]);
+
+  // Android back button trap — close offer instead of navigating away
+  useEffect(() => {
+    if (!offer) return;
+    let pushed = true;
+    history.pushState({ __backTrap: true }, '');
+    const handlePop = () => { pushed = false; clearOffer(); };
+    window.addEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      if (pushed) history.back();
+    };
+  }, [offer, clearOffer]);
 
   useEffect(() => {
     if (!socket) return;
@@ -131,7 +203,7 @@ export function IncomingRequest() {
         clearOffer();
 
         // Navigate to the active delivery page
-        router.push(`/dashboard/jobs/${orderId}`);
+        router.replace(`/dashboard/jobs/${orderId}`);
       } else if (accepted && !result.success) {
         // Job was already taken or another error
         setRespondError(result.error || 'This job was already taken by another rider');

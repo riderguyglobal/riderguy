@@ -44,7 +44,7 @@ export default function ContactPage() {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
+        const body = await res.json().catch((): null => null);
         throw new Error(body?.message || 'Failed to send message');
       }
 

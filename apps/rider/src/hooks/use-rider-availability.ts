@@ -147,9 +147,41 @@ export function useRiderAvailability() {
       );
     }, HEARTBEAT_INTERVAL);
 
+    // 4. iOS suspends watchPosition when backgrounded — restart on foreground return
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      // Clear potentially stale watch and restart
+      if (watchRef.current != null) {
+        navigator.geolocation.clearWatch(watchRef.current);
+        watchRef.current = null;
+      }
+      // Re-acquire fresh position immediately
+      getPositionWithFallback()
+        .then((pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords;
+          setCoords({ lat, lng });
+          if (connected) emitLocation(lat, lng, pos.coords.heading ?? undefined);
+          api.post('/riders/location', { latitude: lat, longitude: lng }).catch(() => {});
+        })
+        .catch(() => {});
+      // Restart continuous watch
+      watchRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords;
+          setCoords({ lat, lng });
+          setGpsError(null);
+          if (connected) emitLocation(lat, lng, pos.coords.heading ?? undefined);
+        },
+        () => {},
+        HIGH_ACCURACY,
+      );
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
       watchRef.current = null;
       intervalRef.current = null;
     };
