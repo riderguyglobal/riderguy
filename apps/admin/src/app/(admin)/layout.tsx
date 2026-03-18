@@ -27,11 +27,11 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         <aside className="hidden w-64 flex-shrink-0 border-r bg-white lg:block">
           <div className="flex h-16 items-center gap-2 border-b px-6">
             <Image
-              src="/images/branding/logo-black.png"
+              src="/icons/icon-192.png"
               alt="RiderGuy"
-              width={32}
-              height={32}
-              className="h-8 w-auto object-contain"
+              width={192}
+              height={192}
+              className="h-8 w-8 rounded-lg object-cover"
               priority
             />
             <span className="text-sm font-bold text-gray-900">RiderGuy Admin</span>
@@ -66,11 +66,11 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-white px-6">
             <div className="flex items-center gap-2 lg:hidden">
               <Image
-                src="/images/branding/logo-black.png"
+                src="/icons/icon-192.png"
                 alt="RiderGuy"
-                width={28}
-                height={28}
-                className="h-7 w-auto object-contain"
+                width={192}
+                height={192}
+                className="h-7 w-7 rounded-lg object-cover"
               />
               <h2 className="text-lg font-semibold text-gray-900">
                 RiderGuy Admin

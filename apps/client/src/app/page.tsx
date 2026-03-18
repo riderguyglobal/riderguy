@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { Zap, Shield, Clock } from 'lucide-react';
 import { AuthGate } from '@/components/auth-gate';
 import { LandingCTAs } from '@/components/landing-ctas';
@@ -19,18 +20,7 @@ export default function LandingPage() {
 
         <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
           {/* Logo */}
-          <div className="relative mb-8 animate-bounce-in">
-            <div className="absolute inset-0 rounded-3xl bg-brand-500/10 blur-2xl scale-150" />
-            <div className="relative h-24 w-24 rounded-[1.75rem] bg-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(34,197,94,0.12)] border border-surface-100 overflow-hidden">
-              <span className="text-lg font-bold tracking-tight select-none">
-                <span className="text-black">rider</span><span className="text-brand-500">guy</span>
-              </span>
-            </div>
-          </div>
-
-          <h1 className="text-3xl font-extrabold text-surface-900 mb-2 text-center animate-slide-up stagger-1">
-            Rider<span className="text-brand-500">Guy</span>
-          </h1>
+          <Image src="/images/branding/logo-header-black.svg" alt="RiderGuy" width={200} height={50} className="h-10 w-auto mb-4 animate-bounce-in" priority />
           <p className="text-surface-500 text-center max-w-xs mb-8 animate-slide-up stagger-2">
             Send packages across the city. Fast, reliable, with real-time tracking.
           </p>

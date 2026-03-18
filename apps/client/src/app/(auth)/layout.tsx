@@ -46,9 +46,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           {/* Center: Hero copy */}
-          <div className="relative z-10 space-y-6 max-w-lg">
+          <div className="relative z-10 space-y-5 max-w-lg">
             <div className="w-10 h-[3px] bg-brand-500 rounded-full" />
-            <h1 className="text-[6.5rem] xl:text-[8.5rem] font-black leading-[0.88] tracking-tight text-surface-900">
+            <h1 className="text-[4rem] xl:text-[5.5rem] font-black leading-[0.88] tracking-tight text-surface-900">
               Send.<br />
               <span className="text-brand-500">Track.</span><br />
               Arrive.
@@ -69,8 +69,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         {/* ═══ RIGHT HALF — form ═══ */}
-        <div className="w-[46%] flex items-center justify-center px-16 xl:px-24 relative z-10 bg-white">
-          <div className="w-full max-w-[520px] animate-page-enter">{children}</div>
+        <div className="w-[46%] flex items-center justify-center px-12 xl:px-16 relative z-10 bg-white">
+          <div className="w-full max-w-[440px] animate-page-enter">{children}</div>
         </div>
       </div>
 

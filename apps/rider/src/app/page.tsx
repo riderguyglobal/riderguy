@@ -22,10 +22,10 @@ export default function LandingPage() {
         <div className="relative h-16 w-16">
           <div className="absolute inset-0 rounded-full bg-brand-500/20 blur-xl animate-pulse" />
           <Image
-            src="/images/branding/logo-black.png"
+            src="/icons/icon-192.png"
             alt="RiderGuy"
-            width={64}
-            height={64}
+            width={192}
+            height={192}
             className="relative h-16 w-16 object-contain animate-spin-slow"
             priority
           />
@@ -45,13 +45,13 @@ export default function LandingPage() {
 
       {/* Header */}
       <div className="relative z-10 safe-area-top px-6 pt-6 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand overflow-hidden">
+        <div className="h-10 w-10 rounded-xl overflow-hidden shadow-lg">
           <Image
-            src="/images/branding/logo-white.png"
+            src="/icons/icon-192.png"
             alt="RiderGuy"
-            width={28}
-            height={28}
-            className="h-7 w-7 object-contain"
+            width={192}
+            height={192}
+            className="h-10 w-10 object-cover"
             priority
           />
         </div>
@@ -64,16 +64,14 @@ export default function LandingPage() {
           {/* Logo mark */}
           <div className="mx-auto mb-10 relative">
             <div className="absolute inset-0 rounded-3xl bg-brand-500/20 blur-2xl scale-150 animate-pulse-glow" />
-            <div className="relative h-24 w-24 mx-auto rounded-3xl gradient-brand flex items-center justify-center shadow-2xl overflow-hidden">
-              <Image
-                src="/images/branding/logo-white.png"
-                alt="RiderGuy"
-                width={64}
-                height={64}
-                className="h-16 w-16 object-contain"
-                priority
-              />
-            </div>
+            <Image
+              src="/icons/icon-192.png"
+              alt="RiderGuy"
+              width={192}
+              height={192}
+              className="relative h-24 w-24 mx-auto rounded-3xl shadow-2xl"
+              priority
+            />
           </div>
 
           <h1 className="text-4xl font-extrabold text-primary mb-3 tracking-tight">

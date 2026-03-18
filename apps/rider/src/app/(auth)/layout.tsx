@@ -22,13 +22,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <div className="relative z-10 text-center text-white max-w-md">
           {/* Logo */}
-          <div className="mx-auto mb-6 h-16 w-16 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-2xl ring-1 ring-white/20 overflow-hidden">
+          <div className="mx-auto mb-6 h-16 w-16 rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/20">
             <Image
-              src="/images/branding/logo-white.png"
+              src="/icons/icon-192.png"
               alt="RiderGuy"
-              width={44}
-              height={44}
-              className="h-11 w-11 object-contain"
+              width={192}
+              height={192}
+              className="h-16 w-16 object-cover"
               priority
             />
           </div>
@@ -65,13 +65,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Mobile header */}
       <div className="lg:hidden px-6 py-3.5 safe-area-top">
         <Link href="/" className="inline-flex items-center gap-2.5 text-primary btn-press">
-          <div className="h-9 w-9 rounded-xl gradient-brand flex items-center justify-center shadow-lg glow-brand overflow-hidden">
+          <div className="h-9 w-9 rounded-xl overflow-hidden shadow-lg">
             <Image
-              src="/images/branding/logo-white.png"
+              src="/icons/icon-192.png"
               alt="RiderGuy"
-              width={24}
-              height={24}
-              className="h-6 w-6 object-contain"
+              width={192}
+              height={192}
+              className="h-9 w-9 object-cover"
               priority
             />
           </div>

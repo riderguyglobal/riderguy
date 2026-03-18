@@ -5,6 +5,8 @@ import {
   requestOtpSchema,
   verifyOtpSchema,
   registerSchema,
+  emailRegisterSchema,
+  googleAuthSchema,
   refreshTokenSchema,
   loginWithOtpSchema,
   loginWithPinSchema,
@@ -14,6 +16,10 @@ import {
   setPinSchema,
   resetPinSchema,
   checkAuthMethodsSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   webauthnRegisterOptionsSchema,
   webauthnRegisterVerifySchema,
   webauthnLoginOptionsSchema,
@@ -43,6 +49,20 @@ router.post(
   authRateLimit,
   validate(registerSchema),
   asyncHandler(AuthController.register)
+);
+
+router.post(
+  '/register/email',
+  authRateLimit,
+  validate(emailRegisterSchema),
+  asyncHandler(AuthController.registerWithEmail)
+);
+
+router.post(
+  '/google',
+  authRateLimit,
+  validate(googleAuthSchema),
+  asyncHandler(AuthController.googleAuth)
 );
 
 router.post(
@@ -119,6 +139,35 @@ router.post(
   authRateLimit,
   validate(resetPinSchema),
   asyncHandler(AuthController.resetPin)
+);
+
+// Email verification & password reset (public — rate-limited)
+router.post(
+  '/verify-email',
+  authRateLimit,
+  validate(verifyEmailSchema),
+  asyncHandler(AuthController.verifyEmail)
+);
+
+router.post(
+  '/resend-verification',
+  authRateLimit,
+  validate(resendVerificationSchema),
+  asyncHandler(AuthController.resendVerification)
+);
+
+router.post(
+  '/forgot-password',
+  authRateLimit,
+  validate(forgotPasswordSchema),
+  asyncHandler(AuthController.forgotPassword)
+);
+
+router.post(
+  '/reset-password',
+  authRateLimit,
+  validate(resetPasswordSchema),
+  asyncHandler(AuthController.resetPassword)
 );
 
 // WebAuthn (Biometric) — registration requires auth, login is public

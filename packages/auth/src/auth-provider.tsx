@@ -46,14 +46,24 @@ interface AuthContextValue {
   /** Register a new account */
   register: (data: {
     phone: string;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
     email?: string;
     role?: string;
     password?: string;
     pin?: string;
     otpCode: string;
   }) => Promise<void>;
+  /** Register with email (no phone/OTP) */
+  registerWithEmail: (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role?: string;
+  }) => Promise<void>;
+  /** Sign in / sign up with Google */
+  loginWithGoogle: (credential: string, role?: string) => Promise<void>;
   /** Request an OTP */
   requestOtp: (phone: string, purpose: string) => Promise<void>;
   /** Verify an OTP (standalone — e.g. password reset) */
@@ -72,6 +82,16 @@ interface AuthContextValue {
   checkAuthMethods: (phone: string) => Promise<{ otp: boolean; pin: boolean; biometric: boolean }>;
   /** Check if biometric is registered locally for a phone */
   hasBiometricForPhone: (phone: string) => boolean;
+
+  // Email verification & password reset
+  /** Verify email using token from email link */
+  verifyEmail: (token: string) => Promise<void>;
+  /** Resend email verification link */
+  resendVerification: (email: string) => Promise<void>;
+  /** Request a password reset email */
+  forgotPassword: (email: string) => Promise<void>;
+  /** Reset password using token from email link */
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -223,8 +243,8 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
   const register = useCallback(
     async (payload: {
       phone: string;
-      firstName: string;
-      lastName: string;
+      firstName?: string;
+      lastName?: string;
       email?: string;
       role?: string;
       password?: string;
@@ -242,6 +262,62 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       } catch (err: any) {
         const message =
           err.response?.data?.error?.message ?? 'Registration failed. Please try again.';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setLoading, setError, storeLogin]
+  );
+
+  const registerWithEmail = useCallback(
+    async (payload: {
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+      role?: string;
+    }) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.post('/auth/register/email', {
+          ...payload,
+          role: payload.role ?? 'CLIENT',
+        });
+        storeLogin(
+          { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
+          data.data.user
+        );
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ?? 'Registration failed. Please try again.';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setLoading, setError, storeLogin]
+  );
+
+  const loginWithGoogle = useCallback(
+    async (credential: string, role?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.post('/auth/google', {
+          credential,
+          role: role ?? 'CLIENT',
+        });
+        storeLogin(
+          { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
+          data.data.user
+        );
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ?? 'Google sign-in failed. Please try again.';
         setError(message);
         throw err;
       } finally {
@@ -291,6 +367,34 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     [api]
   );
 
+  const verifyEmailAction = useCallback(
+    async (token: string) => {
+      await api.post('/auth/verify-email', { token });
+    },
+    [api]
+  );
+
+  const resendVerificationAction = useCallback(
+    async (email: string) => {
+      await api.post('/auth/resend-verification', { email });
+    },
+    [api]
+  );
+
+  const forgotPasswordAction = useCallback(
+    async (email: string) => {
+      await api.post('/auth/forgot-password', { email });
+    },
+    [api]
+  );
+
+  const resetPasswordAction = useCallback(
+    async (token: string, newPassword: string) => {
+      await api.post('/auth/reset-password', { token, newPassword });
+    },
+    [api]
+  );
+
   const biometricSupported = useMemo(() => isBiometricSupported(), []);
 
   const getAccessToken = useCallback(() => tokenStorage.getAccessToken(), []);
@@ -309,6 +413,8 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       loginWithBiometric,
       loginWithPassword,
       register,
+      registerWithEmail,
+      loginWithGoogle,
       requestOtp,
       verifyOtp,
       logout: logoutAction,
@@ -317,6 +423,10 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       isBiometricSupported: biometricSupported,
       checkAuthMethods: checkAuthMethodsAction,
       hasBiometricForPhone,
+      verifyEmail: verifyEmailAction,
+      resendVerification: resendVerificationAction,
+      forgotPassword: forgotPasswordAction,
+      resetPassword: resetPasswordAction,
     }),
     [
       user,
@@ -330,6 +440,8 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       loginWithBiometric,
       loginWithPassword,
       register,
+      registerWithEmail,
+      loginWithGoogle,
       requestOtp,
       verifyOtp,
       logoutAction,
@@ -337,6 +449,10 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       setupBiometric,
       biometricSupported,
       checkAuthMethodsAction,
+      verifyEmailAction,
+      resendVerificationAction,
+      forgotPasswordAction,
+      resetPasswordAction,
     ]
   );
 

@@ -354,4 +354,46 @@ export class EmailService {
       html,
     });
   }
+
+  // ---- Email verification ----
+  static async sendVerificationEmail(to: string, firstName: string, token: string) {
+    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://riderguy.com';
+    const verifyUrl = `${appUrl}/auth/verify-email?token=${encodeURIComponent(token)}`;
+    const html = baseLayout(
+      'Verify Your Email',
+      `
+      <h2>Verify your email address</h2>
+      <p>Hi ${escapeHtml(firstName || 'there')}, thanks for signing up for RiderGuy!</p>
+      <p>Please click the button below to verify your email address:</p>
+      <div style="text-align:center; margin:24px 0;">
+        <a href="${verifyUrl}" class="btn">Verify Email</a>
+      </div>
+      <p style="font-size:12px; color:#71717a;">If the button doesn't work, copy and paste this link into your browser:</p>
+      <p style="font-size:12px; color:#71717a; word-break:break-all;">${verifyUrl}</p>
+      <p>This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.</p>
+    `,
+    );
+    return sendMail({ to, subject: 'Verify your email — RiderGuy', html });
+  }
+
+  // ---- Password reset ----
+  static async sendPasswordReset(to: string, firstName: string, token: string) {
+    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://riderguy.com';
+    const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+    const html = baseLayout(
+      'Reset Your Password',
+      `
+      <h2>Reset your password</h2>
+      <p>Hi ${escapeHtml(firstName || 'there')}, we received a request to reset your password.</p>
+      <p>Click the button below to choose a new password:</p>
+      <div style="text-align:center; margin:24px 0;">
+        <a href="${resetUrl}" class="btn">Reset Password</a>
+      </div>
+      <p style="font-size:12px; color:#71717a;">If the button doesn't work, copy and paste this link into your browser:</p>
+      <p style="font-size:12px; color:#71717a; word-break:break-all;">${resetUrl}</p>
+      <p>This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email — your password won't change.</p>
+    `,
+    );
+    return sendMail({ to, subject: 'Reset your password — RiderGuy', html });
+  }
 }

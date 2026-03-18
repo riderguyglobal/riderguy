@@ -3,14 +3,28 @@ import { phoneSchema, emailSchema, passwordSchema, pinSchema, requiredStringSche
 
 export const registerSchema = z.object({
   phone: phoneSchema,
-  firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters'),
-  lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters'),
+  firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters').optional().default(''),
+  lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters').optional().default(''),
   email: emailSchema.optional(),
   password: passwordSchema.optional(),
   pin: pinSchema.optional(),
   otpCode: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
   role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
   referralCode: z.string().max(20).optional(),
+});
+
+export const emailRegisterSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters').optional().default(''),
+  lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters').optional().default(''),
+  role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
+  referralCode: z.string().max(20).optional(),
+});
+
+export const googleAuthSchema = z.object({
+  credential: z.string().min(1, 'Google credential is required'),
+  role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']).default('CLIENT'),
 });
 
 export const loginWithOtpSchema = z.object({
@@ -100,6 +114,25 @@ export const checkAuthMethodsSchema = z.object({
   phone: phoneSchema,
 });
 
+// ---- Email Verification ----
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+});
+
+export const resendVerificationSchema = z.object({
+  email: emailSchema,
+});
+
+// ---- Password Reset (email users) ----
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  newPassword: passwordSchema,
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginWithOtpInput = z.infer<typeof loginWithOtpSchema>;
 export type LoginWithPinInput = z.infer<typeof loginWithPinSchema>;
@@ -112,3 +145,7 @@ export type ChangePinInput = z.infer<typeof changePinSchema>;
 export type SetPinInput = z.infer<typeof setPinSchema>;
 export type ResetPinInput = z.infer<typeof resetPinSchema>;
 export type CheckAuthMethodsInput = z.infer<typeof checkAuthMethodsSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

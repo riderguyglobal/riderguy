@@ -43,6 +43,37 @@ export class AuthController {
     });
   }
 
+  /** POST /auth/register/email */
+  static async registerWithEmail(req: Request, res: Response) {
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
+
+    const result = await AuthService.registerWithEmail(req.body, deviceInfo, ipAddress);
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/google */
+  static async googleAuth(req: Request, res: Response) {
+    const { credential, role } = req.body;
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
+
+    const result = await AuthService.authenticateWithGoogle(credential, role, deviceInfo, ipAddress);
+    res.status(result.isNewUser ? StatusCodes.CREATED : StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
   /** POST /auth/login */
   static async loginWithOtp(req: Request, res: Response) {
     const { phone, otp } = req.body;
@@ -281,6 +312,48 @@ export class AuthController {
     res.status(StatusCodes.OK).json({
       success: true,
       data: { message: 'Credential removed' },
+    });
+  }
+
+  // ---- Email verification & password reset ----
+
+  /** POST /auth/verify-email */
+  static async verifyEmail(req: Request, res: Response) {
+    const { token } = req.body;
+    await AuthService.verifyEmail(token);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { message: 'Email verified successfully' },
+    });
+  }
+
+  /** POST /auth/resend-verification */
+  static async resendVerification(req: Request, res: Response) {
+    const { email } = req.body;
+    await AuthService.resendVerificationEmail(email);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { message: 'If that email exists, a verification link has been sent.' },
+    });
+  }
+
+  /** POST /auth/forgot-password */
+  static async forgotPassword(req: Request, res: Response) {
+    const { email } = req.body;
+    await AuthService.requestPasswordReset(email);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { message: 'If that email exists, a password reset link has been sent.' },
+    });
+  }
+
+  /** POST /auth/reset-password */
+  static async resetPassword(req: Request, res: Response) {
+    const { token, newPassword } = req.body;
+    await AuthService.resetPassword(token, newPassword);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { message: 'Password has been reset successfully. Please log in.' },
     });
   }
 

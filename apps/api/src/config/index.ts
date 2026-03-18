@@ -93,6 +93,11 @@ export const config = {
     origins: optionalEnv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003').split(',').map(s => s.trim()),
   },
 
+  // Google OAuth
+  google: {
+    clientId: optionalEnv('GOOGLE_CLIENT_ID', ''),
+  },
+
   // WebAuthn (biometric login)
   webauthn: {
     rpName: optionalEnv('WEBAUTHN_RP_NAME', 'RiderGuy'),

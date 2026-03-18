@@ -33,6 +33,7 @@
     "prettier-plugin-tailwindcss": "^0.6.0",
     "puppeteer-core": "^24.38.0",
     "rimraf": "^6.0.0",
+    "sharp": "^0.34.5",
     "turbo": "^2.3.0"
   },
   "packageManager": "npm@10.8.0"

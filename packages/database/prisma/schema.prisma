@@ -204,6 +204,11 @@ enum OtpPurpose {
   PASSWORD_RESET
 }
 
+enum TokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 enum NotificationType {
   ORDER
   PAYMENT
@@ -225,12 +230,15 @@ model User {
   phoneVerified  Boolean       @default(false)
   emailVerified  Boolean       @default(false)
   passwordHash   String?
+  pinHash        String?
   firstName      String
   lastName       String
   avatarUrl      String?
   role           UserRole        // @deprecated — use `roles` array instead. Kept for backwards compat during migration.
   roles          UserRole[]      @default([])
   status         AccountStatus @default(PENDING_VERIFICATION)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil    DateTime?
   lastLoginAt    DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -270,6 +278,8 @@ model User {
   // Promo code usages
   promoCodeUsages       PromoCodeUsage[]
 
+  emailTokens    EmailToken[]
+
   @@index([phone])
   @@index([email])
   @@index([role, status])
@@ -307,6 +317,22 @@ model Otp {
   @@index([phone, purpose])
   @@index([expiresAt])
   @@map("otps")
+}
+
+model EmailToken {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String       @unique
+  purpose   TokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("email_tokens")
 }
 
 model WebAuthnCredential {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generate PWA icons and favicon for rider and client apps
- * Uses the existing branding logos as source.
+ * Creates a rounded-rect white icon with the riderguy logo centered.
  *
  * Usage: node scripts/generate-icons.js
  */
@@ -10,10 +10,19 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
-const BRAND_COLOR = '#0ea5e9'; // sky-500
-
 // Icon sizes needed
 const SIZES = [32, 192, 512];
+
+/**
+ * Build an SVG rounded-rect mask for the given size.
+ * cornerRadius is ~22% of size (matching iOS app icon radius).
+ */
+function roundedRectSvg(size) {
+  const r = Math.round(size * 0.22);
+  return Buffer.from(
+    `<svg width="${size}" height="${size}"><rect x="0" y="0" width="${size}" height="${size}" rx="${r}" ry="${r}" fill="white"/></svg>`
+  );
+}
 
 async function generateIcons(appDir, logoPath, appName) {
   const iconsDir = path.join(appDir, 'public', 'icons');
@@ -26,36 +35,35 @@ async function generateIcons(appDir, logoPath, appName) {
   console.log(`[${appName}] Source logo: ${logoMeta.width}x${logoMeta.height}`);
 
   for (const size of SIZES) {
-    // For smaller sizes, use more padding
-    const padding = size <= 32 ? Math.round(size * 0.1) : Math.round(size * 0.15);
-    const logoSize = size - padding * 2;
+    // Logo takes up ~92% of the icon width, centered on white
+    const logoWidth = Math.round(size * 0.92);
 
-    const icon = await sharp(logoBuffer)
-      .resize(logoSize, logoSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    const resizedLogo = await sharp(logoBuffer)
+      .resize(logoWidth, null, { fit: 'inside', background: { r: 255, g: 255, b: 255, alpha: 0 } })
       .toBuffer();
 
-    // Create icon with brand-colored background and centered logo
-    const output = await sharp({
+    // White square with logo centered
+    const composited = await sharp({
       create: {
         width: size,
         height: size,
         channels: 4,
-        background: BRAND_COLOR,
+        background: { r: 255, g: 255, b: 255, alpha: 255 },
       },
     })
-      .composite([
-        {
-          input: icon,
-          gravity: 'centre',
-        },
-      ])
+      .composite([{ input: resizedLogo, gravity: 'centre' }])
+      .png()
+      .toBuffer();
+
+    // Apply rounded-rect mask (clip corners)
+    const mask = roundedRectSvg(size);
+    const output = await sharp(composited)
+      .composite([{ input: mask, blend: 'dest-in' }])
       .png()
       .toBuffer();
 
     if (size === 32) {
-      // Save as favicon
       const faviconPath = path.join(appDir, 'public', 'favicon.ico');
-      // Just save as PNG — browsers handle PNG favicons fine
       fs.writeFileSync(faviconPath, output);
       console.log(`[${appName}] Created favicon.ico (${size}x${size})`);
     }
@@ -68,17 +76,21 @@ async function generateIcons(appDir, logoPath, appName) {
 
 async function main() {
   const root = path.resolve(__dirname, '..');
+  const brandingDir = path.resolve(root, '..', 'branding');
 
-  // Rider app — use logo-white.png (white logo on brand background)
-  const riderDir = path.join(root, 'apps', 'rider');
-  const riderLogo = path.join(riderDir, 'public', 'images', 'branding', 'logo-white.png');
+  // Source: the "black on white" logo (black text, green accent, white bg)
+  const sourceLogo = path.join(brandingDir, 'Logo Riderguy black on white.png');
 
-  // Client app — use logo-white.png
+  if (!fs.existsSync(sourceLogo)) {
+    console.error('Source logo not found:', sourceLogo);
+    process.exit(1);
+  }
+
   const clientDir = path.join(root, 'apps', 'client');
-  const clientLogo = path.join(clientDir, 'public', 'images', 'branding', 'logo-white.png');
+  const riderDir = path.join(root, 'apps', 'rider');
 
-  await generateIcons(riderDir, riderLogo, 'rider');
-  await generateIcons(clientDir, clientLogo, 'client');
+  await generateIcons(clientDir, sourceLogo, 'client');
+  await generateIcons(riderDir, sourceLogo, 'rider');
 
   console.log('\n✅ All icons generated successfully!');
 }
