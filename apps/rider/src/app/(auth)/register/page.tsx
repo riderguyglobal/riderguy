@@ -16,7 +16,7 @@ const EMAIL_STEPS = [{ label: 'Email' }, { label: 'Verify' }, { label: 'Details'
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, requestOtp, verifyOtp, isAuthenticated } = useAuth();
+  const { register, requestOtp, verifyOtp, registerWithEmail, isAuthenticated } = useAuth();
 
   const [method, setMethod] = useState<RegisterMethod>('phone');
   const [step, setStep] = useState(0);
@@ -50,6 +50,45 @@ export default function RegisterPage() {
   useEffect(() => {
     if (isAuthenticated) router.replace('/dashboard');
   }, [isAuthenticated, router]);
+
+  // ---- Email flow: single-step registration ----
+  const handleEmailRegister = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('Enter your full name');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    const emailResult = emailSchema.safeParse(email.trim());
+    if (!emailResult.success) {
+      setError(emailResult.error.errors[0]?.message ?? 'Invalid email');
+      return;
+    }
+    const pwResult = passwordSchema.safeParse(password);
+    if (!pwResult.success) {
+      setError(pwResult.error.errors[0]?.message ?? 'Invalid password');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await registerWithEmail({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password,
+        role: 'RIDER',
+      });
+      setStep(3);
+    } catch (err: unknown) {
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || (err instanceof Error ? err.message : 'Registration failed'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSendOtp = async () => {
     const result = phoneSchema.safeParse(phone);
@@ -144,7 +183,10 @@ export default function RegisterPage() {
   };
 
   const handleGoogleClick = () => {
-    if (!GOOGLE_CLIENT_ID) return;
+    if (!GOOGLE_CLIENT_ID) {
+      setError('Google sign-in is not configured yet.');
+      return;
+    }
     const state = crypto.randomUUID();
     try { sessionStorage.setItem('google_oauth_state', state); } catch {}
     const params = new URLSearchParams({
@@ -216,36 +258,13 @@ export default function RegisterPage() {
               Email
             </button>
           </div>
-
-          {/* Google OAuth */}
-          {GOOGLE_CLIENT_ID && (
-            <>
-              <button
-                type="button"
-                onClick={handleGoogleClick}
-                className="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-card border border-themed-strong text-primary font-semibold text-sm hover:bg-hover-themed transition-all btn-press mb-4"
-              >
-                <svg className="h-5 w-5" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                Continue with Google
-              </button>
-              <div className="relative flex items-center gap-4 mb-4">
-                <div className="flex-1 h-px bg-themed" />
-                <span className="text-xs text-subtle font-medium">or</span>
-                <div className="flex-1 h-px bg-themed" />
-              </div>
-            </>
-          )}
         </>
       )}
 
-      {/* Premium step indicator */}
+      {/* Premium step indicator — phone flow only */}
+      {method === 'phone' && (
       <div className="flex items-center gap-0 mb-8">
-        {(method === 'email' ? EMAIL_STEPS : STEPS).map((s, i) => (
+        {STEPS.map((s, i) => (
           <div key={i} className="flex items-center flex-1 last:flex-initial">
             <div className="flex flex-col items-center">
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 ${
@@ -259,7 +278,7 @@ export default function RegisterPage() {
                 i <= step ? 'text-primary' : 'text-subtle'
               }`}>{s.label}</span>
             </div>
-            {i < (method === 'email' ? EMAIL_STEPS : STEPS).length - 1 && (
+            {i < STEPS.length - 1 && (
               <div className={`flex-1 h-0.5 mx-2 mb-5 rounded-full transition-all duration-500 ${
                 i < step ? 'bg-accent-500' : 'bg-skeleton'
               }`} />
@@ -267,6 +286,7 @@ export default function RegisterPage() {
           </div>
         ))}
       </div>
+      )}
 
       {error && (
         <div className="mb-6 p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-3 animate-shake backdrop-blur-sm">
@@ -275,7 +295,7 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {step === 0 && (
+      {step === 0 && method === 'phone' && (
         <div className="space-y-6 animate-slide-up">
           <div>
             <label className="block text-sm font-medium text-secondary mb-2.5">Phone Number</label>
@@ -283,6 +303,76 @@ export default function RegisterPage() {
           </div>
           <Button size="xl" className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold" onClick={handleSendOtp} loading={submitting}>
             Continue
+          </Button>
+        </div>
+      )}
+
+      {step === 0 && method === 'email' && (
+        <div className="space-y-5 animate-slide-up">
+          {/* Google OAuth */}
+              <button
+                type="button"
+                onClick={handleGoogleClick}
+                className="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-card border border-themed-strong text-primary font-semibold text-sm hover:bg-hover-themed transition-all btn-press"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+                Continue with Google
+              </button>
+              <div className="relative flex items-center gap-4">
+                <div className="flex-1 h-px bg-themed" />
+                <span className="text-xs text-subtle font-medium">or</span>
+                <div className="flex-1 h-px bg-themed" />
+              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-2.5">First Name</label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-2.5">Last Name</label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-2.5">Email Address</label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-2.5">
+              <Lock className="inline h-4 w-4 mr-1.5 -mt-0.5 text-muted" />
+              Password
+            </label>
+            <p className="text-xs text-subtle mb-3">At least 8 characters with uppercase, lowercase &amp; number</p>
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a password"
+                className="bg-card border-themed-strong text-primary placeholder:text-subtle rounded-xl h-12 focus:border-brand-500/50 focus:ring-brand-500/20 pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <Button
+            size="xl"
+            className="w-full gradient-accent text-white shadow-lg glow-accent btn-press rounded-2xl font-semibold"
+            onClick={handleEmailRegister}
+            loading={submitting}
+            disabled={submitting || !email || !password || !firstName.trim() || !lastName.trim()}
+          >
+            Create Account
           </Button>
         </div>
       )}

@@ -1,5 +1,6 @@
+import Script from 'next/script';
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Sora } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './globals.css';
@@ -10,6 +11,13 @@ const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
   display: 'swap',
+});
+
+const sora = Sora({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+  weight: ['700', '800'],
 });
 
 export const metadata: Metadata = {
@@ -36,9 +44,9 @@ const themeScript = `(function(){try{var t=localStorage.getItem('riderguy-theme'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${sora.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <Script id="theme-init" strategy="beforeInteractive">{themeScript}</Script>
       </head>
       <body className="font-sans">
         <Providers>{children}</Providers>
