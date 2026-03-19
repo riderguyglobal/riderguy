@@ -26,7 +26,24 @@ import {
   Zap,
   Tag,
   Weight,
+  Clock,
+  Wallet,
+  WifiOff,
 } from 'lucide-react';
+
+/** Haversine distance (km) between two [lng, lat] coordinate pairs */
+function haversineKm(a: [number, number], b: [number, number]): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * sinLng * sinLng;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+const MAX_SERVICE_DISTANCE_KM = 50;
 
 // Lazy-load route preview map (SSR-unsafe)
 const RoutePreviewMap = dynamic(() => import('@/components/route-preview-map'), { ssr: false });
@@ -54,6 +71,39 @@ const QUICK_PACKAGES = PACKAGE_TYPES.filter((p) =>
 
 const MAX_ADDITIONAL_STOPS = 3;
 
+/** Compute a scheduledAt Date based on schedule type and selected time */
+function computeScheduledAt(scheduleType: string, time: string): Date | null {
+  if (scheduleType === 'NOW') return null;
+  const parts = time.split(':').map(Number);
+  const hours = parts[0] ?? 9;
+  const minutes = parts[1] ?? 0;
+  const date = new Date();
+
+  if (scheduleType === 'SAME_DAY') {
+    date.setHours(hours, minutes, 0, 0);
+    // If the chosen time is already past, bump 30 min from now
+    if (date.getTime() <= Date.now()) {
+      return new Date(Date.now() + 30 * 60 * 1000);
+    }
+    return date;
+  }
+
+  if (scheduleType === 'NEXT_DAY') {
+    date.setDate(date.getDate() + 1);
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  }
+
+  if (scheduleType === 'RECURRING') {
+    // First occurrence: tomorrow at selected time
+    date.setDate(date.getDate() + 1);
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  }
+
+  return null;
+}
+
 
 // ── Page Component ──────────────────────────────────
 
@@ -68,6 +118,7 @@ export default function SendPackagePage() {
   const [packageType, setPackageType] = useState('SMALL_PARCEL');
   const [paymentMethod, setPaymentMethod] = useState('MOBILE_MONEY');
   const [scheduleType, setScheduleType] = useState('NOW');
+  const [scheduledTime, setScheduledTime] = useState('09:00');
   const [isExpress, setIsExpress] = useState(false);
   const [packageWeightKg, setPackageWeightKg] = useState<number | undefined>(undefined);
   const [promoCode, setPromoCode] = useState('');
@@ -88,6 +139,7 @@ export default function SendPackagePage() {
   // ── Estimate state ──
   const [estimate, setEstimate] = useState<PriceEstimate | null>(null);
   const [estimating, setEstimating] = useState(false);
+  const estimatedAtRef = useRef<number>(0);
 
   // ── Submission state ──
   const [submitting, setSubmitting] = useState(false);
@@ -102,12 +154,31 @@ export default function SendPackagePage() {
   const photosRef = useRef(packagePhotos);
   photosRef.current = packagePhotos;
 
+  // ── Online / offline detection (#13) ──
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
   // ── Location handlers ──
 
   const handlePickupChange = (loc: LocationValue) => {
     setPickup((prev) => ({ ...prev, location: loc }));
     if (loc.coordinates && !dropoff.location.coordinates) {
-      setTimeout(() => dropoffInputRef.current?.focus(), 100);
+      setTimeout(() => {
+        dropoffInputRef.current?.focus();
+        // Brief pulse to draw attention
+        dropoffInputRef.current?.classList.add('ring-2', 'ring-brand-400');
+        setTimeout(() => dropoffInputRef.current?.classList.remove('ring-2', 'ring-brand-400'), 1500);
+      }, 100);
     }
   };
 
@@ -171,75 +242,100 @@ export default function SendPackagePage() {
     };
   }, []);
 
-  // ── Price estimation ──
+  // ── Price estimation (debounced) ──
+
+  const estimateTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const estimateAbortRef = useRef<AbortController>();
+  const [distanceWarning, setDistanceWarning] = useState('');
 
   useEffect(() => {
     if (!pickup.location.coordinates || !dropoff.location.coordinates || !api) {
       setEstimate(null);
+      setDistanceWarning('');
       return;
     }
 
+    // Service area check (#9)
+    const dist = haversineKm(pickup.location.coordinates, dropoff.location.coordinates);
+    if (dist > MAX_SERVICE_DISTANCE_KM) {
+      setEstimate(null);
+      setDistanceWarning(`Distance is ~${Math.round(dist)} km. Our service currently covers up to ${MAX_SERVICE_DISTANCE_KM} km.`);
+      return;
+    }
+    setDistanceWarning('');
+
+    // Debounce non-location changes (#5, #14) — 400ms
+    // Location changes fire immediately for responsive UX
+    if (estimateTimerRef.current) clearTimeout(estimateTimerRef.current);
+    estimateAbortRef.current?.abort();
+
     const controller = new AbortController();
+    estimateAbortRef.current = controller;
     setEstimating(true);
-    setError('');
 
-    const [lng1, lat1] = pickup.location.coordinates;
-    const [lng2, lat2] = dropoff.location.coordinates;
+    const fire = () => {
+      const [lng1, lat1] = pickup.location.coordinates!;
+      const [lng2, lat2] = dropoff.location.coordinates!;
 
-    const body: Record<string, unknown> = {
-      pickupLatitude: lat1,
-      pickupLongitude: lng1,
-      dropoffLatitude: lat2,
-      dropoffLongitude: lng2,
-      packageType,
-      paymentMethod,
+      const body: Record<string, unknown> = {
+        pickupLatitude: lat1,
+        pickupLongitude: lng1,
+        dropoffLatitude: lat2,
+        dropoffLongitude: lng2,
+        packageType,
+        paymentMethod,
+      };
+
+      const validStops = additionalStops.filter((s) => s.coordinates);
+      if (validStops.length > 0) {
+        body.additionalStops = validStops.length;
+        body.stops = validStops.map((s) => ({
+          type: 'DROPOFF',
+          latitude: s.coordinates![1],
+          longitude: s.coordinates![0],
+        }));
+      }
+      if (scheduleType !== 'NOW') body.scheduleType = scheduleType;
+      const computedScheduledAt = computeScheduledAt(scheduleType, scheduledTime);
+      if (computedScheduledAt) body.scheduledAt = computedScheduledAt.toISOString();
+      if (isExpress) body.isExpress = true;
+      if (packageWeightKg && packageWeightKg > 0) body.packageWeightKg = packageWeightKg;
+      if (promoCode.trim()) body.promoCode = promoCode.trim().toUpperCase();
+
+      api
+        .post('/orders/estimate', body, { signal: controller.signal })
+        .then((res) => {
+          setEstimate(res.data.data ?? null);
+          estimatedAtRef.current = Date.now();
+          setError('');
+        })
+        .catch((err) => {
+          if (err?.code !== 'ERR_CANCELED') {
+            setEstimate(null);
+            // Show estimate error to user (#8)
+            const msg =
+              err?.response?.data?.error?.message ||
+              err?.response?.data?.message ||
+              'Could not get price estimate. Please check your inputs.';
+            setError(msg);
+          }
+        })
+        .finally(() => setEstimating(false));
     };
 
-    // Include additional stops count
-    const validStops = additionalStops.filter((s) => s.coordinates);
-    if (validStops.length > 0) {
-      body.additionalStops = validStops.length;
-    }
+    estimateTimerRef.current = setTimeout(fire, 400);
 
-    // Include schedule type
-    if (scheduleType !== 'NOW') {
-      body.scheduleType = scheduleType;
-    }
-
-    // Include express delivery option
-    if (isExpress) {
-      body.isExpress = true;
-    }
-
-    // Include package weight
-    if (packageWeightKg && packageWeightKg > 0) {
-      body.packageWeightKg = packageWeightKg;
-    }
-
-    // Include promo code
-    if (promoCode.trim()) {
-      body.promoCode = promoCode.trim().toUpperCase();
-    }
-
-    api
-      .post('/orders/estimate', body, { signal: controller.signal })
-      .then((res) => {
-        setEstimate(res.data.data ?? null);
-      })
-      .catch((err) => {
-        if (err?.code !== 'ERR_CANCELED') {
-          setEstimate(null);
-        }
-      })
-      .finally(() => setEstimating(false));
-
-    return () => controller.abort();
+    return () => {
+      if (estimateTimerRef.current) clearTimeout(estimateTimerRef.current);
+      controller.abort();
+    };
   }, [
     pickup.location.coordinates,
     dropoff.location.coordinates,
     packageType,
     paymentMethod,
     scheduleType,
+    scheduledTime,
     additionalStops,
     isExpress,
     packageWeightKg,
@@ -252,6 +348,7 @@ export default function SendPackagePage() {
   const uploadPackagePhotos = async (): Promise<string[]> => {
     if (!api || packagePhotos.length === 0) return [];
     const urls: string[] = [];
+    let failedCount = 0;
     for (const { file } of packagePhotos) {
       try {
         const formData = new FormData();
@@ -260,9 +357,16 @@ export default function SendPackagePage() {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         if (res.data?.data?.url) urls.push(res.data.data.url);
+        else failedCount++;
       } catch {
-        // Skip failed uploads
+        failedCount++;
       }
+    }
+    if (failedCount > 0 && urls.length === 0) {
+      throw new Error(`All ${failedCount} photo upload(s) failed. Please try again.`);
+    }
+    if (failedCount > 0) {
+      setError(`${failedCount} photo(s) failed to upload — continuing with ${urls.length}.`);
     }
     return urls;
   };
@@ -270,11 +374,14 @@ export default function SendPackagePage() {
   // ── Can submit? ──
 
   const canSubmit =
+    !!api &&
+    isOnline &&
     !!pickup.location.address &&
     !!pickup.location.coordinates &&
     !!dropoff.location.address &&
     !!dropoff.location.coordinates &&
-    !!estimate;
+    !!estimate &&
+    !distanceWarning;
 
   // ── Submit handler ──
 
@@ -295,13 +402,15 @@ export default function SendPackagePage() {
         dropoffLongitude: dropoff.location.coordinates![0],
         packageType,
         paymentMethod,
+        // Send confirmed estimate so server can reject if price drifted significantly
+        estimatedTotalPrice: estimate?.totalPrice,
       };
 
       if (isExpress) body.isExpress = true;
       if (packageWeightKg && packageWeightKg > 0) body.packageWeightKg = packageWeightKg;
       if (promoCode.trim()) body.promoCode = promoCode.trim().toUpperCase();
 
-      if (photoUrls.length > 0) body.packagePhotoUrl = photoUrls[0];
+      if (photoUrls.length > 0) body.packagePhotoUrl = photoUrls.join(',');
       if (pickup.contactName) body.pickupContactName = pickup.contactName;
       if (pickup.contactPhone) body.pickupContactPhone = pickup.contactPhone;
       if (pickup.notes) body.pickupInstructions = pickup.notes;
@@ -322,14 +431,19 @@ export default function SendPackagePage() {
       }
 
       // Scheduling
-      if (scheduleType !== 'NOW' && scheduleType !== 'SAME_DAY') {
-        body.isScheduled = true;
+      if (scheduleType !== 'NOW') {
+        body.scheduleType = scheduleType;
+        const scheduledAt = computeScheduledAt(scheduleType, scheduledTime);
+        if (scheduledAt) {
+          body.isScheduled = true;
+          body.scheduledAt = scheduledAt.toISOString();
+        }
       }
 
       const res = await api.post('/orders', body);
       const orderId = res.data.data?.id;
 
-      if (orderId && paymentMethod !== 'CASH') {
+      if (orderId && paymentMethod !== 'CASH' && paymentMethod !== 'WALLET') {
         router.replace(`/dashboard/orders/${orderId}/payment`);
       } else {
         router.replace(orderId ? `/dashboard/orders/${orderId}/tracking` : '/dashboard/orders');
@@ -342,12 +456,12 @@ export default function SendPackagePage() {
         err?.response?.data?.message ||
         (err instanceof Error ? err.message : 'Failed to create order.');
       setError(message);
-      throw err;
+      return null;
     } finally {
       setSubmitting(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, canSubmit, pickup, dropoff, packageType, paymentMethod, additionalStops, scheduleType, packagePhotos, isExpress, packageWeightKg, promoCode]);
+  }, [api, canSubmit, submitting, pickup, dropoff, packageType, paymentMethod, additionalStops, scheduleType, scheduledTime, estimate, packagePhotos, isExpress, packageWeightKg, promoCode]);
 
   // ── Render ──
 
@@ -367,6 +481,14 @@ export default function SendPackagePage() {
       </div>
 
       <div className="flex-1 px-5 py-5 space-y-5 pb-32">
+        {/* ── Offline banner ── */}
+        {!isOnline && (
+          <div className="p-3.5 rounded-xl bg-surface-100 flex items-center gap-2.5">
+            <WifiOff className="h-4 w-4 text-surface-500 shrink-0" />
+            <p className="text-sm font-medium text-surface-600">You&apos;re offline — reconnect to send packages.</p>
+          </div>
+        )}
+
         {/* ── Error banner ── */}
         {error && !showConfirmation && (
           <div className="p-3.5 rounded-xl bg-danger-50 flex items-start gap-2.5 animate-shake">
@@ -452,6 +574,14 @@ export default function SendPackagePage() {
           />
         )}
 
+        {/* Distance warning */}
+        {distanceWarning && (
+          <div className="p-3.5 rounded-xl bg-amber-50 flex items-start gap-2.5">
+            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-700">{distanceWarning}</p>
+          </div>
+        )}
+
         {/* ═══════════════════════════════════════════
             Section 2: Package Type — pills
             ═══════════════════════════════════════════ */}
@@ -515,6 +645,26 @@ export default function SendPackagePage() {
               );
             })}
           </div>
+
+          {/* Time picker — shown for SAME_DAY, NEXT_DAY, RECURRING */}
+          {scheduleType !== 'NOW' && (
+            <div className="flex items-center gap-3 mt-3 px-4 py-2.5 bg-surface-50 rounded-xl animate-slide-up">
+              <Clock className="h-4 w-4 text-surface-400 shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-surface-500">
+                  {scheduleType === 'SAME_DAY' ? 'Pickup time today' :
+                   scheduleType === 'NEXT_DAY' ? 'Pickup time tomorrow' :
+                   'First pickup time'}
+                </p>
+              </div>
+              <input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="bg-transparent text-sm font-semibold text-surface-800 outline-none"
+              />
+            </div>
+          )}
         </div>
 
         {/* ═══════════════════════════════════════════
@@ -527,6 +677,7 @@ export default function SendPackagePage() {
               { value: 'MOBILE_MONEY', label: 'MoMo', icon: Smartphone },
               { value: 'CASH', label: 'Cash', icon: Banknote },
               { value: 'CARD', label: 'Card', icon: CreditCard },
+              { value: 'WALLET', label: 'Wallet', icon: Wallet },
             ].map((m) => {
               const active = paymentMethod === m.value;
               return (
@@ -588,6 +739,7 @@ export default function SendPackagePage() {
                 value={packageWeightKg ?? ''}
                 onChange={(e) => {
                   const v = e.target.value ? parseFloat(e.target.value) : undefined;
+                  if (v !== undefined && v > 200) return; // Max 200kg
                   setPackageWeightKg(v && v > 0 ? v : undefined);
                 }}
                 placeholder="Optional"
@@ -651,8 +803,9 @@ export default function SendPackagePage() {
                   type="tel"
                   inputMode="tel"
                   value={pickup.contactPhone}
-                  onChange={(e) => setPickup({ ...pickup, contactPhone: e.target.value })}
-                  placeholder="Phone"
+                  onChange={(e) => setPickup({ ...pickup, contactPhone: e.target.value.replace(/[^\d+\s()-]/g, '') })}
+                  placeholder="0XX XXX XXXX"
+                  maxLength={15}
                   className="input-uber text-sm !h-12"
                 />
               </div>
@@ -678,8 +831,9 @@ export default function SendPackagePage() {
                   type="tel"
                   inputMode="tel"
                   value={dropoff.contactPhone}
-                  onChange={(e) => setDropoff({ ...dropoff, contactPhone: e.target.value })}
-                  placeholder="Phone"
+                  onChange={(e) => setDropoff({ ...dropoff, contactPhone: e.target.value.replace(/[^\d+\s()-]/g, '') })}
+                  placeholder="0XX XXX XXXX"
+                  maxLength={15}
                   className="input-uber text-sm !h-12"
                 />
               </div>
@@ -717,15 +871,15 @@ export default function SendPackagePage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
                     <button
                       onClick={() => removePhoto(idx)}
-                      className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => removePhoto(idx)}
-                      className="absolute bottom-1 right-1 h-5 w-5 rounded-full bg-black/50 text-white flex items-center justify-center md:hidden"
+                      className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center md:hidden"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}
@@ -804,6 +958,9 @@ export default function SendPackagePage() {
           additionalStops={additionalStops.filter((s) => s.coordinates).length}
           packagePhotos={packagePhotos}
           isExpress={isExpress}
+          submitting={submitting}
+          submitError={error}
+          estimatedAt={estimatedAtRef.current}
           onConfirm={handleConfirm}
         />
       )}

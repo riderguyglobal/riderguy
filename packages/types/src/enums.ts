@@ -101,6 +101,7 @@ export enum PackageType {
   FOOD = 'FOOD',
   FRAGILE = 'FRAGILE',
   HIGH_VALUE = 'HIGH_VALUE',
+  OTHER = 'OTHER',
 }
 
 /** Proof of delivery method */
@@ -185,4 +186,41 @@ export enum ZoneStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
   FULL = 'FULL',
+}
+
+/** Stop type within a multi-stop order */
+export enum StopType {
+  PICKUP = 'PICKUP',
+  DROPOFF = 'DROPOFF',
+}
+
+/** Status of an individual stop */
+export enum StopStatus {
+  PENDING = 'PENDING',
+  EN_ROUTE = 'EN_ROUTE',
+  ARRIVED = 'ARRIVED',
+  COMPLETED = 'COMPLETED',
+  SKIPPED = 'SKIPPED',
+  FAILED = 'FAILED',
+}
+
+/** Schedule frequency for recurring deliveries */
+export enum ScheduleFrequency {
+  ONCE = 'ONCE',
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  BIWEEKLY = 'BIWEEKLY',
+  MONTHLY = 'MONTHLY',
+  CUSTOM = 'CUSTOM',
+}
+
+/** Notification type categories */
+export enum NotificationType {
+  ORDER = 'ORDER',
+  PAYMENT = 'PAYMENT',
+  SYSTEM = 'SYSTEM',
+  COMMUNITY = 'COMMUNITY',
+  TRAINING = 'TRAINING',
+  GAMIFICATION = 'GAMIFICATION',
+  PROMOTION = 'PROMOTION',
 }

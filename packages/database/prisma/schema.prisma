@@ -658,6 +658,8 @@ model Order {
   // Scheduling
   isScheduled           Boolean            @default(false)
   scheduledAt           DateTime?
+  scheduleType          String?            // NOW, SAME_DAY, NEXT_DAY, RECURRING
+  scheduleDiscount      Float              @default(1.0)
 
   // Multi-stop support
   isMultiStop           Boolean            @default(false)

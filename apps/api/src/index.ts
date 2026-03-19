@@ -7,6 +7,7 @@ import { initSocketServer } from './socket';
 import { startWorkers, stopWorkers } from './jobs/workers';
 import { startPresenceManager, stopPresenceManager } from './services/presence.service';
 import { recoverStuckDispatches } from './services/auto-dispatch.service';
+import { expireStaleUnpaidOrders } from './services/order.service';
 import { closeRedis } from './lib/redis';
 
 // ============================================================
@@ -24,6 +25,8 @@ startWorkers();
 // Start rider presence manager (heartbeat tracking, stale-rider cleanup)
 startPresenceManager();
 
+let staleOrderTimer: ReturnType<typeof setInterval> | undefined;
+
 const server = httpServer.listen(config.port, () => {
   logger.info(
     { port: config.port, env: config.nodeEnv },
@@ -34,6 +37,16 @@ const server = httpServer.listen(config.port, () => {
   recoverStuckDispatches().catch((err) => {
     logger.error({ err }, 'Failed to recover stuck dispatches on startup');
   });
+
+  // Expire stale unpaid orders on startup and every 5 minutes
+  expireStaleUnpaidOrders()
+    .then((n) => n > 0 && logger.info({ count: n }, 'Expired stale unpaid orders on startup'))
+    .catch((err) => logger.error({ err }, 'Failed to expire stale orders on startup'));
+  staleOrderTimer = setInterval(() => {
+    expireStaleUnpaidOrders()
+      .then((n) => n > 0 && logger.info({ count: n }, 'Expired stale unpaid orders'))
+      .catch((err) => logger.error({ err }, 'Stale order cleanup failed'));
+  }, 5 * 60 * 1000);
 });
 
 // ---------- Graceful shutdown ----------
@@ -45,6 +58,7 @@ for (const signal of signals) {
     logger.info({ signal }, 'Received shutdown signal');
     server.close(async () => {
       logger.info('HTTP server closed');
+      if (staleOrderTimer) clearInterval(staleOrderTimer);
       await stopPresenceManager();
       logger.info('Presence manager stopped');
       await stopWorkers();

@@ -56,6 +56,7 @@ export function LocationInput({
   const inputRef = externalRef || internalRef;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [locating, setLocating] = useState(false);
+  const [geoAccuracy, setGeoAccuracy] = useState<number | null>(null);
   const [showGoogleMapsModal, setShowGoogleMapsModal] = useState(false);
 
   // Sync external value changes into the autocomplete query
@@ -93,6 +94,7 @@ export function LocationInput({
     // Retrieve full details (coordinates) from Search Box
     const place = await ac.retrieve(suggestion);
     if (place) {
+      setGeoAccuracy(null);
       const displayAddress = place.plusCode
         ? `${place.fullAddress} (${place.plusCode.display})`
         : place.fullAddress;
@@ -107,6 +109,7 @@ export function LocationInput({
   const handleClear = () => {
     ac.clear();
     onChange({ address: '', coordinates: null });
+    setGeoAccuracy(null);
     inputRef.current?.focus();
   };
 
@@ -116,6 +119,7 @@ export function LocationInput({
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const [lng, lat] = [pos.coords.longitude, pos.coords.latitude];
+        setGeoAccuracy(pos.coords.accuracy);
         const result = await reverseGeocode(lat, lng);
         const displayAddress = result.plusCode
           ? `${result.address} (${result.plusCode.display})`
@@ -133,6 +137,7 @@ export function LocationInput({
   };
 
   const handleGoogleMapsLocation = (value: LocationValue) => {
+    setGeoAccuracy(null);
     onChange(value);
     ac.setQuery(value.address);
     ac.setOpen(false);
@@ -192,6 +197,13 @@ export function LocationInput({
           </button>
         )}
       </div>
+
+      {/* GPS accuracy notice */}
+      {hasSelection && geoAccuracy !== null && geoAccuracy > 100 && (
+        <p className="text-[10px] text-amber-600 mt-1 ml-1">
+          GPS accuracy ~{Math.round(geoAccuracy)}m — consider searching the address for a more precise pin.
+        </p>
+      )}
 
       {/* ── Suggestions dropdown ── */}
       {ac.open && ac.results.length > 0 && (

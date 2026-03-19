@@ -128,9 +128,10 @@ export default function RoutePreviewMap({
     fitBoundsToCoords(map, mapboxglLib, [pickupCoords, dropoffCoords], MAP_PADDING.compact);
 
     // Fetch and draw route
+    let stale = false;
     (async () => {
       const routes = await fetchDirections([pickupCoords, dropoffCoords]);
-      if (!routes?.[0]) return;
+      if (stale || !routes?.[0]) return;
 
       // Primary route
       drawRoute(map, mapboxglLib, {
@@ -149,6 +150,8 @@ export default function RoutePreviewMap({
         drawAlternativeRoute(map, routes[1].geometry);
       }
     })();
+
+    return () => { stale = true; };
   }, [mapReady, pickupCoords, dropoffCoords, fetchDirections]);
 
   return (

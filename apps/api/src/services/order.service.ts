@@ -149,9 +149,11 @@ export async function createOrder(
     paymentMethod: PaymentMethod;
     isScheduled?: boolean;
     scheduledAt?: string;
+    scheduleType?: 'SAME_DAY' | 'NEXT_DAY' | 'RECURRING';
     isExpress?: boolean;
     packageWeightKg?: number;
     promoCode?: string;
+    estimatedTotalPrice?: number;
     stops?: Array<{
       type: 'PICKUP' | 'DROPOFF';
       sequence: number;
@@ -186,6 +188,7 @@ export async function createOrder(
     input.packageType,
     {
       additionalStops,
+      scheduleType: input.scheduleType,
       isExpress: input.isExpress,
       packageWeightKg: input.packageWeightKg,
       paymentMethod: input.paymentMethod,
@@ -194,6 +197,17 @@ export async function createOrder(
       routeDistanceKm,
     },
   );
+
+  // Reject if actual price drifted >15% from client-side estimate
+  if (input.estimatedTotalPrice != null && input.estimatedTotalPrice > 0) {
+    const drift = Math.abs(price.totalPrice - input.estimatedTotalPrice) / input.estimatedTotalPrice;
+    if (drift > 0.15) {
+      throw new ApiError(
+        409,
+        `Price changed significantly since your estimate (${input.estimatedTotalPrice.toFixed(2)} → ${price.totalPrice.toFixed(2)}). Please review the updated price and try again.`,
+      );
+    }
+  }
 
   // If promo code used, record usage
   let promoCodeId: string | undefined;
@@ -256,6 +270,8 @@ export async function createOrder(
       deliveryPinCode: generateDeliveryPin(),
       isScheduled: input.isScheduled ?? false,
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+      scheduleType: input.scheduleType ?? null,
+      scheduleDiscount: price.scheduleDiscount,
       isMultiStop: !!(input.stops && input.stops.length > 0),
       stops: input.stops && input.stops.length > 0
         ? {
@@ -835,4 +851,56 @@ export async function getAvailableJobs(userId: string) {
   });
 
   return orders;
+}
+
+// ── Stale unpaid order cleanup ──────────────────────
+
+const STALE_ORDER_MINUTES = 30;
+
+/**
+ * Cancel orders that have been PENDING with non-CASH/WALLET payment
+ * for longer than STALE_ORDER_MINUTES. Called on server startup and
+ * then periodically.
+ */
+export async function expireStaleUnpaidOrders(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_ORDER_MINUTES * 60 * 1000);
+
+  const staleOrders = await prisma.order.findMany({
+    where: {
+      status: 'PENDING',
+      paymentStatus: 'PENDING',
+      paymentMethod: { notIn: ['CASH', 'WALLET'] },
+      createdAt: { lt: cutoff },
+    },
+    select: { id: true, orderNumber: true },
+  });
+
+  let expired = 0;
+  for (const order of staleOrders) {
+    try {
+      await prisma.$transaction([
+        prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'CANCELLED_BY_ADMIN',
+            cancelledAt: new Date(),
+            failureReason: `Auto-cancelled: payment not received within ${STALE_ORDER_MINUTES} minutes`,
+          },
+        }),
+        prisma.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            status: 'CANCELLED_BY_ADMIN',
+            actor: 'system',
+            note: `Payment timeout — order expired after ${STALE_ORDER_MINUTES}m`,
+          },
+        }),
+      ]);
+      expired++;
+    } catch {
+      // Log but continue — don't let one failure block the rest
+    }
+  }
+
+  return expired;
 }

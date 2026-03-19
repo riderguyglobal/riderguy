@@ -68,7 +68,7 @@ export const createAnnouncementSchema = z.object({
   body: z.string().min(10, 'Body too short').max(10000),
   priority: z.number().int().min(0).max(2).default(0),
   targetZones: z.array(z.string()).default([]),
-  targetRoles: z.array(z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER'])).default(['RIDER']),
+  targetRoles: z.array(z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER', 'DISPATCHER', 'ADMIN', 'SUPER_ADMIN'])).default(['RIDER']),
   isPublished: z.boolean().default(false),
   expiresAt: z.string().datetime().optional(),
 });
@@ -78,7 +78,7 @@ export const updateAnnouncementSchema = z.object({
   body: z.string().min(10).max(10000).optional(),
   priority: z.number().int().min(0).max(2).optional(),
   targetZones: z.array(z.string()).optional(),
-  targetRoles: z.array(z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER'])).optional(),
+  targetRoles: z.array(z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER', 'DISPATCHER', 'ADMIN', 'SUPER_ADMIN'])).optional(),
   isPublished: z.boolean().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
 });

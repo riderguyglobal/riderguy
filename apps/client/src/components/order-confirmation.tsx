@@ -1,8 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@riderguy/auth';
+import { useEffect, useRef } from 'react';
 import { formatCurrency } from '@riderguy/utils';
 import { PACKAGE_TYPES } from '@/lib/constants';
 import { PriceBreakdown, type PriceEstimate } from './price-breakdown';
@@ -21,6 +19,7 @@ import {
   Layers,
   AlertCircle,
   Zap,
+  Wallet,
 } from 'lucide-react';
 
 interface LocationData {
@@ -42,6 +41,12 @@ interface OrderConfirmationProps {
   additionalStops: number;
   packagePhotos: { file: File; preview: string }[];
   isExpress?: boolean;
+  /** Whether the parent is currently submitting the order */
+  submitting: boolean;
+  /** Error message from the parent submission, if any */
+  submitError: string;
+  /** Timestamp (ms) when the estimate was last fetched */
+  estimatedAt: number;
   /** Callback that does the actual order creation; returns order ID on success */
   onConfirm: () => Promise<string | null>;
 }
@@ -64,10 +69,11 @@ export function OrderConfirmation({
   additionalStops,
   packagePhotos,
   isExpress,
+  submitting,
+  submitError,
+  estimatedAt,
   onConfirm,
 }: OrderConfirmationProps) {
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState('');
   const scrollYRef = useRef(0);
 
   // Lock body scroll when open — prevents iOS scroll-through-modal bug
@@ -107,33 +113,24 @@ export function OrderConfirmation({
   const paymentLabel =
     paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' :
     paymentMethod === 'CASH' ? 'Cash' :
-    paymentMethod === 'CARD' ? 'Card' : paymentMethod;
+    paymentMethod === 'CARD' ? 'Card' :
+    paymentMethod === 'WALLET' ? 'Wallet' : paymentMethod;
 
   const paymentIcon =
     paymentMethod === 'MOBILE_MONEY' ? <Smartphone className="h-4 w-4" /> :
     paymentMethod === 'CASH' ? <Banknote className="h-4 w-4" /> :
+    paymentMethod === 'WALLET' ? <Wallet className="h-4 w-4" /> :
     <CreditCard className="h-4 w-4" />;
 
   const scheduleLabel =
     scheduleType === 'NEXT_DAY' ? 'Next Day (5% off)' :
     scheduleType === 'RECURRING' ? 'Recurring (10% off)' :
+    scheduleType === 'SAME_DAY' ? 'Today (scheduled)' :
     'Now';
 
   const handleConfirm = async () => {
-    if (confirming) return; // Prevent double-submit
-    setConfirming(true);
-    setError('');
-    try {
-      await onConfirm();
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.error?.message ||
-        err?.response?.data?.message ||
-        (err instanceof Error ? err.message : 'Failed to create order.');
-      setError(message);
-    } finally {
-      setConfirming(false);
-    }
+    if (submitting) return;
+    onConfirm();
   };
 
   return (
@@ -141,7 +138,7 @@ export function OrderConfirmation({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/40 z-40 animate-fade-in"
-        onClick={!confirming ? onClose : undefined}
+        onClick={!submitting ? onClose : undefined}
       />
 
       {/* Sheet */}
@@ -155,7 +152,7 @@ export function OrderConfirmation({
           {/* Header */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-surface-900">Confirm Delivery</h2>
-            {!confirming && (
+            {!submitting && (
               <button
                 onClick={onClose}
                 className="h-8 w-8 rounded-full bg-surface-100 flex items-center justify-center btn-press"
@@ -165,10 +162,10 @@ export function OrderConfirmation({
             )}
           </div>
 
-          {error && (
+          {submitError && (
             <div className="p-3 rounded-xl bg-danger-50 flex items-start gap-2.5 animate-shake">
               <AlertCircle className="h-4 w-4 text-danger-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-danger-600">{error}</p>
+              <p className="text-sm text-danger-600">{submitError}</p>
             </div>
           )}
 
@@ -207,7 +204,7 @@ export function OrderConfirmation({
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-100 text-xs font-medium text-surface-600">
               {paymentIcon} {paymentLabel}
             </span>
-            {scheduleType !== 'SAME_DAY' && scheduleType !== 'NOW' && (
+            {scheduleType !== 'NOW' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-50 text-xs font-medium text-brand-600">
                 <Calendar className="h-3.5 w-3.5" /> {scheduleLabel}
               </span>
@@ -241,6 +238,14 @@ export function OrderConfirmation({
           )}
 
           {/* Full price breakdown */}
+          {estimatedAt > 0 && Date.now() - estimatedAt > 2 * 60 * 1000 && (
+            <div className="p-3 rounded-xl bg-amber-50 flex items-start gap-2.5">
+              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                This price was estimated {Math.round((Date.now() - estimatedAt) / 60000)} min ago and may have changed.
+              </p>
+            </div>
+          )}
           <div className="bg-surface-50 rounded-2xl p-4">
             <PriceBreakdown estimate={estimate} variant="expanded" />
           </div>
@@ -248,10 +253,10 @@ export function OrderConfirmation({
           {/* Confirm button */}
           <button
             onClick={handleConfirm}
-            disabled={confirming}
+            disabled={submitting}
             className="w-full h-14 rounded-2xl bg-surface-900 text-white font-bold text-base hover:bg-surface-800 transition-all btn-press disabled:opacity-60 flex items-center justify-center gap-2.5"
           >
-            {confirming ? (
+            {submitting ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
                 <span>Creating delivery…</span>

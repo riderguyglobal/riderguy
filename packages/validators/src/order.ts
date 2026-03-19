@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { latitudeSchema, longitudeSchema, requiredStringSchema, currencyAmountSchema } from './common';
+import { latitudeSchema, longitudeSchema, requiredStringSchema } from './common';
 
 // ── Enums shared with Prisma ──
 const stopType = z.enum(['PICKUP', 'DROPOFF']);
@@ -51,7 +51,7 @@ export const createOrderSchema = z.object({
   packageType: packageTypeEnum,
   packageDescription: z.string().max(500).optional(),
   packagePhotoUrl: z.string().max(1000).optional(),
-  packageWeightKg: z.number().min(0).max(30).optional(),
+  packageWeightKg: z.number().min(0).max(200).optional(),
 
   // Payment
   paymentMethod: paymentMethodEnum,
@@ -70,6 +70,12 @@ export const createOrderSchema = z.object({
   // Each order must have at least 1 pickup and 1 dropoff (the primaries above).
   // Extra stops allow e.g. 3 pickups → 2 dropoffs in one trip.
   stops: z.array(stopSchema).max(10).optional(),
+
+  // Schedule type for discount calculation
+  scheduleType: z.enum(['NOW', 'SAME_DAY', 'NEXT_DAY', 'RECURRING']).optional(),
+
+  // Client-side estimate total — server rejects if actual price drifts >15%
+  estimatedTotalPrice: z.number().min(0).optional(),
 }).refine(
   (data) => {
     // If scheduled, must have a scheduledAt date in the future
@@ -79,14 +85,10 @@ export const createOrderSchema = z.object({
   { message: 'Scheduled orders must include a scheduledAt date', path: ['scheduledAt'] }
 ).refine(
   (data) => {
-    // Multi-stop must have at least 1 stop if provided
+    // Multi-stop: extra stops are valid as long as they exist
+    // Primary pickup/dropoff fields already guarantee at least 1 of each
     if (data.stops && data.stops.length > 0) {
-      // Ensure at least one explicit pickup and one explicit dropoff exist across extra stops
-      const hasPickup = data.stops.some(s => s.type === 'PICKUP');
-      const hasDropoff = data.stops.some(s => s.type === 'DROPOFF');
-      // Primary pickup/dropoff fields are always required, so at least one of each always exists.
-      // Extra stops just need valid types — this validates stop configuration is sensible.
-      return hasPickup && hasDropoff;
+      return data.stops.every(s => s.type === 'PICKUP' || s.type === 'DROPOFF');
     }
     return true;
   },
@@ -106,7 +108,7 @@ export const priceEstimateSchema = z.object({
   // Express delivery option
   isExpress: z.boolean().optional(),
   // Package weight in kg (for weight surcharge)
-  packageWeightKg: z.number().min(0).max(30).optional(),
+  packageWeightKg: z.number().min(0).max(200).optional(),
   // Payment method (affects service fee rate)
   paymentMethod: paymentMethodEnum.optional(),
   // Promo code (for discount)
