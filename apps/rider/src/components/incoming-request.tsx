@@ -209,8 +209,8 @@ export function IncomingRequest() {
         const orderId = offer.orderId;
         clearOffer();
 
-        // Navigate to the active delivery page
-        router.replace(`/dashboard/jobs/${orderId}`);
+        // Navigate to the active delivery page — autoNav triggers Google Maps navigation on load
+        router.replace(`/dashboard/jobs/${orderId}?autoNav=pickup`);
       } else if (accepted && !result.success) {
         // Job was already taken or another error
         setRespondError(result.error || 'This job was already taken by another rider');

@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@riderguy/auth';
 import { useSocket } from '@/hooks/use-socket';
+import { useNavigationNotification } from '@/hooks/use-navigation-notification';
 import { API_BASE_URL, STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Textarea } from '@riderguy/ui';
@@ -50,6 +51,9 @@ export default function JobDetailPage() {
   const [failReason, setFailReason] = useState('');
   const [showProof, setShowProof] = useState(false);
   const [actionError, setActionError] = useState('');
+  const searchParams = useSearchParams();
+  const autoNavTriggered = useRef(false);
+  const { showNotification: showNavNotification, dismissNotification: dismissNavNotification } = useNavigationNotification(id);
 
   const fetchOrder = useCallback(async () => {
     if (!api || !id) return;
@@ -127,6 +131,15 @@ export default function JobDetailPage() {
     try {
       await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: nextStatus });
       setOrder((prev) => prev ? { ...prev, status: nextStatus as Order['status'] } : prev);
+
+      // Auto-launch Google Maps navigation on key transitions
+      if (nextStatus === 'PICKUP_EN_ROUTE') {
+        // Heading to pickup — navigate to pickup location
+        launchNavigation(order.pickupLatitude, order.pickupLongitude, 'pickup');
+      } else if (nextStatus === 'IN_TRANSIT') {
+        // Heading to drop-off — navigate to dropoff location
+        launchNavigation(order.dropoffLatitude, order.dropoffLongitude, 'delivery');
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || err?.message || 'Failed to update status';
       setActionError(msg);
@@ -183,19 +196,42 @@ export default function JobDetailPage() {
     }
   };
 
-  const openExternalNav = () => {
-    if (!order) return;
-    const isPickup = ['ASSIGNED', 'PICKUP_EN_ROUTE'].includes(order.status);
-    const lat = isPickup ? order.pickupLatitude : order.dropoffLatitude;
-    const lng = isPickup ? order.pickupLongitude : order.dropoffLongitude;
-    // Use location.href in standalone PWA to avoid breaking out of the app shell
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  /** Launch Google Maps turn-by-turn navigation to the given coordinates */
+  const launchNavigation = useCallback((lat: number, lng: number, phase: 'pickup' | 'delivery' = 'pickup') => {
+    // Show a persistent notification so the rider can tap to return
+    showNavNotification(phase);
+
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
     if (window.matchMedia('(display-mode: standalone)').matches) {
       window.location.href = url;
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
+  }, [showNavNotification]);
+
+  const openExternalNav = () => {
+    if (!order) return;
+    const isPickup = ['ASSIGNED', 'PICKUP_EN_ROUTE'].includes(order.status);
+    const lat = isPickup ? order.pickupLatitude : order.dropoffLatitude;
+    const lng = isPickup ? order.pickupLongitude : order.dropoffLongitude;
+    launchNavigation(lat, lng, isPickup ? 'pickup' : 'delivery');
   };
+
+  // Auto-launch Google Maps navigation when arriving from accept (autoNav=pickup)
+  useEffect(() => {
+    if (autoNavTriggered.current) return;
+    if (!order || !searchParams?.get('autoNav')) return;
+
+    autoNavTriggered.current = true;
+    // Clean the URL param so it doesn't re-trigger on refresh
+    router.replace(`/dashboard/jobs/${id}`, { scroll: false });
+
+    // Small delay so the detail page renders before launching Maps
+    const timer = setTimeout(() => {
+      launchNavigation(order.pickupLatitude, order.pickupLongitude, 'pickup');
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [order, searchParams, id, router, launchNavigation]);
 
   if (loading) {
     return (

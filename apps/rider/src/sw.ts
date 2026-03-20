@@ -175,6 +175,32 @@ self.addEventListener('message', (event) => {
     // Flush any remaining locations
     flushLocationQueue();
   }
+
+  // ── Persistent "Return to App" notification when rider opens external Maps ──
+  if (type === 'SHOW_NAVIGATION_NOTIFICATION') {
+    const { orderId, phase } = data ?? {};
+    const body = phase === 'delivery'
+      ? '📦 Delivering — Tap to return to RiderGuy'
+      : '🛵 Heading to pickup — Tap to return to RiderGuy';
+
+    self.registration.showNotification('RiderGuy — Active Delivery', {
+      body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-32.png',
+      tag: 'navigation-return', // Replaces any existing navigation notification
+      requireInteraction: true, // Stays until rider taps it
+      silent: true,             // No sound — rider already knows they're navigating
+      data: { type: 'navigation-return', orderId },
+      actions: [{ action: 'return', title: 'Return to App' }],
+    } as NotificationOptions).catch(() => {});
+  }
+
+  if (type === 'DISMISS_NAVIGATION_NOTIFICATION') {
+    // Close the persistent return notification when rider comes back
+    self.registration.getNotifications({ tag: 'navigation-return' }).then((notifications) => {
+      for (const n of notifications) n.close();
+    }).catch(() => {});
+  }
 });
 
 // ── Background Sync event handler ──
@@ -287,7 +313,10 @@ self.addEventListener('notificationclick', (event: any) => {
   const notifData = event.notification.data;
   let url = '/dashboard';
 
-  if (notifData?.orderId) {
+  if (notifData?.type === 'navigation-return' && notifData?.orderId) {
+    // Return-to-app from Maps — go straight to the active delivery
+    url = `/dashboard/jobs/${notifData.orderId}`;
+  } else if (notifData?.orderId) {
     url = `/dashboard/jobs/${notifData.orderId}`;
   }
 
