@@ -136,15 +136,19 @@ export default function JobDetailPage() {
         const formData = new FormData();
         formData.append('file', proof.file);
         formData.append('proofType', proof.type);
+        formData.append('completeDelivery', 'true');
         await api.post(`${API_BASE_URL}/orders/${id}/proof`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       } else {
         // JSON for signature (base64) and PIN code
-        await api.post(`${API_BASE_URL}/orders/${id}/proof`, { proofType: proof.type, proofData: proof.data });
+        await api.post(`${API_BASE_URL}/orders/${id}/proof`, {
+          proofType: proof.type,
+          proofData: proof.data,
+          completeDelivery: true,
+        });
       }
 
-      await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: 'DELIVERED' });
       setOrder((prev) => prev ? { ...prev, status: 'DELIVERED' as Order['status'] } : prev);
       setShowProof(false);
     } catch (err: any) {

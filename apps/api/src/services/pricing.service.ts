@@ -67,6 +67,15 @@ import type { PackageType, PaymentMethod } from '@prisma/client';
 // See docs/PRICING_STRATEGY.md for full rationale.
 // ============================================================
 
+/**
+ * Normalize commission rate from zone's 0–100 percentage scale to a 0–1 decimal.
+ * Guards against admin accidentally entering a decimal like 0.15 instead of 15.
+ */
+function normalizeCommissionRate(raw: number): number {
+  if (raw > 0 && raw < 1) return raw;              // already a decimal fraction
+  return Math.min(1, Math.max(0, raw / 100));       // clamp & convert
+}
+
 /** Platform defaults — used when pickup is outside any defined zone */
 const PLATFORM_DEFAULTS = {
   baseFare: 5.00,
@@ -216,7 +225,7 @@ export async function calculatePrice(
   const avgSpeed = (pickupZone as Record<string, unknown> | null)?.avgSpeedKmh as number ?? PLATFORM_DEFAULTS.avgSpeedKmh;
   const currency = pickupZone?.currency ?? PLATFORM_DEFAULTS.currency;
   const commissionRate = pickupZone?.commissionRate != null
-    ? pickupZone.commissionRate / 100
+    ? normalizeCommissionRate(pickupZone.commissionRate)
     : PLATFORM_DEFAULTS.commissionRate;
 
   // ── 3. Effective road distance & ETA ─────────────────────

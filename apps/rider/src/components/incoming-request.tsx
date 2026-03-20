@@ -87,6 +87,7 @@ export function IncomingRequest() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scrollYRef = useRef(0);
+  const totalCountdownRef = useRef(OFFER_COUNTDOWN);
 
   const clearOffer = useCallback(() => {
     setOffer(null);
@@ -131,7 +132,13 @@ export function IncomingRequest() {
     const handleOffer = (data: JobOffer) => {
       console.log('[IncomingRequest] Received job:offer!', data.orderId, data.orderNumber);
       setOffer(data);
-      setCountdown(OFFER_COUNTDOWN);
+
+      // Derive remaining seconds from server's expiresAt to stay in sync
+      const remaining = data.expiresAt
+        ? Math.max(1, Math.ceil((new Date(data.expiresAt).getTime() - Date.now()) / 1000))
+        : OFFER_COUNTDOWN;
+      totalCountdownRef.current = remaining;
+      setCountdown(remaining);
 
       // Play notification sound — try .mp3 first, fallback to Web Audio API tone
       try {
@@ -226,7 +233,7 @@ export function IncomingRequest() {
 
   if (!offer) return null;
 
-  const strokeDash = (countdown / OFFER_COUNTDOWN) * 283;
+  const strokeDash = (countdown / totalCountdownRef.current) * 283;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">

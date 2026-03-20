@@ -487,7 +487,14 @@ router.patch(
         AT_DROPOFF: { lat: order.dropoffLatitude, lng: order.dropoffLongitude },
       };
       const target = geofenceStatuses[status as string] ?? null;
-      if (target && riderProfile.currentLatitude && riderProfile.currentLongitude) {
+      if (target) {
+        // GPS is required for geofenced transitions — reject if missing
+        if (!riderProfile.currentLatitude || !riderProfile.currentLongitude) {
+          throw ApiError.badRequest(
+            'Your GPS location is required to confirm arrival. Please enable location services and try again.',
+            'GPS_REQUIRED',
+          );
+        }
         const dist = TrackingService.haversineKm(
           riderProfile.currentLatitude,
           riderProfile.currentLongitude,
@@ -684,9 +691,15 @@ router.post(
     let proofUrl: string;
 
     if (proofType === 'PIN_CODE') {
-      // PIN code doesn't need a file — just validate the pin
+      // PIN code — validate against the order's actual delivery PIN
       const proofData = req.body.proofData as string;
       if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
+      if (!order.deliveryPinCode) {
+        throw ApiError.badRequest('No delivery PIN was set for this order');
+      }
+      if (proofData !== order.deliveryPinCode) {
+        throw ApiError.badRequest('Incorrect delivery PIN', 'INVALID_PIN');
+      }
       proofUrl = `pin:${proofData}`;
     } else if (req.file) {
       // Multipart file upload (PHOTO or SIGNATURE) via StorageService
@@ -722,6 +735,15 @@ router.post(
       },
     });
 
+    // When completeDelivery flag is set, atomically transition to DELIVERED
+    // in the same request (prevents proof-saved-but-status-stuck race)
+    const completeDelivery = req.body.completeDelivery === true || req.body.completeDelivery === 'true';
+    if (completeDelivery && order.status === 'AT_DROPOFF') {
+      const updated = await OrderService.transitionStatus(orderId, 'DELIVERED', req.user!.userId);
+      res.status(StatusCodes.OK).json({ success: true, data: { proofUrl, delivered: true, order: updated } });
+      return;
+    }
+
     res.status(StatusCodes.OK).json({ success: true, data: { proofUrl } });
   }),
 );
@@ -738,7 +760,7 @@ router.post(
     // Verify rider is assigned
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, riderId: true, status: true, isMultiStop: true },
+      select: { id: true, riderId: true, status: true, isMultiStop: true, deliveryPinCode: true },
     });
     if (!order) throw ApiError.notFound('Order not found');
 
@@ -780,6 +802,12 @@ router.post(
     if (proofType === 'PIN_CODE') {
       const proofData = req.body.proofData as string;
       if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
+      if (!order.deliveryPinCode) {
+        throw ApiError.badRequest('No delivery PIN was set for this order');
+      }
+      if (proofData !== order.deliveryPinCode) {
+        throw ApiError.badRequest('Incorrect delivery PIN', 'INVALID_PIN');
+      }
       pinCode = proofData;
     } else if (req.file) {
       const result = await StorageService.uploadFromPath(

@@ -209,19 +209,32 @@ export async function createOrder(
     }
   }
 
-  // If promo code used, record usage
+  // If promo code used, atomically claim it (prevents over-use races)
   let promoCodeId: string | undefined;
   if (input.promoCode && price.promoDiscount > 0) {
-    const promo = await prisma.promoCode.findUnique({
-      where: { code: input.promoCode.toUpperCase().trim() },
-    });
-    if (promo) {
-      promoCodeId = promo.id;
-      await prisma.promoCode.update({
-        where: { id: promo.id },
-        data: { usedCount: { increment: 1 } },
-      });
+    const code = input.promoCode.toUpperCase().trim();
+    const now = new Date();
+
+    // Atomic: increment usedCount only if still valid and within limits
+    const claimed: number = await prisma.$executeRaw`
+      UPDATE "PromoCode"
+      SET "usedCount" = "usedCount" + 1
+      WHERE "code" = ${code}
+        AND "isActive" = true
+        AND "validFrom" <= ${now}
+        AND ("validUntil" IS NULL OR "validUntil" > ${now})
+        AND ("maxUses" IS NULL OR "usedCount" < "maxUses")
+    `;
+
+    if (claimed === 0) {
+      throw ApiError.conflict('Promo code is no longer available');
     }
+
+    const promo = await prisma.promoCode.findUnique({
+      where: { code },
+      select: { id: true },
+    });
+    promoCodeId = promo?.id;
   }
 
   const order = await prisma.order.create({

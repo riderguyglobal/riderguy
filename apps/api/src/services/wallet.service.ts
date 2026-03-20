@@ -7,9 +7,13 @@ import type { TransactionType } from '@prisma/client';
 // transactions to prevent race conditions.
 // ============================================================
 
+/** Transaction types that count towards totalEarned */
+const EARNING_TYPES: TransactionType[] = ['DELIVERY_EARNING', 'BONUS', 'REFERRAL_COMMISSION'];
+
 /**
  * Credit a user's wallet atomically.
  * Creates the wallet if it doesn't exist (first earning).
+ * Idempotent when referenceId + referenceType are provided — duplicate calls are safe.
  */
 export async function creditWallet(
   userId: string,
@@ -22,34 +26,45 @@ export async function creditWallet(
   if (amount <= 0) return null;
 
   return prisma.$transaction(async (tx) => {
+    // Idempotency guard — if this exact credit was already processed, return it
+    if (referenceId && referenceType) {
+      const existing = await tx.transaction.findFirst({
+        where: { referenceId, referenceType, amount: { gt: 0 } },
+        include: { wallet: true },
+      });
+      if (existing) {
+        return { wallet: existing.wallet, transaction: existing };
+      }
+    }
+
+    const countsAsEarning = EARNING_TYPES.includes(txType);
+
     const wallet = await tx.wallet.upsert({
       where: { userId },
       create: {
         userId,
         balance: amount,
-        totalEarned: amount,
+        totalEarned: countsAsEarning ? amount : 0,
       },
       update: {
         balance: { increment: amount },
-        totalEarned: { increment: amount },
+        ...(countsAsEarning ? { totalEarned: { increment: amount } } : {}),
       },
     });
-
-    const updated = await tx.wallet.findUniqueOrThrow({ where: { id: wallet.id } });
 
     const transaction = await tx.transaction.create({
       data: {
         walletId: wallet.id,
         type: txType,
         amount,
-        balanceAfter: updated.balance,
+        balanceAfter: wallet.balance,
         description,
         referenceId,
         referenceType,
       },
     });
 
-    return { wallet: updated, transaction };
+    return { wallet, transaction };
   });
 }
 
@@ -124,6 +139,7 @@ export async function getOrCreateWallet(userId: string) {
 /**
  * Credit a tip to user's wallet atomically.
  * Increments totalTips rather than totalEarned.
+ * Idempotent when referenceId + referenceType are provided.
  */
 export async function creditTip(
   userId: string,
@@ -135,6 +151,17 @@ export async function creditTip(
   if (amount <= 0) return null;
 
   return prisma.$transaction(async (tx) => {
+    // Idempotency guard
+    if (referenceId && referenceType) {
+      const existing = await tx.transaction.findFirst({
+        where: { referenceId, referenceType, type: 'TIP', amount: { gt: 0 } },
+        include: { wallet: true },
+      });
+      if (existing) {
+        return { wallet: existing.wallet, transaction: existing };
+      }
+    }
+
     const wallet = await tx.wallet.upsert({
       where: { userId },
       create: {
@@ -148,20 +175,18 @@ export async function creditTip(
       },
     });
 
-    const updated = await tx.wallet.findUniqueOrThrow({ where: { id: wallet.id } });
-
     const transaction = await tx.transaction.create({
       data: {
         walletId: wallet.id,
         type: 'TIP',
         amount,
-        balanceAfter: updated.balance,
+        balanceAfter: wallet.balance,
         description,
         referenceId,
         referenceType,
       },
     });
 
-    return { wallet: updated, transaction };
+    return { wallet, transaction };
   });
 }

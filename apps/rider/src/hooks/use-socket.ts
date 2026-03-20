@@ -36,8 +36,9 @@ function getOrCreateSocket(): Socket {
   // ── Auto-refresh auth token on reconnect attempt ──
   sharedSocket.io.on('reconnect_attempt', (attempt) => {
     console.log(`[Socket] Reconnect attempt #${attempt}`);
-    // Re-read token in case it was refreshed while disconnected
-    (sharedSocket as any).auth = { token: tokenStorage.getAccessToken() };
+    // Keep callback form so token is read at connection time, not capture time
+    (sharedSocket as any).auth = (cb: (v: Record<string, string>) => void) =>
+      cb({ token: tokenStorage.getAccessToken() ?? '' });
   });
 
   // ── Handle auth errors — token may be expired ──
@@ -167,18 +168,19 @@ export function useSocket() {
           return;
         }
         const response = accepted ? 'accept' : 'decline';
+        // Timeout handle — cleared when ACK arrives
+        const timer = setTimeout(() => {
+          resolve({ success: false, error: 'Server response timed out' });
+        }, 10_000);
         // Use Socket.IO acknowledgement callback
         sharedSocket.emit(
           'job:offer:respond',
           { orderId, response } as any,
           (ack: { success: boolean; error?: string }) => {
+            clearTimeout(timer);
             resolve(ack ?? { success: false, error: 'No response from server' });
           },
         );
-        // Timeout after 10 seconds if server doesn't respond
-        setTimeout(() => {
-          resolve({ success: false, error: 'Server response timed out' });
-        }, 10_000);
       });
     },
     [],
