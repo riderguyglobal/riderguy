@@ -49,6 +49,7 @@ export function useRiderAvailability() {
   const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
   const watchRef = useRef<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const toggleGuardRef = useRef(false);
 
   // ── Fetch initial availability & seed GPS on first load ──
   useEffect(() => {
@@ -189,7 +190,8 @@ export function useRiderAvailability() {
 
   // ── Toggle ONLINE ↔ OFFLINE ──
   const toggleAvailability = useCallback(async () => {
-    if (loading || !api) return;
+    if (toggleGuardRef.current || !api) return;
+    toggleGuardRef.current = true;
     setLoading(true);
 
     const next: RiderAvailability =
@@ -210,7 +212,10 @@ export function useRiderAvailability() {
           longitude = pos.coords.longitude;
           setCoords({ lat: latitude, lng: longitude });
         } catch {
-          // GPS failed — still toggle availability, location will be populated by the watcher
+          setGpsError('Enable location to go online');
+          setLoading(false);
+          toggleGuardRef.current = false;
+          return;
         }
       }
 
@@ -226,8 +231,9 @@ export function useRiderAvailability() {
       // Other errors — silently ignore (network issues, etc.)
     } finally {
       setLoading(false);
+      toggleGuardRef.current = false;
     }
-  }, [availability, loading, api]);
+  }, [availability, api]);
 
   return { availability, toggleAvailability, loading, coords, gpsError, onboardingStatus };
 }

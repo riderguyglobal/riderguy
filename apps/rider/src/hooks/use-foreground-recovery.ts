@@ -43,11 +43,23 @@ export function useForegroundRecovery(isOnline: boolean) {
         socket.connect();
       }
 
-      // 2. Invalidate all React Query caches
+      // 2. Invalidate React Query caches
       // Only do full invalidation if we were backgrounded for more than 5 seconds
       if (backgroundDuration > 5_000) {
-        console.log('[ForegroundRecovery] Invalidating all queries after extended background');
-        queryClient.invalidateQueries();
+        console.log('[ForegroundRecovery] Staggered invalidation after extended background');
+        // Critical data first
+        queryClient.invalidateQueries({ queryKey: ['active-orders'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['wallet'] });
+        // Stagger non-critical queries to avoid flooding GPRS connections
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['rider-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        }, 2_000);
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['earnings'] });
+          queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+        }, 4_000);
       } else {
         // Light invalidation: only critical data
         queryClient.invalidateQueries({ queryKey: ['active-orders'] });

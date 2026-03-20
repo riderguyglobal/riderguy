@@ -67,8 +67,16 @@ export function useAudioKeepAlive(enabled: boolean) {
           ctx.resume().catch(() => {});
         }
       };
-      document.addEventListener('touchstart', resumeOnInteraction, { once: true });
-      document.addEventListener('click', resumeOnInteraction, { once: true });
+      document.addEventListener('touchstart', resumeOnInteraction);
+      document.addEventListener('click', resumeOnInteraction);
+
+      // Re-register resume when AudioContext auto-suspends after a background cycle
+      ctx.onstatechange = () => {
+        if (ctx.state === 'suspended') {
+          document.addEventListener('touchstart', resumeOnInteraction, { once: true });
+          document.addEventListener('click', resumeOnInteraction, { once: true });
+        }
+      };
 
       // Also resume when returning from background
       const handleVisibility = () => {

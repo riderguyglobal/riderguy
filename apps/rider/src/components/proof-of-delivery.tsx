@@ -26,6 +26,7 @@ export function ProofOfDelivery({ deliveryPin, onSubmit }: ProofOfDeliveryProps)
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
+  const hasDrawn = useRef(false);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,6 +62,7 @@ export function ProofOfDelivery({ deliveryPin, onSubmit }: ProofOfDeliveryProps)
     } else if (proofType === 'SIGNATURE') {
       const canvas = canvasRef.current;
       if (!canvas) return;
+      if (!hasDrawn.current) { setError('Please draw your signature first'); return; }
       data = canvas.toDataURL('image/png');
     } else if (proofType === 'PIN_CODE') {
       if (pin.length < 4) { setError('Enter the delivery PIN'); return; }
@@ -80,6 +82,7 @@ export function ProofOfDelivery({ deliveryPin, onSubmit }: ProofOfDeliveryProps)
   // Canvas drawing handlers
   const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     isDrawing.current = true;
+    hasDrawn.current = true;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -115,6 +118,7 @@ export function ProofOfDelivery({ deliveryPin, onSubmit }: ProofOfDeliveryProps)
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    hasDrawn.current = false;
   };
 
   const proofTypes: { type: ProofType; label: string; icon: React.ReactNode }[] = [

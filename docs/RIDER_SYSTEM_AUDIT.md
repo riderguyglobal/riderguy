@@ -13,7 +13,7 @@
 |----------|-------|-------|----------|
 | **CRITICAL** | 6 | 6 ✅ | Money loss, security bypass, data corruption |
 | **HIGH** | 8 | 8 ✅ | Race conditions, logic errors, broken features |
-| **MEDIUM** | 10 | 0 | UX failures under real-world Ghana conditions |
+| **MEDIUM** | 10 | 10 ✅ | UX failures under real-world Ghana conditions |
 | **DESIGN** | 10 | 0 | Architecture improvements for production readiness |
 
 ---
@@ -274,7 +274,7 @@ There's a read (line ~121) then a write (line ~136) with no status guard. If the
 
 ## MEDIUM — UX Failures Under Ghana Network/Device Conditions
 
-### M-01: Going ONLINE with Failed GPS Sends Null Coordinates
+### M-01: Going ONLINE with Failed GPS Sends Null Coordinates ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-rider-availability.ts` ~L168-173
 **Impact:** Rider is ONLINE but invisible to dispatch — receives zero offers with no explanation
@@ -285,7 +285,7 @@ The catch block around GPS says "GPS failed — still toggle availability." The 
 
 ---
 
-### M-02: Toggle Button Race Condition on Double-Tap
+### M-02: Toggle Button Race Condition on Double-Tap ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-rider-availability.ts` ~L153-155
 **Impact:** Two PATCH requests fire simultaneously — rider oscillates ONLINE→OFFLINE→ONLINE
@@ -296,7 +296,7 @@ The catch block around GPS says "GPS failed — still toggle availability." The 
 
 ---
 
-### M-03: Foreground Recovery Fires All Queries at Once
+### M-03: Foreground Recovery Fires All Queries at Once ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-foreground-recovery.ts` ~L48-50
 **Impact:** On slow GPRS, 10-20 HTTP requests compete for ~50 Kbps — mass timeouts
@@ -307,7 +307,7 @@ The catch block around GPS says "GPS failed — still toggle availability." The 
 
 ---
 
-### M-04: Markers Recreated Every GPS Update
+### M-04: Markers Recreated Every GPS Update ✅ FIXED
 
 **File:** `apps/rider/src/components/navigation-map.tsx` ~L184-248
 **Impact:** Visible jank and GC pressure on cheap Tecno/Infinix phones
@@ -318,7 +318,7 @@ The route/marker update effect runs on every `riderLat`/`riderLng` change (every
 
 ---
 
-### M-05: Per-Second Re-Render from Session Timer
+### M-05: Per-Second Re-Render from Session Timer ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-connection-health.ts` ~L155-168
 **Impact:** Battery drain and scroll jank on low-end devices
@@ -329,7 +329,7 @@ The route/marker update effect runs on every `riderLat`/`riderLng` change (every
 
 ---
 
-### M-06: Audio Keep-Alive Dies After First Background Cycle
+### M-06: Audio Keep-Alive Dies After First Background Cycle ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-audio-keep-alive.ts` ~L63-64
 **Impact:** Incoming job notifications silently stop — rider misses offers
@@ -340,7 +340,7 @@ The `touchstart`/`click` listeners are registered with `{ once: true }`. After t
 
 ---
 
-### M-07: Wake Lock `isActive` Is Never Reactive
+### M-07: Wake Lock `isActive` Is Never Reactive ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-wake-lock.ts` ~L86
 **Impact:** UI shows lock is active, but phone sleeps — rider misses notifications
@@ -351,7 +351,7 @@ The `touchstart`/`click` listeners are registered with `{ once: true }`. After t
 
 ---
 
-### M-08: Blank Signature Accepted as Valid Proof
+### M-08: Blank Signature Accepted as Valid Proof ✅ FIXED
 
 **File:** `apps/rider/src/components/proof-of-delivery.tsx` ~L53-55
 **Impact:** Rider submits blank canvas — delivery "verified" with no actual signature
@@ -362,7 +362,7 @@ The `touchstart`/`click` listeners are registered with `{ once: true }`. After t
 
 ---
 
-### M-09: Socket Status Events Can Regress Order State
+### M-09: Socket Status Events Can Regress Order State ✅ FIXED
 
 **File:** `apps/rider/src/app/(dashboard)/dashboard/jobs/[id]/page.tsx` ~L72-76
 **Impact:** UI shows an old status (e.g., PICKUP_EN_ROUTE) after already showing AT_PICKUP
@@ -379,7 +379,7 @@ if (STATUS_ORDER.indexOf(data.status) > STATUS_ORDER.indexOf(order.status)) {
 
 ---
 
-### M-10: Business Discount Can Push Below Minimum Fare
+### M-10: Business Discount Can Push Below Minimum Fare ✅ FIXED
 
 **File:** `apps/api/src/services/pricing.service.ts` ~L356-374
 **Impact:** Business clients charged below minimum — platform loses money on small orders

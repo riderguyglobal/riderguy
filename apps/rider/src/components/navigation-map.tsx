@@ -188,7 +188,7 @@ export function NavigationMap({
     });
   }, [resolvedTheme, mapReady]);
 
-  // ── Update markers, route, rider position ─────────────
+  // ── Static markers (pickup, dropoff, stops) — only recreated when locations change ──
   useEffect(() => {
     if (!mapReady) return;
     const core = coreRef.current;
@@ -199,8 +199,6 @@ export function NavigationMap({
     removeMarkers(staticMarkersRef.current);
     staticMarkersRef.current = [];
 
-    const boundsCoords: [number, number][] = [];
-
     // Pickup (with Plus Code)
     const pickupPC = formatPlusCode(pickupCoords[1], pickupCoords[0]);
     const pm = createPickupMarker(mapboxglLib, pickupCoords, {
@@ -208,7 +206,6 @@ export function NavigationMap({
     });
     pm.addTo(map);
     staticMarkersRef.current.push(pm);
-    boundsCoords.push(pickupCoords);
 
     // Dropoff (with Plus Code)
     const dropoffPC = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
@@ -217,7 +214,6 @@ export function NavigationMap({
     });
     dm.addTo(map);
     staticMarkersRef.current.push(dm);
-    boundsCoords.push(dropoffCoords);
 
     // Multi-stop markers (with Plus Code)
     if (stops?.length) {
@@ -230,11 +226,28 @@ export function NavigationMap({
         });
         sm.addTo(map);
         staticMarkersRef.current.push(sm);
-        boundsCoords.push([stop.longitude, stop.latitude]);
       }
     }
 
-    // Rider marker
+    // Fit bounds on first render (includes all points)
+    if (!hasInitialRouteRef.current) {
+      const boundsCoords: [number, number][] = [pickupCoords, dropoffCoords];
+      if (stops?.length) {
+        for (const s of stops) boundsCoords.push([s.longitude, s.latitude]);
+      }
+      if (riderLat != null && riderLng != null) boundsCoords.push([riderLng, riderLat]);
+      fitBoundsToCoords(map, mapboxglLib, boundsCoords, MAP_PADDING.navigation);
+    }
+  }, [mapReady, pickupLat, pickupLng, dropoffLat, dropoffLng, stops]);
+
+  // ── Rider marker + route — updates on every GPS change ──
+  useEffect(() => {
+    if (!mapReady) return;
+    const core = coreRef.current;
+    if (!core) return;
+    const { map, mapboxgl: mapboxglLib } = core;
+
+    // Rider marker — update position or create on first appearance
     if (riderLat != null && riderLng != null) {
       const riderCoords: [number, number] = [riderLng, riderLat];
       if (riderMarkerRef.current) {
@@ -244,12 +257,6 @@ export function NavigationMap({
         rm.addTo(map);
         riderMarkerRef.current = rm;
       }
-      boundsCoords.push(riderCoords);
-    }
-
-    // Fit bounds on first render
-    if (!hasInitialRouteRef.current && boundsCoords.length > 0) {
-      fitBoundsToCoords(map, mapboxglLib, boundsCoords, MAP_PADDING.navigation);
     }
 
     // Route drawing
@@ -284,7 +291,7 @@ export function NavigationMap({
         });
       }
     }
-  }, [mapReady, pickupLat, pickupLng, dropoffLat, dropoffLng, riderLat, riderLng, status, stops, fetchRoute]);
+  }, [mapReady, riderLat, riderLng, status, pickupLat, pickupLng, dropoffLat, dropoffLng, fetchRoute]);
 
   // ── Traffic toggle ────────────────────────────────────
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ============================================================
 // Screen Wake Lock — prevents device from sleeping while ONLINE
@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef } from 'react';
 
 export function useWakeLock(enabled: boolean) {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const [isActive, setIsActive] = useState(false);
   const isSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator;
 
   const acquireLock = useCallback(async () => {
@@ -26,21 +27,20 @@ export function useWakeLock(enabled: boolean) {
       if (wakeLockRef.current) {
         await wakeLockRef.current.release().catch(() => {});
         wakeLockRef.current = null;
+        setIsActive(false);
       }
 
       wakeLockRef.current = await navigator.wakeLock.request('screen');
+      setIsActive(true);
 
       wakeLockRef.current.addEventListener('release', () => {
         console.log('[WakeLock] Released');
         wakeLockRef.current = null;
+        setIsActive(false);
       });
 
       console.log('[WakeLock] Acquired ✓');
     } catch (err) {
-      // Wake lock request can fail if:
-      // - Battery is too low
-      // - System override
-      // - User denied permission
       console.warn('[WakeLock] Failed to acquire:', err);
     }
   }, [isSupported, enabled]);
@@ -49,6 +49,7 @@ export function useWakeLock(enabled: boolean) {
     if (wakeLockRef.current) {
       await wakeLockRef.current.release().catch(() => {});
       wakeLockRef.current = null;
+      setIsActive(false);
       console.log('[WakeLock] Released manually');
     }
   }, []);
@@ -86,7 +87,7 @@ export function useWakeLock(enabled: boolean) {
 
   return {
     isSupported,
-    isActive: wakeLockRef.current !== null,
+    isActive,
     acquireLock,
     releaseLock,
   };

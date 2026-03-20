@@ -72,7 +72,16 @@ export default function JobDetailPage() {
 
     const handleStatus = (data: { orderId: string; status: string }) => {
       if (data.orderId === id) {
-        setOrder((prev) => prev ? { ...prev, status: data.status as Order['status'] } : prev);
+        setOrder((prev) => {
+          if (!prev) return prev;
+          // Only accept forward status progressions to prevent out-of-order socket events
+          const prevIdx = STATUS_FLOW.indexOf(prev.status);
+          const newIdx = STATUS_FLOW.indexOf(data.status);
+          if (newIdx > prevIdx) {
+            return { ...prev, status: data.status as Order['status'] };
+          }
+          return prev;
+        });
       }
     };
 

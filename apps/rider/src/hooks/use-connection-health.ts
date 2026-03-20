@@ -191,20 +191,34 @@ export function useConnectionHealth(isOnline: boolean) {
   }, [isOnline]);
 
   // ── Session duration counter ──
+  // Use a ref to avoid per-second re-renders; only update state every 30s
+  const sessionDurationRef = useRef(0);
+
   useEffect(() => {
     if (isOnline) {
       sessionStart.current = new Date();
 
       sessionTimer.current = setInterval(() => {
         if (sessionStart.current) {
-          setHealth((h) => ({
-            ...h,
-            sessionDurationSec: Math.floor((Date.now() - sessionStart.current!.getTime()) / 1000),
-          }));
+          sessionDurationRef.current = Math.floor((Date.now() - sessionStart.current.getTime()) / 1000);
         }
       }, 1_000);
+
+      // Sync to state every 30s for UI consumers
+      const syncTimer = setInterval(() => {
+        setHealth((h) => ({
+          ...h,
+          sessionDurationSec: sessionDurationRef.current,
+        }));
+      }, 30_000);
+
+      return () => {
+        if (sessionTimer.current) clearInterval(sessionTimer.current);
+        clearInterval(syncTimer);
+      };
     } else {
       sessionStart.current = null;
+      sessionDurationRef.current = 0;
       if (sessionTimer.current) clearInterval(sessionTimer.current);
     }
 

@@ -371,7 +371,7 @@ export async function calculatePrice(
 
   // Apply business discount
   if (businessDiscount > 0) {
-    subtotal = roundGhs(subtotal * (1 - businessDiscount));
+    subtotal = roundGhs(Math.max(minimumFare, subtotal * (1 - businessDiscount)));
   }
 
   // Apply promo discount
