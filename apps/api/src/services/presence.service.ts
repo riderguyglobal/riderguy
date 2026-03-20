@@ -1,5 +1,6 @@
 import { prisma } from '@riderguy/database';
 import { logger } from '../lib/logger';
+import { getRedisClient } from '../lib/redis';
 
 // ============================================================
 // Rider Presence Manager
@@ -8,10 +9,11 @@ import { logger } from '../lib/logger';
 // Tracks connections, heartbeats, and stale-rider cleanup.
 //
 // Architecture:
-// 1. In-memory Map for sub-second presence checks (no DB round-trip)
-// 2. Periodic DB sync (every 60s) for persistence across restarts
-// 3. Stale rider detector — auto-OFFLINE riders with no heartbeat
-// 4. Session duration tracking for analytics & gamification
+// 1. In-memory Map for sub-second presence checks (local cache)
+// 2. D-08: Redis hashes for cross-instance presence (horizontal scaling)
+// 3. Periodic DB sync (every 60s) for persistence across restarts
+// 4. Stale rider detector — auto-OFFLINE riders with no heartbeat
+// 5. Session duration tracking for analytics & gamification
 // ============================================================
 
 // ── Types ───────────────────────────────────────────────────
@@ -62,6 +64,74 @@ const lastHeartbeatTime = new Map<string, number>();
 
 let sweepTimer: NodeJS.Timeout | null = null;
 let dbSyncTimer: NodeJS.Timeout | null = null;
+
+// ── D-08: Redis-backed presence for horizontal scaling ──────
+
+const REDIS_PRESENCE_PREFIX = 'presence:';
+const REDIS_PRESENCE_TTL = 360; // 6 min — auto-expire if no heartbeat refresh
+
+/** Mirror a rider's presence to Redis (non-blocking) */
+function syncPresenceToRedis(presence: RiderPresence): void {
+  const redis = getRedisClient();
+  if (!redis) return;
+  const key = `${REDIS_PRESENCE_PREFIX}${presence.userId}`;
+  const data = JSON.stringify({
+    userId: presence.userId,
+    riderProfileId: presence.riderProfileId,
+    isConnected: presence.isConnected,
+    lastHeartbeat: presence.lastHeartbeat.toISOString(),
+    lastSeenAt: presence.lastSeenAt.toISOString(),
+    connectionQuality: presence.connectionQuality,
+    latitude: presence.latitude,
+    longitude: presence.longitude,
+  });
+  redis.set(key, data, 'EX', REDIS_PRESENCE_TTL).catch(() => {});
+}
+
+/** Remove a rider's presence from Redis */
+function removePresenceFromRedis(userId: string): void {
+  const redis = getRedisClient();
+  if (!redis) return;
+  redis.del(`${REDIS_PRESENCE_PREFIX}${userId}`).catch(() => {});
+}
+
+/** Get all online riders from Redis (for cross-instance visibility) */
+async function getOnlineRidersFromRedis(): Promise<RiderPresence[]> {
+  const redis = getRedisClient();
+  if (!redis) return [];
+  try {
+    const keys = await redis.keys(`${REDIS_PRESENCE_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const pipeline = redis.pipeline();
+    for (const key of keys) pipeline.get(key);
+    const results = await pipeline.exec();
+    if (!results) return [];
+    const riders: RiderPresence[] = [];
+    for (const [err, val] of results) {
+      if (err || !val) continue;
+      try {
+        const data = JSON.parse(val as string);
+        riders.push({
+          userId: data.userId,
+          riderProfileId: data.riderProfileId,
+          socketId: null,
+          isConnected: data.isConnected,
+          lastHeartbeat: new Date(data.lastHeartbeat),
+          lastSeenAt: new Date(data.lastSeenAt),
+          sessionStartedAt: new Date(),
+          connectionQuality: data.connectionQuality,
+          priorOnlineSeconds: 0,
+          missedHeartbeats: 0,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        });
+      } catch { /* skip malformed */ }
+    }
+    return riders;
+  } catch {
+    return [];
+  }
+}
 
 // ── Public API ──────────────────────────────────────────────
 
@@ -198,6 +268,7 @@ export async function riderConnected(
   });
 
   logger.info({ userId, socketId }, '[Presence] Rider connected');
+  syncPresenceToRedis(presence);
 }
 
 /**
@@ -229,6 +300,7 @@ export async function riderDisconnected(
   });
 
   logger.info({ userId, reason }, '[Presence] Rider disconnected — grace period started');
+  syncPresenceToRedis(presence);
 }
 
 /**
@@ -272,10 +344,28 @@ export function getRiderPresence(userId: string): RiderPresence | null {
 }
 
 /**
- * Get all currently-online riders (from in-memory — instant, no DB).
+ * Get all currently-online riders.
+ * D-08: Merges local in-memory data with Redis for cross-instance visibility.
  */
 export function getOnlineRiders(): RiderPresence[] {
   return Array.from(presenceMap.values());
+}
+
+/**
+ * Get all online riders including those on other instances (async Redis read).
+ * Use this for dispatch decisions where cross-instance data is critical.
+ */
+export async function getOnlineRidersGlobal(): Promise<RiderPresence[]> {
+  const local = Array.from(presenceMap.values());
+  const localIds = new Set(local.map((r) => r.userId));
+  const remote = await getOnlineRidersFromRedis();
+  // Merge: local takes precedence (more accurate), add remote-only riders
+  for (const r of remote) {
+    if (!localIds.has(r.userId)) {
+      local.push(r);
+    }
+  }
+  return local;
 }
 
 /**
@@ -342,6 +432,7 @@ export async function forceRiderOffline(userId: string): Promise<void> {
 
     presenceMap.delete(userId);
     lastHeartbeatTime.delete(userId);
+    removePresenceFromRedis(userId);
     logger.info({ userId, sessionSeconds, totalOnlineSeconds }, '[Presence] Rider forced OFFLINE');
   } else {
     // Not in memory — just update DB

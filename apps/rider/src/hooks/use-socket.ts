@@ -9,6 +9,58 @@ const API_WS_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').
 let sharedSocket: Socket | null = null;
 let listenerCount = 0;
 
+// ── D-02: Offline queue for critical socket emissions ──────────
+// When the socket is disconnected (e.g. GPRS drop), critical events
+// are queued in sessionStorage and replayed on reconnect.
+
+interface QueuedEvent {
+  event: string;
+  data: unknown;
+  queuedAt: number;
+}
+
+const QUEUE_KEY = 'riderguy:socket_queue';
+const QUEUE_MAX_AGE_MS = 120_000; // Drop queued events older than 2 min
+
+function getOfflineQueue(): QueuedEvent[] {
+  try {
+    const raw = sessionStorage.getItem(QUEUE_KEY);
+    if (!raw) return [];
+    const items: QueuedEvent[] = JSON.parse(raw);
+    const now = Date.now();
+    return items.filter((e) => now - e.queuedAt < QUEUE_MAX_AGE_MS);
+  } catch {
+    return [];
+  }
+}
+
+function enqueueOffline(event: string, data: unknown): void {
+  const queue = getOfflineQueue();
+  queue.push({ event, data, queuedAt: Date.now() });
+  try {
+    sessionStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  } catch { /* storage full — skip */ }
+}
+
+function flushOfflineQueue(s: Socket): void {
+  const queue = getOfflineQueue();
+  if (queue.length === 0) return;
+  console.log(`[Socket] Flushing ${queue.length} queued event(s)`);
+  for (const item of queue) {
+    s.emit(item.event as any, item.data as any);
+  }
+  try { sessionStorage.removeItem(QUEUE_KEY); } catch {}
+}
+
+/** Emit a critical event — queues if offline, sends immediately if connected */
+function emitCritical(event: string, data: unknown): void {
+  if (sharedSocket?.connected) {
+    sharedSocket.emit(event as any, data as any);
+  } else {
+    enqueueOffline(event, data);
+  }
+}
+
 // ── Reconnection constants ──────────────────────────────────
 const MAX_RECONNECT_ATTEMPTS = Infinity; // Never stop trying while rider is ONLINE
 const RECONNECT_DELAY_BASE = 1_000;      // Start at 1s
@@ -72,6 +124,8 @@ export function useSocket() {
       setSocketError(null);
       setReconnecting(false);
       setReconnectAttempt(0);
+      // D-02: Flush queued events on connect/reconnect
+      flushOfflineQueue(s);
     };
     const onDisconnect = (reason: string) => {
       console.warn('[Socket] Disconnected:', reason);
@@ -156,18 +210,21 @@ export function useSocket() {
 
   const respondToOffer = useCallback((orderId: string, accepted: boolean) => {
     const response = accepted ? 'accept' : 'decline';
-    sharedSocket?.emit('job:offer:respond', { orderId, response } as any);
+    // D-02: Use critical emit — queued if offline
+    emitCritical('job:offer:respond', { orderId, response });
   }, []);
 
   /** Respond to a job offer and await the server acknowledgement */
   const respondToOfferAsync = useCallback(
     (orderId: string, accepted: boolean): Promise<{ success: boolean; error?: string }> => {
       return new Promise((resolve) => {
+        const response = accepted ? 'accept' : 'decline';
         if (!sharedSocket?.connected) {
-          resolve({ success: false, error: 'Not connected to server' });
+          // D-02: Queue the response for replay on reconnect
+          enqueueOffline('job:offer:respond', { orderId, response });
+          resolve({ success: false, error: 'Queued — will send when reconnected' });
           return;
         }
-        const response = accepted ? 'accept' : 'decline';
         // Timeout handle — cleared when ACK arrives
         const timer = setTimeout(() => {
           resolve({ success: false, error: 'Server response timed out' });

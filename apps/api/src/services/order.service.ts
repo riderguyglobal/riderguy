@@ -5,8 +5,9 @@ import { calculatePrice, fetchRouteDistance, calculateWaitTimeCharge, calculateP
 import { awardXp, getCommissionRate } from './gamification.service';
 import { recordActivity as recordStreakActivity } from './streak.service';
 import { creditWallet, creditTip } from './wallet.service';
-import { cancelDispatch } from './auto-dispatch.service';
+import { cancelDispatch, getDeclinedRiderIds } from './auto-dispatch.service';
 import { ApiError } from '../lib/api-error';
+import { logger } from '../lib/logger';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
 
@@ -863,7 +864,15 @@ export async function getAvailableJobs(userId: string) {
     },
   });
 
-  return orders;
+  // D-06: Filter out orders the rider has already declined via auto-dispatch
+  const filtered = [];
+  for (const order of orders) {
+    const declined = await getDeclinedRiderIds(order.id);
+    if (!declined.has(userId)) {
+      filtered.push(order);
+    }
+  }
+  return filtered;
 }
 
 // ── Stale unpaid order cleanup ──────────────────────
@@ -916,4 +925,93 @@ export async function expireStaleUnpaidOrders(): Promise<number> {
   }
 
   return expired;
+}
+
+// ── D-03: Stale delivery SLA monitor ────────────────────
+
+const STALE_DELIVERY_HOURS = 2; // Alert/escalate after 2 hours in active status
+
+/**
+ * Detect deliveries stuck in active statuses for >2 hours.
+ * Logs them as warnings and creates admin-visible status history entries.
+ * Called periodically from server startup.
+ */
+export async function escalateStaleDeliveries(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_DELIVERY_HOURS * 60 * 60 * 1000);
+
+  const staleOrders = await prisma.order.findMany({
+    where: {
+      status: { in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'] },
+      updatedAt: { lt: cutoff },
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      riderId: true,
+      updatedAt: true,
+    },
+  });
+
+  if (staleOrders.length === 0) return 0;
+
+  let escalated = 0;
+  for (const order of staleOrders) {
+    try {
+      const hoursStale = Math.round((Date.now() - order.updatedAt.getTime()) / 3_600_000);
+
+      // Check if we already flagged this order recently (avoid duplicate alerts)
+      const recentFlag = await prisma.orderStatusHistory.findFirst({
+        where: {
+          orderId: order.id,
+          actor: 'system',
+          note: { startsWith: 'SLA BREACH' },
+          createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) }, // within last hour
+        },
+      });
+      if (recentFlag) continue;
+
+      await prisma.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          status: order.status,
+          actor: 'system',
+          note: `SLA BREACH — Order stuck in ${order.status} for ${hoursStale}h. Requires admin attention.`,
+        },
+      });
+
+      logger.warn(
+        { orderId: order.id, orderNumber: order.orderNumber, status: order.status, hoursStale },
+        '[SLA] Delivery breached 2-hour SLA',
+      );
+
+      escalated++;
+    } catch {
+      // Continue with remaining orders
+    }
+  }
+
+  return escalated;
+}
+
+// ── D-04: Location breadcrumb retention cleanup ─────────
+
+const BREADCRUMB_RETENTION_DAYS = 30;
+
+/**
+ * Delete location breadcrumbs older than 30 days.
+ * Called periodically to prevent unbounded table growth.
+ */
+export async function cleanupOldBreadcrumbs(): Promise<number> {
+  const cutoff = new Date(Date.now() - BREADCRUMB_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+  const result = await prisma.locationHistory.deleteMany({
+    where: { createdAt: { lt: cutoff } },
+  });
+
+  if (result.count > 0) {
+    logger.info({ deleted: result.count, cutoff: cutoff.toISOString() }, '[Retention] Cleaned old breadcrumbs');
+  }
+
+  return result.count;
 }

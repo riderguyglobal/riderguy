@@ -794,6 +794,22 @@ router.post(
       throw ApiError.badRequest(`This stop has been ${stop.status.toLowerCase()}`);
     }
 
+    // D-07: Enforce multi-stop sequence — all prior stops must be completed first
+    if (stop.sequence > 1) {
+      const incompleteEarlierStops = await prisma.orderStop.count({
+        where: {
+          orderId,
+          sequence: { lt: stop.sequence },
+          status: { notIn: ['COMPLETED', 'SKIPPED'] },
+        },
+      });
+      if (incompleteEarlierStops > 0) {
+        throw ApiError.badRequest(
+          `Complete all earlier stops before stop #${stop.sequence}. ${incompleteEarlierStops} prior stop(s) still pending.`,
+        );
+      }
+    }
+
     // Handle proof submission for the stop
     const proofType = (req.body.proofType ?? req.query.proofType) as string | undefined;
     let proofUrl: string | undefined;

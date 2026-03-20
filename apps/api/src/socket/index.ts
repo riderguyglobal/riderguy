@@ -187,6 +187,23 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     let lastLocationUpdate = 0;
     const LOCATION_THROTTLE_MS = 3000; // Minimum 3 seconds between location updates
 
+    // D-04: Batch breadcrumb buffer — flush every 30s instead of per-update
+    const BREADCRUMB_FLUSH_INTERVAL_MS = 30_000;
+    let breadcrumbBuffer: Array<{
+      riderId: string; orderId: string;
+      latitude: number; longitude: number;
+      heading: number | null; speed: number | null;
+    }> = [];
+
+    const breadcrumbFlushTimer = setInterval(() => {
+      if (breadcrumbBuffer.length === 0) return;
+      const batch = breadcrumbBuffer;
+      breadcrumbBuffer = [];
+      prisma.locationHistory.createMany({ data: batch }).catch((err: unknown) => {
+        logger.error({ err, count: batch.length }, 'Failed to flush location breadcrumb batch');
+      });
+    }, BREADCRUMB_FLUSH_INTERVAL_MS);
+
     // ── Rider location updates ──
     socket.on('rider:updateLocation', async (data, ack) => {
       try {
@@ -230,20 +247,18 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
             select: { id: true },
           });
 
-          // Store breadcrumb for active deliveries (non-blocking)
+          // D-04: Buffer breadcrumbs for batch insert (flushed every 30s)
           if (activeOrders.length > 0) {
-            prisma.locationHistory.createMany({
-              data: activeOrders.map((order) => ({
+            for (const order of activeOrders) {
+              breadcrumbBuffer.push({
                 riderId: riderProfile.id,
                 orderId: order.id,
                 latitude,
                 longitude,
                 heading: heading ?? null,
                 speed: speed ?? null,
-              })),
-            }).catch((err: unknown) => {
-              logger.error({ err, riderId: riderProfile.id }, 'Failed to write location breadcrumb');
-            });
+              });
+            }
           }
 
           for (const order of activeOrders) {
@@ -481,6 +496,14 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     // ── Disconnect — start grace period, do NOT immediately go OFFLINE ──
     socket.on('disconnect', async (reason) => {
       logger.info({ socketId: socket.id, userId, reason }, 'WebSocket disconnected');
+
+      // D-04: Flush remaining breadcrumbs and stop the batch timer
+      clearInterval(breadcrumbFlushTimer);
+      if (breadcrumbBuffer.length > 0) {
+        const remaining = breadcrumbBuffer;
+        breadcrumbBuffer = [];
+        prisma.locationHistory.createMany({ data: remaining }).catch(() => {});
+      }
 
       if (roles.includes('RIDER')) {
         await riderDisconnected(userId, reason);

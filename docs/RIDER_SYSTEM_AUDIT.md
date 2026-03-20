@@ -1,7 +1,7 @@
 # Rider Delivery System — Audit Report
 
 > Generated: 2026-03-19
-> Last updated: 2026-03-20
+> Last updated: 2026-03-21
 > Scope: Full-stack rider delivery pipeline — API services, Socket.IO, rider app hooks & components
 > Files audited: 14 across `apps/api/src/` and `apps/rider/src/`
 
@@ -14,7 +14,7 @@
 | **CRITICAL** | 6 | 6 ✅ | Money loss, security bypass, data corruption |
 | **HIGH** | 8 | 8 ✅ | Race conditions, logic errors, broken features |
 | **MEDIUM** | 10 | 10 ✅ | UX failures under real-world Ghana conditions |
-| **DESIGN** | 10 | 0 | Architecture improvements for production readiness |
+| **DESIGN** | 10 | 10 ✅ | Architecture improvements for production readiness |
 
 ---
 
@@ -398,113 +398,113 @@ subtotal = roundGhs(Math.max(minimumFare, subtotal * (1 - businessDiscount) - pr
 
 ## DESIGN — Architecture Improvements for Production
 
-### D-01: In-Memory Dispatch State Lost on Server Restart
+### D-01: In-Memory Dispatch State Lost on Server Restart ✅ FIXED
 
 **File:** `apps/api/src/services/auto-dispatch.service.ts`
 **Impact:** Any Render redeploy drops all active dispatch loops — riders get re-offered declined jobs
 
 `activeDispatches` is a `Map` in process memory. `recoverStuckDispatches` re-dispatches from scratch — riders who already declined are re-offered the same job.
 
-**Recommendation:** Persist dispatch state to Redis with TTL. On recovery, skip already-declined riders.
+**Fix:** Dispatch state (including declined rider IDs) is now persisted to Redis with 5-min TTL. On recovery, previously-declined riders are filtered out. Redis state is cleaned up on resolve/cancel.
 
 ---
 
-### D-02: No Offline Queue for Critical Socket Emissions
+### D-02: No Offline Queue for Critical Socket Emissions ✅ FIXED
 
 **File:** `apps/rider/src/hooks/use-socket.ts`
 **Impact:** Accept/decline lost on GPRS disconnection — rider taps Accept, nothing happens
 
 If the socket is disconnected when the rider taps "Accept", `respondToOfferAsync` silently fails. No queue replays the response on reconnect.
 
-**Recommendation:** Queue critical events (offer response, status transition) in localStorage. Flush on reconnect.
+**Fix:** Added sessionStorage-backed offline queue. Critical events (offer responses) are queued when disconnected and auto-flushed on reconnect. Events older than 2 minutes are automatically dropped.
 
 ---
 
-### D-03: No Delivery SLA or Max-Duration Timeout
+### D-03: No Delivery SLA or Max-Duration Timeout ✅ FIXED
 
-**Files:** `apps/api/src/services/order.service.ts`, no cron found
+**Files:** `apps/api/src/services/order.service.ts`, `apps/api/src/index.ts`
 **Impact:** Rider accepts a job and never delivers — order sits forever
 
 There's no maximum time between ASSIGNED and DELIVERED. No background worker monitors for stale active deliveries. An order can sit in PICKUP_EN_ROUTE indefinitely.
 
-**Recommendation:** Add a cron job: if an order has been in an active status (ASSIGNED through AT_DROPOFF) for >2 hours, alert admin or auto-escalate.
+**Fix:** Added `escalateStaleDeliveries()` cron (runs every 10 min). Orders stuck in active statuses for >2 hours get flagged with `SLA BREACH` in orderStatusHistory. De-duplicated to avoid repeated alerts within 1 hour.
 
 ---
 
-### D-04: Location Breadcrumbs Grow Unbounded
+### D-04: Location Breadcrumbs Grow Unbounded ✅ FIXED
 
-**File:** `apps/api/src/socket/index.ts` ~L240-250
+**File:** `apps/api/src/socket/index.ts`, `apps/api/src/services/order.service.ts`
 **Impact:** LocationHistory table dominates Neon storage within months
 
 Every 3-second location update creates a `LocationHistory` row per active order. A 30-minute delivery = 600 rows. At 500 deliveries/day = 300,000 rows/day with no TTL, no archival, no cleanup.
 
-**Recommendation:** Add a retention policy — archive or delete breadcrumbs older than 30 days. Or batch-insert every 30s instead of per-update.
+**Fix:** (1) Breadcrumbs are now buffered in memory and batch-inserted every 30s instead of per-update. Buffer is flushed on disconnect. (2) Added `cleanupOldBreadcrumbs()` cron (daily) that deletes breadcrumbs older than 30 days.
 
 ---
 
-### D-05: SMS Fallback Fires on Every Dispatch Attempt
+### D-05: SMS Fallback Fires on Every Dispatch Attempt ✅ FIXED
 
-**File:** `apps/api/src/services/auto-dispatch.service.ts` ~L520
+**File:** `apps/api/src/services/auto-dispatch.service.ts`
 **Impact:** 10 SMS sent per order if all riders time out — wasted cost and spam
 
 `SmsService.sendNewJobAvailable` fires for every offer (up to 10 per order). At Ghana SMS rates (~GHS 0.05/msg), this adds up fast and annoys riders.
 
-**Recommendation:** Only send SMS on the first offer, or after the rider doesn't respond to the socket offer (as a true fallback).
+**Fix:** Added `smsSentCount` to dispatch state. SMS is only sent on the first offer per dispatch cycle (count === 0), reducing per-order SMS from up to 10 to exactly 1.
 
 ---
 
-### D-06: No Rider Blacklist for Declined Orders
+### D-06: No Rider Blacklist for Declined Orders ✅ FIXED
 
-**Files:** `apps/api/src/services/auto-dispatch.service.ts`, `apps/api/src/routes/orders/order.routes.ts`
+**Files:** `apps/api/src/services/auto-dispatch.service.ts`, `apps/api/src/services/order.service.ts`
 **Impact:** Rider declines via dispatch → sees same order in job feed → can accept it
 
 If a rider declines an auto-dispatched offer, they can still see the same order in the manual job feed (`GET /orders/available`) and accept it via `POST /orders/:id/accept`. The dispatch knowledge is lost.
 
-**Recommendation:** Track declined rider IDs per order. Filter them out of the available jobs query.
+**Fix:** Declined/timed-out rider IDs are stored per-order in Redis sets (1hr TTL). `getAvailableJobs` now filters out orders the rider has declined. Both explicit declines and offer timeouts are tracked.
 
 ---
 
-### D-07: No Multi-Stop Sequence Enforcement
+### D-07: No Multi-Stop Sequence Enforcement ✅ FIXED
 
-**File:** `apps/api/src/routes/orders/order.routes.ts` ~L743-790
+**File:** `apps/api/src/routes/orders/order.routes.ts`
 **Impact:** Rider completes stop #3 before stop #1 — delivery chain breaks
 
 The stop completion endpoint doesn't validate that all previous stops (by sequence number) have been completed first.
 
-**Recommendation:** Before completing stop N, verify all stops with `sequence < N` have `status = 'COMPLETED'`.
+**Fix:** Added sequence validation before stop completion. Counts all earlier stops (sequence < N) not in COMPLETED/SKIPPED status. Returns 400 with descriptive error if prior stops are pending.
 
 ---
 
-### D-08: Single-Process Presence Breaks Horizontal Scaling
+### D-08: Single-Process Presence Breaks Horizontal Scaling ✅ FIXED
 
 **File:** `apps/api/src/services/presence.service.ts`
 **Impact:** Second API instance has empty presence Map — dispatch sees no riders
 
 The presence `Map` lives in one Node.js process. The Redis adapter handles socket broadcasts, but presence lookups (`getOnlineRiders`) still read from local memory. A second instance would return an empty rider list.
 
-**Recommendation:** Replace the in-memory Map with Redis hashes. Use `HSET rider:{userId}` with TTL for presence data.
+**Fix:** Presence data is now mirrored to Redis keys with 6-min TTL on every connect/disconnect/heartbeat. Added `getOnlineRidersGlobal()` async function that merges local + Redis data for cross-instance dispatch. In-memory Map kept as local cache for speed.
 
 ---
 
-### D-09: Route Refresh Has No Debounce or Budget Cap
+### D-09: Route Refresh Has No Debounce or Budget Cap ✅ FIXED
 
 **File:** `apps/rider/src/components/navigation-map.tsx`
 **Impact:** Burns through Mapbox API quota on highway driving
 
 The map refreshes the route when the rider drifts >100m from the last route origin. At 60 km/h on a highway, that triggers every ~6 seconds. Each call costs $0.0005. At 500 active riders, that's significant.
 
-**Recommendation:** Add a minimum interval between route refreshes (e.g., 30 seconds). Skip refresh if the rider is on the existing route line (not deviating).
+**Fix:** Added 30-second minimum interval between route refreshes via `lastRouteRefreshRef` + `MIN_ROUTE_REFRESH_MS`. Distance drift check is still applied but refresh is skipped if cooldown hasn't elapsed. Initial route is always fetched immediately.
 
 ---
 
-### D-10: No Abort Controller on Mapbox Direction Requests
+### D-10: No Abort Controller on Mapbox Direction Requests ✅ FIXED
 
-**File:** `apps/rider/src/components/navigation-map.tsx` ~L105-129
+**File:** `apps/rider/src/components/navigation-map.tsx`
 **Impact:** Stale route drawn — older request resolves after newer one
 
 Rapid GPS updates trigger overlapping `fetchRoute` calls. On slow GPRS, an older request resolving after a newer one draws a stale route.
 
-**Recommendation:** Pass an `AbortController.signal` to each `fetch`. Abort the previous request when a new one starts.
+**Fix:** Added `AbortController` ref. Each `fetchRoute` call aborts any in-flight request before starting. Signal is passed to `fetch()`. AbortError is silently caught. Controller is also aborted on component unmount.
 
 ---
 

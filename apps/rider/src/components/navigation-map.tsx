@@ -100,6 +100,12 @@ export function NavigationMap({
   const [trafficOn, setTrafficOn] = useState(true);
   const [mapReady, setMapReady] = useState(false);
 
+  // D-10: AbortController ref — abort stale fetch when new one starts
+  const abortRef = useRef<AbortController | null>(null);
+  // D-09: Minimum interval between route refreshes (30s)
+  const lastRouteRefreshRef = useRef(0);
+  const MIN_ROUTE_REFRESH_MS = 30_000;
+
   const { resolvedTheme } = useTheme();
 
   const pickupCoords: [number, number] = [pickupLng, pickupLat];
@@ -109,6 +115,13 @@ export function NavigationMap({
   const fetchRoute = useCallback(
     async (from: [number, number], to: [number, number]) => {
       try {
+        // D-10: Abort any in-flight request before starting a new one
+        if (abortRef.current) {
+          abortRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         const token = tokenStorage.getAccessToken();
         if (!token) return null;
 
@@ -117,6 +130,7 @@ export function NavigationMap({
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
         if (!res.ok) return null;
 
@@ -129,7 +143,9 @@ export function NavigationMap({
           distance: number;
           legs: Array<{ annotation?: { congestion?: string[]; duration?: number[]; distance?: number[] } }>;
         };
-      } catch {
+      } catch (err) {
+        // D-10: Silently ignore aborted requests
+        if (err instanceof DOMException && err.name === 'AbortError') return null;
         return null;
       }
     },
@@ -165,6 +181,8 @@ export function NavigationMap({
 
     return () => {
       cancelled = true;
+      // D-10: Abort any in-flight route request on unmount
+      abortRef.current?.abort();
       removeMarkers(staticMarkersRef.current);
       staticMarkersRef.current = [];
       riderMarkerRef.current?.remove();
@@ -267,12 +285,19 @@ export function NavigationMap({
 
     if (origin[0] !== dest[0] || origin[1] !== dest[1]) {
       const lastPos = lastRouteRiderRef.current;
-      const shouldRefresh =
-        !hasInitialRouteRef.current ||
+      const driftedEnough =
         !lastPos ||
         haversineDistance(origin[1], origin[0], lastPos[1], lastPos[0]) * 1000 > ROUTE_REFRESH_DISTANCE_M;
 
+      // D-09: Enforce minimum 30s interval between route refreshes
+      const now = Date.now();
+      const timeSinceLastRefresh = now - lastRouteRefreshRef.current;
+      const cooldownOk = !hasInitialRouteRef.current || timeSinceLastRefresh >= MIN_ROUTE_REFRESH_MS;
+
+      const shouldRefresh = (!hasInitialRouteRef.current || driftedEnough) && cooldownOk;
+
       if (shouldRefresh) {
+        lastRouteRefreshRef.current = now;
         fetchRoute(origin, dest).then((route) => {
           if (!route) return;
           drawRoute(map, mapboxglLib, {

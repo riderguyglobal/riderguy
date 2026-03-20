@@ -21,6 +21,7 @@ import { logger } from '../lib/logger';
 import { assignRider } from './dispatch.service';
 import { getIO, emitOrderStatusUpdate } from '../socket';
 import { SmsService } from './sms.service';
+import { getRedisClient } from '../lib/redis';
 import type { JobOffer } from '@riderguy/types';
 
 // ── Configuration ──
@@ -53,6 +54,8 @@ interface DispatchState {
   offerSentAt: number; // Date.now() when current offer was emitted
   currentTierIndex: number; // which SEARCH_RADIUS_TIERS_KM tier we're on
   allScored: ScoredRider[]; // all scored riders from outer radius query
+  declinedRiderIds: Set<string>; // D-06: rider userIds who declined this order
+  smsSentCount: number;          // D-05: SMS counter — only send on first offer
 }
 
 interface ScoredRider {
@@ -67,6 +70,77 @@ interface ScoredRider {
 
 // Active dispatch sessions keyed by orderId
 const activeDispatches = new Map<string, DispatchState>();
+
+// ── D-01: Redis-backed dispatch state persistence ──
+
+const REDIS_DISPATCH_PREFIX = 'dispatch:';
+const REDIS_DISPATCH_TTL = 300; // 5 min — more than enough for a full dispatch cycle
+
+/** Serializable subset of DispatchState for Redis persistence */
+interface PersistedDispatchState {
+  orderId: string;
+  declinedRiderIds: string[];
+  currentIndex: number;
+  currentTierIndex: number;
+  offerSentAt: number;
+}
+
+async function persistDispatchToRedis(state: DispatchState): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  const data: PersistedDispatchState = {
+    orderId: state.orderId,
+    declinedRiderIds: [...state.declinedRiderIds],
+    currentIndex: state.currentIndex,
+    currentTierIndex: state.currentTierIndex,
+    offerSentAt: state.offerSentAt,
+  };
+  await redis.set(
+    `${REDIS_DISPATCH_PREFIX}${state.orderId}`,
+    JSON.stringify(data),
+    'EX',
+    REDIS_DISPATCH_TTL,
+  ).catch((err) => logger.warn({ err, orderId: state.orderId }, '[AutoDispatch] Redis persist failed'));
+}
+
+async function removeDispatchFromRedis(orderId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  await redis.del(`${REDIS_DISPATCH_PREFIX}${orderId}`).catch(() => {});
+}
+
+async function getPersistedDeclinedRiders(orderId: string): Promise<Set<string>> {
+  const redis = getRedisClient();
+  if (!redis) return new Set();
+  const raw = await redis.get(`${REDIS_DISPATCH_PREFIX}${orderId}`).catch(() => null);
+  if (!raw) return new Set();
+  try {
+    const data: PersistedDispatchState = JSON.parse(raw);
+    return new Set(data.declinedRiderIds);
+  } catch {
+    return new Set();
+  }
+}
+
+// ── D-06: Track declined riders per order (for available jobs filter) ──
+
+const REDIS_DECLINED_PREFIX = 'declined:';
+const REDIS_DECLINED_TTL = 3600; // 1 hour — declined rider memory per order
+
+async function recordDeclinedRider(orderId: string, userId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  await redis.sadd(`${REDIS_DECLINED_PREFIX}${orderId}`, userId).catch(() => {});
+  await redis.expire(`${REDIS_DECLINED_PREFIX}${orderId}`, REDIS_DECLINED_TTL).catch(() => {});
+}
+
+/** Get all rider userIds who declined this order (for filtering job feed) */
+export async function getDeclinedRiderIds(orderId: string): Promise<Set<string>> {
+  const redis = getRedisClient();
+  if (!redis) return new Set();
+  const ids = await redis.smembers(`${REDIS_DECLINED_PREFIX}${orderId}`).catch(() => [] as string[]);
+  return new Set(ids);
+}
 
 // ── Scoring Functions (exported for unit testing) ──
 
@@ -359,6 +433,18 @@ export async function autoDispatch(orderId: string): Promise<void> {
   );
 
   // Create dispatch state
+  // D-01: Recover declined riders from Redis (survives restart)
+  const priorDeclined = await getPersistedDeclinedRiders(orderId);
+  // Filter out previously-declined riders
+  if (priorDeclined.size > 0) {
+    candidates = candidates.filter((r) => !priorDeclined.has(r.userId));
+    if (candidates.length === 0) {
+      logger.info({ orderId, declinedCount: priorDeclined.size }, '[AutoDispatch] All candidates previously declined');
+      await prisma.order.update({ where: { id: orderId }, data: { status: 'PENDING' } });
+      return;
+    }
+  }
+
   const state: DispatchState = {
     orderId,
     rankedRiders: candidates,
@@ -368,8 +454,11 @@ export async function autoDispatch(orderId: string): Promise<void> {
     offerSentAt: Date.now(),
     currentTierIndex: usedTierIndex,
     allScored: scored,
+    declinedRiderIds: priorDeclined,
+    smsSentCount: 0,
   };
   activeDispatches.set(orderId, state);
+  await persistDispatchToRedis(state);
 
   // Start offering to the first rider
   sendOfferToNextRider(state, order);
@@ -432,6 +521,7 @@ function sendOfferToNextRider(
     logger.info({ orderId: state.orderId }, '[AutoDispatch] All candidates exhausted — order stays PENDING');
     state.resolved = true;
     activeDispatches.delete(state.orderId);
+    removeDispatchFromRedis(state.orderId);
     // Revert order to PENDING for manual pickup from the job feed
     prisma.order
       .update({ where: { id: state.orderId }, data: { status: 'PENDING' } })
@@ -507,8 +597,11 @@ function sendOfferToNextRider(
     logger.error({ err, orderId: state.orderId }, '[AutoDispatch] Failed to emit job:offer');
   }
 
-  // Send SMS notification as a backup
-  SmsService.sendNewJobAvailable(rider.phone, order.pickupAddress).catch(() => {});
+  // D-05: Only send SMS on the first offer per dispatch cycle (not every attempt)
+  if (state.smsSentCount === 0) {
+    SmsService.sendNewJobAvailable(rider.phone, order.pickupAddress).catch(() => {});
+    state.smsSentCount++;
+  }
 
   // Record when this offer was sent (for accurate reconnect timer)
   state.offerSentAt = Date.now();
@@ -527,6 +620,10 @@ function sendOfferToNextRider(
       const io = getIO();
       io.to(`user:${rider.userId}`).emit('job:offer:expired', { orderId: state.orderId });
     } catch {}
+
+    // D-06: Record timeout as implicit decline
+    state.declinedRiderIds.add(rider.userId);
+    recordDeclinedRider(state.orderId, rider.userId);
 
     // Move to next rider
     state.currentIndex++;
@@ -563,6 +660,7 @@ export async function handleOfferResponse(
   if (response === 'accept') {
     state.resolved = true;
     activeDispatches.delete(orderId);
+    await removeDispatchFromRedis(orderId);
 
     try {
       await assignRider(orderId, currentRider.riderProfileId, userId);
@@ -612,12 +710,15 @@ export async function handleOfferResponse(
     }
   }
 
-  // Decline — try next rider
+  // Decline — track declined rider (D-06) and try next
   logger.info(
     { orderId, riderId: userId, attempt: state.currentIndex + 1 },
     '[AutoDispatch] Rider declined — trying next',
   );
+  state.declinedRiderIds.add(userId);
+  await recordDeclinedRider(orderId, userId);
   state.currentIndex++;
+  await persistDispatchToRedis(state);
 
   // Re-fetch order data for next attempt
   const order = await prisma.order.findUnique({
@@ -650,6 +751,7 @@ export function cancelDispatch(orderId: string): void {
   }
   state.resolved = true;
   activeDispatches.delete(orderId);
+  removeDispatchFromRedis(orderId);
 
   logger.info({ orderId }, '[AutoDispatch] Dispatch cancelled');
 }
