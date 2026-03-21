@@ -767,8 +767,16 @@ export async function cancelOrderByRider(orderId: string, riderUserId: string, r
 
   const cancellableStatuses: OrderStatus[] = [
     'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP',
-    'PICKED_UP', 'IN_TRANSIT',
   ];
+  const postPickupStatuses: OrderStatus[] = ['PICKED_UP', 'IN_TRANSIT'];
+
+  if (postPickupStatuses.includes(order.status)) {
+    throw ApiError.badRequest(
+      'Post-pickup cancellation requires client authorization. Use the cancel request flow instead.',
+      'POST_PICKUP_CANCEL_REQUIRES_AUTH',
+    );
+  }
+
   if (!cancellableStatuses.includes(order.status)) {
     throw ApiError.badRequest('Order can no longer be cancelled at this stage');
   }

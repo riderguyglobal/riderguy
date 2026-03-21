@@ -93,6 +93,14 @@ export default function TrackingPage() {
   const [riderFoundCelebration, setRiderFoundCelebration] = useState(false);
   const [noRidersMessage, setNoRidersMessage] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelRequest, setCancelRequest] = useState<{
+    requestId: string;
+    riderName: string;
+    reason: string;
+    status: string;
+    expiresAt: string;
+  } | null>(null);
+  const [cancelAuthLoading, setCancelAuthLoading] = useState(false);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const historyLoadedRef = useRef(false);
@@ -108,6 +116,22 @@ export default function TrackingPage() {
       .then((res) => {
         const existing = res.data.data ?? [];
         if (existing.length > 0) setMessages(existing);
+      })
+      .catch(() => {});
+
+    // Load existing cancel request if any
+    api.get(`/orders/${id}/cancel-request`)
+      .then((res) => {
+        const req = res.data.data;
+        if (req && req.status !== 'RETURN_CONFIRMED' && req.status !== 'AUTHORIZED_COMPLETE') {
+          setCancelRequest({
+            requestId: req.id,
+            riderName: req.rider?.user ? `${req.rider.user.firstName ?? ''} ${req.rider.user.lastName ?? ''}`.trim() : 'Your rider',
+            reason: req.reason,
+            status: req.status,
+            expiresAt: req.expiresAt,
+          });
+        }
       })
       .catch(() => {});
   }, [api, id]);
@@ -200,6 +224,22 @@ export default function TrackingPage() {
     };
     socket.on('order:no-riders', onNoRiders);
 
+    // Listen for rider cancellation request
+    const onCancelRequest = (data: { orderId: string; requestId: string; riderName: string; reason: string; orderStatusAtRequest: string; expiresAt: string }) => {
+      if (data.orderId === id) {
+        setCancelRequest({
+          requestId: data.requestId,
+          riderName: data.riderName,
+          reason: data.reason,
+          status: 'PENDING',
+          expiresAt: data.expiresAt,
+        });
+        // Vibrate to get attention
+        navigator.vibrate?.([300, 100, 300]);
+      }
+    };
+    socket.on('order:cancel-request', onCancelRequest);
+
     return () => {
       unsubscribeFromOrder(id);
       socket.off('order:status', onStatusUpdate);
@@ -207,6 +247,7 @@ export default function TrackingPage() {
       socket.off('message:new', onMessage);
       socket.off('message:typing', onTyping);
       socket.off('order:no-riders', onNoRiders);
+      socket.off('order:cancel-request', onCancelRequest);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [id, socket, refetch, user?.id, subscribeToOrder, unsubscribeFromOrder, queryClient]);
@@ -262,6 +303,36 @@ export default function TrackingPage() {
     if (!msgInput.trim() || !id) return;
     sendMessage(id, msgInput.trim());
     setMsgInput('');
+  };
+
+  const handleCancelAuthorize = async (decision: 'return' | 'complete' | 'deny') => {
+    if (!api || !id) return;
+    setCancelAuthLoading(true);
+    try {
+      await api.post(`/orders/${id}/cancel-authorize`, { decision });
+      if (decision === 'deny') {
+        setCancelRequest(null);
+      } else {
+        setCancelRequest((prev) => prev ? { ...prev, status: decision === 'return' ? 'AUTHORIZED_RETURN' : 'AUTHORIZED_COMPLETE' } : null);
+      }
+      if (decision === 'complete') {
+        queryClient.invalidateQueries({ queryKey: ['order', id] });
+        refetch();
+      }
+    } catch { /* ignore */ }
+    setCancelAuthLoading(false);
+  };
+
+  const handleConfirmReturn = async () => {
+    if (!api || !id) return;
+    setCancelAuthLoading(true);
+    try {
+      await api.post(`/orders/${id}/cancel-return-confirm`);
+      setCancelRequest(null);
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      refetch();
+    } catch { /* ignore */ }
+    setCancelAuthLoading(false);
   };
 
   const pickupCoords = useMemo<[number, number] | null>(
@@ -411,6 +482,86 @@ export default function TrackingPage() {
                   <Copy className="h-3.5 w-3.5 text-amber-600" />
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Cancellation Authorization Request from Rider */}
+          {cancelRequest && cancelRequest.status === 'PENDING' && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-3 animate-slide-up">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-red-800">Rider Wants to Cancel</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    {cancelRequest.riderName} is requesting to cancel this delivery because your package has already been picked up.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white/60 rounded-xl px-3 py-2 border border-red-100">
+                <p className="text-[10px] font-medium text-red-400 uppercase tracking-wider mb-0.5">Reason</p>
+                <p className="text-sm text-red-700">{cancelRequest.reason}</p>
+              </div>
+
+              <p className="text-xs text-red-500">
+                Your package is with the rider. Please choose how to proceed:
+              </p>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => handleCancelAuthorize('return')}
+                  disabled={cancelAuthLoading}
+                  className="w-full h-11 rounded-xl bg-amber-600 text-white font-semibold text-sm hover:bg-amber-700 disabled:opacity-50 transition-all btn-press flex items-center justify-center gap-2"
+                >
+                  <Package className="h-4 w-4" /> Cancel &amp; Return Package
+                </button>
+                <button
+                  onClick={() => handleCancelAuthorize('complete')}
+                  disabled={cancelAuthLoading}
+                  className="w-full h-11 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-all btn-press flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="h-4 w-4" /> Cancel — No Return Needed
+                </button>
+                <button
+                  onClick={() => handleCancelAuthorize('deny')}
+                  disabled={cancelAuthLoading}
+                  className="w-full h-11 rounded-xl border border-surface-200 text-surface-600 font-medium text-sm hover:bg-surface-50 disabled:opacity-50 transition-all btn-press flex items-center justify-center gap-2"
+                >
+                  <Shield className="h-4 w-4" /> Deny — Continue Delivery
+                </button>
+              </div>
+
+              <p className="text-[10px] text-red-400 text-center">
+                This request expires in 30 minutes. If not responded to, it will be escalated to our support team.
+              </p>
+            </div>
+          )}
+
+          {/* Waiting for package return */}
+          {cancelRequest && cancelRequest.status === 'AUTHORIZED_RETURN' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3 animate-slide-up">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 animate-pulse">
+                  <Package className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-amber-800">Waiting for Package Return</p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    You authorized the cancellation. The rider should be returning your package.
+                    Once you have your package, confirm below.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleConfirmReturn}
+                disabled={cancelAuthLoading}
+                className="w-full h-12 rounded-xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 disabled:opacity-50 transition-all btn-press flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="h-4 w-4" /> Confirm Package Returned
+              </button>
             </div>
           )}
 

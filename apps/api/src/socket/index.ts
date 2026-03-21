@@ -601,6 +601,42 @@ export function emitNewJob(zoneId: string | null, data: {
 }
 
 /**
+ * Emit a cancellation authorization request to the order room.
+ * Client receives this in real-time so they can authorize/deny.
+ */
+export function emitCancelRequest(data: {
+  orderId: string;
+  requestId: string;
+  riderName: string;
+  reason: string;
+  orderStatusAtRequest: string;
+  expiresAt: string;
+}) {
+  if (!io) return;
+  io.to(`order:${data.orderId}`).emit('order:cancel-request', {
+    ...data,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Emit a cancellation authorization response to the order room.
+ * Rider receives this so they know whether to return the package or not.
+ */
+export function emitCancelResponse(data: {
+  orderId: string;
+  requestId: string;
+  status: string;
+  clientNote?: string;
+}) {
+  if (!io) return;
+  io.to(`order:${data.orderId}`).emit('order:cancel-response', {
+    ...data,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
  * Haversine formula — distance in km between two GPS points.
  */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {

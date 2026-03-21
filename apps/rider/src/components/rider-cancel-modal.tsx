@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Loader2, ShieldAlert, Info } from 'lucide-react';
+import { X, AlertTriangle, Loader2, ShieldAlert, Info, CheckCircle } from 'lucide-react';
 
 interface RiderCancelModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
+  /** Called for post-pickup cancellation — requests authorization from client */
+  onRequestCancel?: (reason: string) => Promise<void>;
   /** Current order status — determines which reasons to show */
   status: string;
   orderNumber: string;
@@ -50,6 +52,7 @@ export function RiderCancelModal({
   open,
   onClose,
   onConfirm,
+  onRequestCancel,
   status,
   orderNumber,
 }: RiderCancelModalProps) {
@@ -57,6 +60,7 @@ export function RiderCancelModal({
   const [customReason, setCustomReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [requestSent, setRequestSent] = useState(false);
 
   const isPostPickup = ['PICKED_UP', 'IN_TRANSIT'].includes(status);
   const reasons = isPostPickup ? POST_PICKUP_REASONS : PRE_PICKUP_REASONS;
@@ -83,6 +87,7 @@ export function RiderCancelModal({
       setCustomReason('');
       setError('');
       setLoading(false);
+      setRequestSent(false);
     }
   }, [open]);
 
@@ -96,7 +101,13 @@ export function RiderCancelModal({
     setLoading(true);
     setError('');
     try {
-      await onConfirm(effectiveReason.trim());
+      if (isPostPickup && onRequestCancel) {
+        await onRequestCancel(effectiveReason.trim());
+        setRequestSent(true);
+        setLoading(false);
+      } else {
+        await onConfirm(effectiveReason.trim());
+      }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
       const msg = axiosErr?.response?.data?.error?.message
@@ -145,17 +156,17 @@ export function RiderCancelModal({
         {/* Content */}
         <div className="p-5 space-y-4">
           {/* Post-pickup warning */}
-          {isPostPickup && (
+          {isPostPickup && !requestSent && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
               <ShieldAlert className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-red-800">
-                  Package already picked up — CRITICAL
+                  Package already picked up — Client Authorization Required
                 </p>
                 <p className="text-xs text-red-600 mt-1">
-                  Cancelling after pickup is a serious violation. You will receive a penalty of GHS 15,
-                  a 24-hour suspension, and your account will be flagged for investigation.
-                  The package must be returned to the pickup location.
+                  Since you have the client&apos;s package, you cannot cancel directly.
+                  The client must authorize this cancellation to ensure their package is safely returned.
+                  You will receive a GHS 15 penalty, 24-hour suspension, and account investigation.
                 </p>
               </div>
             </div>
@@ -234,30 +245,64 @@ export function RiderCancelModal({
               {error}
             </div>
           )}
+
+          {/* Request sent success message */}
+          {requestSent && (
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-green-800">
+                  Cancellation request sent
+                </p>
+                <p className="text-xs text-green-600 mt-1">
+                  The client has been notified and has 30 minutes to respond.
+                  You will be notified when they authorize or deny the request.
+                  Please wait for their response before taking any action.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="p-5 pt-0 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 disabled:opacity-50 transition-all btn-press"
-          >
-            Keep Delivering
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={loading || !effectiveReason.trim()}
-            className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition-all disabled:opacity-40 btn-press flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Cancelling…
-              </>
-            ) : (
-              'Cancel Delivery'
-            )}
-          </button>
+          {requestSent ? (
+            <button
+              onClick={onClose}
+              className="flex-1 h-12 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition-all btn-press"
+            >
+              Got It
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={onClose}
+                disabled={loading}
+                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 disabled:opacity-50 transition-all btn-press"
+              >
+                Keep Delivering
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={loading || !effectiveReason.trim()}
+                className={`flex-1 h-12 rounded-xl font-semibold text-sm transition-all disabled:opacity-40 btn-press flex items-center justify-center gap-2 ${
+                  isPostPickup
+                    ? 'bg-amber-600 text-white hover:bg-amber-700'
+                    : 'bg-red-600 text-white hover:bg-red-700'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> {isPostPickup ? 'Requesting…' : 'Cancelling…'}
+                  </>
+                ) : isPostPickup ? (
+                  'Request Cancellation'
+                ) : (
+                  'Cancel Delivery'
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

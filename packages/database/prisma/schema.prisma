@@ -430,7 +430,8 @@ model RiderProfile {
   cancellationCount  Int                  @default(0)
   lastCancellationAt DateTime?
   suspendedUntil     DateTime?            // Non-null = currently suspended from new orders
-  cancellationRecords CancellationRecord[]
+  cancellationRecords    CancellationRecord[]
+  cancellationRequests   CancellationRequest[]
 
   @@index([availability])
   @@index([currentZoneId])
@@ -692,6 +693,7 @@ model Order {
   statusHistory         OrderStatusHistory[]
   messages              OrderMessage[]
   cancellationRecord    CancellationRecord?
+  cancellationRequest   CancellationRequest?
 
   @@index([clientId])
   @@index([riderId])
@@ -1982,6 +1984,62 @@ model CancellationRecord {
   @@index([riderId, createdAt])
   @@index([requiresInvestigation])
   @@map("cancellation_records")
+}
+
+// ============================================================
+// CANCELLATION AUTHORIZATION REQUEST
+// When a rider cancels AFTER picking up the package, the client
+// must authorize the cancellation to ensure package safety.
+// ============================================================
+
+enum CancelRequestStatus {
+  PENDING              // Awaiting client response
+  AUTHORIZED_RETURN    // Client authorized — rider must return package
+  RETURN_CONFIRMED     // Client confirmed package was returned
+  AUTHORIZED_COMPLETE  // Client authorized — package already returned/handed over
+  DENIED               // Client denied the request
+  EXPIRED              // Client didn't respond within timeout (escalates to admin)
+  ADMIN_RESOLVED       // Admin intervened
+}
+
+model CancellationRequest {
+  id              String              @id @default(cuid())
+
+  // Who and which order
+  riderId         String
+  rider           RiderProfile        @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  orderId         String              @unique
+  order           Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  clientId        String              // The client who must authorize
+
+  // Request details
+  reason          String              // Why the rider wants to cancel
+  status          CancelRequestStatus @default(PENDING)
+  orderStatusAtRequest String          // PICKED_UP or IN_TRANSIT
+
+  // Client response
+  clientResponseAt  DateTime?
+  clientNote        String?           // Optional note from client
+
+  // Admin override
+  adminResolvedBy   String?           // Admin user ID if admin intervened
+  adminNote         String?
+
+  // Return tracking
+  returnConfirmedAt DateTime?         // When client confirmed package return
+
+  // Timeout: auto-expire after 30 minutes (escalate to admin)
+  expiresAt       DateTime
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([riderId])
+  @@index([orderId])
+  @@index([clientId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("cancellation_requests")
 }
 
 model CancellationAppeal {

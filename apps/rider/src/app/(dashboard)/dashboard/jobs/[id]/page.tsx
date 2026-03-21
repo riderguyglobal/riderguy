@@ -209,6 +209,11 @@ export default function JobDetailPage() {
     setShowCancelModal(false);
   };
 
+  const handleRequestCancel = async (reason: string) => {
+    if (!api || !id) return;
+    await api.post(`${API_BASE_URL}/orders/${id}/cancel-request`, { reason });
+  };
+
   /** Launch Google Maps turn-by-turn navigation to the given coordinates */
   const launchNavigation = useCallback((lat: number, lng: number, phase: 'pickup' | 'delivery' = 'pickup') => {
     // Show a persistent notification so the rider can tap to return
@@ -551,6 +556,7 @@ export default function JobDetailPage() {
           open={showCancelModal}
           onClose={() => setShowCancelModal(false)}
           onConfirm={handleRiderCancel}
+          onRequestCancel={handleRequestCancel}
           status={order.status}
           orderNumber={order.orderNumber ?? order.id.slice(0, 8)}
         />

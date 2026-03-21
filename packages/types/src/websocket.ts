@@ -26,6 +26,24 @@ export interface ServerToClientEvents {
   // ── Auto-dispatch search exhausted ──
   'order:no-riders': (data: { orderId: string; reason: string; timestamp: string }) => void;
 
+  // ── Cancellation authorization flow (post-pickup) ──
+  'order:cancel-request': (data: {
+    orderId: string;
+    requestId: string;
+    riderName: string;
+    reason: string;
+    orderStatusAtRequest: string;
+    expiresAt: string;
+    timestamp: string;
+  }) => void;
+  'order:cancel-response': (data: {
+    orderId: string;
+    requestId: string;
+    status: string;
+    clientNote?: string;
+    timestamp: string;
+  }) => void;
+
   // ── Generic notification ──
   'notification': (data: { title: string; body: string; orderId?: string }) => void;
 

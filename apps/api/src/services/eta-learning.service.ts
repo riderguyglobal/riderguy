@@ -45,6 +45,7 @@ async function refreshCache(): Promise<void> {
 
     const newCache = new Map<string, { factor: number; confidence: number }>();
     for (const f of factors) {
+      if (!f.zoneId) continue;
       const key = buildCacheKey(f.zoneId, f.hourOfDay, f.dayOfWeek);
       newCache.set(key, {
         factor: f.correctionFactor,

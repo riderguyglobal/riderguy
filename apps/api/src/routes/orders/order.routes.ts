@@ -18,6 +18,7 @@ import * as TrackingService from '../../services/tracking.service';
 import { notifyNearbyRiders, createOrderNotification } from '../../services/notification.service';
 import { autoDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
+import * as CancelRequestService from '../../services/cancellation-request.service';
 import { StorageService } from '../../services/storage.service';
 import { prisma } from '@riderguy/database';
 import { logger } from '../../lib/logger';
@@ -641,6 +642,84 @@ router.post(
     // (includes penalty context and better messaging)
 
     res.status(StatusCodes.OK).json({ success: true, data: order });
+  }),
+);
+
+// ─────────────────────────────────────────────────────────────
+// Post-Pickup Cancellation Authorization Flow
+// ─────────────────────────────────────────────────────────────
+
+/** POST /orders/:id/cancel-request — Rider requests cancellation authorization from client (post-pickup only) */
+router.post(
+  '/:id/cancel-request',
+  requireRole(UserRole.RIDER),
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    const reason = req.body.reason;
+    if (!reason || !reason.trim()) throw ApiError.badRequest('A cancellation reason is required');
+
+    const request = await CancelRequestService.createCancelRequest(
+      orderId,
+      req.user!.userId,
+      reason.trim(),
+    );
+
+    res.status(StatusCodes.CREATED).json({ success: true, data: request });
+  }),
+);
+
+/** POST /orders/:id/cancel-authorize — Client authorizes or denies cancellation request */
+router.post(
+  '/:id/cancel-authorize',
+  requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    const { decision, note } = req.body;
+
+    if (!decision || !['return', 'complete', 'deny'].includes(decision)) {
+      throw ApiError.badRequest('Decision must be "return", "complete", or "deny"');
+    }
+
+    // Find the cancel request for this order
+    const cancelRequest = await CancelRequestService.getCancelRequest(orderId);
+    if (!cancelRequest) throw ApiError.notFound('No cancellation request found for this order');
+
+    const updated = await CancelRequestService.authorizeCancelRequest(
+      cancelRequest.id,
+      req.user!.userId,
+      decision,
+      note,
+    );
+
+    res.status(StatusCodes.OK).json({ success: true, data: updated });
+  }),
+);
+
+/** POST /orders/:id/cancel-return-confirm — Client confirms package was returned */
+router.post(
+  '/:id/cancel-return-confirm',
+  requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+
+    const cancelRequest = await CancelRequestService.getCancelRequest(orderId);
+    if (!cancelRequest) throw ApiError.notFound('No cancellation request found for this order');
+
+    const updated = await CancelRequestService.confirmReturn(
+      cancelRequest.id,
+      req.user!.userId,
+    );
+
+    res.status(StatusCodes.OK).json({ success: true, data: updated });
+  }),
+);
+
+/** GET /orders/:id/cancel-request — Get the cancellation request for an order */
+router.get(
+  '/:id/cancel-request',
+  asyncHandler(async (req, res) => {
+    const cancelRequest = await CancelRequestService.getCancelRequest(req.params.id as string);
+    res.status(StatusCodes.OK).json({ success: true, data: cancelRequest });
   }),
 );
 
