@@ -128,7 +128,7 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
 
   const map = new mapboxgl.Map({
     container: options.container,
-    style: options.style ?? MAP_STYLES.light,
+    style: options.style ?? MAP_STYLES.streets,
     center: options.center ?? ACCRA_CENTER,
     zoom: options.zoom ?? MAP_ZOOM.default,
     pitch: options.pitch ?? MAP_PITCH.flat,
