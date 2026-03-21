@@ -45,6 +45,10 @@ const STATUS_STEPS = [
   { key: 'IN_TRANSIT', label: 'Your package is on the way', icon: Truck },
   { key: 'AT_DROPOFF', label: 'Rider has arrived', icon: Navigation },
   { key: 'DELIVERED', label: 'Package delivered!', icon: CheckCircle },
+  { key: 'CANCELLED_BY_CLIENT', label: 'You cancelled this delivery', icon: AlertTriangle },
+  { key: 'CANCELLED_BY_RIDER', label: 'Rider cancelled the delivery', icon: AlertTriangle },
+  { key: 'CANCELLED_BY_ADMIN', label: 'Delivery was cancelled', icon: AlertTriangle },
+  { key: 'FAILED', label: 'Delivery failed', icon: AlertTriangle },
 ];
 
 /** Play a short celebration chime using Web Audio API */
@@ -604,6 +608,42 @@ export default function TrackingPage() {
           {isCancelled && order.status === 'CANCELLED_BY_CLIENT' && (
             <div className="bg-surface-50 rounded-2xl p-4 text-center">
               <p className="text-sm text-surface-500">You cancelled this delivery.</p>
+            </div>
+          )}
+
+          {isCancelled && order.status === 'CANCELLED_BY_RIDER' && (
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-5 text-center space-y-2">
+              <div className="h-11 w-11 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <p className="text-sm font-semibold text-red-800">Your rider cancelled this delivery</p>
+              <p className="text-xs text-red-600">
+                We&apos;re sorry for the inconvenience. You can place a new order and we&apos;ll find another rider for you.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard/orders/new')}
+                className="mt-2 w-full h-11 rounded-xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press"
+              >
+                Place New Order
+              </button>
+            </div>
+          )}
+
+          {isCancelled && order.status === 'CANCELLED_BY_ADMIN' && (
+            <div className="bg-surface-50 rounded-2xl p-4 text-center">
+              <p className="text-sm text-surface-500">This delivery was cancelled by support.</p>
+            </div>
+          )}
+
+          {isCancelled && order.status === 'FAILED' && (
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 text-center space-y-2">
+              <div className="h-11 w-11 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <p className="text-sm font-semibold text-amber-800">Delivery could not be completed</p>
+              <p className="text-xs text-amber-600">
+                The rider was unable to complete this delivery. Please contact support if you need help.
+              </p>
             </div>
           )}
         </div>

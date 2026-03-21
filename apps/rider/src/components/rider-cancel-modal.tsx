@@ -101,18 +101,18 @@ export function RiderCancelModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-card-strong rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto border border-themed">
+      <div className="relative w-full max-w-md mx-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-themed">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-danger-500/15 flex items-center justify-center">
-              <AlertTriangle className="h-4.5 w-4.5 text-danger-400" />
+            <div className="h-9 w-9 rounded-xl bg-red-50 flex items-center justify-center">
+              <AlertTriangle className="h-4.5 w-4.5 text-red-500" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-primary">
+              <h3 className="text-base font-semibold text-gray-900">
                 Cancel Delivery
               </h3>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-gray-400">
                 Order {orderNumber}
               </p>
             </div>
@@ -120,9 +120,9 @@ export function RiderCancelModal({
           {!loading && (
             <button
               onClick={onClose}
-              className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-surface-700/50 transition-colors"
+              className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
             >
-              <X className="h-4 w-4 text-muted" />
+              <X className="h-4 w-4 text-gray-400" />
             </button>
           )}
         </div>
@@ -131,13 +131,13 @@ export function RiderCancelModal({
         <div className="p-5 space-y-4">
           {/* Post-pickup warning */}
           {isPostPickup && (
-            <div className="bg-danger-500/10 border border-danger-500/30 rounded-2xl p-4 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-danger-400 shrink-0 mt-0.5" />
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-danger-300">
+                <p className="text-sm font-semibold text-red-800">
                   Package already picked up
                 </p>
-                <p className="text-xs text-danger-400/80 mt-1">
+                <p className="text-xs text-red-600 mt-1">
                   You have the client&apos;s package. Cancelling now means the package must be returned to the pickup location. This will be recorded on your profile.
                 </p>
               </div>
@@ -145,8 +145,8 @@ export function RiderCancelModal({
           )}
 
           {!isPostPickup && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
-              <p className="text-sm text-amber-300/90">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <p className="text-sm text-amber-800">
                 Frequent cancellations may affect your rating and job priority.
               </p>
             </div>
@@ -154,7 +154,7 @@ export function RiderCancelModal({
 
           {/* Reason selection */}
           <div>
-            <p className="text-sm font-medium text-secondary mb-2">
+            <p className="text-sm font-medium text-gray-700 mb-2">
               Why are you cancelling?
             </p>
             <div className="flex flex-wrap gap-2">
@@ -166,8 +166,8 @@ export function RiderCancelModal({
                   disabled={loading}
                   className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
                     reason === r
-                      ? 'bg-danger-500/15 border-danger-500/40 text-danger-300 border'
-                      : 'bg-surface-800/50 border border-themed text-muted hover:bg-surface-700/50'
+                      ? 'bg-red-50 border-red-300 text-red-700 border'
+                      : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   {r}
@@ -188,14 +188,15 @@ export function RiderCancelModal({
                 onFocus={(e) => {
                   setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
                 }}
-                className="w-full min-h-[80px] p-3 rounded-xl bg-surface-800/50 border border-themed text-primary placeholder:text-subtle text-sm resize-none focus:outline-none focus:border-brand-500 transition-colors"
+                className="w-full min-h-[80px] p-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-colors"
               />
             </div>
           )}
 
           {/* Error */}
           {error && (
-            <div className="px-3 py-2 rounded-xl bg-danger-500/15 border border-danger-500/30 text-danger-400 text-xs font-medium">
+            <div className="px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               {error}
             </div>
           )}
@@ -206,14 +207,14 @@ export function RiderCancelModal({
           <button
             onClick={onClose}
             disabled={loading}
-            className="flex-1 h-12 rounded-xl border border-themed text-secondary font-medium text-sm hover:bg-surface-700/50 transition-all btn-press"
+            className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 disabled:opacity-50 transition-all btn-press"
           >
             Keep Delivering
           </button>
           <button
             onClick={handleConfirm}
             disabled={loading || !effectiveReason.trim()}
-            className="flex-1 h-12 rounded-xl bg-danger-500 text-white font-semibold text-sm hover:bg-danger-600 transition-all disabled:opacity-40 btn-press flex items-center justify-center gap-2"
+            className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition-all disabled:opacity-40 btn-press flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
