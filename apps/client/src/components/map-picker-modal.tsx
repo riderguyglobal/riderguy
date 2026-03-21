@@ -90,10 +90,15 @@ export function MapPickerModal({
         fog: false,
         onLoad: (map) => {
           if (destroyed) return;
-          setMapReady(true);
-          // Initial reverse geocode
-          const c = map.getCenter();
-          handleReverseGeocode(c.lng, c.lat);
+          // Wait one frame so the flex layout settles and the container
+          // has its final dimensions before Mapbox reads them.
+          requestAnimationFrame(() => {
+            if (destroyed) return;
+            map.resize();
+            setMapReady(true);
+            const c = map.getCenter();
+            handleReverseGeocode(c.lng, c.lat);
+          });
         },
       });
       if (destroyed) { core.destroy(); return; }
@@ -259,8 +264,8 @@ export function MapPickerModal({
       </div>
 
       {/* Map container — fills space above the bottom card */}
-      <div className="flex-1 w-full relative">
-        <div ref={mapContainerRef} className="absolute inset-0" />
+      <div className="flex-1 w-full relative min-h-0 overflow-hidden">
+        <div ref={mapContainerRef} className="w-full h-full" />
 
         {/* Center pin (fixed in center of map area) */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-10 pointer-events-none">
