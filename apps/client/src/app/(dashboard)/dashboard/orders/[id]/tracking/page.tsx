@@ -611,23 +611,41 @@ export default function TrackingPage() {
             </div>
           )}
 
-          {isCancelled && order.status === 'CANCELLED_BY_RIDER' && (
-            <div className="bg-red-50 border border-red-100 rounded-2xl p-5 text-center space-y-2">
-              <div className="h-11 w-11 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-2">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+          {isCancelled && order.status === 'CANCELLED_BY_RIDER' && (() => {
+            // Extract the rider's cancellation reason from status history
+            const cancelEntry = order.statusHistory?.find(
+              (h: { status: string; note?: string }) => h.status === 'CANCELLED_BY_RIDER' && h.note,
+            );
+            const rawNote = cancelEntry?.note ?? '';
+            const cancelReason = rawNote.replace(/^Rider cancel:\s*/i, '') || 'No reason provided';
+
+            return (
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="h-11 w-11 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <UserX className="h-5 w-5 text-red-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-red-800">Your rider cancelled this delivery</p>
+                    <div className="mt-1.5 bg-white/60 rounded-xl px-3 py-2 border border-red-100">
+                      <p className="text-[10px] font-medium text-red-400 uppercase tracking-wider mb-0.5">Reason given</p>
+                      <p className="text-sm text-red-700">{cancelReason}</p>
+                    </div>
+                    <p className="text-xs text-red-500 mt-2">
+                      This has been recorded. Riders who cancel frequently face penalties including suspension.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => router.push('/dashboard/send')}
+                  className="w-full h-11 rounded-xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press"
+                >
+                  Place New Order
+                </button>
               </div>
-              <p className="text-sm font-semibold text-red-800">Your rider cancelled this delivery</p>
-              <p className="text-xs text-red-600">
-                We&apos;re sorry for the inconvenience. You can place a new order and we&apos;ll find another rider for you.
-              </p>
-              <button
-                onClick={() => router.push('/dashboard/orders/new')}
-                className="mt-2 w-full h-11 rounded-xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press"
-              >
-                Place New Order
-              </button>
-            </div>
-          )}
+            );
+          })()}
 
           {isCancelled && order.status === 'CANCELLED_BY_ADMIN' && (
             <div className="bg-surface-50 rounded-2xl p-4 text-center">

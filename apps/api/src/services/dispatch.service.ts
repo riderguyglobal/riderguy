@@ -43,6 +43,9 @@ export async function assignRider(
   if (process.env.BYPASS_ONBOARDING_CHECK !== 'true' && rider.onboardingStatus !== 'ACTIVATED') {
     throw ApiError.badRequest('Rider is not activated', 'RIDER_NOT_ACTIVATED');
   }
+  if (rider.suspendedUntil && rider.suspendedUntil > new Date()) {
+    throw ApiError.forbidden('Rider is currently suspended due to cancellation violations');
+  }
   if (rider.availability !== 'ONLINE') {
     throw ApiError.badRequest(
       `Rider is currently ${rider.availability}`,

@@ -9,7 +9,7 @@ import { getInitials } from '@riderguy/utils';
 import {
   User, Shield, Bell, HelpCircle, FileText, LogOut,
   ChevronRight, Bike, Settings, Sun, Moon, Monitor,
-  Fingerprint, Plus, Trash2, Loader2, Lock, KeyRound
+  Fingerprint, Plus, Trash2, Loader2, Lock, KeyRound, Ban
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 
@@ -19,6 +19,7 @@ const MENU_ITEMS = [
   { icon: Bell, label: 'Notifications', href: '/dashboard/settings/notifications', color: 'text-amber-400', bg: 'bg-amber-500/10', disabled: true },
   { icon: FileText, label: 'Documents', href: '/dashboard/onboarding/documents', color: 'text-purple-400', bg: 'bg-purple-500/10', disabled: false },
   { icon: Bike, label: 'Vehicle Info', href: '/dashboard/onboarding/vehicle', color: 'text-brand-400', bg: 'bg-brand-500/10', disabled: false },
+  { icon: Ban, label: 'Cancellation History', href: '/dashboard/cancellations', color: 'text-red-400', bg: 'bg-red-500/10', disabled: false },
   { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/settings/help', color: 'text-muted', bg: 'bg-surface-500/10', disabled: true },
 ];
 

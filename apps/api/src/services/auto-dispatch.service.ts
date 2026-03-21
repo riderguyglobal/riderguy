@@ -296,6 +296,8 @@ export async function autoDispatch(orderId: string): Promise<void> {
       availability: 'ONLINE',
       // Bypass onboarding check only when BYPASS_ONBOARDING_CHECK=true (for testing)
       ...(process.env.BYPASS_ONBOARDING_CHECK !== 'true' ? { onboardingStatus: 'ACTIVATED' } : {}),
+      // Exclude suspended riders
+      OR: [{ suspendedUntil: null }, { suspendedUntil: { lt: new Date() } }],
       currentLatitude: { not: null },
       currentLongitude: { not: null },
     },

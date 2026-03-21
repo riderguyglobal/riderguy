@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, AlertTriangle, Loader2, ShieldAlert, Info } from 'lucide-react';
 
 interface RiderCancelModalProps {
   open: boolean;
@@ -12,25 +12,39 @@ interface RiderCancelModalProps {
   orderNumber: string;
 }
 
-const PRE_PICKUP_REASONS = [
-  'Vehicle breakdown',
-  'Personal emergency',
-  'Unsafe pickup location',
-  'Package not as described',
-  'Prohibited / suspicious items',
-  'Sender not available',
-  'Other',
+interface CancelReason {
+  label: string;
+  consequence: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
+const PRE_PICKUP_REASONS: CancelReason[] = [
+  { label: 'Vehicle breakdown', consequence: 'Warning recorded. Proof may be requested.', severity: 'low' },
+  { label: 'Personal emergency', consequence: 'Warning recorded. No penalty if infrequent.', severity: 'low' },
+  { label: 'Unsafe pickup location', consequence: 'No penalty. Location flagged for admin review.', severity: 'low' },
+  { label: 'Package not as described', consequence: 'Warning recorded. May require details.', severity: 'medium' },
+  { label: 'Prohibited / suspicious items', consequence: 'No penalty. Will be investigated.', severity: 'medium' },
+  { label: 'Sender not available', consequence: 'No penalty if client confirmed unreachable.', severity: 'low' },
+  { label: 'Waited too long at pickup', consequence: 'Warning recorded. Excessive wait logged.', severity: 'medium' },
+  { label: 'Other', consequence: 'Reviewed by admin. Penalty depends on frequency.', severity: 'medium' },
 ];
 
-const POST_PICKUP_REASONS = [
-  'Vehicle breakdown / accident',
-  'Personal emergency',
-  'Package damaged in transit',
-  'Road inaccessible',
-  'Extreme weather conditions',
-  'Prohibited contents discovered',
-  'Other',
+const POST_PICKUP_REASONS: CancelReason[] = [
+  { label: 'Vehicle breakdown / accident', consequence: 'Penalty likely: GHS 15 + investigation. Package must be returned.', severity: 'critical' },
+  { label: 'Personal emergency', consequence: 'Penalty: GHS 15 + investigation. Package must be returned.', severity: 'critical' },
+  { label: 'Package damaged in transit', consequence: 'Investigation required. You may be liable for package value.', severity: 'critical' },
+  { label: 'Road inaccessible', consequence: 'Penalty: GHS 15 + suspension. Location reviewed.', severity: 'critical' },
+  { label: 'Extreme weather conditions', consequence: 'Investigation required. Package must be returned.', severity: 'critical' },
+  { label: 'Prohibited contents discovered', consequence: 'Investigation required. Report to authorities if dangerous.', severity: 'critical' },
+  { label: 'Other', consequence: 'Penalty: GHS 15 + 24hr suspension + admin investigation.', severity: 'critical' },
 ];
+
+const SEVERITY_COLORS = {
+  low: 'bg-amber-50 text-amber-700 border-amber-200',
+  medium: 'bg-orange-50 text-orange-700 border-orange-200',
+  high: 'bg-red-50 text-red-700 border-red-200',
+  critical: 'bg-red-100 text-red-800 border-red-300',
+} as const;
 
 export function RiderCancelModal({
   open,
@@ -46,6 +60,7 @@ export function RiderCancelModal({
 
   const isPostPickup = ['PICKED_UP', 'IN_TRANSIT'].includes(status);
   const reasons = isPostPickup ? POST_PICKUP_REASONS : PRE_PICKUP_REASONS;
+  const selectedReason = reasons.find((r) => r.label === reason);
   const effectiveReason = reason === 'Other' ? customReason : reason;
 
   // Android back button trap
@@ -132,23 +147,31 @@ export function RiderCancelModal({
           {/* Post-pickup warning */}
           {isPostPickup && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              <ShieldAlert className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-red-800">
-                  Package already picked up
+                  Package already picked up — CRITICAL
                 </p>
                 <p className="text-xs text-red-600 mt-1">
-                  You have the client&apos;s package. Cancelling now means the package must be returned to the pickup location. This will be recorded on your profile.
+                  Cancelling after pickup is a serious violation. You will receive a penalty of GHS 15,
+                  a 24-hour suspension, and your account will be flagged for investigation.
+                  The package must be returned to the pickup location.
                 </p>
               </div>
             </div>
           )}
 
           {!isPostPickup && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-              <p className="text-sm text-amber-800">
-                Frequent cancellations may affect your rating and job priority.
-              </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  Cancellation consequences escalate
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  1st in 30 days: Warning only · 2nd: GHS 5 fee · 3rd: GHS 10 + 2hr suspension · 4th+: GHS 20 + 24hr suspension + account review
+                </p>
+              </div>
             </div>
           )}
 
@@ -160,21 +183,32 @@ export function RiderCancelModal({
             <div className="flex flex-wrap gap-2">
               {reasons.map((r) => (
                 <button
-                  key={r}
+                  key={r.label}
                   type="button"
-                  onClick={() => { setReason(r); setError(''); }}
+                  onClick={() => { setReason(r.label); setError(''); }}
                   disabled={loading}
                   className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
-                    reason === r
+                    reason === r.label
                       ? 'bg-red-50 border-red-300 text-red-700 border'
                       : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  {r}
+                  {r.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Consequence preview for selected reason */}
+          {selectedReason && (
+            <div className={`rounded-xl border p-3 flex items-start gap-2.5 ${SEVERITY_COLORS[selectedReason.severity]}`}>
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold">Consequence for this reason:</p>
+                <p className="text-xs mt-0.5">{selectedReason.consequence}</p>
+              </div>
+            </div>
+          )}
 
           {/* Custom reason input */}
           {reason === 'Other' && (

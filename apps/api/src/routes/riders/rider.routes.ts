@@ -97,6 +97,19 @@ router.patch(
       }
     }
 
+    // Gate: suspended riders cannot go ONLINE
+    if (availability === 'ONLINE') {
+      const suspCheck = await prisma.riderProfile.findUnique({
+        where: { userId: req.user!.userId },
+        select: { suspendedUntil: true },
+      });
+      if (suspCheck?.suspendedUntil && suspCheck.suspendedUntil > new Date()) {
+        throw ApiError.forbidden(
+          `Your account is suspended until ${suspCheck.suspendedUntil.toISOString()}. You cannot go online during a suspension.`,
+        );
+      }
+    }
+
     // Build update data — always set availability
     const updateData: Record<string, unknown> = { availability };
 
@@ -549,6 +562,57 @@ router.patch(
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
+  }),
+);
+
+// ============================================================
+// Cancellation History & Appeals
+// ============================================================
+
+/** GET /riders/cancellations — Rider's cancellation history */
+router.get(
+  '/cancellations',
+  authenticate,
+  requireRole(UserRole.RIDER),
+  asyncHandler(async (req, res) => {
+    const { getRiderCancellationHistory } = await import('../../services/cancellation.service');
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { userId: req.user!.userId },
+      select: { id: true, cancellationCount: true, suspendedUntil: true },
+    });
+    if (!riderProfile) throw ApiError.notFound('Rider profile not found');
+
+    const records = await getRiderCancellationHistory(riderProfile.id);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        totalCancellations: riderProfile.cancellationCount,
+        suspendedUntil: riderProfile.suspendedUntil,
+        records,
+      },
+    });
+  }),
+);
+
+/** POST /riders/cancellations/:recordId/appeal — Rider submits appeal */
+router.post(
+  '/cancellations/:recordId/appeal',
+  authenticate,
+  requireRole(UserRole.RIDER),
+  asyncHandler(async (req, res) => {
+    const { submitAppeal } = await import('../../services/cancellation.service');
+    const { statement, evidenceUrls } = req.body;
+    if (!statement || typeof statement !== 'string' || !statement.trim()) {
+      throw ApiError.badRequest('Appeal statement is required');
+    }
+
+    const appeal = await submitAppeal(
+      req.params.recordId as string,
+      req.user!.userId,
+      statement.trim(),
+      Array.isArray(evidenceUrls) ? evidenceUrls : [],
+    );
+    res.status(StatusCodes.CREATED).json({ success: true, data: appeal });
   }),
 );
 

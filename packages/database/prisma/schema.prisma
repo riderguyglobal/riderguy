@@ -426,6 +426,12 @@ model RiderProfile {
   menteeships        Mentorship[]         @relation("MenteeRelation")
   spotlights         RiderSpotlight[]
 
+  // Cancellation tracking
+  cancellationCount  Int                  @default(0)
+  lastCancellationAt DateTime?
+  suspendedUntil     DateTime?            // Non-null = currently suspended from new orders
+  cancellationRecords CancellationRecord[]
+
   @@index([availability])
   @@index([currentZoneId])
   @@index([onboardingStatus])
@@ -685,6 +691,7 @@ model Order {
   // Relations
   statusHistory         OrderStatusHistory[]
   messages              OrderMessage[]
+  cancellationRecord    CancellationRecord?
 
   @@index([clientId])
   @@index([riderId])
@@ -1902,4 +1909,99 @@ model EtaCorrectionFactor {
   @@index([zoneId])
   @@index([hourOfDay])
   @@map("eta_correction_factors")
+}
+
+// ============================================================
+// CANCELLATION CONSEQUENCES & APPEALS
+// ============================================================
+
+enum CancellationCategory {
+  VEHICLE_BREAKDOWN
+  PERSONAL_EMERGENCY
+  UNSAFE_CONDITIONS
+  PACKAGE_ISSUE        // Too large, too heavy, prohibited item
+  CANNOT_FIND_LOCATION
+  CLIENT_UNREACHABLE
+  PAYMENT_DISPUTE
+  EXCESSIVE_WAIT
+  OTHER
+}
+
+enum CancellationSeverity {
+  WARNING              // No financial penalty
+  MINOR                // Small fee deducted
+  MODERATE             // Larger fee + short suspension
+  SEVERE               // Large fee + long suspension + admin review
+  CRITICAL             // Immediate account review (cancelled after pickup)
+}
+
+enum AppealStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED             // Consequence reversed
+  PARTIALLY_APPROVED   // Penalty reduced
+  DENIED
+}
+
+model CancellationRecord {
+  id                  String                @id @default(cuid())
+
+  // Who cancelled & which order
+  riderId             String
+  rider               RiderProfile          @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  orderId             String                @unique
+  order               Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Reason details
+  category            CancellationCategory
+  reason              String                // Free-text explanation from rider
+  orderStatusAtCancel String                // e.g. 'PICKED_UP', 'ASSIGNED'
+
+  // Consequence
+  severity            CancellationSeverity
+  penaltyAmount       Decimal               @default(0) @db.Decimal(12, 2)
+  penaltyApplied      Boolean               @default(false)
+  suspensionHours     Int                   @default(0)
+  suspensionApplied   Boolean               @default(false)
+  requiresInvestigation Boolean             @default(false)
+  investigationNotes  String?               @db.Text
+
+  // Rolling window context at time of cancellation
+  cancellationsInWindow Int                 @default(1) // How many in last 30 days
+
+  // Evidence (optional — rider can upload proof for vehicle breakdown etc.)
+  evidenceUrl         String?
+
+  // Appeal
+  appeal              CancellationAppeal?
+
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([riderId])
+  @@index([riderId, createdAt])
+  @@index([requiresInvestigation])
+  @@map("cancellation_records")
+}
+
+model CancellationAppeal {
+  id                  String              @id @default(cuid())
+  cancellationId      String              @unique
+  cancellation        CancellationRecord  @relation(fields: [cancellationId], references: [id], onDelete: Cascade)
+  riderId             String              // For quick lookup
+  status              AppealStatus        @default(PENDING)
+  riderStatement      String              @db.Text
+  evidenceUrls        String[]            @default([])
+  reviewedBy          String?             // Admin user ID
+  reviewNotes         String?             @db.Text
+  outcome             String?             // Summary of decision
+  penaltyRefunded     Boolean             @default(false)
+  suspensionLifted    Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  reviewedAt          DateTime?
+  updatedAt           DateTime            @updatedAt
+
+  @@index([riderId])
+  @@index([status])
+  @@map("cancellation_appeals")
 }

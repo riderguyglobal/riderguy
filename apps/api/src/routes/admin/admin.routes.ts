@@ -362,6 +362,80 @@ router.get(
   }),
 );
 
+// ============================================================
+// Cancellation Management — Investigations & Appeals
+// ============================================================
+
+/** GET /admin/cancellations/investigations — Cases flagged for admin review */
+router.get(
+  '/cancellations/investigations',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const { getPendingInvestigations } = await import('../../services/cancellation.service');
+    const investigations = await getPendingInvestigations();
+    res.status(StatusCodes.OK).json({ success: true, data: investigations });
+  }),
+);
+
+/** GET /admin/cancellations/appeals — Pending appeals */
+router.get(
+  '/cancellations/appeals',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const { getPendingAppeals } = await import('../../services/cancellation.service');
+    const appeals = await getPendingAppeals();
+    res.status(StatusCodes.OK).json({ success: true, data: appeals });
+  }),
+);
+
+/** POST /admin/cancellations/appeals/:id/review — Review an appeal */
+router.post(
+  '/cancellations/appeals/:id/review',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { reviewAppeal } = await import('../../services/cancellation.service');
+    const { decision, notes, refundPenalty, liftSuspension } = req.body;
+
+    const validDecisions = ['APPROVED', 'PARTIALLY_APPROVED', 'DENIED'] as const;
+    if (!decision || !validDecisions.includes(decision)) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'BAD_REQUEST', message: 'decision must be APPROVED, PARTIALLY_APPROVED, or DENIED' },
+      });
+      return;
+    }
+
+    const appeal = await reviewAppeal(
+      req.params.id as string,
+      req.user!.userId,
+      decision as 'APPROVED' | 'PARTIALLY_APPROVED' | 'DENIED',
+      notes || '',
+      Boolean(refundPenalty),
+      Boolean(liftSuspension),
+    );
+    res.status(StatusCodes.OK).json({ success: true, data: appeal });
+  }),
+);
+
+/** PATCH /admin/cancellations/:id/investigate — Add investigation notes */
+router.patch(
+  '/cancellations/:id/investigate',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { notes } = req.body;
+    if (!notes || typeof notes !== 'string') {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'BAD_REQUEST', message: 'notes are required' },
+      });
+      return;
+    }
+
+    const { prisma: db } = await import('@riderguy/database');
+    const record = await db.cancellationRecord.update({
+      where: { id: req.params.id as string },
+      data: { investigationNotes: notes },
+    });
+    res.status(StatusCodes.OK).json({ success: true, data: record });
+  }),
+);
+
 /**
  * POST /admin/contact-submissions
  * Receive contact form submissions from marketing site.

@@ -6,6 +6,7 @@ import { awardXp, getCommissionRate } from './gamification.service';
 import { recordActivity as recordStreakActivity } from './streak.service';
 import { creditWallet, creditTip } from './wallet.service';
 import { cancelDispatch, getDeclinedRiderIds } from './auto-dispatch.service';
+import { processCancellationConsequences, isRiderSuspended } from './cancellation.service';
 import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
@@ -758,6 +759,12 @@ export async function cancelOrderByRider(orderId: string, riderUserId: string, r
     throw ApiError.forbidden('You are not assigned to this order');
   }
 
+  // Check if rider is currently suspended
+  const suspended = await isRiderSuspended(riderProfile.id);
+  if (suspended) {
+    throw ApiError.forbidden('Your account is currently suspended');
+  }
+
   const cancellableStatuses: OrderStatus[] = [
     'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP',
     'PICKED_UP', 'IN_TRANSIT',
@@ -766,8 +773,26 @@ export async function cancelOrderByRider(orderId: string, riderUserId: string, r
     throw ApiError.badRequest('Order can no longer be cancelled at this stage');
   }
 
+  const orderStatusAtCancel = order.status;
   const cancelNote = `Rider cancel: ${reason}`;
-  return transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote);
+  const updated = await transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote);
+
+  // Process cancellation consequences (penalty, suspension, investigation)
+  try {
+    await processCancellationConsequences(
+      riderProfile.id,
+      riderUserId,
+      orderId,
+      order.orderNumber,
+      orderStatusAtCancel,
+      reason,
+      order.clientId,
+    );
+  } catch (err) {
+    logger.error(`Failed to process cancellation consequences for order ${orderId}: ${err}`);
+  }
+
+  return updated;
 }
 
 /**

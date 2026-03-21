@@ -637,19 +637,8 @@ router.post(
       note: reason.trim(),
     });
 
-    // Notify the client via push notification
-    if (beforeCancel.clientId) {
-      try {
-        await createOrderNotification(
-          beforeCancel.clientId,
-          'Delivery Cancelled by Rider ⚠️',
-          `Your rider cancelled order ${order.orderNumber}. Reason: ${reason.trim()}. We'll find you a new rider shortly.`,
-          order.id,
-        );
-      } catch (err) {
-        logger.warn(`Failed to notify client of rider cancellation for order ${order.id}`);
-      }
-    }
+    // Client notification is now handled by the cancellation consequence service
+    // (includes penalty context and better messaging)
 
     res.status(StatusCodes.OK).json({ success: true, data: order });
   }),
