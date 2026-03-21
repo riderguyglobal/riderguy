@@ -28,6 +28,7 @@ import {
 import { haversineDistance, estimateDuration, toRoadDistance } from '@riderguy/utils';
 import { isPointInPolygon } from '@riderguy/utils';
 import type { PackageType, PaymentMethod } from '@prisma/client';
+import { correctEta } from './eta-learning.service';
 
 // ============================================================
 // Pricing Engine v2 — Comprehensive zone-aware pricing.
@@ -233,7 +234,11 @@ export async function calculatePrice(
   const distanceKm = routeDistanceKm
     ? roundGhs(routeDistanceKm)
     : roundGhs(toRoadDistance(haversineKm, roadFactor));
-  const estimatedDurationMinutes = estimateDuration(distanceKm, avgSpeed);
+  const etaResult = await correctEta(
+    estimateDuration(distanceKm, avgSpeed),
+    pickupZone?.id ?? null,
+  );
+  const estimatedDurationMinutes = etaResult.correctedMinutes;
 
   // ── 4. Dynamic Surge ─────────────────────────────────────
   let surgeResult: { multiplier: number; level: string };

@@ -4,6 +4,21 @@ import { formatPlusCode } from '@riderguy/utils';
 import { prisma } from '@riderguy/database';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  normalizeAddress,
+  fuzzyMatch,
+  buildTrigramIndex,
+  searchTrigramIndex,
+  type IndexedEntry,
+} from '../lib/fuzzy-search';
+import {
+  parseNaturalLocation,
+  isNaturalLanguageQuery,
+} from '../lib/natural-location-parser';
+import {
+  recordLocationSelection,
+  getPopularityBoosts,
+} from './popularity.service';
 
 // ============================================================
 // Geocoding Service — converts addresses to coordinates and
@@ -206,6 +221,8 @@ const LANDMARKS: LandmarkEntry[] = [
 // ── Load gazetteer dataset at startup ─────────────────────
 let gazetteerEntries: GazetteerEntry[] = [];
 let gazetteerLoaded = false;
+let gazetteerIndex: IndexedEntry[] = [];
+let landmarkIndex: IndexedEntry[] = [];
 
 function loadGazetteerData(): void {
   if (gazetteerLoaded) return;
@@ -232,6 +249,29 @@ function loadGazetteerData(): void {
       const places = gazetteerEntries.filter(e => e.t === 'place').length;
       const pois = gazetteerEntries.filter(e => e.t === 'poi').length;
       console.log(`[GeocodingService] Loaded ${gazetteerEntries.length} Ghana locations (${places} places + ${pois} POIs) from ${filePath}`);
+
+      // Build trigram indexes for fuzzy search
+      const indexStartTime = Date.now();
+      gazetteerIndex = buildTrigramIndex(
+        gazetteerEntries.map((e) => ({
+          name: e.n,
+          altNames: [
+            ...(e.a ? [e.a] : []),
+            ...(e.al ?? []),
+            ...(e.r ? [`${e.n}, ${e.r}`] : []),
+          ],
+        })),
+      );
+      landmarkIndex = buildTrigramIndex(
+        LANDMARKS.map((e) => ({
+          name: e.name,
+          altNames: [
+            ...(e.aliases ?? []),
+            `${e.name}, ${e.area}`,
+          ],
+        })),
+      );
+      console.log(`[GeocodingService] Built fuzzy indexes (${gazetteerIndex.length} + ${landmarkIndex.length} entries) in ${Date.now() - indexStartTime}ms`);
     } else {
       console.warn('[GeocodingService] ghana-places.json not found — gazetteer will use landmarks only. Checked:', candidates.join(', '));
     }
@@ -247,126 +287,121 @@ loadGazetteerData();
 /**
  * Search the comprehensive gazetteer for matching locations.
  *
- * Searches the 42,000+ entry dataset (GeoNames + OSM places +
- * OSM POIs) plus the curated landmarks. Scores results by match
- * quality, population (places), and category relevance (POIs).
+ * Uses trigram-indexed fuzzy search with:
+ * • Typo tolerance (Levenshtein + Damerau-Levenshtein)
+ * • Address normalization (Rd→Road, St→Street, etc.)
+ * • Trigram pre-filtering for fast lookups across 80K+ entries
+ * • Population & proximity bonuses
+ * • Usage-based popularity boosts (learned from user selections)
  *
  * @param query  The user's search text
  * @param limit  Maximum results to return
  * @param proximity  Optional coordinates to boost nearby results
+ * @param popularityBoosts  Pre-fetched popularity data
  */
 function searchGazetteer(
   query: string,
   limit = 5,
   proximity?: { lat: number; lng: number },
+  popularityBoosts?: Map<string, number>,
 ): AutocompleteSuggestion[] {
   const lower = query.toLowerCase().trim();
   if (!lower || lower.length < 2) return [];
+  const normQuery = normalizeAddress(query);
 
   const scored: { name: string; area: string; lat: number; lng: number; score: number; source: 'landmark' | 'gazetteer'; category?: string; placeType?: string }[] = [];
 
-  // ── 1. Search curated landmarks ───────────────
-  for (const entry of LANDMARKS) {
-    const nameLower = entry.name.toLowerCase();
-    const areaLower = entry.area.toLowerCase();
-    const allNames = [nameLower, ...(entry.aliases?.map((a) => a.toLowerCase()) ?? [])];
-    const fullName = `${nameLower}, ${areaLower}`;
+  // ── 1. Search curated landmarks via fuzzy index ───────────
+  if (landmarkIndex.length > 0) {
+    const landmarkHits = searchTrigramIndex(normQuery, landmarkIndex, 0.28, 10);
+    for (const hit of landmarkHits) {
+      const entry = LANDMARKS[hit.index];
+      if (!entry) continue;
 
-    let bestScore = 0;
+      // Convert fuzzy score (0–1) to scoring scale (0–200)
+      let baseScore = hit.score * 200;
 
-    for (const n of allNames) {
-      if (n === lower)              bestScore = Math.max(bestScore, 200); // exact
-      else if (n.startsWith(lower)) bestScore = Math.max(bestScore, 160); // prefix
-      else if (n.includes(lower))   bestScore = Math.max(bestScore, 120); // substring
-    }
+      // Popularity boost
+      const popBoost = popularityBoosts?.get(normalizeAddress(entry.name)) ?? 0;
+      baseScore += popBoost * 5;
 
-    if (fullName.startsWith(lower)) bestScore = Math.max(bestScore, 150);
-    else if (fullName.includes(lower)) bestScore = Math.max(bestScore, 100);
-
-    if (bestScore > 0) {
       scored.push({
         name: entry.name,
         area: entry.area,
         lat: entry.lat,
         lng: entry.lng,
-        score: bestScore,
+        score: baseScore,
+        source: 'landmark',
+      });
+    }
+  } else {
+    // Fallback: linear search with fuzzy matching if index not built
+    for (const entry of LANDMARKS) {
+      const match = fuzzyMatch(normQuery, normalizeAddress(entry.name));
+      if (match.score < 0.28) {
+        // Also try aliases
+        let bestAliasScore = 0;
+        for (const alias of entry.aliases ?? []) {
+          const aliasMatch = fuzzyMatch(normQuery, normalizeAddress(alias));
+          bestAliasScore = Math.max(bestAliasScore, aliasMatch.score);
+        }
+        if (bestAliasScore < 0.28) continue;
+        // Use alias score
+        const popBoost = popularityBoosts?.get(normalizeAddress(entry.name)) ?? 0;
+        scored.push({
+          name: entry.name,
+          area: entry.area,
+          lat: entry.lat,
+          lng: entry.lng,
+          score: bestAliasScore * 180 + popBoost * 5,
+          source: 'landmark',
+        });
+        continue;
+      }
+
+      const popBoost = popularityBoosts?.get(normalizeAddress(entry.name)) ?? 0;
+      scored.push({
+        name: entry.name,
+        area: entry.area,
+        lat: entry.lat,
+        lng: entry.lng,
+        score: match.score * 200 + popBoost * 5,
         source: 'landmark',
       });
     }
   }
 
-  // ── 2. Search unified gazetteer (places + POIs) ─────────
-  for (const entry of gazetteerEntries) {
-    const nameLower = (entry.a ?? entry.n).toLowerCase();
-    const displayLower = entry.n.toLowerCase();
-    const regionLower = (entry.r ?? '').toLowerCase();
-    const subtypeLower = (entry.st ?? '').toLowerCase();
-    const fullName = regionLower ? `${displayLower}, ${regionLower}` : displayLower;
+  // ── 2. Search unified gazetteer via fuzzy trigram index ─────────
+  if (gazetteerIndex.length > 0) {
+    const gazHits = searchTrigramIndex(normQuery, gazetteerIndex, 0.28, 30);
+    for (const hit of gazHits) {
+      const entry = gazetteerEntries[hit.index];
+      if (!entry) continue;
 
-    let bestScore = 0;
+      const isPlace = entry.t === 'place';
+      // Scale: fuzzy score (0–1) → base (0–100/90 for places/POIs)
+      const maxBase = isPlace ? 100 : 90;
+      let baseScore = hit.score * maxBase;
 
-    // Scoring base depends on type: places score higher than POIs
-    const isPlace = entry.t === 'place';
-    const exactBase = isPlace ? 100 : 90;
-    const prefixBase = isPlace ? 80 : 70;
-    const substringBase = isPlace ? 60 : 50;
-
-    // Match main name
-    if (nameLower === lower || displayLower === lower) {
-      bestScore = exactBase;
-    } else if (nameLower.startsWith(lower) || displayLower.startsWith(lower)) {
-      bestScore = prefixBase;
-    } else if (nameLower.includes(lower) || displayLower.includes(lower)) {
-      bestScore = substringBase;
-    }
-
-    // Match alternate names (GeoNames places only)
-    if (entry.al && bestScore < exactBase) {
-      for (const alt of entry.al) {
-        const altLower = alt.toLowerCase();
-        if (altLower === lower)              bestScore = Math.max(bestScore, exactBase - 5);
-        else if (altLower.startsWith(lower)) bestScore = Math.max(bestScore, prefixBase - 5);
-        else if (altLower.includes(lower))   bestScore = Math.max(bestScore, substringBase - 5);
-      }
-    }
-
-    // Match "name, region" for places
-    if (regionLower) {
-      if (fullName.startsWith(lower)) bestScore = Math.max(bestScore, 70);
-      else if (fullName.includes(lower)) bestScore = Math.max(bestScore, 45);
-    }
-
-    // Match by category/subtype for POIs (e.g. searching "hotel" matches all hotels)
-    if (!isPlace && bestScore === 0) {
-      if (subtypeLower === lower) bestScore = 65;
-      else if (subtypeLower.startsWith(lower)) bestScore = 55;
-      else if ((entry.c ?? '').toLowerCase() === lower) bestScore = 50;
-    }
-
-    if (bestScore > 0) {
-      // Population bonus: large cities score higher (places only)
+      // Population bonus (same as before)
       const pop = entry.p ?? 0;
-      const popBonus = pop > 100000 ? 15
-        : pop > 50000 ? 10
-        : pop > 10000 ? 5
-        : pop > 1000 ? 2
-        : 0;
+      const popBonus = pop > 100000 ? 15 : pop > 50000 ? 10 : pop > 10000 ? 5 : pop > 1000 ? 2 : 0;
 
-      // Proximity bonus: if user has location, boost nearby entries
+      // Proximity bonus
       let proxBonus = 0;
       if (proximity) {
         const dist = Math.abs(entry.lat - proximity.lat) + Math.abs(entry.lon - proximity.lng);
-        if (dist < 0.1) proxBonus = 10;       // ~10km
-        else if (dist < 0.3) proxBonus = 5;   // ~30km
-        else if (dist < 1.0) proxBonus = 2;   // ~100km
+        if (dist < 0.1) proxBonus = 10;
+        else if (dist < 0.3) proxBonus = 5;
+        else if (dist < 1.0) proxBonus = 2;
       }
 
-      // Build display area
+      // Popularity boost from learned data
+      const popBoost = popularityBoosts?.get(normalizeAddress(entry.n)) ?? 0;
+
       let area = entry.r ?? '';
       if (!area && entry.c) {
-        // For POIs without a region, show the category
-        const catLabel = entry.c.charAt(0).toUpperCase() + entry.c.slice(1);
-        area = catLabel;
+        area = entry.c.charAt(0).toUpperCase() + entry.c.slice(1);
       }
 
       scored.push({
@@ -374,7 +409,58 @@ function searchGazetteer(
         area,
         lat: entry.lat,
         lng: entry.lon,
-        score: bestScore + popBonus + proxBonus,
+        score: baseScore + popBonus + proxBonus + popBoost * 3,
+        source: 'gazetteer',
+        category: entry.c,
+        placeType: isPlace ? (entry.st ?? 'place') : (entry.st ?? entry.c ?? 'poi'),
+      });
+    }
+  } else {
+    // Fallback: linear fuzzy search (slower but works without index)
+    for (const entry of gazetteerEntries) {
+      const names = [entry.n, ...(entry.a ? [entry.a] : []), ...(entry.al ?? [])];
+      let bestScore = 0;
+      for (const name of names) {
+        const match = fuzzyMatch(normQuery, normalizeAddress(name));
+        bestScore = Math.max(bestScore, match.score);
+      }
+
+      // Also try category/subtype matching for POI searches
+      if (bestScore < 0.28 && entry.t === 'poi') {
+        if (entry.st) {
+          const stMatch = fuzzyMatch(normQuery, entry.st.toLowerCase());
+          bestScore = Math.max(bestScore, stMatch.score * 0.7);
+        }
+        if (entry.c) {
+          const cMatch = fuzzyMatch(normQuery, entry.c.toLowerCase());
+          bestScore = Math.max(bestScore, cMatch.score * 0.6);
+        }
+      }
+
+      if (bestScore < 0.28) continue;
+
+      const isPlace = entry.t === 'place';
+      const maxBase = isPlace ? 100 : 90;
+      const pop = entry.p ?? 0;
+      const popBonus = pop > 100000 ? 15 : pop > 50000 ? 10 : pop > 10000 ? 5 : pop > 1000 ? 2 : 0;
+      let proxBonus = 0;
+      if (proximity) {
+        const dist = Math.abs(entry.lat - proximity.lat) + Math.abs(entry.lon - proximity.lng);
+        if (dist < 0.1) proxBonus = 10;
+        else if (dist < 0.3) proxBonus = 5;
+        else if (dist < 1.0) proxBonus = 2;
+      }
+
+      const popBoost = popularityBoosts?.get(normalizeAddress(entry.n)) ?? 0;
+      let area = entry.r ?? '';
+      if (!area && entry.c) area = entry.c.charAt(0).toUpperCase() + entry.c.slice(1);
+
+      scored.push({
+        name: entry.n,
+        area,
+        lat: entry.lat,
+        lng: entry.lon,
+        score: bestScore * maxBase + popBonus + proxBonus + popBoost * 3,
         source: 'gazetteer',
         category: entry.c,
         placeType: isPlace ? (entry.st ?? 'place') : (entry.st ?? entry.c ?? 'poi'),
@@ -516,14 +602,16 @@ export async function reverseGeocode(
 /**
  * Autocomplete: partial text → suggestions.
  *
- * Multi-provider strategy:
- * 1. Local Ghana gazetteer (instant, no API call)
- * 2. Mapbox Geocoding v6 with autocomplete: true (global coverage)
- * 3. Nominatim / OpenStreetMap (good Ghana community data)
+ * Intelligent multi-provider strategy:
+ * 1. Natural language parsing (if query looks like a description)
+ * 2. Local Ghana gazetteer with fuzzy trigram search (instant)
+ * 3. Community places from database (user-contributed)
+ * 4. Mapbox Geocoding v6 with autocomplete: true (global)
+ * 5. Nominatim / OpenStreetMap (supplementary)
+ * 6. Popularity boosts from learned user selections
  *
  * Results are merged, deduplicated, and returned with coordinates
- * already included — no separate retrieve step needed (except for
- * legacy Search Box IDs, which are unlikely).
+ * already included — no separate retrieve step needed.
  */
 export async function autocomplete(
   query: string,
@@ -545,16 +633,42 @@ export async function autocomplete(
   const limit = options.limit ?? 8;
   const prox = options.proximity ?? ACCRA_CENTER;
 
-  // 1. Instant local gazetteer lookup (synchronous, zero latency)
-  const gazetteerResults = searchGazetteer(query, 6, prox);
+  // ── 0. Natural language parsing ──────────────────────────
+  // If the query looks like a description ("near the Total at Lapaz"),
+  // parse it and search for the extracted components.
+  let searchQueries = [query];
+  if (isNaturalLanguageQuery(query)) {
+    const parsed = parseNaturalLocation(query);
+    // Use the parsed primary place as the main search term,
+    // plus alternatives for broader coverage
+    searchQueries = [parsed.primaryPlace, ...parsed.alternativeQueries].filter(Boolean);
+    if (parsed.primaryPlace !== query) {
+      searchQueries.push(query); // Keep original as fallback
+    }
+  }
 
-  // 2. Community places — user-contributed locations from the database
-  const communityPromise = searchCommunityPlaces(query, 6, prox);
+  // ── 1. Fetch popularity boosts in parallel with other lookups ──
+  const popularityPromise = getPopularityBoosts(query).catch(() => new Map<string, number>());
 
-  // 3. Mapbox Geocoding v6 with autocomplete: true
+  // ── 2. Instant local gazetteer lookup (synchronous, zero latency) ──
+  // Search for each parsed query variant, merge results
+  const popularityBoosts = await popularityPromise;
+  let gazetteerResults: AutocompleteSuggestion[] = [];
+  for (const sq of searchQueries) {
+    const results = searchGazetteer(sq, 6, prox, popularityBoosts);
+    gazetteerResults = gazetteerResults.concat(results);
+    if (gazetteerResults.length >= 6) break;
+  }
+  // Deduplicate within gazetteer results
+  gazetteerResults = deduplicateSuggestions(gazetteerResults).slice(0, 6);
+
+  // ── 3. Community places — user-contributed locations ──
+  const communityPromise = searchCommunityPlaces(searchQueries[0]!, 6, prox);
+
+  // ── 4. Mapbox Geocoding v6 with autocomplete: true ──
   const mapboxPromise = mapboxGeocodeAutocomplete(query, { proximity: prox, country, limit });
 
-  // 4. Nominatim / OpenStreetMap (search in parallel with Mapbox)
+  // ── 5. Nominatim / OpenStreetMap (parallel with Mapbox) ──
   const nominatimPromise = nominatimAutocomplete(query, { proximity: prox, limit: 5 });
 
   // Wait for all API providers in parallel
@@ -578,7 +692,7 @@ export async function autocomplete(
     console.warn('[GeocodingService] Nominatim autocomplete failed:', nominatimResults.reason);
   }
 
-  // Merge: gazetteer first (instant), then community (user-contributed),
+  // Merge: gazetteer first (instant + fuzzy), then community,
   // then Mapbox (API), then Nominatim (supplementary)
   const merged = deduplicateSuggestions([...gazetteerResults, ...community, ...mapbox, ...nominatim]);
 
@@ -1071,4 +1185,28 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
 
 function mockAutocomplete(query: string): AutocompleteSuggestion[] {
   return searchGazetteer(query, 5);
+}
+
+// ── Selection recording (usage-based learning) ─────────────
+
+/**
+ * Record that a user selected a particular autocomplete suggestion.
+ * This feeds the popularity service to improve future rankings.
+ */
+export async function recordSelection(
+  query: string,
+  selectedSuggestion: AutocompleteSuggestion
+): Promise<void> {
+  try {
+    if (selectedSuggestion.latitude == null || selectedSuggestion.longitude == null) return;
+    await recordLocationSelection(
+      query,
+      selectedSuggestion.placeName || selectedSuggestion.text,
+      selectedSuggestion.latitude,
+      selectedSuggestion.longitude,
+      selectedSuggestion.source ?? 'unknown',
+    );
+  } catch (err) {
+    console.error('[geocoding] Failed to record selection:', err);
+  }
 }

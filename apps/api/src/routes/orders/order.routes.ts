@@ -155,6 +155,19 @@ router.get(
       throw ApiError.notFound('Place not found');
     }
 
+    // Record the selection for usage-based learning (fire-and-forget)
+    const query = req.query.q as string;
+    if (query && place) {
+      GeocodingService.recordSelection(query, {
+        id: mapboxId,
+        text: place.name,
+        placeName: place.fullAddress || place.name,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        source: 'mapbox',
+      }).catch(() => {});
+    }
+
     res.status(StatusCodes.OK).json({ success: true, data: place });
   }),
 );

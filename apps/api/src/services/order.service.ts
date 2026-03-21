@@ -9,6 +9,7 @@ import { cancelDispatch, getDeclinedRiderIds } from './auto-dispatch.service';
 import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
+import { learnFromDelivery } from './eta-learning.service';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
 
 // ============================================================
@@ -674,6 +675,9 @@ export async function transitionStatus(
       // Update rider delivery streak
       recordStreakActivity(updated.riderId).catch(() => {});
     }
+
+    // Learn from this delivery to improve future ETA predictions
+    learnFromDelivery(updated.id).catch(() => {});
   }
 
   return updated;

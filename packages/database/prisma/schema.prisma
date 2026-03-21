@@ -953,11 +953,11 @@ model Zone {
   updatedAt       DateTime   @updatedAt
 
   // Relations
-  riders      RiderProfile[]
-  orders      Order[]
-  mentorships Mentorship[]
-  events      Event[]
-  promoCodes  PromoCode[]
+  riders              RiderProfile[]
+  orders              Order[]
+  mentorships         Mentorship[]
+  events              Event[]
+  promoCodes          PromoCode[]
 
   @@index([status])
   @@map("zones")
@@ -1831,4 +1831,75 @@ model CommunityPlace {
   @@index([source])
   @@index([usageCount])
   @@map("community_places")
+}
+
+// ============================================================
+// Location Popularity — tracks how often locations are selected
+// from autocomplete, enabling usage-based ranking that improves
+// over time. This is the "learning" layer.
+// ============================================================
+
+model LocationPopularity {
+  id              String    @id @default(cuid())
+  /// Normalized search query that led to this selection
+  searchQuery     String
+  /// The place name that was selected
+  selectedName    String
+  /// Coordinates of the selected location
+  latitude        Float
+  longitude       Float
+  /// Source provider: gazetteer, mapbox, nominatim, community
+  source          String
+  /// Number of times this query→place pair was selected
+  selectionCount  Int       @default(1)
+  /// Last time this pair was selected
+  lastSelectedAt  DateTime  @default(now())
+  /// Region for fast filtering
+  region          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([searchQuery, selectedName])
+  @@index([searchQuery])
+  @@index([latitude, longitude])
+  @@index([selectionCount])
+  @@index([region])
+  @@map("location_popularity")
+}
+
+// ============================================================
+// ETA Correction Factor — stores learned correction multipliers
+// for predicted vs actual delivery times, broken down by zone
+// and time-of-day. Updated from completed deliveries.
+// ============================================================
+
+model EtaCorrectionFactor {
+  id                  String    @id @default(cuid())
+  /// Zone ID ("GLOBAL" sentinel for global fallback)
+  zoneId              String    @default("GLOBAL")
+  /// Hour of day (0–23) for time-of-day correction, -1 = all hours
+  hourOfDay           Int       @default(-1)
+  /// Day of week (0=Sunday, 6=Saturday), -1 = all days
+  dayOfWeek           Int       @default(-1)
+  /// Correction multiplier: actual_time / predicted_time
+  /// >1.0 means predictions are too optimistic
+  /// <1.0 means predictions are too pessimistic
+  correctionFactor    Float     @default(1.0)
+  /// Number of deliveries used to compute this factor
+  sampleCount         Int       @default(0)
+  /// Average predicted duration (minutes) in sample
+  avgPredictedMinutes Float?
+  /// Average actual duration (minutes) in sample
+  avgActualMinutes    Float?
+  /// Standard deviation of correction ratios
+  stdDeviation        Float?
+  /// Confidence: 0.0–1.0 based on sample size
+  confidence          Float     @default(0.0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([zoneId, hourOfDay, dayOfWeek])
+  @@index([zoneId])
+  @@index([hourOfDay])
+  @@map("eta_correction_factors")
 }
