@@ -50,7 +50,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const riderMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const lastRouteRiderRef = useRef<[number, number] | null>(null);
-  const [trafficOn, setTrafficOn] = useState(true);
+  const [trafficOn, setTrafficOn] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   const { fetchDirections } = useDirections();
@@ -94,7 +94,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
         token: MAPBOX_TOKEN,
         center: pickupCoords ?? undefined,
         onLoad: (map, mapboxglLib) => {
-          addTrafficLayer(map);
+          addTrafficLayer(map, false);
           setMapReady(true);
         },
       });

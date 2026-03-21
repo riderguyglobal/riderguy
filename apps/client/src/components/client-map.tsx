@@ -40,7 +40,7 @@ export default function ClientMap() {
   const riderMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [trafficOn, setTrafficOn] = useState(true);
+  const [trafficOn, setTrafficOn] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const { socket } = useSocket();
   const { api } = useAuth();
@@ -116,8 +116,8 @@ export default function ClientMap() {
         center: userPos ?? DEFAULT_CENTER,
         zoom: userPos ? MAP_ZOOM.close : MAP_ZOOM.default,
         onLoad: (map, mapboxglLib) => {
-          // Traffic overlay
-          addTrafficLayer(map);
+          // Traffic overlay (hidden by default)
+          addTrafficLayer(map, false);
 
           // User location dot
           if (userPos) {

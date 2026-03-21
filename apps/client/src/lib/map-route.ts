@@ -328,7 +328,7 @@ export function removeAlternativeRoute(map: mapboxgl.Map): void {
  * Uses the official mapbox-traffic-v1 vector tileset.
  * Colors: Green (low) → Yellow (moderate) → Orange (heavy) → Red (severe)
  */
-export function addTrafficLayer(map: mapboxgl.Map): void {
+export function addTrafficLayer(map: mapboxgl.Map, visible = true): void {
   if (map.getSource(TRAFFIC_IDS.source)) return;
 
   map.addSource(TRAFFIC_IDS.source, {
@@ -351,7 +351,7 @@ export function addTrafficLayer(map: mapboxgl.Map): void {
     type: 'line',
     source: TRAFFIC_IDS.source,
     'source-layer': TRAFFIC_IDS.sourceLayer,
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    layout: { 'line-join': 'round', 'line-cap': 'round', visibility: visible ? 'visible' : 'none' },
     paint: {
       'line-color': [
         'match', ['get', 'congestion'],
