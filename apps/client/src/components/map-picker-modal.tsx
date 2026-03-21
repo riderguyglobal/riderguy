@@ -253,71 +253,71 @@ export function MapPickerModal({
         )}
       </div>
 
-      {/* Map container */}
-      <div ref={mapContainerRef} className="flex-1 w-full" />
+      {/* Map container — fills space above the bottom card */}
+      <div className="flex-1 w-full relative">
+        <div ref={mapContainerRef} className="absolute inset-0" />
 
-      {/* Center pin (fixed in center of map) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-10 pointer-events-none">
-        <div className="flex flex-col items-center">
-          <div className={`transition-transform duration-200 ${loading ? '-translate-y-2 scale-110' : ''}`}>
-            <svg width="40" height="52" viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 0C8.954 0 0 8.954 0 20c0 14 20 32 20 32s20-18 20-32C40 8.954 31.046 0 20 0z" fill="#E53E3E" />
-              <circle cx="20" cy="18" r="8" fill="white" />
-            </svg>
+        {/* Center pin (fixed in center of map area) */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-10 pointer-events-none">
+          <div className="flex flex-col items-center">
+            <div className={`transition-transform duration-200 ${loading ? '-translate-y-2 scale-110' : ''}`}>
+              <svg width="40" height="52" viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 0C8.954 0 0 8.954 0 20c0 14 20 32 20 32s20-18 20-32C40 8.954 31.046 0 20 0z" fill="#E53E3E" />
+                <circle cx="20" cy="18" r="8" fill="white" />
+              </svg>
+            </div>
+            {/* Pin shadow */}
+            <div className={`w-3 h-1 rounded-full bg-black/20 transition-all duration-200 ${loading ? 'w-2 opacity-40' : 'opacity-60'}`} />
           </div>
-          {/* Pin shadow */}
-          <div className={`w-3 h-1 rounded-full bg-black/20 transition-all duration-200 ${loading ? 'w-2 opacity-40' : 'opacity-60'}`} />
         </div>
+
+        {/* GPS button */}
+        <button
+          onClick={handleGeolocate}
+          className="absolute right-4 bottom-4 z-10 h-12 w-12 rounded-full bg-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        >
+          <Crosshair className="h-5 w-5 text-brand-600" />
+        </button>
       </div>
 
-      {/* GPS button */}
-      <button
-        onClick={handleGeolocate}
-        className="absolute right-4 bottom-48 z-10 h-12 w-12 rounded-full bg-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
-      >
-        <Crosshair className="h-5 w-5 text-brand-600" />
-      </button>
-
-      {/* Bottom card with address + confirm */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 safe-bottom">
-        <div className="bg-white rounded-t-3xl shadow-2xl border-t border-surface-100 p-5 pb-6">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0 mt-0.5">
-              <MapPin className="h-5 w-5 text-red-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              {loading ? (
-                <div className="flex items-center gap-2 py-1">
-                  <Loader2 className="h-4 w-4 text-surface-400 animate-spin" />
-                  <span className="text-sm text-surface-400">Finding address...</span>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm font-medium text-surface-900 leading-snug">
-                    {address || 'Move the map to select a location'}
-                  </p>
-                  {plusCode && (
-                    <p className="text-xs text-surface-400 mt-0.5">{plusCode}</p>
-                  )}
-                </>
-              )}
-            </div>
+      {/* Bottom card with address + confirm — always visible, not overlapping map */}
+      <div className="shrink-0 bg-white rounded-t-3xl shadow-2xl border-t border-surface-100 p-5" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex items-start gap-3 mb-4">
+          <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0 mt-0.5">
+            <MapPin className="h-5 w-5 text-red-500" />
           </div>
-
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={!center || loading || !address}
-            className="w-full py-3.5 bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors btn-press flex items-center justify-center gap-2"
-          >
-            <Check className="h-4.5 w-4.5" />
-            Confirm This Location
-          </button>
-
-          <p className="text-[10px] text-surface-300 text-center mt-2">
-            Drag the map to position the pin on your exact location
-          </p>
+          <div className="flex-1 min-w-0">
+            {loading ? (
+              <div className="flex items-center gap-2 py-1">
+                <Loader2 className="h-4 w-4 text-surface-400 animate-spin" />
+                <span className="text-sm text-surface-400">Finding address...</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-surface-900 leading-snug">
+                  {address || 'Move the map to select a location'}
+                </p>
+                {plusCode && (
+                  <p className="text-xs text-surface-400 mt-0.5">{plusCode}</p>
+                )}
+              </>
+            )}
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={!center || loading || !address}
+          className="w-full py-3.5 bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors btn-press flex items-center justify-center gap-2"
+        >
+          <Check className="h-4.5 w-4.5" />
+          Confirm This Location
+        </button>
+
+        <p className="text-[10px] text-surface-300 text-center mt-2">
+          Drag the map to position the pin on your exact location
+        </p>
       </div>
     </div>
   );
