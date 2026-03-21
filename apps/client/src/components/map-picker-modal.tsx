@@ -64,12 +64,18 @@ export function MapPickerModal({
     }
   }, []);
 
+  // Stabilise initialCenter so array reference changes don't destroy the map
+  const initialCenterRef = useRef(initialCenter);
+  useEffect(() => {
+    if (open) initialCenterRef.current = initialCenter;
+  }, [open, initialCenter]);
+
   // Initialize map
   useEffect(() => {
     if (!open || !mapContainerRef.current) return;
     let destroyed = false;
 
-    const startCenter = initialCenter || DEFAULT_CENTER;
+    const startCenter = initialCenterRef.current || DEFAULT_CENTER;
 
     const setup = async () => {
       const core = await initMapCore({
@@ -82,17 +88,16 @@ export function MapPickerModal({
         scaleControl: false,
         buildings3D: true,
         fog: false,
+        onLoad: (map) => {
+          if (destroyed) return;
+          setMapReady(true);
+          // Initial reverse geocode
+          const c = map.getCenter();
+          handleReverseGeocode(c.lng, c.lat);
+        },
       });
       if (destroyed) { core.destroy(); return; }
       coreRef.current = core;
-
-      core.map.on('load', () => {
-        if (destroyed) return;
-        setMapReady(true);
-        // Initial reverse geocode
-        const c = core.map.getCenter();
-        handleReverseGeocode(c.lng, c.lat);
-      });
 
       // Reverse geocode on map move end (debounced)
       core.map.on('moveend', () => {
@@ -126,7 +131,7 @@ export function MapPickerModal({
       setSearchQuery('');
       setSearchResults([]);
     };
-  }, [open, initialCenter, handleReverseGeocode]);
+  }, [open, handleReverseGeocode]);
 
   // Use current GPS location
   const handleGeolocate = () => {
