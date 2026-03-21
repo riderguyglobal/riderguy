@@ -15,7 +15,7 @@ import * as DispatchService from '../../services/dispatch.service';
 import * as GeocodingService from '../../services/geocoding.service';
 import { formatPlusCode, decodePlusCode, isValidPlusCode, isFullPlusCode, recoverPlusCode } from '@riderguy/utils';
 import * as TrackingService from '../../services/tracking.service';
-import { notifyNearbyRiders } from '../../services/notification.service';
+import { notifyNearbyRiders, createOrderNotification } from '../../services/notification.service';
 import { autoDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
 import { StorageService } from '../../services/storage.service';
@@ -540,11 +540,104 @@ router.post(
   requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
   validate(cancelOrderSchema),
   asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    // Read previous status + rider before mutation (single query)
+    const beforeCancel = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { status: true, riderId: true },
+    });
+    if (!beforeCancel) throw ApiError.notFound('Order not found');
+    const previousStatus = beforeCancel.status;
+    const riderId = beforeCancel.riderId;
+
     const order = await OrderService.cancelOrder(
-      req.params.id as string,
+      orderId,
       req.user!.userId,
       req.body.reason,
     );
+
+    // Emit real-time status update via WebSocket (includes reason for rider UI)
+    emitOrderStatusUpdate({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      previousStatus,
+      actor: req.user!.userId,
+      note: req.body.reason,
+    });
+
+    // Notify the assigned rider via push notification
+    if (riderId) {
+      try {
+        const riderProfile = await prisma.riderProfile.findUnique({
+          where: { id: riderId },
+          select: { userId: true },
+        });
+        if (riderProfile) {
+          await createOrderNotification(
+            riderProfile.userId,
+            'Order Cancelled ❌',
+            `Order ${order.orderNumber} was cancelled by the client.${req.body.reason ? ` Reason: ${req.body.reason}` : ''} You've been compensated.`,
+            order.id,
+          );
+        }
+      } catch (err) {
+        logger.warn(`Failed to notify rider of cancellation for order ${order.id}`);
+      }
+    }
+
+    res.status(StatusCodes.OK).json({ success: true, data: order });
+  }),
+);
+
+/** POST /orders/:id/rider-cancel — Rider cancels an order */
+router.post(
+  '/:id/rider-cancel',
+  requireRole(UserRole.RIDER),
+  validate(cancelOrderSchema),
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    const reason = req.body.reason;
+    if (!reason || !reason.trim()) throw ApiError.badRequest('A cancellation reason is required');
+
+    // Read order before mutation for socket/notification context
+    const beforeCancel = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { status: true, clientId: true, orderNumber: true },
+    });
+    if (!beforeCancel) throw ApiError.notFound('Order not found');
+    const previousStatus = beforeCancel.status;
+
+    const order = await OrderService.cancelOrderByRider(
+      orderId,
+      req.user!.userId,
+      reason.trim(),
+    );
+
+    // Emit real-time status update via WebSocket
+    emitOrderStatusUpdate({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      previousStatus,
+      actor: req.user!.userId,
+      note: reason.trim(),
+    });
+
+    // Notify the client via push notification
+    if (beforeCancel.clientId) {
+      try {
+        await createOrderNotification(
+          beforeCancel.clientId,
+          'Delivery Cancelled by Rider ⚠️',
+          `Your rider cancelled order ${order.orderNumber}. Reason: ${reason.trim()}. We'll find you a new rider shortly.`,
+          order.id,
+        );
+      } catch (err) {
+        logger.warn(`Failed to notify client of rider cancellation for order ${order.id}`);
+      }
+    }
+
     res.status(StatusCodes.OK).json({ success: true, data: order });
   }),
 );

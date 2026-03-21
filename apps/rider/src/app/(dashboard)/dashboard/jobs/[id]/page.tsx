@@ -11,9 +11,10 @@ import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Textarea } from '@riderguy/ui';
 import { DeliveryChat } from '@/components/delivery-chat';
 import { ProofOfDelivery } from '@/components/proof-of-delivery';
+import { RiderCancelModal } from '@/components/rider-cancel-modal';
 import {
   ArrowLeft, Navigation, Phone, Package, Clock,
-  CheckCircle, AlertTriangle, ChevronDown, ChevronUp, Sparkles
+  CheckCircle, AlertTriangle, ChevronDown, ChevronUp, Sparkles, X
 } from 'lucide-react';
 import type { Order } from '@riderguy/types';
 
@@ -50,6 +51,7 @@ export default function JobDetailPage() {
   const [showFailDialog, setShowFailDialog] = useState(false);
   const [failReason, setFailReason] = useState('');
   const [showProof, setShowProof] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [actionError, setActionError] = useState('');
   const searchParams = useSearchParams();
   const autoNavTriggered = useRef(false);
@@ -74,10 +76,14 @@ export default function JobDetailPage() {
     if (!id || !socket) return;
     subscribeToOrder(id);
 
-    const handleStatus = (data: { orderId: string; status: string }) => {
+    const handleStatus = (data: { orderId: string; status: string; note?: string }) => {
       if (data.orderId === id) {
         setOrder((prev) => {
           if (!prev) return prev;
+          // Terminal statuses (cancelled/failed) always take effect immediately
+          if (data.status.startsWith('CANCELLED') || data.status === 'FAILED') {
+            return { ...prev, status: data.status as Order['status'], cancelNote: data.note };
+          }
           // Only accept forward status progressions to prevent out-of-order socket events
           const prevIdx = STATUS_FLOW.indexOf(prev.status);
           const newIdx = STATUS_FLOW.indexOf(data.status);
@@ -194,6 +200,13 @@ export default function JobDetailPage() {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleRiderCancel = async (reason: string) => {
+    if (!api || !id) return;
+    await api.post(`${API_BASE_URL}/orders/${id}/rider-cancel`, { reason });
+    setOrder((prev) => prev ? { ...prev, status: 'CANCELLED_BY_RIDER' as Order['status'] } : prev);
+    setShowCancelModal(false);
   };
 
   /** Launch Google Maps turn-by-turn navigation to the given coordinates */
@@ -446,8 +459,14 @@ export default function JobDetailPage() {
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-primary mb-1">
-                  {order.status.startsWith('CANCELLED') ? 'Order Cancelled' : 'Delivery Failed'}
+                  {order.status === 'CANCELLED_BY_CLIENT' ? 'Cancelled by Client' : order.status.startsWith('CANCELLED') ? 'Order Cancelled' : 'Delivery Failed'}
                 </h3>
+                {order.status === 'CANCELLED_BY_CLIENT' && (
+                  <p className="text-muted text-sm mt-1">The client cancelled this order. You&apos;ve been compensated for your time.</p>
+                )}
+                {(order as any).cancelNote && (
+                  <p className="text-subtle text-xs mt-2 italic">&ldquo;{(order as any).cancelNote}&rdquo;</p>
+                )}
               </>
             )}
             <Button
@@ -477,6 +496,12 @@ export default function JobDetailPage() {
               className="h-12 w-12 rounded-xl glass flex items-center justify-center text-danger-400 hover:bg-danger-500/10 transition-colors btn-press shrink-0"
             >
               <AlertTriangle className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="h-12 px-4 rounded-xl glass flex items-center justify-center gap-2 text-danger-400 hover:bg-danger-500/10 transition-colors btn-press shrink-0 text-sm font-medium"
+            >
+              <X className="h-4 w-4" /> Cancel
             </button>
             <Button
               size="lg"
@@ -519,6 +544,17 @@ export default function JobDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Rider cancel modal */}
+      {order && (
+        <RiderCancelModal
+          open={showCancelModal}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleRiderCancel}
+          status={order.status}
+          orderNumber={order.orderNumber ?? order.id.slice(0, 8)}
+        />
+      )}
     </div>
   );
 }

@@ -31,6 +31,7 @@ import {
   UserX,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { CancelOrderModal } from '@/components/cancel-order-modal';
 
 const TrackingMap = dynamic(() => import('@/components/tracking-map'), { ssr: false });
 
@@ -87,6 +88,7 @@ export default function TrackingPage() {
   const [typing, setTyping] = useState(false);
   const [riderFoundCelebration, setRiderFoundCelebration] = useState(false);
   const [noRidersMessage, setNoRidersMessage] = useState<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const historyLoadedRef = useRef(false);
@@ -574,18 +576,35 @@ export default function TrackingPage() {
             </button>
           )}
 
-          {!isComplete && !isCancelled && ['PENDING', 'SEARCHING_RIDER'].includes(order.status) && (
+          {!isComplete && !isCancelled && ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE'].includes(order.status) && (
             <button
-              onClick={async () => {
-                try {
-                  await api!.post(`/orders/${id}/cancel`);
-                  refetch();
-                } catch { /* ignored */ }
-              }}
+              onClick={() => setShowCancelModal(true)}
               className="w-full h-12 rounded-2xl border border-surface-200 text-surface-500 font-medium text-sm hover:bg-surface-50 transition-all btn-press flex items-center justify-center gap-2"
             >
               <AlertTriangle className="h-4 w-4" /> Cancel Order
             </button>
+          )}
+
+          {/* Cancel confirmation modal */}
+          {order && (
+            <CancelOrderModal
+              open={showCancelModal}
+              onClose={() => setShowCancelModal(false)}
+              orderNumber={order.orderNumber}
+              status={order.status}
+              onConfirm={async (reason) => {
+                await api!.post(`/orders/${id}/cancel`, { reason });
+                setShowCancelModal(false);
+                refetch();
+              }}
+            />
+          )}
+
+          {/* Show cancelled state message */}
+          {isCancelled && order.status === 'CANCELLED_BY_CLIENT' && (
+            <div className="bg-surface-50 rounded-2xl p-4 text-center">
+              <p className="text-sm text-surface-500">You cancelled this delivery.</p>
+            </div>
           )}
         </div>
       </div>

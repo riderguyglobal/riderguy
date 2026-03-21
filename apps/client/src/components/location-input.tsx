@@ -19,6 +19,7 @@ import {
   type SearchSuggestion,
 } from '@/hooks/use-mapbox-autocomplete';
 import { GoogleMapsLinkModal } from './google-maps-link-modal';
+import { MapPickerModal } from './map-picker-modal';
 
 export interface LocationValue {
   address: string;
@@ -58,6 +59,7 @@ export function LocationInput({
   const [locating, setLocating] = useState(false);
   const [geoAccuracy, setGeoAccuracy] = useState<number | null>(null);
   const [showGoogleMapsModal, setShowGoogleMapsModal] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   // Sync external value changes into the autocomplete query
   useEffect(() => {
@@ -137,6 +139,13 @@ export function LocationInput({
   };
 
   const handleGoogleMapsLocation = (value: LocationValue) => {
+    setGeoAccuracy(null);
+    onChange(value);
+    ac.setQuery(value.address);
+    ac.setOpen(false);
+  };
+
+  const handleMapPickerLocation = (value: LocationValue) => {
     setGeoAccuracy(null);
     onChange(value);
     ac.setQuery(value.address);
@@ -254,21 +263,21 @@ export function LocationInput({
             <span className="text-[9px] text-surface-300">Powered by Mapbox</span>
           </div>
 
-          {/* Google Maps fallback link — always shown at bottom of results */}
+          {/* Map picker fallback — always shown at bottom of results */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               ac.setOpen(false);
-              setShowGoogleMapsModal(true);
+              setShowMapPicker(true);
             }}
             className="w-full flex items-center gap-2.5 py-2.5 px-3.5 border-t border-surface-100 hover:bg-brand-50 transition-colors text-left rounded-b-2xl"
           >
             <div className="h-7 w-7 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
-              <ExternalLink className="h-3.5 w-3.5 text-brand-600" />
+              <MapPin className="h-3.5 w-3.5 text-brand-600" />
             </div>
             <p className="text-xs font-medium text-brand-600">
-              Can&apos;t find it? Search on Google Maps
+              Can&apos;t find it? Drop a pin on the map
             </p>
           </button>
         </div>
@@ -285,17 +294,37 @@ export function LocationInput({
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               ac.setOpen(false);
-              setShowGoogleMapsModal(true);
+              setShowMapPicker(true);
             }}
             className="inline-flex items-center gap-2 py-2.5 px-4 bg-brand-50 border border-brand-200 rounded-xl text-sm font-medium text-brand-600 hover:bg-brand-100 transition-colors btn-press"
           >
-            <ExternalLink className="h-4 w-4" />
-            Search on Google Maps
+            <MapPin className="h-4 w-4" />
+            Drop a pin on the map
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              ac.setOpen(false);
+              setShowGoogleMapsModal(true);
+            }}
+            className="inline-flex items-center gap-2 py-2 px-4 text-xs text-surface-400 hover:text-surface-600 transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Or paste a Google Maps link
           </button>
         </div>
       )}
 
-      {/* Google Maps Link Modal */}
+      {/* Map Picker Modal — full-screen pin drop */}
+      <MapPickerModal
+        open={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onLocationPicked={handleMapPickerLocation}
+        initialCenter={value.coordinates}
+      />
+
+      {/* Google Maps Link Modal — paste link fallback */}
       <GoogleMapsLinkModal
         open={showGoogleMapsModal}
         onClose={() => setShowGoogleMapsModal(false)}

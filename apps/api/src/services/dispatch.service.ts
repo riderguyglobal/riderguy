@@ -119,8 +119,8 @@ export async function assignRider(
   // Notify client
   await createOrderNotification(
     order.clientId,
-    'Rider Assigned',
-    `A rider has been assigned to your order ${order.orderNumber}.`,
+    'Rider Assigned 🛵',
+    `${rider.user.firstName} is heading to pick up your order ${order.orderNumber}. Track your delivery in the app.`,
     orderId,
   ).catch(() => {});
 

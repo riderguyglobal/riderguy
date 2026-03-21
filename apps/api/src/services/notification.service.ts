@@ -9,7 +9,6 @@
 import { prisma } from '@riderguy/database';
 import type { Prisma, NotificationType } from '@riderguy/database';
 import { PushService } from './push.service';
-import { SmsService } from './sms.service';
 import { emitNewJob } from '../socket';
 import { logger } from '../lib/logger';
 
@@ -156,7 +155,7 @@ export class NotificationService {
 
 /**
  * Create a notification related to an order.
- * Also sends an SMS to the user for critical order updates.
+ * Sends an in-app notification + push notification via FCM.
  */
 export async function createOrderNotification(
   userId: string,
@@ -164,18 +163,6 @@ export async function createOrderNotification(
   body: string,
   orderId: string,
 ) {
-  // Send SMS for order updates (fire-and-forget)
-  prisma.user
-    .findUnique({ where: { id: userId }, select: { phone: true } })
-    .then((user) => {
-      if (user?.phone) {
-        SmsService.sendOrderUpdate(user.phone, orderId.slice(0, 8).toUpperCase(), body).catch(
-          (err) => logger.error({ err, userId }, 'Order SMS delivery failed'),
-        );
-      }
-    })
-    .catch((err) => logger.error({ err, userId }, 'Failed to look up user for order SMS'));
-
   return NotificationService.create({
     userId,
     title,
@@ -217,16 +204,9 @@ export async function notifyNearbyRiders(
     });
   }
 
-  // Fetch rider phone numbers for SMS delivery
-  const riderUsers = await prisma.user.findMany({
-    where: { id: { in: riders.map((r) => r.userId) } },
-    select: { id: true, phone: true },
-  });
-  const phoneMap = new Map(riderUsers.map((u) => [u.id, u.phone]));
-
   logger.info(
     { orderId, orderNumber, riderCount: riders.length, zoneId },
-    '[NotifyRiders] Broadcasting job:new + SMS to riders',
+    '[NotifyRiders] Broadcasting job:new + push to riders',
   );
 
   // Also emit socket broadcast so riders' Jobs tab auto-refreshes
@@ -264,21 +244,13 @@ export async function notifyNearbyRiders(
   }
 
   await Promise.allSettled(
-    riders.map((rider) => {
-      // Send SMS to rider for new job (fire-and-forget)
-      const phone = phoneMap.get(rider.userId);
-      if (phone) {
-        SmsService.sendNewJobAvailable(phone, pickupAddress).catch((err) =>
-          logger.error({ err, userId: rider.userId }, 'New job SMS to rider failed'),
-        );
-      }
-
-      return createOrderNotification(
+    riders.map((rider) =>
+      createOrderNotification(
         rider.userId,
         'New Delivery Available',
         `New order ${orderNumber} — pickup at ${pickupAddress}. Open the job feed to accept.`,
         orderId,
-      );
-    }),
+      ),
+    ),
   );
 }

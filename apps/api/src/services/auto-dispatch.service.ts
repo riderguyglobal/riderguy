@@ -20,7 +20,6 @@ import { haversineDistance } from '@riderguy/utils';
 import { logger } from '../lib/logger';
 import { assignRider } from './dispatch.service';
 import { getIO, emitOrderStatusUpdate } from '../socket';
-import { SmsService } from './sms.service';
 import { getRedisClient } from '../lib/redis';
 import type { JobOffer } from '@riderguy/types';
 
@@ -55,7 +54,7 @@ interface DispatchState {
   currentTierIndex: number; // which SEARCH_RADIUS_TIERS_KM tier we're on
   allScored: ScoredRider[]; // all scored riders from outer radius query
   declinedRiderIds: Set<string>; // D-06: rider userIds who declined this order
-  smsSentCount: number;          // D-05: SMS counter — only send on first offer
+  /** @deprecated SMS removed — push notifications used instead */
 }
 
 interface ScoredRider {
@@ -455,7 +454,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
     currentTierIndex: usedTierIndex,
     allScored: scored,
     declinedRiderIds: priorDeclined,
-    smsSentCount: 0,
+
   };
   activeDispatches.set(orderId, state);
   await persistDispatchToRedis(state);
@@ -597,11 +596,7 @@ function sendOfferToNextRider(
     logger.error({ err, orderId: state.orderId }, '[AutoDispatch] Failed to emit job:offer');
   }
 
-  // D-05: Only send SMS on the first offer per dispatch cycle (not every attempt)
-  if (state.smsSentCount === 0) {
-    SmsService.sendNewJobAvailable(rider.phone, order.pickupAddress).catch(() => {});
-    state.smsSentCount++;
-  }
+  // Push notification is already sent via assignRider → createOrderNotification
 
   // Record when this offer was sent (for accurate reconnect timer)
   state.offerSentAt = Date.now();

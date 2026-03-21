@@ -22,10 +22,10 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['SEARCHING_RIDER', 'ASSIGNED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_ADMIN'],
   SEARCHING_RIDER: ['ASSIGNED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_ADMIN'],
   ASSIGNED: ['PICKUP_EN_ROUTE', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
-  PICKUP_EN_ROUTE: ['AT_PICKUP', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
+  PICKUP_EN_ROUTE: ['AT_PICKUP', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
   AT_PICKUP: ['PICKED_UP', 'FAILED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
-  PICKED_UP: ['IN_TRANSIT', 'FAILED', 'CANCELLED_BY_ADMIN'],
-  IN_TRANSIT: ['AT_DROPOFF', 'FAILED', 'CANCELLED_BY_ADMIN'],
+  PICKED_UP: ['IN_TRANSIT', 'FAILED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
+  IN_TRANSIT: ['AT_DROPOFF', 'FAILED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
   AT_DROPOFF: ['DELIVERED', 'FAILED', 'CANCELLED_BY_ADMIN'],
   DELIVERED: [],
   FAILED: [],
@@ -477,8 +477,8 @@ export async function transitionStatus(
     },
   });
 
-  // If the rider cancels, set them back to ONLINE
-  if (newStatus === 'CANCELLED_BY_RIDER' && updated.riderId) {
+  // If an order is cancelled (by rider OR client), set rider back to ONLINE
+  if (newStatus.startsWith('CANCELLED') && updated.riderId) {
     await prisma.riderProfile.update({
       where: { id: updated.riderId },
       data: { availability: 'ONLINE' },
@@ -732,6 +732,38 @@ export async function cancelOrder(orderId: string, userId: string, reason?: stri
     : cancelNote;
 
   return transitionStatus(orderId, 'CANCELLED_BY_CLIENT', userId, noteWithFee);
+}
+
+/**
+ * Cancel an order (rider-initiated).
+ *
+ * Allowed from: ASSIGNED, PICKUP_EN_ROUTE, AT_PICKUP (pre-pickup)
+ *               PICKED_UP, IN_TRANSIT (post-pickup — package must be returned)
+ *
+ * Rider cancel reasons are tracked for accountability.
+ */
+export async function cancelOrderByRider(orderId: string, riderUserId: string, reason: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw ApiError.notFound('Order not found');
+
+  // Verify rider is actually assigned to this order
+  const riderProfile = await prisma.riderProfile.findUnique({
+    where: { userId: riderUserId },
+  });
+  if (!riderProfile || order.riderId !== riderProfile.id) {
+    throw ApiError.forbidden('You are not assigned to this order');
+  }
+
+  const cancellableStatuses: OrderStatus[] = [
+    'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP',
+    'PICKED_UP', 'IN_TRANSIT',
+  ];
+  if (!cancellableStatuses.includes(order.status)) {
+    throw ApiError.badRequest('Order can no longer be cancelled at this stage');
+  }
+
+  const cancelNote = `Rider cancel: ${reason}`;
+  return transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote);
 }
 
 /**
