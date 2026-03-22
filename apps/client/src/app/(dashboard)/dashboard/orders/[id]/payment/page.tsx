@@ -296,12 +296,18 @@ export default function PaymentPage() {
             )}
             <div>
               <p className="text-sm font-semibold text-surface-900">
-                {order.paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : 'Card Payment'}
+                {order.paymentMethod === 'MOBILE_MONEY'
+                  ? 'Mobile Money'
+                  : order.paymentMethod === 'WALLET'
+                    ? 'Wallet — Insufficient Balance'
+                    : 'Card Payment'}
               </p>
               <p className="text-xs text-surface-400">
                 {order.paymentMethod === 'MOBILE_MONEY'
                   ? 'MTN MoMo, Vodafone Cash, AirtelTigo Money'
-                  : 'Visa, Mastercard, and more'}
+                  : order.paymentMethod === 'WALLET'
+                    ? 'Please complete payment via card or mobile money'
+                    : 'Visa, Mastercard, and more'}
               </p>
             </div>
           </div>

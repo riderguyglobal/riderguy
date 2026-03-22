@@ -17,6 +17,7 @@ import {
   recordHeartbeat,
   getOnlineRiders,
 } from '../services/presence.service';
+import { ZoneService } from '../services/zone.service';
 
 // ============================================================
 // Socket.IO Server — real-time layer for RiderGuy
@@ -187,6 +188,10 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     let lastLocationUpdate = 0;
     const LOCATION_THROTTLE_MS = 3000; // Minimum 3 seconds between location updates
 
+    // Zone auto-detection throttle: only check every 60s to avoid expensive DB queries
+    let lastZoneCheck = 0;
+    const ZONE_CHECK_INTERVAL_MS = 60_000;
+
     // D-04: Batch breadcrumb buffer — flush every 30s instead of per-update
     const BREADCRUMB_FLUSH_INTERVAL_MS = 30_000;
     let breadcrumbBuffer: Array<{
@@ -227,6 +232,20 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
           },
           select: { id: true },
         });
+
+        // Auto-detect zone from GPS (throttled to every 60s)
+        if (now - lastZoneCheck >= ZONE_CHECK_INTERVAL_MS) {
+          lastZoneCheck = now;
+          try {
+            const zone = await ZoneService.findZoneForPoint(latitude, longitude);
+            await prisma.riderProfile.update({
+              where: { userId },
+              data: { currentZoneId: zone?.id ?? null },
+            });
+          } catch (zoneErr) {
+            logger.error({ err: zoneErr }, 'Failed to auto-detect zone from GPS');
+          }
+        }
 
         if (riderProfile) {
           // Broadcast to all order rooms this rider is handling
@@ -544,6 +563,8 @@ export function emitOrderStatusUpdate(data: {
 /**
  * Emit a new job notification to riders near the pickup location.
  * Falls back to broadcasting to all riders if no pickup coords provided.
+ * When eligibleUserIds is provided, only those riders receive the event
+ * (prevents socket-connected but OFFLINE riders from seeing jobs).
  */
 export function emitNewJob(zoneId: string | null, data: {
   orderId: string;
@@ -558,7 +579,7 @@ export function emitNewJob(zoneId: string | null, data: {
   isMultiStop?: boolean;
   totalStops?: number;
   isScheduled?: boolean;
-}) {
+}, eligibleUserIds?: Set<string>) {
   if (!io) return;
   const payload = {
     ...data,
@@ -576,6 +597,8 @@ export function emitNewJob(zoneId: string | null, data: {
 
     for (const rider of onlineRiders) {
       if (rider.latitude == null || rider.longitude == null) continue;
+      // Skip riders not in the eligible set (OFFLINE or non-ACTIVATED in DB)
+      if (eligibleUserIds && !eligibleUserIds.has(rider.userId)) continue;
 
       // Haversine distance check
       const dist = haversineKm(

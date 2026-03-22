@@ -181,28 +181,15 @@ export async function notifyNearbyRiders(
   zoneId: string | null,
   pickupAddress: string,
 ) {
-  const baseWhere: any = {
-    availability: 'ONLINE',
-    onboardingStatus: 'ACTIVATED',
-  };
-
-  // Try zone-specific riders first, fallback to all online riders
-  let riders = zoneId
-    ? await prisma.riderProfile.findMany({
-        where: { ...baseWhere, currentZoneId: zoneId },
-        select: { userId: true },
-        take: 50,
-      })
-    : [];
-
-  // Fallback: if no zone-specific riders found, notify all online riders
-  if (riders.length === 0) {
-    riders = await prisma.riderProfile.findMany({
-      where: baseWhere,
-      select: { userId: true },
-      take: 50,
-    });
-  }
+  // Notify ALL online activated riders — zones are for pricing, not rider filtering
+  const riders = await prisma.riderProfile.findMany({
+    where: {
+      availability: 'ONLINE',
+      onboardingStatus: 'ACTIVATED',
+    },
+    select: { userId: true },
+    take: 50,
+  });
 
   logger.info(
     { orderId, orderNumber, riderCount: riders.length, zoneId },
@@ -225,6 +212,8 @@ export async function notifyNearbyRiders(
       },
     });
     if (order) {
+      // Pass eligible rider IDs so socket broadcast skips offline riders
+      const eligibleUserIds = new Set(riders.map((r) => r.userId));
       emitNewJob(zoneId, {
         orderId,
         orderNumber,
@@ -237,7 +226,7 @@ export async function notifyNearbyRiders(
         packageType: order.packageType,
         isMultiStop: order.isMultiStop,
         isScheduled: order.isScheduled,
-      });
+      }, eligibleUserIds);
     }
   } catch (err) {
     logger.error({ err, orderId }, '[NotifyRiders] Failed to emit job:new broadcast');

@@ -182,8 +182,11 @@ export default function TrackingPage() {
 
     const onStatusUpdate = (data: { orderId: string; status: string; previousStatus: string }) => {
       if (data.orderId === id) {
-        // Immediately invalidate cache and refetch for instant UI update
-        queryClient.invalidateQueries({ queryKey: ['order', id] });
+        // Optimistically update the cached order status for instant UI response
+        queryClient.setQueryData(['order', id], (old: Record<string, unknown> | undefined) =>
+          old ? { ...old, status: data.status } : old,
+        );
+        // Then refetch full data in the background for complete accuracy
         refetch();
       }
     };
@@ -721,11 +724,11 @@ export default function TrackingPage() {
             </button>
           )}
 
-          {/* Pay Now button for unpaid non-cash orders */}
-          {!isComplete && !isCancelled && order.paymentMethod !== 'CASH' && order.paymentStatus !== 'COMPLETED' && (
+          {/* Pay Now button — shown AFTER delivery for unpaid non-cash orders */}
+          {isComplete && order.paymentMethod !== 'CASH' && order.paymentStatus !== 'COMPLETED' && (
             <button
               onClick={() => router.push(`/dashboard/orders/${id}/payment`)}
-              className="w-full h-13 rounded-2xl bg-surface-900 text-white font-semibold text-sm hover:bg-surface-800 transition-all btn-press flex items-center justify-center gap-2"
+              className="w-full h-13 rounded-2xl bg-brand-500 text-white font-semibold text-sm hover:bg-brand-600 transition-all btn-press flex items-center justify-center gap-2"
             >
               <CreditCard className="h-4 w-4" /> Pay Now — {formatCurrency(order.totalPrice)}
             </button>

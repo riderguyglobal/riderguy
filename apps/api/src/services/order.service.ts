@@ -648,6 +648,67 @@ export async function transitionStatus(
         totalSpent: { increment: updated.totalPrice },
       },
     });
+
+    // ── Post-delivery payment collection ──
+    // Payment is collected AFTER delivery because the final price may differ
+    // from the estimate (wait time charges, pickup distance bonuses, etc.).
+    // Guard: skip if already paid (prevents double-debit on concurrent calls)
+    if (updated.paymentStatus !== 'COMPLETED') {
+      const finalPrice = Number(updated.totalPrice);
+
+      if (updated.paymentMethod === 'WALLET') {
+        // Auto-debit client wallet for the final amount
+        try {
+          const walletDebit = await prisma.$transaction(async (tx) => {
+            const clientWallet = await tx.wallet.findFirst({
+              where: { userId: updated.clientId },
+            });
+            if (!clientWallet || Number(clientWallet.balance) < finalPrice) {
+              return null; // Insufficient balance
+            }
+            const updatedWallet = await tx.wallet.update({
+              where: { id: clientWallet.id },
+              data: { balance: { decrement: finalPrice } },
+            });
+            await tx.transaction.create({
+              data: {
+                walletId: clientWallet.id,
+                type: 'COMMISSION_DEDUCTION',
+                amount: finalPrice,
+                balanceAfter: Number(updatedWallet.balance),
+                description: `Payment for order ${updated.orderNumber}`,
+                referenceId: updated.id,
+                referenceType: 'order',
+              },
+            });
+            await tx.order.update({
+              where: { id: orderId },
+              data: { paymentStatus: 'COMPLETED' },
+            });
+            return updatedWallet;
+          });
+
+          if (walletDebit) {
+            updated = { ...updated, paymentStatus: 'COMPLETED' };
+          } else {
+            // Insufficient funds — leave paymentStatus PENDING so client
+            // can top up and pay via the payment page
+            logger.warn({ orderId, clientId: updated.clientId, finalPrice }, 'Insufficient wallet balance — client must pay manually');
+          }
+        } catch (err) {
+          logger.error({ err, orderId }, 'Failed to debit client wallet after delivery');
+        }
+      } else if (updated.paymentMethod === 'CASH') {
+        // Cash is collected by the rider in person — mark as completed
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { paymentStatus: 'COMPLETED' },
+        });
+        updated = { ...updated, paymentStatus: 'COMPLETED' };
+      }
+      // CARD / MOBILE_MONEY / BANK_TRANSFER: paymentStatus stays PENDING —
+      // client pays via Paystack after seeing the "Pay Now" prompt on tracking page.
+    }
   }
 
   // Enqueue background jobs AFTER writes have completed successfully
@@ -885,7 +946,8 @@ export async function rateOrder(
 }
 
 /**
- * Get available jobs for a rider — orders in their zone that are PENDING or SEARCHING_RIDER.
+ * Get available jobs for a rider — ALL unassigned orders, sorted by proximity to rider's GPS.
+ * Zones are used for pricing only, not for filtering which jobs a rider can see.
  */
 export async function getAvailableJobs(userId: string) {
   const riderProfile = await prisma.riderProfile.findUnique({
@@ -897,21 +959,15 @@ export async function getAvailableJobs(userId: string) {
     throw ApiError.forbidden('Your account is not yet activated');
   }
 
-  // Build where clause — rider's zone or no zone (unzoned orders)
-  const whereClause: any = {
-    status: { in: ['PENDING', 'SEARCHING_RIDER'] },
-    riderId: null,
-  };
-
-  if (riderProfile.currentZoneId) {
-    whereClause.OR = [
-      { zoneId: riderProfile.currentZoneId },
-      { zoneId: null },
-    ];
+  if (riderProfile.availability !== 'ONLINE') {
+    throw ApiError.forbidden('You must be online to see available jobs');
   }
 
   const orders = await prisma.order.findMany({
-    where: whereClause,
+    where: {
+      status: { in: ['PENDING', 'SEARCHING_RIDER'] },
+      riderId: null,
+    },
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: {
@@ -941,6 +997,23 @@ export async function getAvailableJobs(userId: string) {
       filtered.push(order);
     }
   }
+
+  // Sort by proximity to rider's current GPS (nearest first)
+  const riderLat = riderProfile.currentLatitude ? Number(riderProfile.currentLatitude) : null;
+  const riderLng = riderProfile.currentLongitude ? Number(riderProfile.currentLongitude) : null;
+
+  if (riderLat != null && riderLng != null) {
+    filtered.sort((a, b) => {
+      const distA = (a.pickupLatitude != null && a.pickupLongitude != null)
+        ? Math.hypot(Number(a.pickupLatitude) - riderLat, Number(a.pickupLongitude) - riderLng)
+        : Infinity;
+      const distB = (b.pickupLatitude != null && b.pickupLongitude != null)
+        ? Math.hypot(Number(b.pickupLatitude) - riderLat, Number(b.pickupLongitude) - riderLng)
+        : Infinity;
+      return distA - distB;
+    });
+  }
+
   return filtered;
 }
 

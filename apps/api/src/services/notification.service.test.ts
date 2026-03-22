@@ -253,7 +253,7 @@ describe('NotificationService', () => {
   // 5. NOTIFY NEARBY RIDERS — new order broadcast
   // ────────────────────────────────────────────────────────────
   describe('notifyNearbyRiders', () => {
-    it('should notify online riders in the same zone', async () => {
+    it('should notify all online activated riders regardless of zone', async () => {
       const riders = [{ userId: 'rider-1' }, { userId: 'rider-2' }];
       asMock(prisma.riderProfile.findMany).mockResolvedValue(riders);
       asMock(prisma.order.findUnique).mockResolvedValue({
@@ -270,16 +270,21 @@ describe('NotificationService', () => {
 
       await notifyNearbyRiders('order-1', 'RG-001', 'zone-accra', 'Osu Mall');
 
+      // Should query all online activated riders (no zone filter)
+      expect(prisma.riderProfile.findMany).toHaveBeenCalledWith({
+        where: {
+          availability: 'ONLINE',
+          onboardingStatus: 'ACTIVATED',
+        },
+        select: { userId: true },
+        take: 50,
+      });
       // Should notify both riders
       expect(prisma.notification.create).toHaveBeenCalledTimes(2);
     });
 
-    it('should fallback to all online riders when no zone-specific riders found', async () => {
-      // First call (zone-specific) returns empty
-      asMock(prisma.riderProfile.findMany)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ userId: 'rider-1' }]); // fallback all online
-
+    it('should handle no online riders gracefully', async () => {
+      asMock(prisma.riderProfile.findMany).mockResolvedValue([]);
       asMock(prisma.order.findUnique).mockResolvedValue({
         distanceKm: 5,
         totalPrice: 13,
@@ -290,12 +295,11 @@ describe('NotificationService', () => {
         isMultiStop: false,
         isScheduled: false,
       });
-      asMock(prisma.notification.create).mockResolvedValue({ id: 'n-1' });
 
       await notifyNearbyRiders('order-1', 'RG-001', 'zone-rural', 'Village');
 
-      // Should still notify the fallback rider
-      expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+      // No riders to notify
+      expect(prisma.notification.create).not.toHaveBeenCalled();
     });
   });
 

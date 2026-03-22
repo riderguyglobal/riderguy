@@ -46,6 +46,9 @@ vi.mock('@riderguy/database', () => ({
     locationHistory: {
       findFirst: vi.fn(),
     },
+    zone: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -263,7 +266,8 @@ describe('Tracking & Rider Location', () => {
   // 4. UPDATE RIDER LOCATION — GPS position update
   // ────────────────────────────────────────────────────────────
   describe('updateRiderLocation', () => {
-    it('should update rider GPS coordinates', async () => {
+    it('should update rider GPS coordinates and auto-detect zone', async () => {
+      asMock(prisma.zone.findMany).mockResolvedValue([]);
       asMock(prisma.riderProfile.updateMany).mockResolvedValue({ count: 1 });
 
       await updateRiderLocation('rider-user-1', 5.5650, -0.1875);
@@ -274,6 +278,35 @@ describe('Tracking & Rider Location', () => {
           currentLatitude: 5.5650,
           currentLongitude: -0.1875,
           lastLocationUpdate: expect.any(Date),
+          currentZoneId: null,
+        },
+      });
+    });
+
+    it('should set currentZoneId when rider is inside a zone', async () => {
+      // Mock a zone polygon that contains the test point
+      asMock(prisma.zone.findMany).mockResolvedValue([{
+        id: 'zone-osu',
+        name: 'Osu',
+        status: 'ACTIVE',
+        polygon: [
+          { lat: 5.55, lng: -0.20 },
+          { lat: 5.55, lng: -0.17 },
+          { lat: 5.58, lng: -0.17 },
+          { lat: 5.58, lng: -0.20 },
+        ],
+      }]);
+      asMock(prisma.riderProfile.updateMany).mockResolvedValue({ count: 1 });
+
+      await updateRiderLocation('rider-user-1', 5.5650, -0.1875);
+
+      expect(prisma.riderProfile.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'rider-user-1' },
+        data: {
+          currentLatitude: 5.5650,
+          currentLongitude: -0.1875,
+          lastLocationUpdate: expect.any(Date),
+          currentZoneId: 'zone-osu',
         },
       });
     });

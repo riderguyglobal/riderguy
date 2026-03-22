@@ -73,6 +73,8 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
   const userLocationRef = useRef<[number, number] | null>(null);
   // Session token groups suggest + retrieve calls for Mapbox billing
   const sessionTokenRef = useRef<string>(uuid());
+  // Track the last search query for recording selections
+  const lastSearchQueryRef = useRef<string>('');
 
   // Try to get user's actual location for better proximity bias
   useEffect(() => {
@@ -93,6 +95,8 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
       setLoading(false);
       return;
     }
+
+    lastSearchQueryRef.current = q;
 
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -131,6 +135,21 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
     // If coordinates are already present (Geocoding v6, Nominatim, gazetteer),
     // skip the retrieve API call entirely — build the place object directly.
     if (suggestion.latitude != null && suggestion.longitude != null) {
+      // Record the selection for usage-based learning (fire-and-forget)
+      if (api && lastSearchQueryRef.current) {
+        api.post('/orders/record-selection', {
+          query: lastSearchQueryRef.current,
+          suggestion: {
+            id: suggestion.id,
+            text: suggestion.text,
+            placeName: suggestion.placeName,
+            latitude: suggestion.latitude,
+            longitude: suggestion.longitude,
+            source: suggestion.source,
+          },
+        }).catch(() => {});
+      }
+
       // Start a new session for the next search
       sessionTokenRef.current = uuid();
       return {

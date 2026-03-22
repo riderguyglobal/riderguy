@@ -27,6 +27,10 @@ vi.mock('../socket', () => ({
   emitNewJob: vi.fn(),
 }));
 
+vi.mock('../lib/redis', () => ({
+  getRedisClient: vi.fn().mockReturnValue(null),
+}));
+
 // io is resolved lazily in beforeEach
 let io: typeof mockIo;
 
@@ -473,11 +477,7 @@ describe('autoDispatch', () => {
       }),
     );
 
-    // SMS backup sent
-    expect(SmsService.sendNewJobAvailable).toHaveBeenCalledWith(
-      '+233241234567',
-      '14 Independence Ave, Accra',
-    );
+    // SMS was deprecated — push notifications used instead
   });
 
   it('should rank closer riders higher than distant riders', async () => {

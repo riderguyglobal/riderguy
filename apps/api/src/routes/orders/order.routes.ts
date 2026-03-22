@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, requireRole, validate, sensitiveRateLimit } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
+import { z } from 'zod';
 import {
   createOrderSchema,
   priceEstimateSchema,
@@ -159,17 +160,88 @@ router.get(
     // Record the selection for usage-based learning (fire-and-forget)
     const query = req.query.q as string;
     if (query && place) {
+      // Infer provider from ID prefix (gaz-, nom-, com-, or Mapbox ID)
+      const source = mapboxId.startsWith('gaz-') ? 'gazetteer' as const
+        : mapboxId.startsWith('nom-') ? 'nominatim' as const
+        : mapboxId.startsWith('com-') ? 'community' as const
+        : 'mapbox' as const;
       GeocodingService.recordSelection(query, {
         id: mapboxId,
         text: place.name,
         placeName: place.fullAddress || place.name,
         latitude: place.latitude,
         longitude: place.longitude,
-        source: 'mapbox',
+        source,
       }).catch(() => {});
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: place });
+  }),
+);
+
+/** POST /orders/record-selection — Record a location selection for usage-based learning.
+ *  Called when the client selects a suggestion that already has coordinates
+ *  (so the retrieve-place endpoint is never called). */
+const recordSelectionSchema = z.object({
+  query: z.string().min(2).max(200),
+  suggestion: z.object({
+    id: z.string().max(500).optional(),
+    text: z.string().min(1).max(300),
+    placeName: z.string().min(1).max(500).optional(),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    source: z.enum(['mapbox', 'nominatim', 'gazetteer', 'community']).optional(),
+  }),
+});
+
+router.post(
+  '/record-selection',
+  sensitiveRateLimit,
+  validate(recordSelectionSchema),
+  asyncHandler(async (req, res) => {
+    const { query, suggestion } = req.body as z.infer<typeof recordSelectionSchema>;
+    const userId = req.user!.userId;
+
+    // Record popularity for boosting future search results
+    GeocodingService.recordSelection(query, {
+      id: suggestion.id ?? '',
+      text: suggestion.text,
+      placeName: suggestion.placeName ?? suggestion.text,
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+      source: suggestion.source,
+    }).catch((err) => {
+      logger.warn({ err, query }, '[Orders/RecordSelection] Failed to record popularity');
+    });
+
+    // Auto-create a CommunityPlace entry (if not from the community provider already)
+    // so the location becomes searchable in future autocomplete queries.
+    if (suggestion.source !== 'community') {
+      prisma.communityPlace.upsert({
+        where: {
+          // Use a deterministic key based on coords (snap to ~11m grid)
+          id: `auto-${Math.round(suggestion.latitude * 10000)}-${Math.round(suggestion.longitude * 10000)}`,
+        },
+        create: {
+          id: `auto-${Math.round(suggestion.latitude * 10000)}-${Math.round(suggestion.longitude * 10000)}`,
+          name: suggestion.text,
+          address: suggestion.placeName ?? suggestion.text,
+          latitude: suggestion.latitude,
+          longitude: suggestion.longitude,
+          source: 'auto_learned',
+          contributedById: userId,
+          usageCount: 1,
+          verified: false,
+        },
+        update: {
+          usageCount: { increment: 1 },
+        },
+      }).catch((err) => {
+        logger.warn({ err, query }, '[Orders/RecordSelection] Failed to auto-create community place');
+      });
+    }
+
+    res.status(StatusCodes.OK).json({ success: true });
   }),
 );
 
@@ -329,30 +401,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const order = await OrderService.createOrder(req.user!.userId, req.body);
 
-    // Only auto-dispatch immediately for payment methods that don't require
-    // external confirmation. CARD and MOBILE_MONEY orders must wait for the
-    // Paystack webhook (charge.success) before riders are dispatched.
-    const immediateDispatchMethods = ['CASH', 'WALLET'];
-    if (immediateDispatchMethods.includes(order.paymentMethod)) {
-      autoDispatch(order.id).catch((err) => {
-        logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
-      });
+    // Dispatch immediately for ALL payment methods.
+    // Payment is collected AFTER delivery (final price may change due to
+    // wait time, pickup distance bonuses, etc.). For CARD/MOBILE_MONEY
+    // orders, the client is prompted to pay after the delivery is marked
+    // DELIVERED. For CASH, the rider collects in person.
+    autoDispatch(order.id).catch((err) => {
+      logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
+    });
 
-      // Also broadcast to job feed as a fallback
-      notifyNearbyRiders(
-        order.id,
-        order.orderNumber,
-        order.zoneId,
-        order.pickupAddress,
-      ).catch((err) => {
-        logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
-      });
-    } else {
-      logger.info(
-        { orderId: order.id, paymentMethod: order.paymentMethod },
-        '[Orders] Dispatch deferred until payment confirmed',
-      );
-    }
+    notifyNearbyRiders(
+      order.id,
+      order.orderNumber,
+      order.zoneId,
+      order.pickupAddress,
+    ).catch((err) => {
+      logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: order });
   }),

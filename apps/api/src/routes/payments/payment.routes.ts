@@ -8,8 +8,6 @@ import { z } from 'zod';
 import { paystackService, PaystackService } from '../../services/paystack.service';
 import { logger } from '../../lib/logger';
 import { enqueuePayoutJob } from '../../jobs/queues';
-import { autoDispatch } from '../../services/auto-dispatch.service';
-import { notifyNearbyRiders } from '../../services/notification.service';
 
 const router = Router();
 
@@ -202,7 +200,7 @@ router.get(
           data: { paymentStatus: 'COMPLETED' },
         });
 
-        // If count is 0, webhook already completed this payment — skip dispatch
+        // If count is 0, webhook already completed this payment — skip
         if (paymentUpdate.count === 0) {
           res.status(StatusCodes.OK).json({
             success: true,
@@ -216,20 +214,8 @@ router.get(
           return;
         }
 
-        // Payment verified — trigger dispatch if order is still waiting
-        if (order.status === 'PENDING' || order.status === 'SEARCHING_RIDER') {
-          autoDispatch(order.id).catch((err) => {
-            logger.error({ err, orderId: order.id }, '[Verify] autoDispatch after payment failed');
-          });
-          notifyNearbyRiders(
-            order.id,
-            order.orderNumber,
-            order.zoneId,
-            order.pickupAddress,
-          ).catch((err) => {
-            logger.error({ err, orderId: order.id }, '[Verify] notifyNearbyRiders after payment failed');
-          });
-        }
+        // Dispatch is handled at order creation — no need to trigger here.
+        // This verification just confirms the post-delivery payment was successful.
 
         res.status(StatusCodes.OK).json({
           success: true,
@@ -307,21 +293,7 @@ router.post(
 
           if (webhookUpdate.count > 0) {
             logger.info({ orderId: order.id, reference }, 'Order payment completed via webhook');
-
-            // Payment confirmed — now dispatch the order to riders
-            if (order.status === 'PENDING' || order.status === 'SEARCHING_RIDER') {
-              autoDispatch(order.id).catch((err) => {
-                logger.error({ err, orderId: order.id }, '[Webhook] autoDispatch after payment failed');
-              });
-              notifyNearbyRiders(
-                order.id,
-                order.orderNumber,
-                order.zoneId,
-                order.pickupAddress,
-              ).catch((err) => {
-                logger.error({ err, orderId: order.id }, '[Webhook] notifyNearbyRiders after payment failed');
-              });
-            }
+            // Dispatch is handled at order creation — webhook only confirms payment.
           }
         }
         break;

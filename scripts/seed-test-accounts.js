@@ -1,7 +1,7 @@
 /**
  * Seed Test Accounts
  * 
- * Deletes ALL data and creates 2 test accounts:
+ * Deletes ALL data from ALL tables and creates exactly 2 test accounts:
  *   - Rider: rider@test.com / password: Test1234
  *   - Client: client@test.com / password: Test1234
  *
@@ -21,23 +21,55 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-  console.log('🗑️  Deleting all existing data...\n');
+  console.log('🗑️  Deleting ALL data from every table...\n');
 
-  // Delete in dependency order (children first)
+  // Delete in strict dependency order (children → parents)
+  // Using Prisma model names (camelCase) matching schema.prisma exactly
   const tables = [
-    'featureRequestUpvotes', 'featureRequest', 'eventRsvp', 'event',
-    'pollVote', 'poll', 'contentReport', 'announcement',
-    'forumVote', 'forumComment', 'forumPost', 'forumCategory',
+    // Community / gamification children first
+    'featureRequestUpvote', 'featureRequest',
+    'riderSpotlight',
+    'eventRsvp', 'event',
+    'pollVote', 'pollOption', 'poll',
+    'contentReport', 'announcement',
+    'forumVote', 'forumComment', 'forumPost',
+    'mentorCheckIn', 'mentorship',
     'chatMessage', 'chatMember', 'chatRoom',
+    // Gamification
+    'bonusXpEvent',
+    'rewardRedemption', 'rewardStoreItem',
+    'challengeParticipant', 'challenge',
+    'riderBadge', 'badge', 'riderStreak', 'xpEvent',
+    // Notifications
     'notification', 'pushToken',
-    'walletAuditEntry', 'withdrawalRequest', 'wallet',
-    'orderTimeline', 'orderRating', 'order',
-    'scheduledDelivery',
-    'vehiclePhoto', 'vehicle',
-    'document',
-    'riderProfile', 'clientProfile', 'businessAccount', 'partnerProfile',
-    'session', 'otp',
+    // Finance
+    'transaction', 'withdrawal', 'wallet',
+    // Cancellation
+    'cancellationAppeal', 'cancellationRequest', 'cancellationRecord',
+    // Orders
+    'locationHistory', 'orderMessage', 'orderStatusHistory',
+    'orderStop', 'scheduledDelivery', 'order',
+    // Promo
+    'promoCodeUsage', 'promoCode',
+    // Geo / analytics
+    'etaCorrectionFactor', 'locationPopularity', 'communityPlace',
+    // Audit
+    'auditLog',
+    // Partners
+    'partnerRecruitment', 'partnerProfile',
+    // Vehicles & docs
+    'vehicle', 'document',
+    // Profiles
+    'apiKey', 'businessAccount',
+    'favoriteRider', 'savedAddress',
+    'riderProfile', 'clientProfile',
+    // Auth
+    'webAuthnChallenge', 'webAuthnCredential',
+    'emailToken', 'session', 'otp',
+    // User last (everything references it)
     'user',
+    // Zones are independent — keep them for pricing
+    // 'zone',  // Intentionally kept
   ];
 
   for (const table of tables) {
@@ -47,11 +79,11 @@ async function main() {
         console.log(`  Deleted ${result.count} ${table} records`);
       }
     } catch (e) {
-      // Table may not exist or wrong name — skip silently
+      // Table may not exist in this schema version — skip
     }
   }
 
-  console.log('\n✅ All data deleted.\n');
+  console.log('\n✅ All data deleted. Zones preserved for pricing.\n');
 
   // Hash password
   const passwordHash = await bcrypt.hash('Test1234', 12);

@@ -125,18 +125,24 @@ export async function getRiderLocationForOrder(orderId: string, requesterId: str
 
 /**
  * Update rider's current location (REST fallback for when WebSocket isn't available).
+ * Also auto-detects which zone the rider is in based on GPS coordinates.
  */
 export async function updateRiderLocation(
   userId: string,
   latitude: number,
   longitude: number,
 ) {
+  // Auto-detect zone from GPS coordinates
+  const { ZoneService } = await import('./zone.service');
+  const zone = await ZoneService.findZoneForPoint(latitude, longitude);
+
   await prisma.riderProfile.updateMany({
     where: { userId },
     data: {
       currentLatitude: latitude,
       currentLongitude: longitude,
       lastLocationUpdate: new Date(),
+      currentZoneId: zone?.id ?? null,
     },
   });
 }

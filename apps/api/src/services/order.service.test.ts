@@ -731,7 +731,7 @@ describe('OrderService', () => {
   // 8. AVAILABLE JOBS — rider sees pending orders
   // ────────────────────────────────────────────────────────────
   describe('Available Jobs', () => {
-    it('should return pending orders for activated rider in their zone', async () => {
+    it('should return all pending orders for activated rider regardless of zone', async () => {
       const rider = mockRiderProfile();
       const jobs = [mockOrder(), mockOrder({ id: 'order-2' })];
 
@@ -749,6 +749,14 @@ describe('OrderService', () => {
 
       await expect(getAvailableJobs('rider-user-1'))
         .rejects.toThrow('not yet activated');
+    });
+
+    it('should reject for offline rider', async () => {
+      const rider = mockRiderProfile({ availability: 'OFFLINE' });
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
+
+      await expect(getAvailableJobs('rider-user-1'))
+        .rejects.toThrow('must be online');
     });
 
     it('should filter out orders rider has declined', async () => {
