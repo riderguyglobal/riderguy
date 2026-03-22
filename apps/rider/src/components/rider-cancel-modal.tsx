@@ -42,10 +42,10 @@ const POST_PICKUP_REASONS: CancelReason[] = [
 ];
 
 const SEVERITY_COLORS = {
-  low: 'bg-amber-50 text-amber-700 border-amber-200',
-  medium: 'bg-orange-50 text-orange-700 border-orange-200',
-  high: 'bg-red-50 text-red-700 border-red-200',
-  critical: 'bg-red-100 text-red-800 border-red-300',
+  low: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30',
+  medium: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/30',
+  high: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30',
+  critical: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-300 dark:border-red-500/40',
 } as const;
 
 export function RiderCancelModal({
@@ -73,12 +73,15 @@ export function RiderCancelModal({
     let pushed = true;
     history.pushState({ __backTrap: true }, '');
     const handlePop = () => { pushed = false; onClose(); };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !loading) onClose(); };
     window.addEventListener('popstate', handlePop);
+    window.addEventListener('keydown', handleKey);
     return () => {
       window.removeEventListener('popstate', handlePop);
+      window.removeEventListener('keydown', handleKey);
       if (pushed) history.back();
     };
-  }, [open, onClose]);
+  }, [open, onClose, loading]);
 
   // Reset on close
   useEffect(() => {
@@ -127,18 +130,18 @@ export function RiderCancelModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto">
+      <div className="relative w-full max-w-md mx-4 bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="flex items-center justify-between p-5 border-b border-themed">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-red-50 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-red-500/10 flex items-center justify-center">
               <AlertTriangle className="h-4.5 w-4.5 text-red-500" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-900">
+              <h3 className="text-base font-semibold text-primary">
                 Cancel Delivery
               </h3>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-subtle">
                 Order {orderNumber}
               </p>
             </div>
@@ -146,9 +149,9 @@ export function RiderCancelModal({
           {!loading && (
             <button
               onClick={onClose}
-              className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+              className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-hover-themed transition-colors"
             >
-              <X className="h-4 w-4 text-gray-400" />
+              <X className="h-4 w-4 text-muted" />
             </button>
           )}
         </div>
@@ -157,13 +160,13 @@ export function RiderCancelModal({
         <div className="p-5 space-y-4">
           {/* Post-pickup warning */}
           {isPostPickup && !requestSent && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3">
               <ShieldAlert className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-red-800">
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400">
                   Package already picked up — Client Authorization Required
                 </p>
-                <p className="text-xs text-red-600 mt-1">
+                <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
                   Since you have the client&apos;s package, you cannot cancel directly.
                   The client must authorize this cancellation to ensure their package is safely returned.
                   You will receive a GHS 15 penalty, 24-hour suspension, and account investigation.
@@ -173,13 +176,13 @@ export function RiderCancelModal({
           )}
 
           {!isPostPickup && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-              <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-amber-800">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
                   Cancellation consequences escalate
                 </p>
-                <p className="text-xs text-amber-700 mt-1">
+                <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-1">
                   1st in 30 days: Warning only · 2nd: GHS 5 fee · 3rd: GHS 10 + 2hr suspension · 4th+: GHS 20 + 24hr suspension + account review
                 </p>
               </div>
@@ -188,7 +191,7 @@ export function RiderCancelModal({
 
           {/* Reason selection */}
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">
+            <p className="text-sm font-medium text-secondary mb-2">
               Why are you cancelling?
             </p>
             <div className="flex flex-wrap gap-2">
@@ -200,8 +203,8 @@ export function RiderCancelModal({
                   disabled={loading}
                   className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
                     reason === r.label
-                      ? 'bg-red-50 border-red-300 text-red-700 border'
-                      : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100'
+                      ? 'bg-red-500/10 border-red-400 dark:border-red-500/40 text-red-600 dark:text-red-400 border'
+                      : 'bg-card border border-themed text-secondary hover:bg-hover-themed'
                   }`}
                 >
                   {r.label}
@@ -233,14 +236,14 @@ export function RiderCancelModal({
                 onFocus={(e) => {
                   setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
                 }}
-                className="w-full min-h-[80px] p-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-colors"
+                className="w-full min-h-[80px] p-3 rounded-xl bg-card border border-themed text-primary placeholder:text-subtle text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-colors"
               />
             </div>
           )}
 
           {/* Error */}
           {error && (
-            <div className="px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium flex items-center gap-1.5">
+            <div className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               {error}
             </div>
@@ -248,13 +251,13 @@ export function RiderCancelModal({
 
           {/* Request sent success message */}
           {requestSent && (
-            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-4 flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-green-800">
+                <p className="text-sm font-semibold text-green-700 dark:text-green-400">
                   Cancellation request sent
                 </p>
-                <p className="text-xs text-green-600 mt-1">
+                <p className="text-xs text-green-600 dark:text-green-400/80 mt-1">
                   The client has been notified and has 30 minutes to respond.
                   You will be notified when they authorize or deny the request.
                   Please wait for their response before taking any action.
@@ -269,7 +272,7 @@ export function RiderCancelModal({
           {requestSent ? (
             <button
               onClick={onClose}
-              className="flex-1 h-12 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition-all btn-press"
+              className="flex-1 h-12 rounded-xl bg-surface-800 dark:bg-surface-200 text-white dark:text-surface-900 font-semibold text-sm hover:opacity-90 transition-all btn-press"
             >
               Got It
             </button>
@@ -278,7 +281,7 @@ export function RiderCancelModal({
               <button
                 onClick={onClose}
                 disabled={loading}
-                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 disabled:opacity-50 transition-all btn-press"
+                className="flex-1 h-12 rounded-xl border border-themed text-secondary font-medium text-sm hover:bg-hover-themed disabled:opacity-50 transition-all btn-press"
               >
                 Keep Delivering
               </button>

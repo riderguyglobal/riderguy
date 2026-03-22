@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@riderguy/auth';
 import { useSocket } from './use-socket';
 import { HEARTBEAT_INTERVAL } from '@/lib/constants';
@@ -42,6 +43,7 @@ const LOW_ACCURACY: PositionOptions = { enableHighAccuracy: false, maximumAge: 3
 export function useRiderAvailability() {
   const { api } = useAuth();
   const { emitLocation, connected } = useSocket();
+  const queryClient = useQueryClient();
   const [availability, setAvailability] = useState<RiderAvailability>(RiderAvailability.OFFLINE);
   const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -53,13 +55,17 @@ export function useRiderAvailability() {
 
   // ── Fetch initial availability & seed GPS on first load ──
   useEffect(() => {
+    if (!api) return;
     let mounted = true;
 
     (async () => {
       try {
-        const res = await api?.get('/riders/profile');
+        const profile = await queryClient.fetchQuery({
+          queryKey: ['rider-profile-full'],
+          queryFn: () => api.get('/riders/profile').then(r => r.data.data),
+          staleTime: 30_000,
+        });
         if (!mounted) return;
-        const profile = res?.data?.data;
         setAvailability(profile?.availability ?? RiderAvailability.OFFLINE);
         setOnboardingStatus(profile?.onboardingStatus ?? null);
 

@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
@@ -38,7 +43,7 @@ const nextConfig = {
 };
 
 // Wrap with Serwist PWA support if available
-let finalConfig = nextConfig;
+let finalConfig = withBundleAnalyzer(nextConfig);
 try {
   const withSerwist = require('@serwist/next').default({
     swSrc: 'src/sw.ts',

@@ -150,7 +150,13 @@ export function useCommunityChat() {
     setLoading(true);
     try {
       const res = await api.get(`${BASE}/chat/rooms`);
-      setRooms(res.data.data);
+      const fetched: ChatRoom[] = res.data.data;
+      fetched.sort((a, b) => {
+        const ta = a.lastMessage?.createdAt ?? a.joinedAt;
+        const tb = b.lastMessage?.createdAt ?? b.joinedAt;
+        return new Date(tb).getTime() - new Date(ta).getTime();
+      });
+      setRooms(fetched);
     } catch (err) {
       console.error('Failed to fetch rooms:', err);
     } finally {

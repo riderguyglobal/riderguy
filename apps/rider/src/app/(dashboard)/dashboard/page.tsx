@@ -36,7 +36,10 @@ import {
   Bell,
 } from 'lucide-react';
 
-const RiderMap = dynamic(() => import('@/components/rider-map').then(mod => mod.RiderMap), { ssr: false });
+const RiderMap = dynamic(() => import('@/components/rider-map').then(mod => mod.RiderMap), {
+  ssr: false,
+  loading: () => <div className="w-full h-full min-h-[200px] bg-neutral-100 dark:bg-neutral-800 rounded-2xl animate-pulse" />,
+});
 import type { RiderMapStatus } from '@/components/rider-map';
 
 interface WalletData {
@@ -125,16 +128,20 @@ export default function DashboardPage() {
       params: { role: 'rider', status: 'ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF', limit: 5 },
     }).then(r => (r.data.data ?? []) as Order[]),
     enabled: !!api,
-    refetchInterval: 10_000, // Poll active orders every 10s
+    // Poll faster during active delivery, slower when idle, stop when offline
+    refetchInterval: (query) => {
+      const data = query.state.data as Order[] | undefined;
+      if (!navigator.onLine) return false;
+      return data && data.length > 0 ? 5_000 : 30_000;
+    },
   });
 
   const { data: profile } = useQuery({
-    queryKey: ['rider-profile'],
-    queryFn: () => api!.get('/riders/profile').then(r => {
-      const d = r.data.data;
-      return { completedDeliveries: d?.completedDeliveries ?? 0, rating: d?.rating ?? 0 };
-    }),
+    queryKey: ['rider-profile-full'],
+    queryFn: () => api!.get('/riders/profile').then(r => r.data.data),
+    select: (d: any) => ({ completedDeliveries: d?.completedDeliveries ?? 0, rating: d?.rating ?? 0 }),
     enabled: !!api,
+    staleTime: 30_000,
   });
 
   const { data: gamification } = useQuery({
@@ -158,8 +165,7 @@ export default function DashboardPage() {
     queryKey: ['notifications-unread-count'],
     queryFn: async () => {
       const res = await api!.get('/notifications', { params: { pageSize: '1' } });
-      const all = res.data.data ?? [];
-      return { unread: all.filter((n: { isRead: boolean }) => !n.isRead).length };
+      return { unread: res.data.unreadCount ?? 0 };
     },
     enabled: !!api,
     refetchInterval: 30000,
@@ -252,7 +258,7 @@ export default function DashboardPage() {
         {/* ── Go Online Toggle ── */}
         <div className="flex justify-center -mt-8 mb-2">
           <button
-            onClick={toggleAvailability}
+            onClick={() => { toggleAvailability(); navigator.vibrate?.(50); }}
             disabled={toggling}
             className={`relative group flex items-center gap-3 px-10 py-4 rounded-2xl font-bold text-base transition-all duration-300 btn-press ${
               isOnline
@@ -350,7 +356,7 @@ export default function DashboardPage() {
               <div className="h-5 w-5 rounded-md bg-accent-500/15 flex items-center justify-center">
                 <TrendingUp className="h-3 w-3 text-accent-500" />
               </div>
-              <span className="text-[10px] text-muted font-semibold uppercase tracking-wider">Earned</span>
+              <span className="text-[10px] text-muted font-semibold uppercase tracking-wider">Total Earned</span>
             </div>
             <p className="text-primary font-extrabold text-lg tabular-nums">
               {wallet ? formatCurrency(wallet.totalEarned) : '—'}

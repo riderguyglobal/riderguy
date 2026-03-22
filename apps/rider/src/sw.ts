@@ -176,6 +176,12 @@ self.addEventListener('message', (event) => {
     flushLocationQueue();
   }
 
+  // ── PW-01: Clear cached authenticated data on logout ──
+  if (type === 'CLEAR_CACHES') {
+    caches.delete('api-data').catch(() => {});
+    idbClear(); // Clear any queued locations from the prior session
+  }
+
   // ── Persistent "Return to App" notification when rider opens external Maps ──
   if (type === 'SHOW_NAVIGATION_NOTIFICATION') {
     const { orderId, phase } = data ?? {};

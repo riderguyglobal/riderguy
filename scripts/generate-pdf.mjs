@@ -13,7 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
 // ── Read Markdown ──
-const mdPath = resolve(ROOT, 'docs/SYSTEM_ARCHITECTURE_OVERVIEW.md');
+const mdPath = resolve(ROOT, 'docs/architecture/SYSTEM_ARCHITECTURE_OVERVIEW.md');
 const md = readFileSync(mdPath, 'utf-8');
 
 // ── Convert Markdown → HTML ──
@@ -283,7 +283,7 @@ const fullHtml = `<!DOCTYPE html>
 </html>`;
 
 // ── Launch Chrome and generate PDF ──
-const outPath = resolve(ROOT, 'docs/RiderGuy_System_Overview.pdf');
+const outPath = resolve(ROOT, 'docs/exports/RiderGuy_System_Overview.pdf');
 
 console.log('Launching Chrome...');
 const browser = await puppeteer.launch({

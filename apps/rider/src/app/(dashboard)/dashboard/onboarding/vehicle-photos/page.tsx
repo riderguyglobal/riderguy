@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { Button } from '@riderguy/ui';
 import { ArrowLeft, Camera, X, CheckCircle, AlertCircle, ImageIcon } from 'lucide-react';
 
@@ -27,7 +26,7 @@ export default function VehiclePhotosPage() {
 
   useEffect(() => {
     if (!api) return;
-    api.get(`${API_BASE_URL}/riders/vehicles`).then((res) => {
+    api.get('/riders/vehicles').then((res) => {
       const vehicles = res.data.data ?? [];
       if (vehicles.length > 0) setVehicleId(vehicles[0].id);
     }).catch(() => {});
@@ -76,7 +75,7 @@ export default function VehiclePhotosPage() {
         formData.append('file', blob, `vehicle-${angle}.jpg`);
         formData.append('angle', angle);
 
-        await api.post(`${API_BASE_URL}/riders/vehicles/${vehicleId}/photos`, formData, {
+        await api.post(`/riders/vehicles/${vehicleId}/photos`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }

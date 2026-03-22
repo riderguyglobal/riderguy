@@ -17,7 +17,7 @@ vi.mock('../lib/logger', () => ({
 // Pricing Engine — Unit Tests
 //
 // All monetary assertions are in GHS (Ghana Cedis).
-// See docs/PRICING_STRATEGY.md for the pricing rationale.
+// See docs/business/PRICING_STRATEGY.md for the pricing rationale.
 // ============================================================
 
 // ── Helpers ─────────────────────────────────────────────────

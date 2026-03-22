@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@riderguy/auth';
 import { useSocket } from '@/hooks/use-socket';
 import { useNavigationNotification } from '@/hooks/use-navigation-notification';
-import { API_BASE_URL, STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
+import { STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency, timeAgo } from '@riderguy/utils';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Textarea } from '@riderguy/ui';
 import { DeliveryChat } from '@/components/delivery-chat';
@@ -60,7 +60,7 @@ export default function JobDetailPage() {
   const fetchOrder = useCallback(async () => {
     if (!api || !id) return;
     try {
-      const res = await api.get(`${API_BASE_URL}/orders/${id}`);
+      const res = await api.get(`/orders/${id}`);
       setOrder(res.data.data);
     } catch {} finally {
       setLoading(false);
@@ -135,7 +135,8 @@ export default function JobDetailPage() {
     const nextStatus = STATUS_FLOW[idx + 1];
     setUpdating(true);
     try {
-      await api.patch(`${API_BASE_URL}/orders/${id}/status`, { status: nextStatus });
+      await api.patch(`/orders/${id}/status`, { status: nextStatus });
+      navigator.vibrate?.(50);
       setOrder((prev) => prev ? { ...prev, status: nextStatus as Order['status'] } : prev);
 
       // Auto-launch Google Maps navigation on key transitions
@@ -165,12 +166,12 @@ export default function JobDetailPage() {
         formData.append('file', proof.file);
         formData.append('proofType', proof.type);
         formData.append('completeDelivery', 'true');
-        await api.post(`${API_BASE_URL}/orders/${id}/proof`, formData, {
+        await api.post(`/orders/${id}/proof`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       } else {
         // JSON for signature (base64) and PIN code
-        await api.post(`${API_BASE_URL}/orders/${id}/proof`, {
+        await api.post(`/orders/${id}/proof`, {
           proofType: proof.type,
           proofData: proof.data,
           completeDelivery: true,
@@ -191,7 +192,7 @@ export default function JobDetailPage() {
     if (!api || !id || !failReason.trim()) return;
     setUpdating(true);
     try {
-      await api.post(`${API_BASE_URL}/orders/${id}/fail`, { reason: failReason.trim() });
+      await api.post(`/orders/${id}/fail`, { reason: failReason.trim() });
       setOrder((prev) => prev ? { ...prev, status: 'FAILED' as Order['status'] } : prev);
       setShowFailDialog(false);
     } catch (err: any) {
@@ -204,14 +205,14 @@ export default function JobDetailPage() {
 
   const handleRiderCancel = async (reason: string) => {
     if (!api || !id) return;
-    await api.post(`${API_BASE_URL}/orders/${id}/rider-cancel`, { reason });
+    await api.post(`/orders/${id}/rider-cancel`, { reason });
     setOrder((prev) => prev ? { ...prev, status: 'CANCELLED_BY_RIDER' as Order['status'] } : prev);
     setShowCancelModal(false);
   };
 
   const handleRequestCancel = async (reason: string) => {
     if (!api || !id) return;
-    await api.post(`${API_BASE_URL}/orders/${id}/cancel-request`, { reason });
+    await api.post(`/orders/${id}/cancel-request`, { reason });
   };
 
   /** Launch Google Maps turn-by-turn navigation to the given coordinates */

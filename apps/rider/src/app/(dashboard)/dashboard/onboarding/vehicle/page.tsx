@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { Button, Input } from '@riderguy/ui';
 import { ArrowLeft, Car, CheckCircle, AlertCircle } from 'lucide-react';
 import { VehicleType } from '@riderguy/types';
@@ -32,7 +31,7 @@ export default function VehiclePage() {
 
   useEffect(() => {
     if (!api) return;
-    api.get(`${API_BASE_URL}/riders/vehicles`).then((res) => {
+    api.get('/riders/vehicles').then((res) => {
       const vehicles = res.data.data ?? [];
       if (vehicles.length > 0) {
         const v = vehicles[0];
@@ -67,9 +66,9 @@ export default function VehiclePage() {
       };
 
       if (existing && vehicleId) {
-        await api?.patch(`${API_BASE_URL}/riders/vehicles/${vehicleId}`, body);
+        await api?.patch(`/riders/vehicles/${vehicleId}`, body);
       } else {
-        await api?.post(`${API_BASE_URL}/riders/vehicles`, body);
+        await api?.post('/riders/vehicles', body);
       }
       setSuccess(true);
     } catch (err: unknown) {

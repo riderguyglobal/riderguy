@@ -162,6 +162,8 @@ export default function ChangePinPage() {
               type="tel"
               inputMode="numeric"
               maxLength={6}
+              autoComplete="off"
+              autoCorrect="off"
               value={activePin}
               onChange={(e) => handlePinChange(e.target.value)}
               className="opacity-0 absolute -z-10"

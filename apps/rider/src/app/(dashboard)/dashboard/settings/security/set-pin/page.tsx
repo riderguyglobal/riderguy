@@ -131,6 +131,8 @@ export default function SetPinPage() {
               inputMode="numeric"
               pattern="[0-9]*"
               maxLength={6}
+              autoComplete="off"
+              autoCorrect="off"
               value={currentPin}
               onChange={(e) => handlePinChange(e.target.value)}
               className="opacity-0 absolute -z-10"

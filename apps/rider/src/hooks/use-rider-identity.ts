@@ -117,7 +117,7 @@ export function useRiderIdentity() {
     async (slug: string) => {
       setLoading(true);
       try {
-        const res = await fetch(`${PUBLIC_BASE}/card/${slug}`);
+        const res = await fetch(`${PUBLIC_BASE}/card/${encodeURIComponent(slug)}`);
         const json = await res.json();
         if (json.success) setPublicCard(json.data);
       } catch (err) {

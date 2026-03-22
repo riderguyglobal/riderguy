@@ -1,10 +1,19 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+// ── Environment Validation ──────────────────────────────────
+// Fail fast on missing critical env vars in production builds.
+// In development, fall back to localhost for convenience.
+const isProd = process.env.NODE_ENV === 'production';
 
-export const MAPBOX_TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ??
-  process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ??
-  '';
+export const API_BASE_URL = (() => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (!url && isProd) throw new Error('NEXT_PUBLIC_API_URL is required in production');
+  return url ?? 'http://localhost:4000/api/v1';
+})();
+
+export const MAPBOX_TOKEN = (() => {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  if (!token && isProd) throw new Error('NEXT_PUBLIC_MAPBOX_TOKEN is required in production');
+  return token ?? '';
+})();
 
 /** Google Maps-like light style */
 export const MAP_STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';

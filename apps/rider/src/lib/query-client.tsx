@@ -23,6 +23,9 @@ function getQueryClient() {
   return browserClient;
 }
 
+/** Shared singleton for use outside React (e.g. logout cleanup) */
+export const queryClient = getQueryClient();
+
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(getQueryClient);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;

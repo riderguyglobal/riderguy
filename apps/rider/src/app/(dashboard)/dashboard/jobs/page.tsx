@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { useSocket } from '@/hooks/use-socket';
-import { API_BASE_URL, STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
+import { STATUS_CONFIG, PACKAGE_TYPES } from '@/lib/constants';
 import { formatCurrency, formatDistance, timeAgo } from '@riderguy/utils';
 import { Button } from '@riderguy/ui';
 import {
@@ -28,10 +28,12 @@ export default function JobsPage() {
     if (!api) return;
     try {
       if (tab === 'available') {
-        const res = await api.get(`${API_BASE_URL}/orders/available`);
+        const res = await api.get('/orders/available');
         setJobs(res.data.data ?? []);
       } else {
-        const res = await api.get(`${API_BASE_URL}/orders?status=ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF`);
+        const res = await api.get('/orders', {
+          params: { status: 'ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF' },
+        });
         setJobs(res.data.data ?? []);
       }
     } catch {} finally {
@@ -46,16 +48,22 @@ export default function JobsPage() {
 
   useEffect(() => {
     if (!socket) return;
-    const handleNew = () => { if (tab === 'available') fetchJobs(); };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const handleNew = () => {
+      if (tab !== 'available') return;
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; fetchJobs(); }, 2000);
+    };
     socket.on('job:new', handleNew);
-    return () => { socket.off('job:new', handleNew); };
+    return () => { socket.off('job:new', handleNew); if (timer) clearTimeout(timer); };
   }, [socket, tab, fetchJobs]);
 
   const acceptJob = async (orderId: string) => {
     if (!api || accepting) return;
     setAccepting(orderId);
     try {
-      await api.post(`${API_BASE_URL}/orders/${orderId}/accept`);
+      await api.post(`/orders/${orderId}/accept`);
+      navigator.vibrate?.(50);
       router.push(`/dashboard/jobs/${orderId}`);
     } catch {
       setAccepting(null);

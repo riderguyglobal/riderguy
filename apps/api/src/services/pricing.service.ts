@@ -65,7 +65,7 @@ import { correctEta } from './eta-learning.service';
 //   platformTake     = ROUND(totalPrice × commissionRate)
 //   riderEarnings    = totalPrice − platformTake
 //
-// See docs/PRICING_STRATEGY.md for full rationale.
+// See docs/business/PRICING_STRATEGY.md for full rationale.
 // ============================================================
 
 /**

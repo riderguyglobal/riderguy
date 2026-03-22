@@ -53,7 +53,7 @@ export const SERVICE_FEE_RATE = 0.10;
 
 /**
  * Package type to price multiplier.
- * See docs/PRICING_STRATEGY.md §5 for rationale.
+ * See docs/business/PRICING_STRATEGY.md §5 for rationale.
  */
 export const PACKAGE_TYPE_MULTIPLIERS: Record<string, number> = {
   DOCUMENT: 1.00,
@@ -69,7 +69,7 @@ export const PACKAGE_TYPE_MULTIPLIERS: Record<string, number> = {
 /**
  * Road distance factor — multiplied by Haversine (straight-line) distance
  * to approximate actual road distance without a Directions API call.
- * See docs/PRICING_STRATEGY.md §7.
+ * See docs/business/PRICING_STRATEGY.md §7.
  */
 export const ROAD_FACTOR_DENSE_URBAN = 1.4;
 export const ROAD_FACTOR_URBAN = 1.3;

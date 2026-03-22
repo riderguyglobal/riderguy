@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { Button } from '@riderguy/ui';
 import { ArrowLeft, Camera, RotateCcw, FlipHorizontal2, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -96,7 +95,7 @@ export default function SelfiePage() {
       formData.append('file', blob, 'selfie.jpg');
       formData.append('type', 'SELFIE');
 
-      await api.post(`${API_BASE_URL}/documents/upload`, formData, {
+      await api.post('/documents/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSuccess(true);

@@ -16,6 +16,17 @@ import { useAuth } from '@riderguy/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { requestPushToken, onForegroundMessage, isFirebaseConfigured } from '@/lib/firebase-messaging';
 
+/** Stable device identifier that survives browser updates (unlike User-Agent). */
+function getStableDeviceId(): string {
+  const KEY = 'riderguy_device_id';
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = `rider-${crypto.randomUUID()}`;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 export function usePushNotifications() {
   const { api } = useAuth();
   const queryClient = useQueryClient();
@@ -35,7 +46,7 @@ export function usePushNotifications() {
         await api.post('/users/push-token', {
           token,
           platform: 'web',
-          deviceId: `rider-${navigator.userAgent.slice(0, 50)}`,
+          deviceId: getStableDeviceId(),
         });
 
         registeredRef.current = true;

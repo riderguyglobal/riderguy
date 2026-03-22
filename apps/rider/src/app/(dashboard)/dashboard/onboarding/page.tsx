@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import { Button } from '@riderguy/ui';
 import {
   ArrowLeft, FileText, Camera, Car, ImageIcon,
@@ -27,7 +26,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!api) return;
-    api.get(`${API_BASE_URL}/riders/onboarding`)
+    api.get('/riders/onboarding')
       .then((res) => {
         const data = res.data.data;
         const mapped: OnboardingStep[] = [

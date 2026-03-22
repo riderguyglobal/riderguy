@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -66,7 +65,7 @@ export default function CancellationHistoryPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await api.get(`${API_BASE_URL}/riders/cancellations`);
+      const res = await api.get('/riders/cancellations');
       setData(res.data.data);
     } catch {
       // silently fail
@@ -82,7 +81,7 @@ export default function CancellationHistoryPage() {
     setAppealLoading(true);
     setAppealError('');
     try {
-      await api.post(`${API_BASE_URL}/riders/cancellations/${appealModal}/appeal`, {
+      await api.post(`/riders/cancellations/${appealModal}/appeal`, {
         statement: appealStatement.trim(),
       });
       setAppealModal(null);

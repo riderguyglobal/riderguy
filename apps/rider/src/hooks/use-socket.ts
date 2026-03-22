@@ -67,6 +67,17 @@ const RECONNECT_DELAY_BASE = 1_000;      // Start at 1s
 const RECONNECT_DELAY_MAX = 30_000;      // Cap at 30s
 const CONNECT_TIMEOUT = 15_000;          // 15s timeout for initial connect
 
+/** RT-01: Force-disconnect and destroy the shared socket (call on logout) */
+export function disconnectSocket(): void {
+  if (sharedSocket) {
+    sharedSocket.disconnect();
+    sharedSocket = null;
+    listenerCount = 0;
+  }
+  // Clear the offline queue so the next user doesn't replay stale events
+  try { sessionStorage.removeItem(QUEUE_KEY); } catch {}
+}
+
 function getOrCreateSocket(): Socket {
   if (sharedSocket && !sharedSocket.disconnected) return sharedSocket;
 

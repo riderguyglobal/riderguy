@@ -97,6 +97,7 @@ export function NavigationMap({
   const riderMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const lastRouteRiderRef = useRef<[number, number] | null>(null);
   const hasInitialRouteRef = useRef(false);
+  const lastRouteDataRef = useRef<{ route: Parameters<typeof drawRoute>[2]; options: Parameters<typeof drawRoute>[3] } | null>(null);
   const [trafficOn, setTrafficOn] = useState(true);
   const [mapReady, setMapReady] = useState(false);
 
@@ -202,6 +203,11 @@ export function NavigationMap({
       onStyleLoad: () => {
         addTrafficLayer(core.map);
         if (trafficOn) toggleTraffic(core.map, true);
+        // Re-draw cached route after style swap clears layers
+        const cached = lastRouteDataRef.current;
+        if (cached && coreRef.current) {
+          drawRoute(coreRef.current.map, coreRef.current.mapboxgl, cached.route, cached.options);
+        }
       },
     });
   }, [resolvedTheme, mapReady]);
@@ -311,6 +317,10 @@ export function NavigationMap({
             fitBounds: !hasInitialRouteRef.current,
             padding: MAP_PADDING.navigation,
           });
+          lastRouteDataRef.current = {
+            route: { geometry: route.geometry, duration: route.duration, distance: route.distance, legs: route.legs },
+            options: { phase, showCongestion: true, fitBounds: false, padding: MAP_PADDING.navigation },
+          };
           lastRouteRiderRef.current = origin;
           hasInitialRouteRef.current = true;
         });
@@ -327,7 +337,7 @@ export function NavigationMap({
 
   return (
     <div className={`relative ${className ?? 'w-full h-full'}`}>
-      <div ref={containerRef} className="w-full h-full rounded-2xl" />
+      <div ref={containerRef} className="w-full h-full min-h-[200px] rounded-2xl" />
 
       <button
         onClick={() => setTrafficOn((p) => !p)}

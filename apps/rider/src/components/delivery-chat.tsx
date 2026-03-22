@@ -20,7 +20,7 @@ interface DeliveryChatProps {
 }
 
 export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
-  const { socket, sendMessage, sendTyping } = useSocket();
+  const { socket, sendMessage, sendTyping, connected } = useSocket();
   const { api } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -103,9 +103,12 @@ export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
     let pushed = true;
     history.pushState({ __backTrap: true }, '');
     const handlePop = () => { pushed = false; setOpen(false); };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('popstate', handlePop);
+    window.addEventListener('keydown', handleKey);
     return () => {
       window.removeEventListener('popstate', handlePop);
+      window.removeEventListener('keydown', handleKey);
       if (pushed) history.back();
     };
   }, [open]);
@@ -149,6 +152,13 @@ export function DeliveryChat({ orderId, userId }: DeliveryChatProps) {
               <X className="h-5 w-5 text-secondary" />
             </button>
           </div>
+
+          {/* Socket disconnected banner */}
+          {!connected && (
+            <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-center">
+              <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Reconnecting — messages may be delayed</p>
+            </div>
+          )}
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">

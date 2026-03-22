@@ -23,6 +23,9 @@ export default function GlobalError({
         <p className="text-neutral-400 text-sm mb-6 max-w-xs">
           An unexpected error occurred. Please try again.
         </p>
+        {error.digest && (
+          <p className="text-neutral-500 text-xs mb-4 font-mono">Ref: {error.digest}</p>
+        )}
         <button
           onClick={reset}
           className="px-6 py-2.5 rounded-xl bg-green-500 text-white font-semibold text-sm hover:bg-green-600 transition-colors"

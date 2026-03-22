@@ -23,7 +23,7 @@ export async function searchMentors(opts: {
   const effectiveMinLevel = Math.max(minLevel ?? 3, 3); // Mentors must be level 3+
   const where: any = {
     isVerified: true,
-    onboardingStatus: 'COMPLETED',
+    onboardingStatus: 'ACTIVATED',
     ...(zoneId && { currentZoneId: zoneId }),
     ...(minDeliveries && { totalDeliveries: { gte: minDeliveries } }),
     ...(excludeRiderId && { id: { not: excludeRiderId } }),
