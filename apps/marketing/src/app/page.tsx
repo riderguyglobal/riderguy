@@ -21,7 +21,7 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
-                <Link href="http://localhost:3001/register">Send a Package</Link>
+                <Link href="https://app.myriderguy.com/register">Send a Package</Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
                 <Link href="/for-riders">Become a Rider</Link>
@@ -141,7 +141,7 @@ export default function HomePage() {
             className="bg-white text-brand-600 hover:bg-brand-50"
             asChild
           >
-            <Link href="http://localhost:3001/register">Get Started</Link>
+            <Link href="https://app.myriderguy.com/register">Get Started</Link>
           </Button>
           <Button
             variant="outline"

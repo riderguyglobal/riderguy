@@ -51,10 +51,10 @@ export function SiteHeader() {
         {/* Desktop CTA */}
         <div className="hidden items-center gap-2 md:flex">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="http://localhost:3001/login">Sign In</Link>
+            <Link href="https://app.myriderguy.com/login">Sign In</Link>
           </Button>
           <Button size="sm" asChild>
-            <Link href="http://localhost:3001/register">Get Started</Link>
+            <Link href="https://app.myriderguy.com/register">Get Started</Link>
           </Button>
         </div>
 
@@ -92,10 +92,10 @@ export function SiteHeader() {
             ))}
             <div className="mt-2 flex flex-col gap-2">
               <Button variant="outline" className="w-full" asChild>
-                <Link href="http://localhost:3001/login">Sign In</Link>
+                <Link href="https://app.myriderguy.com/login">Sign In</Link>
               </Button>
               <Button className="w-full" asChild>
-                <Link href="http://localhost:3001/register">Get Started</Link>
+                <Link href="https://app.myriderguy.com/register">Get Started</Link>
               </Button>
             </div>
           </nav>

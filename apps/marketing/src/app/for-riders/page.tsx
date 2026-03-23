@@ -25,7 +25,7 @@ export default function ForRidersPage() {
             </p>
             <div className="mt-8">
               <Button size="lg" asChild>
-                <Link href="http://localhost:3000/register">Apply Now</Link>
+                <Link href="https://rider.myriderguy.com/register">Apply Now</Link>
               </Button>
             </div>
           </div>
@@ -132,7 +132,7 @@ export default function ForRidersPage() {
             className="bg-white text-brand-600 hover:bg-brand-50"
             asChild
           >
-            <Link href="http://localhost:3000/register">Apply Now</Link>
+            <Link href="https://rider.myriderguy.com/register">Apply Now</Link>
           </Button>
         </div>
       </section>
