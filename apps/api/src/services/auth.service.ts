@@ -303,7 +303,8 @@ export class AuthService {
         // Check if rider profile already exists (shouldn't, but be safe)
         const existingProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
         if (!existingProfile) {
-          await prisma.riderProfile.create({ data: { userId: user.id } });
+          // TODO: Remove ACTIVATED default — temporary skip of onboarding & admin approval
+          await prisma.riderProfile.create({ data: { userId: user.id, onboardingStatus: 'ACTIVATED' } });
         }
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
         const existingProfile = await prisma.clientProfile.findUnique({ where: { userId: user.id } });
