@@ -39,14 +39,17 @@ export function getRedisClient(): Redis | null {
       maxRetriesPerRequest: 3,
       retryStrategy: (times) => {
         if (times > 5) {
-          logger.warn('[Redis] Max retries reached — giving up');
-          return null;
+          logger.warn('[Redis] Max retries reached — running without Redis');
+          return null; // stop retrying
         }
-        return Math.min(times * 200, 2000);
+        return Math.min(times * 500, 5000);
       },
+      reconnectOnError: () => false, // don't auto-reconnect on DNS failures
       lazyConnect: true,
     });
 
+    // Throttle error logging — only log once per 60s to avoid log spam
+    let lastErrorLog = 0;
     redisClient.on('connect', () => {
       logger.info('[Redis] Connected');
       // BullMQ requires noeviction to prevent silent job data loss
@@ -58,7 +61,11 @@ export function getRedisClient(): Redis | null {
     });
 
     redisClient.on('error', (err) => {
-      logger.error({ err }, '[Redis] Connection error');
+      const now = Date.now();
+      if (now - lastErrorLog > 60_000) {
+        lastErrorLog = now;
+        logger.error({ err: err.message }, '[Redis] Connection error (throttled — next log in 60s)');
+      }
     });
 
     redisClient.connect().catch((err) => {
