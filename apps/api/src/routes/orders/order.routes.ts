@@ -23,7 +23,7 @@ import * as CancelRequestService from '../../services/cancellation-request.servi
 import { StorageService } from '../../services/storage.service';
 import { prisma } from '@riderguy/database';
 import { logger } from '../../lib/logger';
-import type { OrderStatus } from '@prisma/client';
+import type { OrderStatus, PaymentMethod } from '@prisma/client';
 import multer from 'multer';
 import type { Request } from 'express';
 import os from 'node:os';
@@ -900,7 +900,54 @@ router.get(
   }),
 );
 
-/** POST /orders/:id/proof — Upload proof of delivery (multipart photo or JSON signature/PIN) */
+/** POST /orders/:id/confirm-payment — Rider confirms payment received at delivery point */
+router.post(
+  '/:id/confirm-payment',
+  requireRole(UserRole.RIDER),
+  asyncHandler(async (req, res) => {
+    const orderId = req.params.id as string;
+    const { actualPaymentMethod } = req.body;
+
+    const VALID_METHODS = ['CARD', 'MOBILE_MONEY', 'WALLET', 'CASH', 'BANK_TRANSFER'];
+    if (!actualPaymentMethod || !VALID_METHODS.includes(actualPaymentMethod)) {
+      throw ApiError.badRequest(`actualPaymentMethod must be one of: ${VALID_METHODS.join(', ')}`);
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Order not found');
+
+    // Verify rider is assigned
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { userId: req.user!.userId },
+    });
+    if (!riderProfile || order.riderId !== riderProfile.id) {
+      throw ApiError.forbidden('You are not assigned to this order');
+    }
+
+    if (order.status !== 'AT_DROPOFF') {
+      throw ApiError.badRequest('Payment can only be confirmed at the delivery point');
+    }
+
+    if (order.riderPaymentConfirmed) {
+      throw ApiError.badRequest('Payment already confirmed');
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        riderPaymentConfirmed: true,
+        actualPaymentMethod: actualPaymentMethod as PaymentMethod,
+      },
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { riderPaymentConfirmed: true, actualPaymentMethod },
+    });
+  }),
+);
+
+/** POST /orders/:id/proof — Upload proof of delivery (photo or PIN) */
 router.post(
   '/:id/proof',
   requireRole(UserRole.RIDER),
@@ -911,7 +958,7 @@ router.post(
 
     if (!proofType) throw ApiError.badRequest('proofType is required');
 
-    const ALLOWED_PROOF_TYPES = ['PHOTO', 'SIGNATURE', 'PIN_CODE'];
+    const ALLOWED_PROOF_TYPES = ['PHOTO', 'PIN_CODE'];
     if (!ALLOWED_PROOF_TYPES.includes(proofType)) {
       throw ApiError.badRequest(`proofType must be one of: ${ALLOWED_PROOF_TYPES.join(', ')}`);
     }
@@ -925,6 +972,11 @@ router.post(
     });
     if (!riderProfile || order.riderId !== riderProfile.id) {
       throw ApiError.forbidden('You are not assigned to this order');
+    }
+
+    // Rider must confirm payment before submitting proof
+    if (!order.riderPaymentConfirmed) {
+      throw ApiError.badRequest('You must confirm payment received before submitting proof of delivery', 'PAYMENT_NOT_CONFIRMED');
     }
 
     let proofUrl: string;

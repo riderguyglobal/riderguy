@@ -52,6 +52,7 @@ export default function JobDetailPage() {
   const [failReason, setFailReason] = useState('');
   const [showProof, setShowProof] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [actionError, setActionError] = useState('');
   const searchParams = useSearchParams();
   const autoNavTriggered = useRef(false);
@@ -153,6 +154,12 @@ export default function JobDetailPage() {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleConfirmPayment = async (actualPaymentMethod: string) => {
+    if (!api || !id) return;
+    await api.post(`/orders/${id}/confirm-payment`, { actualPaymentMethod });
+    setPaymentConfirmed(true);
   };
 
   const handleProofSubmit = async (proof: { type: string; data: string; file?: File }) => {
@@ -437,6 +444,9 @@ export default function JobDetailPage() {
         {showProof && (
           <ProofOfDelivery
             deliveryPin={order.deliveryPinCode ?? undefined}
+            paymentMethod={order.paymentMethod ?? undefined}
+            riderPaymentConfirmed={paymentConfirmed}
+            onConfirmPayment={handleConfirmPayment}
             onSubmit={handleProofSubmit}
           />
         )}

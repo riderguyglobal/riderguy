@@ -470,14 +470,26 @@ export default function TrackingPage() {
 
           {/* Delivery PIN */}
           {deliveryPin && !isComplete && !isCancelled && (
-            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-amber-50">
-              <Shield className="h-5 w-5 text-amber-600 shrink-0" />
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-amber-700">Delivery PIN</p>
-                <p className="text-[11px] text-amber-500">Share with rider at delivery</p>
+            <div className={`rounded-2xl p-4 ${
+              order.status === 'AT_DROPOFF'
+                ? 'bg-gradient-to-r from-amber-100 to-amber-50 border-2 border-amber-300 shadow-lg shadow-amber-200/40 animate-pulse-subtle'
+                : 'bg-amber-50'
+            }`}>
+              <div className="flex items-center gap-3">
+                <Shield className={`h-5 w-5 shrink-0 ${order.status === 'AT_DROPOFF' ? 'text-amber-700' : 'text-amber-600'}`} />
+                <div className="flex-1">
+                  <p className={`font-semibold ${order.status === 'AT_DROPOFF' ? 'text-sm text-amber-800' : 'text-xs text-amber-700'}`}>Delivery PIN</p>
+                  <p className="text-[11px] text-amber-500">
+                    {order.status === 'AT_DROPOFF'
+                      ? 'Your rider is here! Give them this PIN to confirm delivery'
+                      : 'Share with rider at delivery'}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-extrabold tracking-[0.25em] text-amber-700">{deliveryPin}</span>
+              <div className="flex items-center justify-center gap-3 mt-3">
+                <span className={`font-extrabold tracking-[0.3em] text-amber-700 ${
+                  order.status === 'AT_DROPOFF' ? 'text-3xl' : 'text-lg'
+                }`}>{deliveryPin}</span>
                 <button
                   onClick={() => navigator.clipboard?.writeText(deliveryPin)}
                   className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center btn-press"
