@@ -49,6 +49,12 @@ export function getRedisClient(): Redis | null {
 
     redisClient.on('connect', () => {
       logger.info('[Redis] Connected');
+      // BullMQ requires noeviction to prevent silent job data loss
+      redisClient?.config('SET', 'maxmemory-policy', 'noeviction').then(() => {
+        logger.info('[Redis] Set maxmemory-policy to noeviction');
+      }).catch((err) => {
+        logger.warn({ err }, '[Redis] Could not set maxmemory-policy — check Redis ACLs');
+      });
     });
 
     redisClient.on('error', (err) => {
