@@ -116,9 +116,9 @@ export default function LandingPage() {
           {/* Footer */}
           <p className="text-center mt-6 mb-4 text-[11px] text-subtle leading-relaxed">
             By continuing, you agree to our{' '}
-            <a href="https://riderguy.com/terms" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2">Terms</a>
+            <a href="https://myriderguy.com/terms" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2">Terms</a>
             {' & '}
-            <a href="https://riderguy.com/privacy" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2">Privacy Policy</a>
+            <a href="https://myriderguy.com/privacy" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2">Privacy Policy</a>
           </p>
         </div>
       </div>

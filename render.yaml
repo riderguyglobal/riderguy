@@ -83,7 +83,7 @@ services:
       - key: SENDGRID_API_KEY
         sync: false
       - key: SENDGRID_FROM_EMAIL
-        value: noreply@riderguy.com
+        value: noreply@myriderguy.com
 
       # ── Firebase Cloud Messaging (push notifications) ──
       - key: FIREBASE_PROJECT_ID
@@ -101,15 +101,15 @@ services:
       - key: WEBAUTHN_RP_NAME
         value: RiderGuy
       - key: WEBAUTHN_RP_ID
-        value: riderguy.com
+        value: myriderguy.com
       - key: WEBAUTHN_ORIGIN
-        value: "https://rider.riderguy.com,https://app.riderguy.com,https://admin.riderguy.com"
+        value: "https://rider.myriderguy.com,https://app.myriderguy.com,https://admin.myriderguy.com"
 
       # ── CORS & URLs ──
       - key: APP_URL
-        value: https://app.riderguy.com
+        value: https://app.myriderguy.com
       - key: CORS_ORIGINS
-        value: "https://riderguy.com,https://app.riderguy.com,https://rider.riderguy.com,https://admin.riderguy.com,https://riderguy-client.vercel.app,https://riderguy-rider.vercel.app,https://riderguy-admin.vercel.app,https://riderguy-marketing.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002"
+        value: "https://myriderguy.com,https://app.myriderguy.com,https://rider.myriderguy.com,https://admin.myriderguy.com,https://riderguy-client.vercel.app,https://riderguy-rider.vercel.app,https://riderguy-admin.vercel.app,https://riderguy-marketing.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002"
 
   # ── Redis (for rate limiting & BullMQ job queue) ────────────
   - type: redis

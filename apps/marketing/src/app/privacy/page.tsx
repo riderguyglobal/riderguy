@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
         <h2>9. Contact Us</h2>
         <p>
           If you have questions about this Privacy Policy, please contact us at{' '}
-          <a href="mailto:privacy@riderguy.com">privacy@riderguy.com</a> or through
+          <a href="mailto:privacy@myriderguy.com">privacy@myriderguy.com</a> or through
           our <a href="/contact">Contact page</a>.
         </p>
       </div>

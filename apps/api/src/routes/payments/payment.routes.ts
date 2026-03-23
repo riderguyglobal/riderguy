@@ -97,7 +97,7 @@ router.post(
     const reference = PaystackService.generateReference('ORD');
 
     const result = await paystackService.initializeTransaction({
-      email: user?.email ?? `user-${userId}@riderguy.com`,
+      email: user?.email ?? `user-${userId}@myriderguy.com`,
       amount: Math.round(Number(order.totalPrice) * 100), // Convert to pesewas
       reference,
       callbackUrl: callbackUrl ?? undefined,

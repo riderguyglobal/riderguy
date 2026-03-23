@@ -183,7 +183,7 @@ export default function ContactPage() {
         <div className="mt-16 grid gap-6 sm:grid-cols-3 text-center">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Email</h3>
-            <p className="mt-1 text-sm text-surface-500">hello@riderguy.com</p>
+            <p className="mt-1 text-sm text-surface-500">hello@myriderguy.com</p>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Phone</h3>

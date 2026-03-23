@@ -143,7 +143,7 @@ export default function TermsPage() {
         <h2>16. Contact</h2>
         <p>
           Questions about these Terms may be directed to{' '}
-          <a href="mailto:legal@riderguy.com">legal@riderguy.com</a> or through our{' '}
+          <a href="mailto:legal@myriderguy.com">legal@myriderguy.com</a> or through our{' '}
           <a href="/contact">Contact page</a>.
         </p>
       </div>

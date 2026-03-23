@@ -157,7 +157,7 @@ export default function PaymentPage() {
       // Open Paystack inline popup
       const handler = window.PaystackPop.setup({
         key: PAYSTACK_PUBLIC_KEY,
-        email: user.email || `user-${user.id}@riderguy.com`,
+        email: user.email || `user-${user.id}@myriderguy.com`,
         amount: Math.round(order.totalPrice * 100), // pesewas
         ref,
         currency: order.currency || 'GHS',

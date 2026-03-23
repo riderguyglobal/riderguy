@@ -109,7 +109,7 @@ export default function CookiePolicyPage() {
         <h2>6. Contact Us</h2>
         <p>
           If you have questions about our use of cookies, please contact us at{' '}
-          <a href="mailto:privacy@riderguy.com">privacy@riderguy.com</a> or through
+          <a href="mailto:privacy@myriderguy.com">privacy@myriderguy.com</a> or through
           our <a href="/contact">Contact page</a>.
         </p>
       </div>
