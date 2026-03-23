@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@riderguy/auth';
+import { useAuth, isBiometricSupported } from '@riderguy/auth';
 import { Button, Input, OtpInput, PhoneInput } from '@riderguy/ui';
 import { phoneSchema, pinSchema, emailSchema, passwordSchema } from '@riderguy/validators';
-import { AlertCircle, CheckCircle2, Bike, Sparkles, Lock, Phone, Mail, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Bike, Sparkles, Lock, Phone, Mail, Eye, EyeOff, Fingerprint } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -16,7 +16,7 @@ const EMAIL_STEPS = [{ label: 'Email' }, { label: 'Verify' }, { label: 'Details'
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, requestOtp, verifyOtp, registerWithEmail, isAuthenticated } = useAuth();
+  const { register, requestOtp, verifyOtp, registerWithEmail, setupBiometric, isAuthenticated } = useAuth();
 
   const [method, setMethod] = useState<RegisterMethod>('phone');
   const [step, setStep] = useState(0);
@@ -31,6 +31,8 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(0);
+  const [biometricSetupDone, setBiometricSetupDone] = useState(false);
+  const [biometricAvailable] = useState(() => isBiometricSupported());
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
   // OTP resend cooldown timer — uses Date.now() delta so it stays correct when iOS backgrounds Safari
@@ -81,6 +83,8 @@ export default function RegisterPage() {
         password,
         role: 'RIDER',
       });
+      localStorage.setItem('riderguy_last_phone', email.trim());
+      localStorage.setItem('riderguy_last_login_method', 'pin');
       setStep(3);
     } catch (err: unknown) {
       const msg = (err as any)?.response?.data?.error?.message;
@@ -173,10 +177,27 @@ export default function RegisterPage() {
         password: method === 'email' ? password : undefined,
         role: 'RIDER',
       });
+      localStorage.setItem('riderguy_last_phone', phone);
+      localStorage.setItem('riderguy_last_login_method', 'pin');
       setStep(3);
     } catch (err: unknown) {
       const msg = (err as any)?.response?.data?.error?.message;
       setError(msg || (err instanceof Error ? err.message : 'Registration failed'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSetupBiometric = async () => {
+    setSubmitting(true);
+    try {
+      const ua = navigator.userAgent;
+      const name = /android/i.test(ua) ? 'Android' : /iphone|ipad/i.test(ua) ? 'iPhone' : 'Device';
+      await setupBiometric(name);
+      setBiometricSetupDone(true);
+      localStorage.setItem('riderguy_last_login_method', 'biometric');
+    } catch {
+      setError('Fingerprint setup failed. You can try again later in Settings.');
     } finally {
       setSubmitting(false);
     }
@@ -212,6 +233,38 @@ export default function RegisterPage() {
         </div>
         <h2 className="text-3xl font-extrabold text-primary mb-2 tracking-tight">Welcome Aboard!</h2>
         <p className="text-muted mb-8 max-w-xs mx-auto">Your rider account has been created. Complete onboarding to start earning.</p>
+
+        {/* Biometric setup prompt */}
+        {biometricAvailable && !biometricSetupDone && (
+          <div className="mb-4 p-4 rounded-2xl bg-card border border-themed-strong">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                <Fingerprint className="h-5 w-5 text-brand-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-primary">Enable Fingerprint Login</p>
+                <p className="text-xs text-muted">Sign in faster next time</p>
+              </div>
+            </div>
+            <Button
+              size="lg"
+              className="w-full gradient-brand text-white btn-press rounded-xl font-semibold"
+              onClick={handleSetupBiometric}
+              loading={submitting}
+            >
+              <Fingerprint className="h-4 w-4 mr-2" />
+              Set Up Fingerprint
+            </Button>
+          </div>
+        )}
+
+        {biometricSetupDone && (
+          <div className="mb-4 p-3 rounded-2xl bg-accent-500/10 border border-accent-500/20 flex items-center gap-2 justify-center">
+            <CheckCircle2 className="h-4 w-4 text-accent-400" />
+            <span className="text-sm text-accent-400 font-medium">Fingerprint login enabled!</span>
+          </div>
+        )}
+
         <Button
           size="xl"
           className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"

@@ -1022,7 +1022,7 @@ router.post(
       where: { id: orderId },
       data: {
         proofOfDeliveryUrl: proofUrl,
-        proofOfDeliveryType: proofType as 'PHOTO' | 'SIGNATURE' | 'PIN_CODE',
+        proofOfDeliveryType: proofType as 'PHOTO' | 'PIN_CODE' | 'LEFT_AT_DOOR',
       },
     });
 
@@ -1144,7 +1144,7 @@ router.post(
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
-        ...(proofType ? { proofType: proofType as 'PHOTO' | 'SIGNATURE' | 'PIN_CODE' } : {}),
+        ...(proofType ? { proofType: proofType as 'PHOTO' | 'PIN_CODE' | 'LEFT_AT_DOOR' } : {}),
         ...(proofUrl ? { proofUrl } : {}),
         ...(pinCode ? { pinCode } : {}),
       },
