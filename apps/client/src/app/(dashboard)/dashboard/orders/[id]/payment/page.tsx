@@ -105,6 +105,11 @@ export default function PaymentPage() {
           router.replace(`/dashboard/orders/${id}/tracking`);
           return;
         }
+        // Payment is post-delivery — redirect if not yet delivered
+        if (data?.status !== 'DELIVERED') {
+          router.replace(`/dashboard/orders/${id}/tracking`);
+          return;
+        }
 
         setState('ready');
       })

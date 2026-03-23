@@ -443,11 +443,8 @@ export default function SendPackagePage() {
       const res = await api.post('/orders', body);
       const orderId = res.data.data?.id;
 
-      if (orderId && paymentMethod !== 'CASH' && paymentMethod !== 'WALLET') {
-        router.replace(`/dashboard/orders/${orderId}/payment`);
-      } else {
-        router.replace(orderId ? `/dashboard/orders/${orderId}/tracking` : '/dashboard/orders');
-      }
+      // Always go to tracking — payment is collected post-delivery
+      router.replace(orderId ? `/dashboard/orders/${orderId}/tracking` : '/dashboard/orders');
 
       return orderId ?? null;
     } catch (err: any) {
