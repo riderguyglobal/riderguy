@@ -196,6 +196,7 @@ function ForgotPinContent() {
           <OtpInput
             ref={otpRef}
             length={6}
+            variant="light"
             onChange={setOtp}
             onComplete={handleOtpComplete}
             disabled={submitting}
@@ -227,6 +228,7 @@ function ForgotPinContent() {
           <OtpInput
             ref={pinRef}
             length={6}
+            variant="light"
             onChange={setNewPin}
             onComplete={handleNewPinComplete}
             disabled={submitting}
@@ -248,6 +250,7 @@ function ForgotPinContent() {
           <OtpInput
             ref={confirmPinRef}
             length={6}
+            variant="light"
             onChange={setConfirmPin}
             onComplete={handleConfirmPinComplete}
             disabled={submitting}

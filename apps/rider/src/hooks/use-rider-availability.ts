@@ -230,9 +230,11 @@ export function useRiderAvailability() {
       setGpsError(null);
     } catch (err: any) {
       // Server returns 403 if rider is not ACTIVATED
-      const message = err?.response?.data?.message ?? err?.message ?? '';
+      const message = err?.response?.data?.error?.message ?? err?.response?.data?.message ?? '';
       if (err?.response?.status === 403 || message.includes('not yet activated')) {
         setGpsError(message || 'Your account is not yet activated. Complete onboarding and wait for approval.');
+      } else if (message) {
+        setGpsError(message);
       }
       // Other errors — silently ignore (network issues, etc.)
     } finally {

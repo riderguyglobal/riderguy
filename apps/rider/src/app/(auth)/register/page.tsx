@@ -390,7 +390,7 @@ export default function RegisterPage() {
               Change number
             </button>
           </div>
-          <OtpInput ref={otpRef} length={6} onChange={setOtp} onComplete={handleVerifyOtp} disabled={submitting} />
+          <OtpInput ref={otpRef} length={6} variant="light" onChange={setOtp} onComplete={handleVerifyOtp} disabled={submitting} />
           <Button
             size="xl"
             className="w-full gradient-brand text-white shadow-lg glow-brand btn-press rounded-2xl font-semibold"
@@ -465,7 +465,7 @@ export default function RegisterPage() {
                   Set a 6-digit PIN
                 </label>
                 <p className="text-xs text-subtle mb-3">You&apos;ll use this PIN to confirm transactions</p>
-                <OtpInput length={6} onChange={setPin} onComplete={setPin} />
+                <OtpInput length={6} variant="light" onChange={setPin} onComplete={setPin} />
               </div>
             </>
           )}

@@ -475,6 +475,7 @@ export default function LoginPage() {
           <OtpInput
             ref={pinRef}
             length={6}
+            variant="light"
             onChange={(code) => setPin(code)}
             onComplete={handlePinComplete}
             disabled={submitting}
@@ -524,6 +525,7 @@ export default function LoginPage() {
           <OtpInput
             ref={otpRef}
             length={6}
+            variant="light"
             onChange={(code) => setOtp(code)}
             onComplete={handleOtpComplete}
             disabled={submitting}
