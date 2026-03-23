@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f8faf9"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <clipPath id="roundClip">
+      <rect width="512" height="512" rx="112" ry="112"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#roundClip)">
+    <!-- Light background -->
+    <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+    <!-- Subtle green circle glow -->
+    <circle cx="256" cy="240" r="200" fill="#22c55e" opacity="0.04"/>
+
+    <!-- Package box outline (behind the R, bottom area) -->
+    <g transform="translate(146, 320)" opacity="0.18">
+      <!-- Box base -->
+      <rect x="0" y="16" width="80" height="56" rx="6" fill="none" stroke="#16a34a" stroke-width="3.5"/>
+      <!-- Box flap left -->
+      <path d="M2,16 L16,0 L40,0 L40,16" fill="none" stroke="#16a34a" stroke-width="3" stroke-linejoin="round"/>
+      <!-- Box flap right -->
+      <path d="M78,16 L64,0 L40,0 L40,16" fill="none" stroke="#16a34a" stroke-width="3" stroke-linejoin="round"/>
+      <!-- Tape -->
+      <line x1="40" y1="16" x2="40" y2="50" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- Location pin (right side, hint of tracking) -->
+    <g transform="translate(340, 330)" opacity="0.18">
+      <path d="M24,0 C37,0 48,11 48,24 C48,42 24,60 24,60 C24,60 0,42 0,24 C0,11 11,0 24,0 Z" fill="none" stroke="#16a34a" stroke-width="3.5"/>
+      <circle cx="24" cy="24" r="8" fill="none" stroke="#16a34a" stroke-width="2.5"/>
+    </g>
+
+    <!-- Curved send arrow (top area, subtle) -->
+    <g opacity="0.15">
+      <path d="M130,155 Q200,100 300,130" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+      <polygon points="295,120 310,132 293,138" fill="#22c55e"/>
+    </g>
+
+    <!-- Bold "R" lettermark -->
+    <text x="256" y="290" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="240" fill="#111111" letter-spacing="-8">R</text>
+
+    <!-- Green accent bar (top) -->
+    <rect x="156" y="90" width="200" height="6" rx="3" fill="url(#greenGrad)"/>
+
+    <!-- Small package badge (top-right) -->
+    <g transform="translate(380, 76)" opacity="0.85">
+      <!-- Box -->
+      <rect x="4" y="14" width="56" height="40" rx="6" fill="url(#boxGrad)"/>
+      <!-- Box flap -->
+      <path d="M6,14 L18,2 L32,2 L46,2 L58,14" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- Tape line -->
+      <line x1="32" y1="14" x2="32" y2="38" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+      <!-- Arrow up on box -->
+      <polygon points="32,20 26,28 38,28" fill="white" opacity="0.6"/>
+    </g>
+
+    <!-- "SEND" label at bottom -->
+    <text x="256" y="450" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="28" fill="#22c55e" letter-spacing="8" opacity="0.5">SEND</text>
+  </g>
+</svg>

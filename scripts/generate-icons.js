@@ -31,36 +31,45 @@ async function generateIcons(appDir, logoPath, appName) {
   }
 
   const logoBuffer = fs.readFileSync(logoPath);
+  const isSvg = logoPath.endsWith('.svg');
   const logoMeta = await sharp(logoBuffer).metadata();
-  console.log(`[${appName}] Source logo: ${logoMeta.width}x${logoMeta.height}`);
+  console.log(`[${appName}] Source: ${path.basename(logoPath)} (${logoMeta.width}x${logoMeta.height})`);
 
   for (const size of SIZES) {
-    // Logo takes up ~92% of the icon width, centered on white
-    const logoWidth = Math.round(size * 0.92);
+    let output;
 
-    const resizedLogo = await sharp(logoBuffer)
-      .resize(logoWidth, null, { fit: 'inside', background: { r: 255, g: 255, b: 255, alpha: 0 } })
-      .toBuffer();
+    if (isSvg) {
+      // SVG source — render at exact target size (already contains background, shape, etc.)
+      output = await sharp(logoBuffer, { density: Math.round((size / 512) * 144) })
+        .resize(size, size)
+        .png()
+        .toBuffer();
+    } else {
+      // Raster source — legacy behaviour: centre logo on white, clip rounded-rect
+      const logoWidth = Math.round(size * 0.92);
 
-    // White square with logo centered
-    const composited = await sharp({
-      create: {
-        width: size,
-        height: size,
-        channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 255 },
-      },
-    })
-      .composite([{ input: resizedLogo, gravity: 'centre' }])
-      .png()
-      .toBuffer();
+      const resizedLogo = await sharp(logoBuffer)
+        .resize(logoWidth, null, { fit: 'inside', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+        .toBuffer();
 
-    // Apply rounded-rect mask (clip corners)
-    const mask = roundedRectSvg(size);
-    const output = await sharp(composited)
-      .composite([{ input: mask, blend: 'dest-in' }])
-      .png()
-      .toBuffer();
+      const composited = await sharp({
+        create: {
+          width: size,
+          height: size,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 255 },
+        },
+      })
+        .composite([{ input: resizedLogo, gravity: 'centre' }])
+        .png()
+        .toBuffer();
+
+      const mask = roundedRectSvg(size);
+      output = await sharp(composited)
+        .composite([{ input: mask, blend: 'dest-in' }])
+        .png()
+        .toBuffer();
+    }
 
     if (size === 32) {
       const faviconPath = path.join(appDir, 'public', 'favicon.ico');
@@ -76,21 +85,25 @@ async function generateIcons(appDir, logoPath, appName) {
 
 async function main() {
   const root = path.resolve(__dirname, '..');
-  const brandingDir = path.resolve(root, '..', 'branding');
 
-  // Source: the "black on white" logo (black text, green accent, white bg)
-  const sourceLogo = path.join(brandingDir, 'Logo Riderguy black on white.png');
+  // Per-app SVG icons (unique designs)
+  const riderIcon = path.join(root, 'assets', 'icons', 'rider-icon.svg');
+  const clientIcon = path.join(root, 'assets', 'icons', 'client-icon.svg');
 
-  if (!fs.existsSync(sourceLogo)) {
-    console.error('Source logo not found:', sourceLogo);
+  if (!fs.existsSync(riderIcon)) {
+    console.error('Rider icon not found:', riderIcon);
+    process.exit(1);
+  }
+  if (!fs.existsSync(clientIcon)) {
+    console.error('Client icon not found:', clientIcon);
     process.exit(1);
   }
 
   const clientDir = path.join(root, 'apps', 'client');
   const riderDir = path.join(root, 'apps', 'rider');
 
-  await generateIcons(clientDir, sourceLogo, 'client');
-  await generateIcons(riderDir, sourceLogo, 'rider');
+  await generateIcons(clientDir, clientIcon, 'client');
+  await generateIcons(riderDir, riderIcon, 'rider');
 
   console.log('\n✅ All icons generated successfully!');
 }
