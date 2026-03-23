@@ -116,7 +116,7 @@ export class SmsService {
   static async sendOtp(phone: string, code: string): Promise<boolean> {
     return this.send({
       to: phone,
-      message: `Your RiderGuy verification code is: ${code}. It expires in 5 minutes. Do not share this code with anyone.\n\n@riderguy.com #${code}`,
+      message: `Your RiderGuy verification code is: ${code}. It expires in 5 minutes. Do not share this code with anyone.\n\n@myriderguy.com #${code}`,
     });
   }
 

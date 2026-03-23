@@ -63,7 +63,7 @@ export const config = {
   // External Services
   sendgrid: {
     apiKey: optionalEnv('SENDGRID_API_KEY', ''),
-    fromEmail: optionalEnv('SENDGRID_FROM_EMAIL', 'noreply@riderguy.com'),
+    fromEmail: optionalEnv('SENDGRID_FROM_EMAIL', 'noreply@myriderguy.com'),
   },
   // mNotify SMS (Ghana)
   mnotify: {

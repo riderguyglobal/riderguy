@@ -188,7 +188,7 @@ export default function RiderProfilePage() {
                 Public Profile URL
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-subtle text-sm shrink-0">riderguy.com/rider/</span>
+                <span className="text-subtle text-sm shrink-0">myriderguy.com/rider/</span>
                 <input
                   type="text"
                   value={slug}
@@ -229,7 +229,7 @@ export default function RiderProfilePage() {
                 <div className="flex items-center gap-2">
                   <ExternalLink className="h-4 w-4 text-brand-400" />
                   <span className="text-secondary text-xs">
-                    riderguy.com/rider/{identity.publicProfileUrl}
+                    myriderguy.com/rider/{identity.publicProfileUrl}
                   </span>
                 </div>
                 <button

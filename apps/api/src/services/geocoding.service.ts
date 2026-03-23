@@ -841,7 +841,7 @@ async function nominatimAutocomplete(
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'RiderGuy-Delivery-App/1.0 (support@riderguy.com)',
+        'User-Agent': 'RiderGuy-Delivery-App/1.0 (support@myriderguy.com)',
         Accept: 'application/json',
       },
       signal: AbortSignal.timeout(3000), // 3s timeout to avoid blocking

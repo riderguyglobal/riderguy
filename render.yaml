@@ -103,13 +103,13 @@ services:
       - key: WEBAUTHN_RP_ID
         value: myriderguy.com
       - key: WEBAUTHN_ORIGIN
-        value: "https://rider.myriderguy.com,https://app.myriderguy.com,https://admin.myriderguy.com"
+        value: "https://myriderguy.com,https://www.myriderguy.com,https://app.myriderguy.com,https://rider.myriderguy.com,https://admin.myriderguy.com"
 
       # ── CORS & URLs ──
       - key: APP_URL
         value: https://app.myriderguy.com
       - key: CORS_ORIGINS
-        value: "https://myriderguy.com,https://app.myriderguy.com,https://rider.myriderguy.com,https://admin.myriderguy.com,https://riderguy-client.vercel.app,https://riderguy-rider.vercel.app,https://riderguy-admin.vercel.app,https://riderguy-marketing.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002"
+        value: "https://myriderguy.com,https://www.myriderguy.com,https://app.myriderguy.com,https://rider.myriderguy.com,https://admin.myriderguy.com,https://riderguy-client.vercel.app,https://riderguy-rider.vercel.app,https://riderguy-admin.vercel.app,https://riderguy-marketing.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002"
 
   # ── Redis (for rate limiting & BullMQ job queue) ────────────
   - type: redis

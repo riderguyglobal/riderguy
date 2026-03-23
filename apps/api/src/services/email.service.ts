@@ -143,7 +143,7 @@ export class EmailService {
       <div class="highlight">
         <p style="margin:0"><strong>Get started:</strong> Open the app, complete your profile, and place your first delivery order or sign up as a rider.</p>
       </div>
-      <a href="${process.env.APP_URL ?? 'https://riderguy.com'}" class="btn">Open RiderGuy</a>
+      <a href="${process.env.APP_URL ?? 'https://app.myriderguy.com'}" class="btn">Open RiderGuy</a>
       <p>If you have any questions, our support team is always here to help.</p>
     `,
     );
@@ -176,7 +176,7 @@ export class EmailService {
         <tr style="border-top:1px solid #f4f4f5;"><td class="info-label" style="padding:8px 0; color:#71717a;">Total</td><td style="padding:8px 0; text-align:right; font-weight:800; font-size:18px; color:#16a34a;">GH₵${data.totalPrice.toLocaleString()}</td></tr>
       </table>
       <p>We're searching for a rider near you. You'll receive updates as your delivery progresses.</p>
-      <a href="${process.env.APP_URL ?? 'https://riderguy.com'}/dashboard/orders" class="btn">Track Order</a>
+      <a href="${process.env.APP_URL ?? 'https://app.myriderguy.com'}/dashboard/orders" class="btn">Track Order</a>
     `,
     );
     return sendMail({
@@ -214,7 +214,7 @@ export class EmailService {
         <tr style="border-top:2px solid #e4e4e7;"><td class="info-label" style="padding:8px 0; color:#71717a; font-weight:700;">Total</td><td style="padding:8px 0; text-align:right; font-weight:800; font-size:18px; color:#16a34a;">GH₵${total.toLocaleString()}</td></tr>
       </table>
       <p>Thank you for using RiderGuy! We'd love to hear about your experience.</p>
-      <a href="${process.env.APP_URL ?? 'https://riderguy.com'}/dashboard/orders" class="btn">Rate Your Delivery</a>
+      <a href="${process.env.APP_URL ?? 'https://app.myriderguy.com'}/dashboard/orders" class="btn">Rate Your Delivery</a>
     `,
     );
     return sendMail({
@@ -234,7 +234,7 @@ export class EmailService {
       <div class="highlight">
         <p style="margin:0"><strong>What's next:</strong> Go online in the rider app to start receiving delivery requests and earning money.</p>
       </div>
-      <a href="${process.env.APP_URL ?? 'https://rider.riderguy.com'}/dashboard/jobs" class="btn">Go Online Now</a>
+      <a href="${process.env.APP_URL ?? 'https://rider.myriderguy.com'}/dashboard/jobs" class="btn">Go Online Now</a>
       <p>Welcome to the RiderGuy team! 🛵</p>
     `,
     );
@@ -250,7 +250,7 @@ export class EmailService {
       <p>Hi ${escapeHtml(firstName)}, unfortunately your rider application could not be approved at this time.</p>
       ${reason ? `<div class="highlight"><p style="margin:0"><strong>Reason:</strong> ${escapeHtml(reason)}</p></div>` : ''}
       <p>You can update your documents and resubmit your application for another review.</p>
-      <a href="${process.env.APP_URL ?? 'https://rider.riderguy.com'}/dashboard/onboarding" class="btn">Update Documents</a>
+      <a href="${process.env.APP_URL ?? 'https://rider.myriderguy.com'}/dashboard/onboarding" class="btn">Update Documents</a>
       <p>If you believe this is an error, please contact our support team.</p>
     `,
     );
@@ -281,7 +281,7 @@ export class EmailService {
         <tr><td class="info-label" style="padding:8px 0; color:#71717a;">Reference</td><td class="info-value" style="padding:8px 0; text-align:right; font-weight:600;">${escapeHtml(data.reference)}</td></tr>
       </table>
       <p>The funds should arrive within 1-3 business days depending on your bank.</p>
-      <a href="${process.env.APP_URL ?? 'https://rider.riderguy.com'}/dashboard/wallet" class="btn">View Wallet</a>
+      <a href="${process.env.APP_URL ?? 'https://rider.myriderguy.com'}/dashboard/wallet" class="btn">View Wallet</a>
     `,
     );
     return sendMail({
@@ -318,7 +318,7 @@ export class EmailService {
       <p>Hi ${escapeHtml(firstName)}, we've received your message regarding "<strong>${escapeHtml(subject)}</strong>".</p>
       <p>Our team will review it and get back to you within 24-48 hours.</p>
       <div class="highlight">
-        <p style="margin:0">In the meantime, you can check our <a href="${process.env.APP_URL ?? 'https://riderguy.com'}/faq" style="color:#0ea5e9;">FAQ page</a> for quick answers to common questions.</p>
+        <p style="margin:0">In the meantime, you can check our <a href="${process.env.APP_URL ?? 'https://app.myriderguy.com'}/faq" style="color:#0ea5e9;">FAQ page</a> for quick answers to common questions.</p>
       </div>
       <p>Thank you for your patience!</p>
     `,
@@ -357,7 +357,7 @@ export class EmailService {
 
   // ---- Email verification ----
   static async sendVerificationEmail(to: string, firstName: string, token: string) {
-    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://riderguy.com';
+    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://app.myriderguy.com';
     const verifyUrl = `${appUrl}/auth/verify-email?token=${encodeURIComponent(token)}`;
     const html = baseLayout(
       'Verify Your Email',
@@ -378,7 +378,7 @@ export class EmailService {
 
   // ---- Password reset ----
   static async sendPasswordReset(to: string, firstName: string, token: string) {
-    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://riderguy.com';
+    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://app.myriderguy.com';
     const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
     const html = baseLayout(
       'Reset Your Password',

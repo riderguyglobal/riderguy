@@ -13,7 +13,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   // In development, allow localhost connections; in production, restrict to the API domain.
   const connectSrc =
     config.nodeEnv === 'production'
-      ? "'self' https://api.riderguy.com wss://api.riderguy.com"
+      ? "'self' https://api.myriderguy.com wss://api.myriderguy.com"
       : "'self' http://localhost:* ws://localhost:*";
 
   res.setHeader(
