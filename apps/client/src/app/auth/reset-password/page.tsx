@@ -1,13 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { passwordSchema } from '@riderguy/validators';
-import { ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[100dvh] flex items-center justify-center bg-white">
+        <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { resetPassword } = useAuth();
