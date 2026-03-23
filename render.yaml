@@ -97,6 +97,14 @@ services:
       - key: MAPBOX_ACCESS_TOKEN
         sync: false
 
+      # ── WebAuthn (Biometric / Passkey Login) ──
+      - key: WEBAUTHN_RP_NAME
+        value: RiderGuy
+      - key: WEBAUTHN_RP_ID
+        value: riderguy.com
+      - key: WEBAUTHN_ORIGIN
+        value: "https://rider.riderguy.com,https://app.riderguy.com,https://admin.riderguy.com"
+
       # ── CORS & URLs ──
       - key: APP_URL
         value: https://app.riderguy.com
@@ -108,5 +116,5 @@ services:
     name: riderguy-redis
     region: frankfurt  # Must match API region for internal networking
     plan: starter  # $7/mo — 25MB, persistent
-    maxmemoryPolicy: allkeys-lru
+    maxmemoryPolicy: noeviction
     ipAllowList: []  # Only internal services can connect
