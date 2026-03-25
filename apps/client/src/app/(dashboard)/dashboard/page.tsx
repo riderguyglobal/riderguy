@@ -12,7 +12,6 @@ import { Badge, Skeleton } from '@riderguy/ui';
 import {
   Search,
   Package,
-  Clock,
   MapPin,
   Send,
   ChevronRight,
@@ -97,9 +96,9 @@ export default function DashboardPage() {
         {/* Drag handle */}
         <div className="drag-handle mb-1" />
 
-        {/* Where to? — Uber-style search bar */}
+        {/* Where to? — Uber-style search bar → Quick Send */}
         <button
-          onClick={() => router.push('/dashboard/send')}
+          onClick={() => router.push('/dashboard/quick-send')}
           className="w-full flex items-center gap-3 h-14 px-4 bg-surface-100 rounded-xl text-left group hover:bg-surface-200/70 transition-colors btn-press"
         >
           <Search className="h-5 w-5 text-surface-900 shrink-0" />
@@ -108,35 +107,6 @@ export default function DashboardPage() {
             <ArrowRight className="h-4 w-4 text-surface-600" />
           </div>
         </button>
-
-        {/* Quick actions row */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/dashboard/send')}
-            className="flex-1 flex items-center gap-3 p-3.5 bg-white rounded-2xl card-interactive group"
-          >
-            <div className="h-10 w-10 rounded-xl bg-surface-900 flex items-center justify-center shrink-0">
-              <Send className="h-4 w-4 text-white" />
-            </div>
-            <div className="text-left min-w-0">
-              <p className="text-sm font-bold text-surface-900">Send</p>
-              <p className="text-[11px] text-surface-400 truncate">Quick delivery</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => router.push('/dashboard/orders')}
-            className="flex-1 flex items-center gap-3 p-3.5 bg-white rounded-2xl card-interactive group"
-          >
-            <div className="h-10 w-10 rounded-xl bg-brand-500 flex items-center justify-center shrink-0">
-              <Package className="h-4 w-4 text-white" />
-            </div>
-            <div className="text-left min-w-0">
-              <p className="text-sm font-bold text-surface-900">Orders</p>
-              <p className="text-[11px] text-surface-400 truncate">Track packages</p>
-            </div>
-          </button>
-        </div>
 
         {/* Recent Orders (clean like Uber's destinations) */}
         <div>
