@@ -13,6 +13,24 @@ const fs = require('fs');
 // Icon sizes needed for PWA + notifications
 const SIZES = [32, 180, 192, 512];
 
+// SVG arrow overlay for rider app (forward-pointing arrow under the logo text)
+// Designed for 1563x1563 source, scales proportionally when resized
+const RIDER_ARROW_SVG = `<svg width="1563" height="1563" xmlns="http://www.w3.org/2000/svg">
+  <line x1="430" y1="1100" x2="1090" y2="1100"
+    stroke="black" stroke-width="34" stroke-linecap="round"/>
+  <path d="M1050,1055 L1140,1100 L1050,1145"
+    fill="none" stroke="black" stroke-width="34"
+    stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+async function createRiderLogo(logoBuffer) {
+  const arrowBuffer = Buffer.from(RIDER_ARROW_SVG);
+  return sharp(logoBuffer)
+    .composite([{ input: arrowBuffer, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+}
+
 async function generateIcons(appDir, logoBuffer, appName) {
   const iconsDir = path.join(appDir, 'public', 'icons');
   if (!fs.existsSync(iconsDir)) {
@@ -62,8 +80,12 @@ async function main() {
   const riderDir = path.join(root, 'apps', 'rider');
   const adminDir = path.join(root, 'apps', 'admin');
 
+  // Rider gets a modified logo with a forward arrow under the text
+  const riderLogoBuffer = await createRiderLogo(logoBuffer);
+  console.log('Created rider logo variant with forward arrow\n');
+
   await generateIcons(clientDir, logoBuffer, 'client');
-  await generateIcons(riderDir, logoBuffer, 'rider');
+  await generateIcons(riderDir, riderLogoBuffer, 'rider');
   await generateIcons(adminDir, logoBuffer, 'admin');
 
   console.log('\n✅ All icons generated successfully!');
