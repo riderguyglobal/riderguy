@@ -136,7 +136,20 @@ export default function JobDetailPage() {
     const nextStatus = STATUS_FLOW[idx + 1];
     setUpdating(true);
     try {
-      await api.patch(`/orders/${id}/status`, { status: nextStatus });
+      // Get fresh GPS fix — critical after returning from Google Maps
+      // where background socket/REST updates may have stopped
+      const body: Record<string, unknown> = { status: nextStatus };
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, maximumAge: 5000, timeout: 5000,
+          }),
+        );
+        body.latitude = pos.coords.latitude;
+        body.longitude = pos.coords.longitude;
+      } catch { /* GPS unavailable — API will use last known coords */ }
+
+      await api.patch(`/orders/${id}/status`, body);
       navigator.vibrate?.(50);
       setOrder((prev) => prev ? { ...prev, status: nextStatus as Order['status'] } : prev);
 

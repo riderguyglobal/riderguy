@@ -47,6 +47,12 @@ export interface ServerToClientEvents {
   // ── Generic notification ──
   'notification': (data: { title: string; body: string; orderId?: string }) => void;
 
+  // ── Payment notifications ──
+  'order:payment-required': (data: { orderId: string; orderNumber: string; amount: number; currency: string; reason: string }) => void;
+
+  // ── Admin alerts ──
+  'admin:sla-breach': (data: { orderId: string; orderNumber: string; status: string; hoursStale: number; riderId: string | null }) => void;
+
   // ── Community Chat (Sprint 11) ──
   'community:message': (data: CommunityChatMessage) => void;
   'community:typing': (data: CommunityTypingIndicator) => void;

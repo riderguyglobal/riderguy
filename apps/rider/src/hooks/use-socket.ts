@@ -9,6 +9,9 @@ const API_WS_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').
 let sharedSocket: Socket | null = null;
 let listenerCount = 0;
 
+// Track active order subscriptions for re-subscribing after reconnect
+const subscribedOrders = new Set<string>();
+
 // ── D-02: Offline queue for critical socket emissions ──────────
 // When the socket is disconnected (e.g. GPRS drop), critical events
 // are queued in sessionStorage and replayed on reconnect.
@@ -137,6 +140,10 @@ export function useSocket() {
       setReconnectAttempt(0);
       // D-02: Flush queued events on connect/reconnect
       flushOfflineQueue(s);
+      // Re-subscribe to all tracked order rooms after reconnect
+      for (const orderId of subscribedOrders) {
+        s.emit('order:subscribe', { orderId });
+      }
     };
     const onDisconnect = (reason: string) => {
       console.warn('[Socket] Disconnected:', reason);
@@ -204,10 +211,12 @@ export function useSocket() {
   }, []);
 
   const subscribeToOrder = useCallback((orderId: string) => {
+    subscribedOrders.add(orderId);
     sharedSocket?.emit('order:subscribe', { orderId });
   }, []);
 
   const unsubscribeFromOrder = useCallback((orderId: string) => {
+    subscribedOrders.delete(orderId);
     sharedSocket?.emit('order:unsubscribe', { orderId });
   }, []);
 

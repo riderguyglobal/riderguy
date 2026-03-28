@@ -14,6 +14,9 @@ export function haversineKm(
   lat1: number, lng1: number,
   lat2: number, lng2: number,
 ): number {
+  if (!Number.isFinite(lat1) || !Number.isFinite(lng1) || !Number.isFinite(lat2) || !Number.isFinite(lng2)) {
+    throw new Error(`haversineKm: non-finite input (${lat1}, ${lng1}, ${lat2}, ${lng2})`);
+  }
   const R = 6371; // Earth radius in km
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -93,12 +96,21 @@ export async function getRiderLocationForOrder(orderId: string, requesterId: str
 
   if (!order) throw ApiError.notFound('Order not found');
 
-  // Only the client on that order or an admin can see rider location
+  // Only the client on that order, the rider, or an admin can see rider location
   const isClient = order.clientId === requesterId;
   const isRider = order.rider?.userId === requesterId;
-  // We'll allow admins by checking later in routes
 
+  // Check if requester is an admin/dispatcher (allow location access)
+  let isAdmin = false;
   if (!isClient && !isRider) {
+    const requesterUser = await prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+    isAdmin = requesterUser?.role === 'ADMIN' || requesterUser?.role === 'SUPER_ADMIN' || requesterUser?.role === 'DISPATCHER';
+  }
+
+  if (!isClient && !isRider && !isAdmin) {
     throw ApiError.forbidden('You do not have access to this order');
   }
 

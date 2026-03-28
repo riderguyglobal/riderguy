@@ -105,7 +105,13 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
           { socketId: socket.id, userId: (socket.data as any)?.userId },
           '[Socket] Rate limited — too many events',
         );
-        return; // Drop the event silently
+        // Send error ack if the packet has an acknowledgement callback
+        const args = packet.data || [];
+        const lastArg = args[args.length - 1];
+        if (typeof lastArg === 'function') {
+          lastArg({ success: false, error: 'RATE_LIMITED' });
+        }
+        return; // Drop the event
       }
       return originalOnEvent.call(this, packet);
     };
@@ -202,10 +208,12 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
     const breadcrumbFlushTimer = setInterval(() => {
       if (breadcrumbBuffer.length === 0) return;
-      const batch = breadcrumbBuffer;
-      breadcrumbBuffer = [];
-      prisma.locationHistory.createMany({ data: batch }).catch((err: unknown) => {
-        logger.error({ err, count: batch.length }, 'Failed to flush location breadcrumb batch');
+      const batch = [...breadcrumbBuffer];
+      prisma.locationHistory.createMany({ data: batch }).then(() => {
+        // Only remove flushed entries on success (new entries may have been added during write)
+        breadcrumbBuffer.splice(0, batch.length);
+      }).catch((err: unknown) => {
+        logger.error({ err, count: batch.length }, 'Failed to flush location breadcrumb batch — retaining for next flush');
       });
     }, BREADCRUMB_FLUSH_INTERVAL_MS);
 
@@ -519,9 +527,11 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
       // D-04: Flush remaining breadcrumbs and stop the batch timer
       clearInterval(breadcrumbFlushTimer);
       if (breadcrumbBuffer.length > 0) {
-        const remaining = breadcrumbBuffer;
-        breadcrumbBuffer = [];
-        prisma.locationHistory.createMany({ data: remaining }).catch(() => {});
+        const remaining = [...breadcrumbBuffer];
+        breadcrumbBuffer.length = 0;
+        prisma.locationHistory.createMany({ data: remaining }).catch((err) => {
+          logger.error({ err, count: remaining.length }, 'Failed to flush remaining breadcrumbs on disconnect');
+        });
       }
 
       if (roles.includes('RIDER')) {

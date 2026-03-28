@@ -159,6 +159,9 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     // Rider marker
     if (isValid(riderCoords)) {
       if (riderMarkerRef.current) {
+        // Smooth transition for marker movement
+        const el = riderMarkerRef.current.getElement();
+        el.style.transition = 'transform 1s ease-out';
         riderMarkerRef.current.setLngLat(riderCoords);
       } else {
         const m = createRiderMarker(mapboxglLib, riderCoords, { popup: 'Your rider' });

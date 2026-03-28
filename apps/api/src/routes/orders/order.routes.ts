@@ -91,6 +91,9 @@ router.post(
       'packages',
     );
 
+    // Clean up temp file after upload
+    fs.unlink(file.path).catch(() => {});
+
     res.status(StatusCodes.OK).json({ success: true, data: { url: result.url } });
   }),
 );
@@ -531,7 +534,7 @@ router.patch(
   '/:id/status',
   requireRole(UserRole.RIDER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DISPATCHER),
   asyncHandler(async (req, res) => {
-    const { status, note } = req.body;
+    const { status, note, latitude, longitude } = req.body;
     if (!status) throw ApiError.badRequest('status is required');
 
     const orderId = req.params.id as string;
@@ -543,7 +546,7 @@ router.patch(
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         select: {
-          id: true, status: true, riderId: true,
+          id: true, status: true, riderId: true, isMultiStop: true,
           pickupLatitude: true, pickupLongitude: true,
           dropoffLatitude: true, dropoffLongitude: true,
         },
@@ -559,11 +562,48 @@ router.patch(
         throw ApiError.forbidden('You are not assigned to this order');
       }
 
+      // If the rider sent a fresh GPS fix (e.g. after returning from
+      // Google Maps navigation), persist it so the geofence check
+      // uses up-to-date coordinates instead of stale ones.
+      const freshLat = typeof latitude === 'number' && Number.isFinite(latitude) ? latitude : null;
+      const freshLng = typeof longitude === 'number' && Number.isFinite(longitude) ? longitude : null;
+
+      // Validate GPS range
+      if (freshLat !== null && (freshLat < -90 || freshLat > 90)) {
+        throw ApiError.badRequest('Latitude must be between -90 and 90');
+      }
+      if (freshLng !== null && (freshLng < -180 || freshLng > 180)) {
+        throw ApiError.badRequest('Longitude must be between -180 and 180');
+      }
+
+      if (freshLat !== null && freshLng !== null) {
+        await prisma.riderProfile.update({
+          where: { id: riderProfile.id },
+          data: { currentLatitude: freshLat, currentLongitude: freshLng, lastLocationUpdate: new Date() },
+        });
+        riderProfile.currentLatitude = freshLat;
+        riderProfile.currentLongitude = freshLng;
+      }
+
       // Geofence validation: rider must be within 200m of target location
       const GEOFENCE_RADIUS_KM = 0.2; // 200 metres
+
+      // For multi-stop orders with AT_DROPOFF, geofence against the current active stop
+      let dropoffTarget = { lat: order.dropoffLatitude, lng: order.dropoffLongitude };
+      if (status === 'AT_DROPOFF' && (order as any).isMultiStop) {
+        const currentStop = await prisma.orderStop.findFirst({
+          where: { orderId, type: 'DROPOFF', status: { not: 'COMPLETED' } },
+          orderBy: { sequence: 'asc' },
+          select: { latitude: true, longitude: true },
+        });
+        if (currentStop) {
+          dropoffTarget = { lat: currentStop.latitude, lng: currentStop.longitude };
+        }
+      }
+
       const geofenceStatuses: Record<string, { lat: number; lng: number } | null> = {
         AT_PICKUP: { lat: order.pickupLatitude, lng: order.pickupLongitude },
-        AT_DROPOFF: { lat: order.dropoffLatitude, lng: order.dropoffLongitude },
+        AT_DROPOFF: dropoffTarget,
       };
       const target = geofenceStatuses[status as string] ?? null;
       if (target) {
@@ -1000,6 +1040,8 @@ router.post(
         req.file.mimetype,
         'proofs',
       );
+      // Clean up temp file after upload
+      fs.unlink(req.file.path).catch(() => {});
       proofUrl = result.url;
     } else if (req.body.proofData) {
       // Fallback: accept base64 for backward compatibility (signatures)
@@ -1078,6 +1120,14 @@ router.post(
     });
     if (!stop) throw ApiError.notFound('Stop not found');
 
+    // Dropoff stops cannot be completed before package is picked up
+    if (stop.type === 'DROPOFF') {
+      const postPickupStatuses = ['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
+      if (!postPickupStatuses.includes(order.status)) {
+        throw ApiError.badRequest('Package must be picked up before completing dropoff stops');
+      }
+    }
+
     if (stop.status === 'COMPLETED') {
       throw ApiError.badRequest('This stop is already completed');
     }
@@ -1123,6 +1173,8 @@ router.post(
         req.file.mimetype,
         'proofs',
       );
+      // Clean up temp file after upload
+      fs.unlink(req.file.path).catch(() => {});
       proofUrl = result.url;
     } else if (req.body.proofData && proofType) {
       const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');

@@ -9,7 +9,7 @@ import { formatCurrency, formatDistance, timeAgo } from '@riderguy/utils';
 import { Button } from '@riderguy/ui';
 import {
   MapPin, Clock, Package, ChevronRight, RefreshCw,
-  Search, CheckCircle, Zap, Navigation
+  Search, CheckCircle, Zap, Navigation, AlertTriangle
 } from 'lucide-react';
 import type { Order } from '@riderguy/types';
 
@@ -23,9 +23,11 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     if (!api) return;
+    setFetchError(null);
     try {
       if (tab === 'available') {
         const res = await api.get('/orders/available');
@@ -36,7 +38,10 @@ export default function JobsPage() {
         });
         setJobs(res.data.data ?? []);
       }
-    } catch {} finally {
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to load jobs';
+      setFetchError(msg);
+    } finally {
       setLoading(false);
     }
   }, [api, tab]);
@@ -139,6 +144,23 @@ export default function JobsPage() {
               <div className="h-10 bg-surface-700/50 rounded-xl" />
             </div>
           ))
+        ) : fetchError ? (
+          <div className="text-center py-20">
+            <div className="relative inline-flex mb-5">
+              <div className="relative h-16 w-16 rounded-2xl glass flex items-center justify-center">
+                <AlertTriangle className="h-7 w-7 text-red-400" />
+              </div>
+            </div>
+            <h3 className="text-primary text-base font-semibold mb-1">Something went wrong</h3>
+            <p className="text-subtle text-sm max-w-[250px] mx-auto mb-6">{fetchError}</p>
+            <button
+              onClick={fetchJobs}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl glass text-sm text-secondary font-medium btn-press"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Try Again
+            </button>
+          </div>
         ) : jobs.length === 0 ? (
           <div className="text-center py-20">
             <div className="relative inline-flex mb-5">

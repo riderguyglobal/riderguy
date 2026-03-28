@@ -15,7 +15,6 @@ import {
   Package,
   Clock,
   CheckCircle,
-  Truck,
   Navigation,
   Copy,
   AlertTriangle,
@@ -30,6 +29,16 @@ import {
   X,
   UserX,
 } from 'lucide-react';
+
+/** Custom motorcycle icon (lucide-react has no motorcycle) */
+const MotorcycleIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="5" cy="17" r="3" />
+    <circle cx="19" cy="17" r="3" />
+    <path d="M5 14l2-4h4l2-3h4l2 10" />
+    <path d="M13 7l2 7" />
+  </svg>
+);
 import dynamic from 'next/dynamic';
 import { CancelOrderModal } from '@/components/cancel-order-modal';
 
@@ -39,10 +48,10 @@ const STATUS_STEPS = [
   { key: 'PENDING', label: 'Finding a rider for you...', icon: Clock },
   { key: 'SEARCHING_RIDER', label: 'Finding a rider for you...', icon: Clock },
   { key: 'ASSIGNED', label: 'Rider is assigned', icon: CheckCircle },
-  { key: 'PICKUP_EN_ROUTE', label: 'Rider is on the way to pickup', icon: Truck },
+  { key: 'PICKUP_EN_ROUTE', label: 'Rider is on the way to pickup', icon: MotorcycleIcon },
   { key: 'AT_PICKUP', label: 'Rider arrived at pickup', icon: Navigation },
   { key: 'PICKED_UP', label: 'Package picked up', icon: Package },
-  { key: 'IN_TRANSIT', label: 'Your package is on the way', icon: Truck },
+  { key: 'IN_TRANSIT', label: 'Your package is on the way', icon: MotorcycleIcon },
   { key: 'AT_DROPOFF', label: 'Rider has arrived', icon: Navigation },
   { key: 'DELIVERED', label: 'Package delivered!', icon: CheckCircle },
   { key: 'CANCELLED_BY_CLIENT', label: 'You cancelled this delivery', icon: AlertTriangle },
@@ -140,8 +149,23 @@ export default function TrackingPage() {
   const paymentRef = searchParams?.get('reference') || searchParams?.get('trxref');
   useEffect(() => {
     if (!api || !paymentRef) return;
-    api.get(`/payments/verify/${paymentRef}`).catch(() => {});
-  }, [api, paymentRef]);
+    let retries = 0;
+    const verify = () => {
+      api.get(`/payments/verify/${encodeURIComponent(paymentRef)}`)
+        .then(() => {
+          // Payment verified — refetch order to update paymentStatus
+          queryClient.invalidateQueries({ queryKey: ['order', id] });
+        })
+        .catch(() => {
+          // Retry up to 2 times with backoff
+          if (retries < 2) {
+            retries++;
+            setTimeout(verify, retries * 2000);
+          }
+        });
+    };
+    verify();
+  }, [api, paymentRef, queryClient, id]);
 
   // Adaptive polling: faster while searching for rider, normal otherwise
   const isSearching = previousStatusRef.current === 'SEARCHING_RIDER' || previousStatusRef.current === 'PENDING' || previousStatusRef.current === null;
@@ -180,6 +204,12 @@ export default function TrackingPage() {
     if (!id || !socket) return;
     subscribeToOrder(id);
 
+    // Re-subscribe to order room on socket reconnection
+    const onSocketReconnect = () => {
+      subscribeToOrder(id);
+    };
+    socket.on('connect', onSocketReconnect);
+
     const onStatusUpdate = (data: { orderId: string; status: string; previousStatus: string }) => {
       if (data.orderId === id) {
         // Optimistically update the cached order status for instant UI response
@@ -197,8 +227,16 @@ export default function TrackingPage() {
         setRiderCoords([lng, lat]);
       }
     };
-    const onMessage = (msg: { id: string; content: string; senderId: string; createdAt: string }) => {
-      setMessages((prev) => [...prev, msg]);
+    const onMessage = (msg: { id: string; content: string; senderId: string; createdAt?: string; timestamp?: string }) => {
+      const normalized = { id: msg.id, content: msg.content, senderId: msg.senderId, createdAt: msg.createdAt ?? msg.timestamp ?? new Date().toISOString() };
+      setMessages((prev) => {
+        // Replace optimistic message from same sender with matching content
+        const idx = prev.findIndex(m => m.id.startsWith('optimistic-') && m.senderId === normalized.senderId && m.content === normalized.content);
+        if (idx >= 0) { const updated = [...prev]; updated[idx] = normalized; return updated; }
+        // Skip duplicate events
+        if (prev.some(m => m.id === normalized.id)) return prev;
+        return [...prev, normalized];
+      });
     };
     const onTyping = (data: { userId: string; senderId?: string }) => {
       const senderId = data.userId ?? data.senderId;
@@ -245,6 +283,7 @@ export default function TrackingPage() {
 
     return () => {
       unsubscribeFromOrder(id);
+      socket.off('connect', onSocketReconnect);
       socket.off('order:status', onStatusUpdate);
       socket.off('rider:location', onLocation);
       socket.off('message:new', onMessage);
@@ -304,7 +343,15 @@ export default function TrackingPage() {
 
   const handleSendMessage = () => {
     if (!msgInput.trim() || !id) return;
-    sendMessage(id, msgInput.trim());
+    const content = msgInput.trim();
+    // Optimistic: show message immediately before server confirms
+    setMessages((prev) => [...prev, {
+      id: `optimistic-${crypto.randomUUID()}`,
+      content,
+      senderId: user?.id ?? '',
+      createdAt: new Date().toISOString(),
+    }]);
+    sendMessage(id, content);
     setMsgInput('');
   };
 
@@ -368,6 +415,17 @@ export default function TrackingPage() {
 
   const rider = (order as Record<string, unknown>).rider as Record<string, unknown> | undefined;
   const deliveryPin = order.deliveryPinCode;
+
+  // Set initial rider coords from order data when available
+  useEffect(() => {
+    if (rider && !riderCoords) {
+      const lat = Number(rider.currentLatitude);
+      const lng = Number(rider.currentLongitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+        setRiderCoords([lng, lat]);
+      }
+    }
+  }, [rider, riderCoords]);
 
   return (
     <div className="h-[100dvh] flex flex-col bg-surface-50">
@@ -622,10 +680,10 @@ export default function TrackingPage() {
           {rider && !isComplete && !isCancelled && !showChat && (
             <button
               onClick={() => setShowChat(true)}
-              className="w-full flex items-center gap-3 h-12 px-4 bg-surface-100 rounded-xl text-left btn-press hover:bg-surface-200/70 transition-colors"
+              className="w-full flex items-center gap-3 h-12 px-4 bg-brand-50 border border-brand-100 rounded-xl text-left btn-press hover:bg-brand-100/70 transition-colors"
             >
-              <MessageCircle className="h-4 w-4 text-surface-400" />
-              <span className="text-sm text-surface-400">Send a message</span>
+              <MessageCircle className="h-4 w-4 text-brand-500" />
+              <span className="text-sm text-brand-600 font-medium">Send a message</span>
               {typing && (
                 <span className="text-xs text-brand-500 font-medium ml-auto animate-pulse">typing...</span>
               )}

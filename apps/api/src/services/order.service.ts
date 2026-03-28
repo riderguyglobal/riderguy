@@ -326,7 +326,9 @@ export async function createOrder(
         orderId: order.id,
         discount: price.promoDiscount,
       },
-    }).catch(() => {}); // Don't block order creation
+    }).catch((err) => {
+      logger.error({ err, promoCodeId, orderId: order.id }, 'Failed to record promo code usage — promo may be reusable');
+    });
   }
 
   return order;
@@ -694,6 +696,21 @@ export async function transitionStatus(
             // Insufficient funds — leave paymentStatus PENDING so client
             // can top up and pay via the payment page
             logger.warn({ orderId, clientId: updated.clientId, finalPrice }, 'Insufficient wallet balance — client must pay manually');
+
+            // Notify client via socket that payment is pending
+            try {
+              const { getIO } = await import('../socket');
+              const io = getIO();
+              (io.to(`user:${updated.clientId}`) as any).emit('order:payment-required', {
+                orderId: updated.id,
+                orderNumber: updated.orderNumber,
+                amount: finalPrice,
+                currency: updated.currency,
+                reason: 'INSUFFICIENT_WALLET_BALANCE',
+              });
+            } catch {
+              // Socket not available
+            }
           }
         } catch (err) {
           logger.error({ err, orderId }, 'Failed to debit client wallet after delivery');
@@ -715,7 +732,18 @@ export async function transitionStatus(
   if (newStatus === 'DELIVERED') {
     const commData = (updated as Record<string, unknown>).__commissionEnqueue as CommissionJobData | undefined;
     if (commData) {
-      enqueueCommissionJob(commData).catch(() => {});
+      enqueueCommissionJob(commData).catch((err) => {
+        logger.error({ err, orderId: updated.id, commData }, 'Failed to enqueue commission job — creating fallback record');
+        // Fallback: persist commission data so it can be reconciled manually
+        prisma.orderStatusHistory.create({
+          data: {
+            orderId: updated.id,
+            status: 'DELIVERED',
+            actor: 'system',
+            note: `COMMISSION_FAILED: ${JSON.stringify(commData)}`,
+          },
+        }).catch(() => {});
+      });
       delete (updated as Record<string, unknown>).__commissionEnqueue;
     }
 
@@ -725,7 +753,9 @@ export async function transitionStatus(
       orderNumber: updated.orderNumber,
       totalPrice: Number(updated.totalPrice),
       currency: updated.currency,
-    }).catch(() => {});
+    }).catch((err) => {
+      logger.error({ err, orderId: updated.id }, 'Failed to enqueue receipt job');
+    });
 
     // Award XP for completed delivery (fire-and-forget)
     if (updated.riderId) {
@@ -973,6 +1003,7 @@ export async function getAvailableJobs(userId: string) {
     select: {
       id: true,
       orderNumber: true,
+      status: true,
       pickupAddress: true,
       pickupLatitude: true,
       pickupLongitude: true,
@@ -990,13 +1021,19 @@ export async function getAvailableJobs(userId: string) {
   });
 
   // D-06: Filter out orders the rider has already declined via auto-dispatch
-  const filtered = [];
-  for (const order of orders) {
-    const declined = await getDeclinedRiderIds(order.id);
-    if (!declined.has(userId)) {
-      filtered.push(order);
+  // Batch query all declined rider sets at once to avoid N+1
+  const orderIds = orders.map(o => o.id);
+  const declinedMap = new Map<string, Set<string>>();
+  if (orderIds.length > 0) {
+    const allDeclined = await Promise.all(orderIds.map(oid => getDeclinedRiderIds(oid).then(set => ({ oid, set }))));
+    for (const { oid, set } of allDeclined) {
+      declinedMap.set(oid, set);
     }
   }
+  const filtered = orders.filter(order => {
+    const declined = declinedMap.get(order.id);
+    return !declined || !declined.has(userId);
+  });
 
   // Sort by proximity to rider's current GPS (nearest first)
   const riderLat = riderProfile.currentLatitude ? Number(riderProfile.currentLatitude) : null;
@@ -1126,6 +1163,21 @@ export async function escalateStaleDeliveries(): Promise<number> {
         { orderId: order.id, orderNumber: order.orderNumber, status: order.status, hoursStale },
         '[SLA] Delivery breached 2-hour SLA',
       );
+
+      // Notify admins via socket (if available)
+      try {
+        const { getIO } = await import('../socket');
+        const io = getIO();
+        (io.to('admins') as any).emit('admin:sla-breach', {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          hoursStale,
+          riderId: order.riderId,
+        });
+      } catch {
+        // Socket not initialised yet (e.g. during startup) — log-only is fine
+      }
 
       escalated++;
     } catch {

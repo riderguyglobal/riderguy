@@ -98,7 +98,7 @@ export default function OrdersPage() {
             return (
               <button
                 key={order.id}
-                onClick={() => router.push(isActive ? `/dashboard/orders/${order.id}/tracking` : isCancelledOrFailed ? '/dashboard/orders' : `/dashboard/orders/${order.id}`)}
+                onClick={() => router.push(isActive ? `/dashboard/orders/${order.id}/tracking` : isCancelledOrFailed ? '/dashboard/orders' : `/dashboard/orders/${order.id}/tracking`)}
                 className="w-full flex items-center gap-3 px-3 py-4 rounded-2xl hover:bg-surface-50 transition-colors text-left btn-press group"
               >
                 <div className="h-10 w-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0 group-hover:bg-surface-200 transition-colors">
