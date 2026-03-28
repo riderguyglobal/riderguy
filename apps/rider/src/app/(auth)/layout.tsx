@@ -28,7 +28,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
           {/* Logo */}
           <div className="mb-8">
-            <Image src="/images/branding/logo-white.png" alt="RiderGuy" width={600} height={180} className="h-36 xl:h-44 w-auto object-contain" priority />
+            <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-36 xl:h-44 w-auto object-contain brightness-0 invert" priority />
           </div>
 
           {/* Illustration with ambient glow */}
@@ -69,7 +69,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="relative px-5 pt-4 pb-5 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5 btn-press">
               <div className="h-9 w-9 rounded-xl overflow-hidden ring-1 ring-white/10">
-                <Image src="/icons/icon-192.png" alt="RiderGuy" width={192} height={192} className="h-9 w-9 object-cover" priority />
+                <Image src="/images/branding/logo-square.png" alt="RiderGuy" width={192} height={192} className="h-9 w-9 rounded-xl object-cover" priority />
               </div>
               <span className="font-bold text-lg text-white/90 tracking-tight">RiderGuy</span>
             </Link>

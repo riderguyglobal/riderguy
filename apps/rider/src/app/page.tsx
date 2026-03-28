@@ -24,7 +24,7 @@ export default function LandingPage() {
       <div className="min-h-[100dvh] flex items-center justify-center bg-page">
         <div className="relative h-20 w-20">
           <div className="absolute inset-0 rounded-3xl bg-brand-500/20 blur-2xl animate-pulse" />
-          <Image src="/icons/icon-192.png" alt="RiderGuy" width={192} height={192} className="relative h-20 w-20 rounded-3xl object-contain" priority />
+          <Image src="/images/branding/logo-square.png" alt="RiderGuy" width={192} height={192} className="relative h-20 w-20 rounded-3xl object-contain" priority />
           <div className="absolute -inset-2 rounded-[28px] border-2 border-brand-500/30 animate-pulse-ring" />
         </div>
       </div>
@@ -42,7 +42,7 @@ export default function LandingPage() {
       <header className="relative z-10 safe-area-top px-6 pt-5 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="h-9 w-9 rounded-xl overflow-hidden shadow-lg ring-1 ring-brand-500/10">
-            <Image src="/icons/icon-192.png" alt="RiderGuy" width={192} height={192} className="h-9 w-9 object-cover" priority />
+            <Image src="/images/branding/logo-square.png" alt="RiderGuy" width={192} height={192} className="h-9 w-9 object-cover" priority />
           </div>
           <span className="text-lg font-extrabold text-primary tracking-tight">RiderGuy</span>
         </div>

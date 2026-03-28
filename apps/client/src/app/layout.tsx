@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'RiderGuy' },
   other: { 'mobile-web-app-capable': 'yes' },
+  icons: {
+    icon: [{ url: '/icons/icon-192.png', sizes: '192x192' }, { url: '/icons/icon-512.png', sizes: '512x512' }],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export const viewport: Viewport = {

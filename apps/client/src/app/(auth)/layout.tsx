@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* ── Mobile header ── */}
       <div className="lg:hidden safe-area-top border-b border-surface-100">
         <div className="px-5 py-4">
-          <Image src="/images/branding/logo-header-black.svg" alt="RiderGuy" width={140} height={36} className="h-8 w-auto" priority />
+          <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-8 w-auto" priority />
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
           {/* Logo */}
           <div className="absolute top-14 left-16 xl:left-24 z-10">
-            <Image src="/images/branding/logo-header-black.svg" alt="RiderGuy" width={160} height={40} className="h-9 w-auto" priority />
+            <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-9 w-auto" priority />
           </div>
 
           {/* Center: Hero copy */}

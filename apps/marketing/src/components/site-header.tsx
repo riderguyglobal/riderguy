@@ -26,10 +26,10 @@ export function SiteHeader() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <Image
-            src="/images/illustrations/logo-header.svg"
+            src="/images/branding/logo-wide.png"
             alt="RiderGuy"
-            width={140}
-            height={36}
+            width={600}
+            height={150}
             className="h-9 w-auto"
             priority
           />

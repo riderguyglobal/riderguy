@@ -27,7 +27,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         <aside className="hidden w-64 flex-shrink-0 border-r bg-white lg:block">
           <div className="flex h-16 items-center gap-2 border-b px-6">
             <Image
-              src="/icons/icon-192.png"
+              src="/images/branding/logo-square.png"
               alt="RiderGuy"
               width={192}
               height={192}
@@ -66,7 +66,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-white px-6">
             <div className="flex items-center gap-2 lg:hidden">
               <Image
-                src="/icons/icon-192.png"
+                src="/images/branding/logo-square.png"
                 alt="RiderGuy"
                 width={192}
                 height={192}

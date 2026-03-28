@@ -55,11 +55,11 @@ export default function AdminLoginPage() {
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-2">
           <Image
-            src="/icons/icon-192.png"
+            src="/images/branding/logo-wide.png"
             alt="RiderGuy"
-            width={192}
-            height={192}
-            className="h-16 w-16 rounded-2xl"
+            width={600}
+            height={150}
+            className="h-12 w-auto"
             priority
           />
           <p className="text-sm text-gray-400">Operations Portal</p>

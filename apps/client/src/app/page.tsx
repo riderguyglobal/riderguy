@@ -20,7 +20,7 @@ export default function LandingPage() {
 
         <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
           {/* Logo */}
-          <Image src="/images/branding/logo-header-black.svg" alt="RiderGuy" width={200} height={50} className="h-10 w-auto mb-4 animate-bounce-in" priority />
+          <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-10 w-auto mb-4 animate-bounce-in" priority />
           <p className="text-surface-500 text-center max-w-xs mb-8 animate-slide-up stagger-2">
             Send packages across the city. Fast, reliable, with real-time tracking.
           </p>

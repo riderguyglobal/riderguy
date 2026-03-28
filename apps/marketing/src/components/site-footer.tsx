@@ -43,10 +43,10 @@ export function SiteFooter() {
           {/* Brand column */}
           <div>
             <Image
-              src="/images/illustrations/logo-footer.svg"
+              src="/images/branding/logo-wide.png"
               alt="RiderGuy"
-              width={130}
-              height={34}
+              width={600}
+              height={150}
               className="h-8 w-auto"
             />
             <p className="mt-3 text-sm text-gray-500">
