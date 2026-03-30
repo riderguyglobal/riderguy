@@ -65,13 +65,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* ── Mobile header ── */}
       <div className="lg:hidden safe-area-top">
         <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-[#022c22] to-[#064e3b]" />
+          <div className="absolute inset-0 bg-black" />
           <div className="relative px-5 pt-4 pb-5 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5 btn-press">
+            <Link href="/" className="btn-press">
               <div className="h-9 w-9 rounded-xl overflow-hidden ring-1 ring-white/10">
                 <Image src="/images/branding/logo-square.png" alt="RiderGuy" width={192} height={192} className="h-9 w-9 rounded-xl object-cover" priority />
               </div>
-              <span className="font-bold text-lg text-white/90 tracking-tight">RiderGuy</span>
             </Link>
             <span className="text-[11px] text-white/35 font-medium tracking-widest uppercase">Rider</span>
           </div>

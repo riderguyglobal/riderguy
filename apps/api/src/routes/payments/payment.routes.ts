@@ -390,8 +390,9 @@ router.post(
 router.get(
   '/banks',
   authenticate,
-  asyncHandler(async (_req: Request, res: Response) => {
-    const banks = await paystackService.listBanks();
+  asyncHandler(async (req: Request, res: Response) => {
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+    const banks = await paystackService.listBanks({ type });
     res.status(StatusCodes.OK).json({ success: true, data: banks });
   }),
 );

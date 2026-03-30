@@ -98,6 +98,22 @@ export function MapPickerModal({
             setMapReady(true);
             const c = map.getCenter();
             handleReverseGeocode(c.lng, c.lat);
+
+            // If no initial center was provided, fly to the user's GPS location
+            if (!initialCenterRef.current && navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  if (destroyed) return;
+                  map.flyTo({
+                    center: [pos.coords.longitude, pos.coords.latitude],
+                    zoom: 17,
+                    duration: 1200,
+                  });
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 8000 },
+              );
+            }
           });
         },
       });

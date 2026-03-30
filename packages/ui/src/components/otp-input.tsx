@@ -230,7 +230,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          autoComplete={i === 0 ? 'one-time-code' : 'off'}
+          autoComplete="off"
           maxLength={1}
           value={values[i]}
           disabled={disabled}
@@ -238,7 +238,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={(e) => handlePaste(i, e)}
-          onFocus={(e) => e.target.select()}
+          onFocus={(e) => { if (e.target.value) e.target.select(); }}
           className={cn(
             'h-12 w-10 sm:h-14 sm:w-12 rounded-xl border text-center text-lg font-bold',
             'transition-all duration-200 outline-none',

@@ -55,26 +55,25 @@ export default function LandingPage() {
       <div className={`relative z-10 flex-1 flex flex-col items-center justify-center px-6 transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         <div className="flex flex-col items-center max-w-lg w-full">
 
-          {/* Illustration */}
-          <div className="relative w-52 h-52 sm:w-60 sm:h-60 mb-8">
+          {/* Logo */}
+          <div className="relative w-64 sm:w-72 mb-8">
             <div className="absolute inset-0 scale-[1.4] rounded-full bg-brand-500/[0.06] blur-3xl" />
             <Image
-              src="/images/illustrations/maps-bike.svg"
-              alt="Rider on delivery"
-              width={240}
-              height={240}
-              className="relative w-full h-full object-contain drop-shadow-lg animate-page-enter"
+              src="/images/branding/logo-wide.png"
+              alt="RiderGuy"
+              width={600}
+              height={150}
+              className="relative w-full h-auto object-contain drop-shadow-lg animate-page-enter"
               priority
             />
           </div>
 
-          {/* Tagline — 4 powerful phrases */}
+          {/* Tagline */}
           <div className="text-center space-y-0.5 mb-4 animate-slide-up stagger-1">
             <h1 className="text-[2rem] sm:text-4xl font-extrabold text-primary tracking-tight leading-[1.15]">
-              <span className="block">Deliver Safely.</span>
-              <span className="block text-gradient-brand">Earn More.</span>
-              <span className="block">Prioritize Your Welfare.</span>
-              <span className="block text-muted">Secure Your Future.</span>
+              <span className="block">Deliver Safely & Earn</span>
+              <span className="block text-gradient-brand">Prioritize your Welfare</span>
+              <span className="block text-muted">Secure your Future</span>
             </h1>
           </div>
 

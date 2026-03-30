@@ -30,7 +30,8 @@ export default function EarningsPage() {
   const [wSubmitting, setWSubmitting] = useState(false);
   const [wError, setWError] = useState('');
   const [wSuccess, setWSuccess] = useState(false);
-  const [banks, setBanks] = useState<Array<{ code: string; name: string }>>([]);
+  const [banks, setBanks] = useState<Array<{ code: string; name: string; type: string }>>([]);
+  const [momoProviders, setMomoProviders] = useState<Array<{ code: string; name: string; type: string }>>([]);
 
   useEffect(() => {
     if (!api) return;
@@ -56,17 +57,21 @@ export default function EarningsPage() {
     setWAccountName('');
     setWBankCode('');
 
-    // Fetch banks
+    // Fetch banks & mobile money providers
     if (banks.length === 0) {
       try {
-        const res = await api?.get('/payments/banks');
-        setBanks(res?.data.data ?? []);
+        const [bankRes, momoRes] = await Promise.all([
+          api?.get('/payments/banks'),
+          api?.get('/payments/banks', { params: { type: 'mobile_money' } }),
+        ]);
+        setBanks(bankRes?.data.data ?? []);
+        setMomoProviders(momoRes?.data.data ?? []);
       } catch {}
     }
   };
 
   const resolveAccount = async () => {
-    if (!api || !wAccountNumber || (!wBankCode && wMethod === 'BANK_TRANSFER')) {
+    if (!api || !wAccountNumber || !wBankCode) {
       setWError('Fill in all fields');
       return;
     }
@@ -102,8 +107,8 @@ export default function EarningsPage() {
       await api?.post('/wallets/withdraw', {
         amount,
         method: wMethod,
-        accountNumber: wAccountNumber,
-        accountName: wAccountName,
+        destination: wAccountNumber,
+        destinationName: wAccountName,
         bankCode: wBankCode || undefined,
       });
       setWSuccess(true);
@@ -294,6 +299,21 @@ export default function EarningsPage() {
               {wStep === 1 && (
                 <div className="space-y-4">
                   <p className="text-sm text-secondary">Enter account details</p>
+                  {wMethod === 'MOBILE_MONEY' && (
+                    <div>
+                      <label className="block text-xs text-muted mb-1.5">Provider</label>
+                      <select
+                        value={wBankCode}
+                        onChange={(e) => setWBankCode(e.target.value)}
+                        className="w-full py-3 px-4 rounded-xl bg-card border border-themed-strong text-primary outline-none focus:border-brand-500 appearance-none transition-colors"
+                      >
+                        <option value="">Select provider</option>
+                        {momoProviders.map((p) => (
+                          <option key={p.code} value={p.code}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {wMethod === 'BANK_TRANSFER' && (
                     <div>
                       <label className="block text-xs text-muted mb-1.5">Bank</label>
