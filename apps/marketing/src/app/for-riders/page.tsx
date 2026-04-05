@@ -101,11 +101,11 @@ export default function ForRidersPage() {
             <div className="relative mx-auto w-full max-w-md">
               <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 blur-3xl" />
               <Image
-                src="/images/photos/rider-hero.jpg"
+                src="/images/branding/biker-homepage.png"
                 alt="RiderGuy dispatch rider on a motorcycle ready for deliveries"
                 width={520}
                 height={720}
-                className="relative z-10 w-full rounded-3xl object-cover shadow-2xl"
+                className="relative z-10 w-full object-contain drop-shadow-[0_20px_40px_rgba(34,197,94,0.2)]"
                 priority
               />
               {/* Floating earnings card */}
@@ -206,16 +206,15 @@ export default function ForRidersPage() {
           ================================================================ */}
       <section className="relative overflow-hidden bg-surface-50 py-24 sm:py-32">
         <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
-          {/* Left — Image */}
+          {/* Left — Illustration */}
           <div className="reveal-left flex-1">
-            <div className="relative">
-              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-brand-200/20 to-transparent blur-2xl" />
+            <div className="relative flex items-center justify-center rounded-3xl bg-brand-50/60 p-10">
               <Image
-                src="/images/photos/rider-delivery.jpg"
-                alt="RiderGuy rider handing over a package to a customer"
-                width={560}
-                height={740}
-                className="relative rounded-3xl object-cover shadow-2xl"
+                src="/images/illustrations/talking-rider.svg"
+                alt="Illustration of a RiderGuy rider interacting with the community"
+                width={480}
+                height={480}
+                className="w-full max-w-md"
               />
             </div>
           </div>
@@ -343,16 +342,15 @@ export default function ForRidersPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(34,197,94,0.08),transparent_60%)]" />
 
         <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row-reverse lg:gap-20 lg:px-10">
-          {/* Right — Image */}
+          {/* Right — Illustration */}
           <div className="reveal-right flex-1">
-            <div className="relative">
-              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-tl from-brand-500/15 to-transparent blur-2xl" />
+            <div className="relative flex items-center justify-center rounded-3xl bg-surface-900 p-10">
               <Image
-                src="/images/photos/rider-business.jpg"
-                alt="RiderGuy rider on a motorcycle delivering a food order with a thumbs up"
-                width={560}
-                height={740}
-                className="relative rounded-3xl object-cover shadow-2xl"
+                src="/images/illustrations/hero-business.svg"
+                alt="Illustration of a RiderGuy rider delivering for partner businesses"
+                width={480}
+                height={480}
+                className="w-full max-w-md"
               />
             </div>
           </div>
@@ -503,15 +501,15 @@ export default function ForRidersPage() {
           ================================================================ */}
       <section className="relative overflow-hidden bg-white py-24 sm:py-32">
         <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
-          {/* Left — Image */}
+          {/* Left — Illustration */}
           <div className="reveal-left flex-1">
-            <div className="img-zoom relative overflow-hidden rounded-3xl">
+            <div className="relative flex items-center justify-center rounded-3xl bg-surface-50 p-10">
               <Image
-                src="/images/photos/rider-lifestyle.jpg"
-                alt="RiderGuy rider delivering fresh groceries at a customer doorstep"
-                width={640}
-                height={520}
-                className="w-full object-cover"
+                src="/images/illustrations/handing-over.svg"
+                alt="Illustration of a RiderGuy rider completing a delivery handover"
+                width={480}
+                height={480}
+                className="w-full max-w-md"
               />
             </div>
           </div>
