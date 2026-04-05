@@ -14,16 +14,15 @@ import {
   Package,
   Bike,
   Building2,
-  ArrowRight,
   ShieldCheck,
   Handshake,
 } from 'lucide-react';
 import { HomeClient } from '@/components/home-client';
 
 export const metadata: Metadata = {
-  title: 'About — RiderGuy',
+  title: 'About | RiderGuy',
   description:
-    'RiderGuy is building the infrastructure for last-mile delivery in Ghana. Learn about our mission, our values, and the team behind the platform.',
+    'RiderGuy is the operating system for the rider economy in Ghana. Learn about our mission to transform delivery riding into a dignified career.',
 };
 
 export default function AboutPage() {
@@ -49,10 +48,10 @@ export default function AboutPage() {
             </h1>
 
             <p className="hero-text-enter-delay-1 mt-6 max-w-lg text-lg leading-relaxed text-surface-400 sm:text-xl">
-              RiderGuy is building the infrastructure for last-mile delivery
-              across Ghana. We connect riders, businesses, and individuals
-              through a platform that is fast, transparent, and built for
-              the way Ghanaians live and work.
+              RiderGuy is the operating system for the rider economy. We
+              connect riders, businesses, and individuals through a platform
+              that turns delivery riding into a dignified career with real
+              progression, training, and financial tools.
             </p>
 
             <div className="hero-text-enter-delay-2 mt-10 flex flex-wrap items-center gap-4">
@@ -115,11 +114,12 @@ export default function AboutPage() {
               </div>
               <h3 className="mt-6 text-2xl font-bold text-surface-900">Our Mission</h3>
               <p className="mt-4 text-lg leading-relaxed text-surface-500">
-                To make sending a package as simple as sending a message.
-                We believe logistics should be fast, transparent, and
-                accessible to everyone. From a small business owner sending
-                invoices to a family sharing home-cooked meals across town,
-                everyone deserves reliable delivery.
+                To transform delivery riding from a disposable gig into a
+                dignified, rewarding career. We believe every rider deserves
+                professional training, fair compensation, financial tools, and
+                a clear path to grow. RiderGuy exists to make that a reality
+                while giving businesses and individuals reliable, transparent
+                delivery they can count on.
               </p>
             </div>
 
@@ -129,11 +129,12 @@ export default function AboutPage() {
               </div>
               <h3 className="mt-6 text-2xl font-bold text-surface-900">Our Vision</h3>
               <p className="mt-4 text-lg leading-relaxed text-surface-500">
-                A Ghana where every person and business has access to
-                reliable, affordable last-mile delivery. We are starting
-                with dispatch riders and expanding to a full logistics
-                marketplace that serves the entire country and, eventually,
-                the continent.
+                To be the operating system for the rider economy. A single
+                platform where riders build careers, businesses access
+                reliable delivery, and communities thrive. Starting in Ghana
+                and expanding across the continent, RiderGuy is creating the
+                infrastructure that treats riders as skilled professionals,
+                not disposable labour.
               </p>
             </div>
           </div>
@@ -164,25 +165,30 @@ export default function AboutPage() {
               Our Story
             </span>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
-              Born from a real problem
+              A different question
             </h2>
             <p className="mt-6 text-lg leading-relaxed text-surface-500">
-              RiderGuy started with a simple observation: getting a package
-              across town in Ghana was unreliable, expensive, and stressful.
-              Businesses lost customers because deliveries arrived late.
-              Riders worked long hours without fair pay or support. Customers
-              had no visibility into where their packages were.
+              Most delivery platforms ask one question: &ldquo;How do we
+              fulfil more orders?&rdquo; They treat riders as interchangeable
+              resources, faceless labour behind an algorithm. Riders work
+              long hours, pay commissions of 20 to 30 percent, and have no
+              path forward. RiderGuy was built because we asked a different
+              question: &ldquo;How do we build better riders, and a better
+              world for them?&rdquo;
             </p>
             <p className="mt-4 text-lg leading-relaxed text-surface-500">
-              We built RiderGuy to fix all of that. A single platform
-              where businesses request deliveries, riders earn fair income,
-              and customers track every step. No middlemen, no guesswork,
-              no broken promises.
+              That question led to a 4-in-1 super-platform: a rider app,
+              a client app, an admin portal, and this website, all built
+              as Progressive Web Apps so any rider in Ghana can install and
+              use them on any phone, even with limited internet. Riders keep
+              85 percent of every delivery. They level up, earn certifications,
+              access financial tools, and build real careers.
             </p>
             <p className="mt-4 text-lg leading-relaxed text-surface-500">
-              Today, we operate across multiple cities in Ghana with a growing
-              community of active riders and business partners. And we are just
-              getting started.
+              This is not just a delivery app. It is the operating system
+              for the rider economy, starting in Ghana and scaling across
+              the continent. We are building the world&rsquo;s most supported
+              rider network, one rider at a time.
             </p>
           </div>
         </div>
@@ -420,68 +426,76 @@ export default function AboutPage() {
       </section>
 
       {/* ================================================================
-          JOIN US — Careers CTA
+          RIDER GROWTH — Career progression on the platform
           ================================================================ */}
-      <section id="careers" className="bg-white py-24 sm:py-32">
+      <section id="rider-growth" className="bg-white py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Careers
+              Rider Growth
             </span>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
-              Join the team
+              Build a real career on two wheels
             </h2>
             <p className="mt-4 text-lg text-surface-500">
-              We are hiring engineers, designers, and operations staff
-              who want to build something meaningful. If you care about
-              solving real problems for real people, we would love to hear
-              from you.
+              RiderGuy is more than a delivery platform. It is the operating
+              system for your riding career, with structured progression,
+              professional training, financial tools, and a community that
+              has your back every step of the way.
             </p>
           </div>
 
           <div className="stagger-children mx-auto mt-16 grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
-                title: 'Engineering',
-                desc: 'Build the platform that powers thousands of deliveries every day. React, Node.js, PostgreSQL, and more.',
-                icon: '💻',
+                icon: Target,
+                title: 'Career Levels',
+                desc: 'Progress through seven tiers, from Rookie to Legend. Earn XP, unlock badges, and access higher-paying delivery zones as you grow.',
+                color: 'bg-brand-50 text-brand-600',
               },
               {
-                title: 'Design',
-                desc: 'Shape the experience for riders, businesses, and customers. Research, prototyping, and visual design.',
-                icon: '🎨',
+                icon: Lightbulb,
+                title: 'Training Academy',
+                desc: 'Access professional training covering road safety, customer service, route optimization, and financial literacy.',
+                color: 'bg-blue-50 text-blue-600',
               },
               {
-                title: 'Operations',
-                desc: 'Keep the wheels turning. Rider onboarding, quality assurance, and city expansion.',
-                icon: '⚙️',
+                icon: Package,
+                title: 'Financial Tools',
+                desc: 'A built-in digital wallet with instant payouts, savings tools, and earnings insights to help you manage and grow your income.',
+                color: 'bg-amber-50 text-amber-600',
               },
               {
-                title: 'Sales',
-                desc: 'Help businesses discover the value of RiderGuy. Partnership development and account management.',
-                icon: '📈',
+                icon: Users,
+                title: 'Rider Community',
+                desc: 'Connect with fellow riders in your zone through group chat, mentorship programmes, rider councils, and local events.',
+                color: 'bg-purple-50 text-purple-600',
               },
               {
-                title: 'Support',
-                desc: 'Be the voice of RiderGuy. Help riders, businesses, and customers whenever they need us.',
-                icon: '🎧',
+                icon: ShieldCheck,
+                title: 'Welfare and Support',
+                desc: 'Insurance coverage on every active delivery, emergency assistance funds, and subsidised safety gear to keep you protected.',
+                color: 'bg-rose-50 text-rose-600',
               },
               {
-                title: 'Marketing',
-                desc: 'Tell our story. Content, social media, brand strategy, and community engagement.',
-                icon: '📣',
+                icon: Handshake,
+                title: 'Partner Programme',
+                desc: 'Refer new riders to the platform and earn commissions. Help grow the community while building an additional income stream.',
+                color: 'bg-teal-50 text-teal-600',
               },
-            ].map((role) => (
+            ].map((item) => (
               <div
-                key={role.title}
-                className="rounded-2xl border border-surface-100 bg-white p-7 transition-all hover:border-brand-200 hover:shadow-lg"
+                key={item.title}
+                className="group rounded-2xl border border-surface-100 bg-white p-7 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover"
               >
-                <span className="text-3xl">{role.icon}</span>
-                <h3 className="mt-4 text-lg font-semibold text-surface-900">
-                  {role.title}
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
+                  <item.icon className="h-6 w-6" />
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-surface-900">
+                  {item.title}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-surface-500">
-                  {role.desc}
+                  {item.desc}
                 </p>
               </div>
             ))}
@@ -493,9 +507,9 @@ export default function AboutPage() {
               className="rounded-full bg-brand-500 px-8 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600"
               asChild
             >
-              <Link href="/contact">
-                View Open Positions
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Link href="/for-riders">
+                Start Your Riding Career
+                <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
           </div>

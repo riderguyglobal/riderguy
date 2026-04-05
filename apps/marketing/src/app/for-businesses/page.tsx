@@ -22,7 +22,7 @@ import {
 import { HomeClient } from '@/components/home-client';
 
 export const metadata: Metadata = {
-  title: 'For Businesses — RiderGuy',
+  title: 'For Businesses | RiderGuy',
   description:
     'Reliable, on-demand delivery infrastructure for restaurants, e-commerce, pharmacies, and retail. API integration, real-time tracking, and dedicated support.',
 };

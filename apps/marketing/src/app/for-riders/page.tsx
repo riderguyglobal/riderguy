@@ -20,7 +20,7 @@ import {
 import { HomeClient } from '@/components/home-client';
 
 export const metadata: Metadata = {
-  title: 'Become a Rider — RiderGuy',
+  title: 'Become a Rider | RiderGuy',
   description:
     'Earn on your own schedule as a verified RiderGuy dispatch rider. Fair pay, flexible hours, full support. Apply today.',
 };

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Cookie Policy — RiderGuy',
+  title: 'Cookie Policy | RiderGuy',
   description: 'Learn about how RiderGuy uses cookies and similar technologies.',
 };
 
