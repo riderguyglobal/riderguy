@@ -11,13 +11,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'RiderGuy — Logistics, Delivered.',
+  title: 'RiderGuy — Your Delivery, Handled.',
   description:
-    'RiderGuy is a last-mile delivery platform connecting businesses and individuals with verified dispatch riders across Ghanaian cities.',
+    'RiderGuy is a last-mile delivery platform connecting businesses and individuals with verified dispatch riders for fast, reliable, trackable deliveries across Ghanaian cities.',
   openGraph: {
-    title: 'RiderGuy — Logistics, Delivered.',
+    title: 'RiderGuy — Your Delivery, Handled.',
     description:
-      'Fast, reliable, trackable last-mile delivery across Ghanaian cities.',
+      'Fast, reliable, and trackable last-mile delivery across Ghanaian cities.',
     siteName: 'RiderGuy',
     type: 'website',
   },
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0ea5e9',
+  themeColor: '#22c55e',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body className="bg-white font-sans text-surface-900 antialiased">
         <SiteHeader />
-        <div className="min-h-dvh">{children}</div>
+        <main>{children}</main>
         <SiteFooter />
       </body>
     </html>
