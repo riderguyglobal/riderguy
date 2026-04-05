@@ -180,8 +180,8 @@ export default function AboutPage() {
               no broken promises.
             </p>
             <p className="mt-4 text-lg leading-relaxed text-surface-500">
-              Today, we operate across 12 cities in Ghana with over 2,000
-              active riders and 500 business partners. And we are just
+              Today, we operate across multiple cities in Ghana with a growing
+              community of active riders and business partners. And we are just
               getting started.
             </p>
           </div>
@@ -286,10 +286,10 @@ export default function AboutPage() {
 
           <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { value: '50,000+', label: 'Packages delivered', icon: Package },
-              { value: '2,000+', label: 'Active riders', icon: Bike },
-              { value: '500+', label: 'Business partners', icon: Building2 },
-              { value: '12', label: 'Cities covered', icon: MapPin },
+              { value: 'Fast', label: 'Same-day delivery', icon: Package },
+              { value: 'Verified', label: 'Trained riders', icon: Bike },
+              { value: 'Growing', label: 'Business partners', icon: Building2 },
+              { value: 'Expanding', label: 'Cities across Ghana', icon: MapPin },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -399,19 +399,19 @@ export default function AboutPage() {
 
             <div className="mt-8 grid grid-cols-2 gap-4">
               <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
-                <p className="text-2xl font-bold text-brand-600">GH₵ 2M+</p>
-                <p className="mt-1 text-xs text-surface-500">Paid to riders</p>
+                <p className="text-2xl font-bold text-brand-600">Instant</p>
+                <p className="mt-1 text-xs text-surface-500">Rider payouts</p>
               </div>
               <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
-                <p className="text-2xl font-bold text-brand-600">2,000+</p>
-                <p className="mt-1 text-xs text-surface-500">Jobs created</p>
+                <p className="text-2xl font-bold text-brand-600">Growing</p>
+                <p className="mt-1 text-xs text-surface-500">Rider community</p>
               </div>
               <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
-                <p className="text-2xl font-bold text-brand-600">500+</p>
-                <p className="mt-1 text-xs text-surface-500">Businesses empowered</p>
+                <p className="text-2xl font-bold text-brand-600">Trusted</p>
+                <p className="mt-1 text-xs text-surface-500">Business partners</p>
               </div>
               <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
-                <p className="text-2xl font-bold text-brand-600">12</p>
+                <p className="text-2xl font-bold text-brand-600">Expanding</p>
                 <p className="mt-1 text-xs text-surface-500">Cities connected</p>
               </div>
             </div>

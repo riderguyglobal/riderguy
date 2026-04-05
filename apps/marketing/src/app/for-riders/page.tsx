@@ -14,7 +14,6 @@ import {
   ChevronRight,
   CheckCircle2,
   Bike,
-  Star,
   Zap,
   Heart,
 } from 'lucide-react';
@@ -42,7 +41,7 @@ export default function ForRidersPage() {
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
             <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-400">
               <Bike className="h-4 w-4" />
-              Join 2,000+ active riders
+              Now accepting rider applications
             </div>
 
             <h1 className="hero-text-enter max-w-xl text-5xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
@@ -80,18 +79,18 @@ export default function ForRidersPage() {
             {/* Quick stats */}
             <div className="hero-text-enter-delay-3 mt-12 flex items-center gap-8 text-sm">
               <div className="text-center lg:text-left">
-                <p className="text-2xl font-bold text-white">GH₵ 800+</p>
-                <p className="text-surface-500">Average weekly earnings</p>
+                <p className="text-2xl font-bold text-white">Instant</p>
+                <p className="text-surface-500">Payouts after delivery</p>
               </div>
               <div className="h-10 w-px bg-surface-800" />
               <div className="text-center lg:text-left">
-                <p className="text-2xl font-bold text-white">15 min</p>
-                <p className="text-surface-500">Average first pickup</p>
+                <p className="text-2xl font-bold text-white">Flexible</p>
+                <p className="text-surface-500">Set your own hours</p>
               </div>
               <div className="hidden h-10 w-px bg-surface-800 sm:block" />
               <div className="hidden text-center sm:block lg:text-left">
-                <p className="text-2xl font-bold text-white">4.9/5</p>
-                <p className="text-surface-500">Rider satisfaction</p>
+                <p className="text-2xl font-bold text-white">Insured</p>
+                <p className="text-surface-500">Full coverage included</p>
               </div>
             </div>
           </div>
@@ -108,15 +107,15 @@ export default function ForRidersPage() {
                 className="relative z-10 w-full object-contain drop-shadow-[0_20px_40px_rgba(34,197,94,0.2)]"
                 priority
               />
-              {/* Floating earnings card */}
+              {/* Floating feature card */}
               <div className="absolute -left-6 bottom-20 z-20 hidden rounded-2xl bg-white/95 p-4 shadow-elevated backdrop-blur-sm lg:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100">
                     <Wallet className="h-5 w-5 text-brand-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-surface-500">Today's earnings</p>
-                    <p className="text-lg font-bold text-surface-900">GH₵ 142.50</p>
+                    <p className="text-xs text-surface-500">Payout status</p>
+                    <p className="text-lg font-bold text-surface-900">Instant</p>
                   </div>
                 </div>
               </div>
@@ -441,55 +440,31 @@ export default function ForRidersPage() {
           <div className="stagger-children mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
+                highlight: 'Steady Income',
                 quote:
-                  'I used to struggle with inconsistent work. With RiderGuy, I earn a steady income every week. The app is easy to use and I get paid right after each delivery.',
-                name: 'Kofi Asante',
-                role: 'Rider since 2024, Accra',
-                rating: 4.9,
+                  'Earn consistently with a steady stream of delivery requests. Get paid instantly after every completed delivery, directly to your mobile wallet.',
               },
               {
+                highlight: 'Flexibility',
                 quote:
-                  'The flexibility is what keeps me here. I ride in the mornings, attend school in the afternoon, and still make good money. RiderGuy fits my life perfectly.',
-                name: 'Yaw Mensah',
-                role: 'Part-time Rider, Kumasi',
-                rating: 4.8,
+                  'Go online when you want, go offline when you need to. No mandatory shifts, no minimum hours. The perfect balance for students and part-time riders.',
               },
               {
+                highlight: 'Career Growth',
                 quote:
-                  'I started as a regular rider and now I am a zone captain. The growth opportunities are real. RiderGuy invested in my training and it paid off.',
-                name: 'Abdul Rahman',
-                role: 'Zone Captain, Tamale',
-                rating: 5.0,
+                  'Start as a rider and grow into a zone captain with higher earnings and leadership responsibilities. We invest in your training and development.',
               },
-            ].map((testimonial) => (
+            ].map((item) => (
               <div
-                key={testimonial.name}
+                key={item.highlight}
                 className="flex flex-col rounded-2xl border border-surface-100 bg-white p-7"
               >
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className="h-4 w-4 fill-amber-400 text-amber-400"
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm font-medium text-surface-600">
-                    {testimonial.rating}
-                  </span>
-                </div>
-                <blockquote className="mt-4 flex-1 leading-relaxed text-surface-600">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-                <div className="mt-6 border-t border-surface-100 pt-4">
-                  <p className="font-semibold text-surface-900">
-                    {testimonial.name}
-                  </p>
-                  <p className="text-sm text-surface-500">
-                    {testimonial.role}
-                  </p>
-                </div>
+                <span className="w-fit rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600">
+                  {item.highlight}
+                </span>
+                <p className="mt-4 flex-1 leading-relaxed text-surface-600">
+                  {item.quote}
+                </p>
               </div>
             ))}
           </div>
@@ -531,16 +506,16 @@ export default function ForRidersPage() {
 
             <div className="mt-8 grid grid-cols-3 gap-4">
               <div className="rounded-2xl bg-surface-50 p-5 text-center">
-                <p className="text-2xl font-bold text-brand-600">50k+</p>
-                <p className="mt-1 text-xs text-surface-500">Deliveries completed</p>
+                <p className="text-2xl font-bold text-brand-600">Fast</p>
+                <p className="mt-1 text-xs text-surface-500">Same-day delivery</p>
               </div>
               <div className="rounded-2xl bg-surface-50 p-5 text-center">
-                <p className="text-2xl font-bold text-brand-600">12</p>
+                <p className="text-2xl font-bold text-brand-600">Growing</p>
                 <p className="mt-1 text-xs text-surface-500">Cities covered</p>
               </div>
               <div className="rounded-2xl bg-surface-50 p-5 text-center">
-                <p className="text-2xl font-bold text-brand-600">98%</p>
-                <p className="mt-1 text-xs text-surface-500">Success rate</p>
+                <p className="text-2xl font-bold text-brand-600">Reliable</p>
+                <p className="mt-1 text-xs text-surface-500">Consistent service</p>
               </div>
             </div>
           </div>
@@ -565,7 +540,7 @@ export default function ForRidersPage() {
             {[
               {
                 q: 'How much can I earn as a RiderGuy rider?',
-                a: 'Earnings vary based on your location, hours, and number of deliveries. On average, active riders earn between GH₵ 600 and GH₵ 1,200 per week. Top riders earn even more through bonuses.',
+                a: 'Earnings vary based on your location, hours, and number of deliveries. You get paid instantly after each completed delivery. The more you ride, the more you earn.',
               },
               {
                 q: 'Do I need my own motorcycle?',

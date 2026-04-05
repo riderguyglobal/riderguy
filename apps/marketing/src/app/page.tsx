@@ -102,27 +102,27 @@ export default function HomePage() {
                 className="relative z-10 mx-auto w-full rounded-3xl object-cover shadow-2xl"
                 priority
               />
-              {/* Floating stat card */}
+              {/* Floating feature card */}
               <div className="absolute -left-6 bottom-24 z-20 hidden rounded-2xl bg-white/95 p-4 shadow-elevated backdrop-blur-sm lg:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100">
                     <Package className="h-5 w-5 text-brand-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-surface-500">Packages delivered</p>
-                    <p className="text-lg font-bold text-surface-900">50,000+</p>
+                    <p className="text-xs text-surface-500">Delivery status</p>
+                    <p className="text-lg font-bold text-surface-900">Delivered</p>
                   </div>
                 </div>
               </div>
-              {/* Floating rating card */}
+              {/* Floating tracking card */}
               <div className="absolute -right-4 top-20 z-20 hidden rounded-2xl bg-white/95 p-4 shadow-elevated backdrop-blur-sm lg:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
                     <Star className="h-5 w-5 text-amber-500" />
                   </div>
                   <div>
-                    <p className="text-xs text-surface-500">Average rating</p>
-                    <p className="text-lg font-bold text-surface-900">4.9/5</p>
+                    <p className="text-xs text-surface-500">Live tracking</p>
+                    <p className="text-lg font-bold text-surface-900">Active</p>
                   </div>
                 </div>
               </div>
@@ -147,10 +147,10 @@ export default function HomePage() {
       <section className="relative border-y border-surface-100 bg-surface-50/80">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-5 py-14 sm:px-8 md:grid-cols-4 lg:px-10">
           {[
-            { value: '50,000+', label: 'Packages Delivered', icon: Package },
-            { value: '2,000+', label: 'Active Riders', icon: Bike },
-            { value: '12', label: 'Cities Covered', icon: MapPin },
-            { value: '4.9', label: 'Average Rating', icon: Star },
+            { value: 'Fast', label: 'Same-Day Delivery', icon: Package },
+            { value: 'Verified', label: 'Trained Riders', icon: Bike },
+            { value: 'Growing', label: 'Cities Across Ghana', icon: MapPin },
+            { value: 'Tracked', label: 'Every Delivery', icon: Star },
           ].map((stat) => (
             <div key={stat.label} className="flex flex-col items-center gap-2 text-center">
               <stat.icon className="h-6 w-6 text-brand-500" />
@@ -359,7 +359,7 @@ export default function HomePage() {
               {
                 icon: Zap,
                 title: 'Lightning Fast',
-                desc: 'Average pickup time under 15 minutes in covered zones. Your rider is always nearby.',
+                desc: 'Fast pickup times in covered zones. Our smart matching system connects you with the nearest available rider.',
                 color: 'bg-amber-50 text-amber-600',
               },
               {
@@ -558,55 +558,38 @@ export default function HomePage() {
               Testimonials
             </span>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
-              Trusted by thousands across Ghana
+              What people love about RiderGuy
             </h2>
           </div>
 
           <div className="stagger-children mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
+                highlight: 'For Businesses',
                 quote:
-                  'RiderGuy transformed how we handle deliveries. Our customers get their food hot and fast, and we can track every single order in real time.',
-                name: 'Ama Serwaa',
-                role: 'Restaurant Owner, Accra',
+                  'Real-time tracking on every delivery means fewer customer service calls. Your customers know exactly where their order is at all times.',
               },
               {
+                highlight: 'For Riders',
                 quote:
-                  'As a rider, the platform is incredibly easy to use. I get matched with orders near me, the pay is fair, and the app handles everything from navigation to payments.',
-                name: 'Kwame Boateng',
-                role: 'RiderGuy Dispatch Rider',
+                  'Fair pay, flexible hours, and instant payouts after every delivery. The app handles navigation, payments, and matching automatically.',
               },
               {
+                highlight: 'For Everyone',
                 quote:
-                  'I send packages to my family upcountry every week. RiderGuy gives me the tracking link so I know exactly when it arrives. Reliable every single time.',
-                name: 'Efua Mensah',
-                role: 'Regular Customer, Kumasi',
+                  'Send packages to family, friends, or customers across town. Track every step of the journey and know exactly when it arrives.',
               },
             ].map((testimonial) => (
               <div
-                key={testimonial.name}
+                key={testimonial.highlight}
                 className="flex flex-col rounded-2xl border border-surface-100 bg-white p-7"
               >
-                {/* Stars */}
-                <div className="flex gap-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className="h-4 w-4 fill-amber-400 text-amber-400"
-                    />
-                  ))}
-                </div>
-                <blockquote className="mt-4 flex-1 leading-relaxed text-surface-600">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-                <div className="mt-6 border-t border-surface-100 pt-4">
-                  <p className="font-semibold text-surface-900">
-                    {testimonial.name}
-                  </p>
-                  <p className="text-sm text-surface-500">
-                    {testimonial.role}
-                  </p>
-                </div>
+                <span className="w-fit rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600">
+                  {testimonial.highlight}
+                </span>
+                <p className="mt-4 flex-1 leading-relaxed text-surface-600">
+                  {testimonial.quote}
+                </p>
               </div>
             ))}
           </div>

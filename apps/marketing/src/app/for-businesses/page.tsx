@@ -12,7 +12,6 @@ import {
   Package,
   ChevronRight,
   CheckCircle2,
-  Star,
   Zap,
   Globe,
   FileSpreadsheet,
@@ -43,7 +42,7 @@ export default function ForBusinessesPage() {
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
             <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-400">
               <Building2 className="h-4 w-4" />
-              Trusted by 500+ businesses
+              Built for business delivery
             </div>
 
             <h1 className="hero-text-enter max-w-xl text-5xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
@@ -82,18 +81,18 @@ export default function ForBusinessesPage() {
             {/* Quick stats */}
             <div className="hero-text-enter-delay-3 mt-12 flex items-center gap-8 text-sm">
               <div className="text-center lg:text-left">
-                <p className="text-2xl font-bold text-white">99.5%</p>
-                <p className="text-surface-500">On-time delivery rate</p>
+                <p className="text-2xl font-bold text-white">Reliable</p>
+                <p className="text-surface-500">On-time delivery</p>
               </div>
               <div className="h-10 w-px bg-surface-800" />
               <div className="text-center lg:text-left">
-                <p className="text-2xl font-bold text-white">45 min</p>
-                <p className="text-surface-500">Average delivery time</p>
+                <p className="text-2xl font-bold text-white">Same-day</p>
+                <p className="text-surface-500">Delivery available</p>
               </div>
               <div className="hidden h-10 w-px bg-surface-800 sm:block" />
               <div className="hidden text-center sm:block lg:text-left">
-                <p className="text-2xl font-bold text-white">12</p>
-                <p className="text-surface-500">Cities covered</p>
+                <p className="text-2xl font-bold text-white">Growing</p>
+                <p className="text-surface-500">Cities across Ghana</p>
               </div>
             </div>
           </div>
@@ -312,9 +311,9 @@ export default function ForBusinessesPage() {
               {[
                 'Real-time GPS tracking on every delivery',
                 'Automatic SMS and push notifications to customers',
-                'Average pickup time under 15 minutes',
+                'Fast pickup times in covered zones',
                 'Verified, trained, and insured riders',
-                'Dedicated support with under 2 minute response time',
+                'Dedicated support when you need it',
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-left">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-500" />
@@ -623,55 +622,31 @@ export default function ForBusinessesPage() {
           <div className="stagger-children mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
+                highlight: 'Restaurants',
                 quote:
-                  'We switched to RiderGuy six months ago and our delivery complaints dropped by 70 percent. The tracking alone saves us hours of customer service calls every week.',
-                name: 'Ama Serwaa',
-                role: 'Operations Manager, FreshCart Ghana',
-                rating: 5.0,
+                  'Real-time tracking means your customers see exactly when their food is arriving. No more phone calls asking where the delivery is.',
               },
               {
+                highlight: 'E-commerce',
                 quote:
-                  'The API integration was seamless. Our developers had it running in a single afternoon. Now every order on our website automatically triggers a RiderGuy pickup.',
-                name: 'Daniel Osei',
-                role: 'CTO, ShopEasy',
-                rating: 4.9,
+                  'API integration lets you automate delivery from your website. Every order triggers a pickup automatically, with branded tracking pages for your customers.',
               },
               {
+                highlight: 'Pharmacies',
                 quote:
-                  'As a pharmacy, we need deliveries handled with care and discretion. RiderGuy riders are professional, on time, and our customers feel confident receiving their medications.',
-                name: 'Dr. Grace Mensah',
-                role: 'Owner, LifeCare Pharmacy',
-                rating: 5.0,
+                  'Sensitive packages handled with care and discretion. Photo proof of delivery and scheduled delivery windows give you and your customers peace of mind.',
               },
-            ].map((testimonial) => (
+            ].map((item) => (
               <div
-                key={testimonial.name}
+                key={item.highlight}
                 className="flex flex-col rounded-2xl border border-surface-100 bg-white p-7"
               >
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className="h-4 w-4 fill-amber-400 text-amber-400"
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm font-medium text-surface-600">
-                    {testimonial.rating}
-                  </span>
-                </div>
-                <blockquote className="mt-4 flex-1 leading-relaxed text-surface-600">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-                <div className="mt-6 border-t border-surface-100 pt-4">
-                  <p className="font-semibold text-surface-900">
-                    {testimonial.name}
-                  </p>
-                  <p className="text-sm text-surface-500">
-                    {testimonial.role}
-                  </p>
-                </div>
+                <span className="w-fit rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600">
+                  {item.highlight}
+                </span>
+                <p className="mt-4 flex-1 leading-relaxed text-surface-600">
+                  {item.quote}
+                </p>
               </div>
             ))}
           </div>
@@ -684,10 +659,10 @@ export default function ForBusinessesPage() {
       <section className="border-y border-surface-100 bg-surface-50 py-20">
         <div className="reveal mx-auto grid max-w-5xl grid-cols-2 gap-8 px-5 sm:px-8 lg:grid-cols-4 lg:px-10">
           {[
-            { value: '50,000+', label: 'Packages delivered' },
-            { value: '500+', label: 'Business partners' },
-            { value: '99.5%', label: 'On-time rate' },
-            { value: '4.9/5', label: 'Business satisfaction' },
+            { value: 'Same-day', label: 'Delivery available' },
+            { value: 'Growing', label: 'Business partners' },
+            { value: 'Reliable', label: 'On-time delivery' },
+            { value: 'Tracked', label: 'Every package' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <p className="text-3xl font-bold text-surface-900 sm:text-4xl">{stat.value}</p>
