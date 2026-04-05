@@ -2,125 +2,806 @@ import { Button } from '@riderguy/ui';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import {
+  Building2,
+  Code2,
+  BarChart3,
+  Truck,
+  ShieldCheck,
+  Headphones,
+  Package,
+  ChevronRight,
+  CheckCircle2,
+  Star,
+  Zap,
+  Globe,
+  FileSpreadsheet,
+  Users,
+  Clock,
+  ArrowRight,
+} from 'lucide-react';
+import { HomeClient } from '@/components/home-client';
 
 export const metadata: Metadata = {
   title: 'For Businesses — RiderGuy',
-  description: 'Integrate RiderGuy into your business for reliable, on-demand delivery.',
+  description:
+    'Reliable, on-demand delivery infrastructure for restaurants, e-commerce, pharmacies, and retail. API integration, real-time tracking, and dedicated support.',
 };
 
 export default function ForBusinessesPage() {
   return (
-    <>
-      {/* Hero */}
-      <section className="overflow-hidden py-16 px-6 lg:py-24">
-        <div className="mx-auto flex max-w-6xl flex-col-reverse items-center gap-10 lg:flex-row lg:gap-16">
-          <div className="flex-1 text-center lg:text-left">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              Delivery for <span className="text-brand-500">Your Business</span>
+    <HomeClient>
+      {/* ================================================================
+          HERO
+          ================================================================ */}
+      <section className="relative min-h-[85vh] overflow-hidden bg-surface-950">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(34,197,94,0.1),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_80%,rgba(34,197,94,0.08),transparent_60%)]" />
+
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 pb-20 pt-32 sm:px-8 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
+          {/* Left — Copy */}
+          <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
+            <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-400">
+              <Building2 className="h-4 w-4" />
+              Trusted by 500+ businesses
+            </div>
+
+            <h1 className="hero-text-enter max-w-xl text-5xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
+              Delivery{' '}
+              <span className="text-gradient">infrastructure</span>{' '}
+              for your business
             </h1>
-            <p className="mt-4 max-w-lg text-lg text-surface-500">
-              Whether you&#39;re an e-commerce store, restaurant, pharmacy, or retail
-              shop — RiderGuy provides reliable on-demand delivery your customers
-              will love.
+
+            <p className="hero-text-enter-delay-1 mt-6 max-w-lg text-lg leading-relaxed text-surface-400 sm:text-xl">
+              Whether you run a restaurant, an online store, a pharmacy, or a
+              retail shop, RiderGuy gives you fast, reliable delivery your
+              customers will love. No fleet required.
             </p>
-            <div className="mt-8">
-              <Button size="lg" asChild>
-                <Link href="/contact">Contact Sales</Link>
+
+            <div className="hero-text-enter-delay-2 mt-10 flex flex-wrap items-center gap-4">
+              <Button
+                size="lg"
+                className="rounded-full bg-brand-500 px-8 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600"
+                asChild
+              >
+                <Link href="/contact">
+                  Contact Sales
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                className="rounded-full border-surface-700 px-8 text-surface-300 hover:bg-surface-800 hover:text-white"
+                asChild
+              >
+                <Link href="#features">See Features</Link>
               </Button>
             </div>
-          </div>
-          <div className="flex-1">
-            <Image
-              src="/images/illustrations/hero-business.svg"
-              alt="Business delivery illustration"
-              width={480}
-              height={480}
-              className="mx-auto w-full max-w-sm lg:max-w-md"
-              priority
-            />
-          </div>
-        </div>
-      </section>
 
-      {/* Features — with side illustration */}
-      <section className="bg-surface-50 py-20 px-6">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col items-center gap-12 lg:flex-row lg:gap-16">
-            <div className="flex-shrink-0 order-last lg:order-first">
-              <Image
-                src="/images/illustrations/biker-business.svg"
-                alt="Business rider"
-                width={300}
-                height={300}
-                className="h-60 w-auto lg:h-72"
-              />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-center text-3xl font-bold lg:text-left">Built for Business</h2>
-              <div className="mt-8 grid gap-6 sm:grid-cols-2">
-                {[
-                  { title: 'API Integration', desc: 'Integrate delivery into your app or website with our REST API.' },
-                  { title: 'Bulk Orders', desc: 'Send hundreds of packages at once with CSV upload.' },
-                  { title: 'Dedicated Account Manager', desc: 'Priority support and a named contact for your business.' },
-                  { title: 'Custom Pricing', desc: 'Volume discounts and negotiated rates for high-volume senders.' },
-                  { title: 'Branded Tracking', desc: 'Customers get tracking pages with your brand, not ours.' },
-                  { title: 'Analytics Dashboard', desc: 'Track delivery performance, costs, and rider ratings.' },
-                ].map((item) => (
-                  <div key={item.title} className="rounded-xl border bg-white p-5">
-                    <h3 className="text-base font-semibold">{item.title}</h3>
-                    <p className="mt-1.5 text-sm text-surface-500">{item.desc}</p>
-                  </div>
-                ))}
+            {/* Quick stats */}
+            <div className="hero-text-enter-delay-3 mt-12 flex items-center gap-8 text-sm">
+              <div className="text-center lg:text-left">
+                <p className="text-2xl font-bold text-white">99.5%</p>
+                <p className="text-surface-500">On-time delivery rate</p>
+              </div>
+              <div className="h-10 w-px bg-surface-800" />
+              <div className="text-center lg:text-left">
+                <p className="text-2xl font-bold text-white">45 min</p>
+                <p className="text-surface-500">Average delivery time</p>
+              </div>
+              <div className="hidden h-10 w-px bg-surface-800 sm:block" />
+              <div className="hidden text-center sm:block lg:text-left">
+                <p className="text-2xl font-bold text-white">12</p>
+                <p className="text-surface-500">Cities covered</p>
               </div>
             </div>
           </div>
+
+          {/* Right — Illustration */}
+          <div className="hero-image-enter relative flex-1">
+            <div className="relative mx-auto w-full max-w-md">
+              <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 blur-3xl" />
+              <Image
+                src="/images/illustrations/biker-business.svg"
+                alt="Illustration of a RiderGuy rider delivering for a business partner"
+                width={520}
+                height={520}
+                className="relative z-10 w-full"
+                priority
+              />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Pricing teaser */}
-      <section id="pricing" className="py-20 px-6">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-10 lg:flex-row lg:gap-16">
-          <div className="flex-1 text-center lg:text-left">
-            <h2 className="text-3xl font-bold">Simple, Transparent Pricing</h2>
-            <p className="mt-2 text-surface-500">
-              Pay per delivery with no monthly fees. Volume discounts available for
-              businesses sending 100+ packages per month.
+      {/* ================================================================
+          SOCIAL PROOF — Industries served
+          ================================================================ */}
+      <section className="border-b border-surface-100 bg-white py-10">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <p className="text-center text-sm font-medium uppercase tracking-widest text-surface-400">
+            Powering delivery for businesses across Ghana
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
+            {[
+              { label: 'Restaurants', icon: '🍽️' },
+              { label: 'E-commerce', icon: '🛒' },
+              { label: 'Pharmacies', icon: '💊' },
+              { label: 'Retail Shops', icon: '🏪' },
+              { label: 'Grocery Stores', icon: '🥬' },
+              { label: 'Florists', icon: '💐' },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-2 text-surface-600">
+                <span className="text-xl">{item.icon}</span>
+                <span className="text-sm font-medium">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          HOW IT WORKS — Simple 3-step flow
+          ================================================================ */}
+      <section className="bg-white py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal mx-auto max-w-2xl text-center">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              How It Works
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+              Up and running in minutes
+            </h2>
+            <p className="mt-4 text-lg text-surface-500">
+              No complicated onboarding. No hardware to install. Just sign up,
+              request a pickup, and we handle the rest.
             </p>
-            <div className="mt-8">
-              <Button variant="outline" size="lg" asChild>
-                <Link href="/contact">Request a Quote</Link>
+          </div>
+
+          <div className="stagger-children mt-16 grid gap-8 lg:grid-cols-3">
+            {[
+              {
+                step: '01',
+                title: 'Create your business account',
+                desc: 'Sign up online and tell us about your business. Verification takes under 24 hours. No setup fees.',
+                icon: Building2,
+              },
+              {
+                step: '02',
+                title: 'Request a pickup',
+                desc: 'Use the dashboard, mobile app, or API to create a delivery. Enter the pickup and drop-off details and confirm.',
+                icon: Package,
+              },
+              {
+                step: '03',
+                title: 'We deliver, you grow',
+                desc: 'A verified rider picks up and delivers your package. Track it in real time. Your customer gets notified at every step.',
+                icon: Truck,
+              },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className="relative rounded-2xl border border-surface-100 bg-white p-8 transition-all hover:border-brand-200 hover:shadow-lg"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-lg font-bold text-white shadow-lg">
+                  {item.step}
+                </div>
+                <h3 className="mt-6 text-xl font-semibold text-surface-900">
+                  {item.title}
+                </h3>
+                <p className="mt-3 leading-relaxed text-surface-500">
+                  {item.desc}
+                </p>
+                <item.icon className="absolute right-6 top-6 h-8 w-8 text-surface-100" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          FEATURES — Everything you need
+          ================================================================ */}
+      <section id="features" className="bg-surface-50 py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal mx-auto max-w-2xl text-center">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              Platform Features
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+              Built for serious businesses
+            </h2>
+            <p className="mt-4 text-lg text-surface-500">
+              Everything you need to manage deliveries at scale, from a single
+              dashboard to a full API integration.
+            </p>
+          </div>
+
+          <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                icon: Code2,
+                title: 'API Integration',
+                desc: 'Connect your platform directly to RiderGuy with our RESTful API. Automate order creation, tracking, and webhooks.',
+                color: 'bg-brand-50 text-brand-600',
+              },
+              {
+                icon: FileSpreadsheet,
+                title: 'Bulk Orders',
+                desc: 'Upload hundreds of deliveries at once via CSV. Perfect for e-commerce fulfillment and batch dispatching.',
+                color: 'bg-blue-50 text-blue-600',
+              },
+              {
+                icon: Globe,
+                title: 'Branded Tracking',
+                desc: 'Your customers see your logo and brand colours on every tracking page. Their experience, your brand.',
+                color: 'bg-purple-50 text-purple-600',
+              },
+              {
+                icon: BarChart3,
+                title: 'Analytics Dashboard',
+                desc: 'Monitor delivery performance, average times, rider ratings, and cost breakdowns in real time.',
+                color: 'bg-amber-50 text-amber-600',
+              },
+              {
+                icon: Headphones,
+                title: 'Dedicated Account Manager',
+                desc: 'A named contact who understands your business. Priority support, quarterly reviews, and proactive guidance.',
+                color: 'bg-rose-50 text-rose-600',
+              },
+              {
+                icon: ShieldCheck,
+                title: 'Insurance and Compliance',
+                desc: 'Every delivery is covered by our insurance policy. Full compliance with local regulations, so you do not have to worry.',
+                color: 'bg-teal-50 text-teal-600',
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="group rounded-2xl border border-surface-100 bg-white p-7 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover"
+              >
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
+                  <item.icon className="h-6 w-6" />
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-surface-900">
+                  {item.title}
+                </h3>
+                <p className="mt-2 leading-relaxed text-surface-500">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          WHY RIDERGUY — Side-by-side with illustration
+          ================================================================ */}
+      <section className="relative overflow-hidden bg-white py-24 sm:py-32">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+          {/* Left — Illustration */}
+          <div className="reveal-left flex-1">
+            <div className="relative flex items-center justify-center rounded-3xl bg-surface-50 p-10">
+              <Image
+                src="/images/illustrations/maps-bike.svg"
+                alt="Illustration of RiderGuy delivery routing and coverage map"
+                width={480}
+                height={480}
+                className="w-full max-w-md"
+              />
+            </div>
+          </div>
+
+          {/* Right — Copy */}
+          <div className="reveal-right flex-1 text-center lg:text-left">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              Why RiderGuy
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+              Your customers deserve better delivery
+            </h2>
+            <p className="mt-6 text-lg leading-relaxed text-surface-500">
+              Late deliveries and poor communication cost you customers.
+              RiderGuy gives you a professional delivery fleet without the
+              overhead of managing one yourself.
+            </p>
+
+            <ul className="mt-8 space-y-4">
+              {[
+                'Real-time GPS tracking on every delivery',
+                'Automatic SMS and push notifications to customers',
+                'Average pickup time under 15 minutes',
+                'Verified, trained, and insured riders',
+                'Dedicated support with under 2 minute response time',
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-3 text-left">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-500" />
+                  <span className="text-surface-600">{item}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-10">
+              <Button
+                size="lg"
+                className="rounded-full bg-brand-500 px-8 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600"
+                asChild
+              >
+                <Link href="/contact">
+                  Get Started
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          INDUSTRY SOLUTIONS — Who we serve
+          ================================================================ */}
+      <section className="relative overflow-hidden bg-surface-950 py-24 sm:py-32">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(34,197,94,0.08),transparent_60%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal mx-auto max-w-2xl text-center">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
+              Industry Solutions
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              Tailored for your industry
+            </h2>
+            <p className="mt-4 text-lg text-surface-400">
+              We understand that a restaurant has different delivery needs than
+              a pharmacy. That is why we have built solutions specific to each
+              industry.
+            </p>
+          </div>
+
+          <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2">
+            {[
+              {
+                title: 'Restaurants and Food Service',
+                desc: 'Hot food stays hot. Our riders are trained in food handling, and our routing prioritises speed. Integrated with popular POS systems so orders flow directly into our system.',
+                features: ['POS integration', 'Temperature-sensitive handling', 'Peak hour surge capacity'],
+                icon: '🍽️',
+              },
+              {
+                title: 'E-commerce and Online Shops',
+                desc: 'Same-day and next-day delivery across all major cities. Bulk upload orders, print labels, and let us handle the last mile while your customers track every step.',
+                features: ['CSV bulk upload', 'Branded tracking pages', 'Return pickup service'],
+                icon: '🛒',
+              },
+              {
+                title: 'Pharmacies and Healthcare',
+                desc: 'Sensitive packages handled with care and confidentiality. Delivery confirmation with photo proof. Scheduled and on-demand options to fit your workflow.',
+                features: ['Confidential handling', 'Photo proof of delivery', 'Scheduled delivery windows'],
+                icon: '💊',
+              },
+              {
+                title: 'Retail and General Merchandise',
+                desc: 'From electronics to clothing to furniture, we handle parcels of all sizes. Coordinate multiple pickups from different locations and deliver to a single customer.',
+                features: ['Multi-pickup routes', 'Large parcel support', 'Cash on delivery option'],
+                icon: '🏪',
+              },
+            ].map((industry) => (
+              <div
+                key={industry.title}
+                className="rounded-2xl border border-surface-800 bg-surface-900/50 p-8 transition-all hover:border-brand-500/30"
+              >
+                <div className="flex items-start gap-4">
+                  <span className="text-3xl">{industry.icon}</span>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">
+                      {industry.title}
+                    </h3>
+                    <p className="mt-3 leading-relaxed text-surface-400">
+                      {industry.desc}
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {industry.features.map((f) => (
+                        <span
+                          key={f}
+                          className="rounded-full border border-surface-700 bg-surface-800/60 px-3 py-1 text-xs font-medium text-surface-300"
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          API SPOTLIGHT — Developer-friendly
+          ================================================================ */}
+      <section className="relative overflow-hidden bg-white py-24 sm:py-32">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row-reverse lg:gap-20 lg:px-10">
+          {/* Right — Illustration */}
+          <div className="reveal-right flex-1">
+            <div className="relative flex items-center justify-center rounded-3xl bg-surface-950 p-10">
+              <Image
+                src="/images/illustrations/biker-talk.svg"
+                alt="Illustration of a RiderGuy rider with smart technology integration"
+                width={480}
+                height={480}
+                className="w-full max-w-md"
+              />
+            </div>
+          </div>
+
+          {/* Left — Copy */}
+          <div className="reveal-left flex-1 text-center lg:text-left">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              For Developers
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+              Integrate in hours, not weeks
+            </h2>
+            <p className="mt-6 text-lg leading-relaxed text-surface-500">
+              Our RESTful API is designed for developers who value clean
+              documentation and predictable behaviour. Create deliveries,
+              track in real time, and receive webhook updates with just a
+              few lines of code.
+            </p>
+
+            <div className="mt-8 space-y-4">
+              {[
+                {
+                  icon: Code2,
+                  title: 'RESTful API',
+                  desc: 'Clean endpoints, consistent responses, and comprehensive error handling.',
+                },
+                {
+                  icon: Zap,
+                  title: 'Webhooks',
+                  desc: 'Get notified instantly when a delivery status changes. No polling required.',
+                },
+                {
+                  icon: Globe,
+                  title: 'SDKs and Libraries',
+                  desc: 'Official libraries for JavaScript, Python, and PHP. Community SDKs for more.',
+                },
+              ].map((feature) => (
+                <div key={feature.title} className="flex gap-4 text-left">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                    <feature.icon className="h-5 w-5 text-brand-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-surface-900">{feature.title}</h3>
+                    <p className="mt-1 text-sm text-surface-500">{feature.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-10">
+              <Button
+                variant="outline"
+                size="lg"
+                className="rounded-full border-surface-200 px-8 text-surface-700 hover:bg-surface-50"
+                asChild
+              >
+                <Link href="/contact">
+                  Request API Access
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          PRICING — Transparent, no hidden fees
+          ================================================================ */}
+      <section id="pricing" className="bg-surface-50 py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal mx-auto max-w-2xl text-center">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              Pricing
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+              Simple, transparent pricing
+            </h2>
+            <p className="mt-4 text-lg text-surface-500">
+              No monthly fees. No setup costs. Pay only for the deliveries you
+              make, with volume discounts as you grow.
+            </p>
+          </div>
+
+          <div className="stagger-children mx-auto mt-16 grid max-w-5xl gap-6 lg:grid-cols-3">
+            {[
+              {
+                name: 'Starter',
+                desc: 'For small businesses just getting started with delivery.',
+                price: 'Pay per delivery',
+                features: [
+                  'No minimum orders',
+                  'Real-time tracking',
+                  'SMS notifications',
+                  'Dashboard access',
+                  'Email support',
+                ],
+                cta: 'Get Started',
+                accent: false,
+              },
+              {
+                name: 'Growth',
+                desc: 'For businesses sending 100 or more packages per month.',
+                price: 'Volume discounts',
+                features: [
+                  'Everything in Starter',
+                  'Bulk order upload',
+                  'Branded tracking pages',
+                  'Priority rider matching',
+                  'Dedicated account manager',
+                ],
+                cta: 'Contact Sales',
+                accent: true,
+              },
+              {
+                name: 'Enterprise',
+                desc: 'For large operations that need full customisation.',
+                price: 'Custom pricing',
+                features: [
+                  'Everything in Growth',
+                  'API integration',
+                  'Webhook notifications',
+                  'Custom SLA agreements',
+                  'Quarterly business reviews',
+                ],
+                cta: 'Talk to Us',
+                accent: false,
+              },
+            ].map((plan) => (
+              <div
+                key={plan.name}
+                className={`flex flex-col rounded-2xl border p-8 transition-all ${
+                  plan.accent
+                    ? 'border-brand-200 bg-white shadow-xl ring-2 ring-brand-500/20'
+                    : 'border-surface-100 bg-white hover:border-brand-200 hover:shadow-lg'
+                }`}
+              >
+                {plan.accent && (
+                  <span className="mb-4 w-fit rounded-full bg-brand-500 px-3 py-1 text-xs font-semibold text-white">
+                    Most Popular
+                  </span>
+                )}
+                <h3 className="text-xl font-bold text-surface-900">{plan.name}</h3>
+                <p className="mt-2 text-sm text-surface-500">{plan.desc}</p>
+                <p className="mt-4 text-2xl font-bold text-brand-600">{plan.price}</p>
+
+                <ul className="mt-6 flex-1 space-y-3">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-500" />
+                      <span className="text-surface-600">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-8">
+                  <Button
+                    size="lg"
+                    className={`w-full rounded-full ${
+                      plan.accent
+                        ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600'
+                        : 'bg-surface-900 text-white hover:bg-surface-800'
+                    }`}
+                    asChild
+                  >
+                    <Link href="/contact">{plan.cta}</Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          TESTIMONIALS — Business partners
+          ================================================================ */}
+      <section className="bg-white py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal mx-auto max-w-2xl text-center">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              Testimonials
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
+              Trusted by businesses across Ghana
+            </h2>
+          </div>
+
+          <div className="stagger-children mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                quote:
+                  'We switched to RiderGuy six months ago and our delivery complaints dropped by 70 percent. The tracking alone saves us hours of customer service calls every week.',
+                name: 'Ama Serwaa',
+                role: 'Operations Manager, FreshCart Ghana',
+                rating: 5.0,
+              },
+              {
+                quote:
+                  'The API integration was seamless. Our developers had it running in a single afternoon. Now every order on our website automatically triggers a RiderGuy pickup.',
+                name: 'Daniel Osei',
+                role: 'CTO, ShopEasy',
+                rating: 4.9,
+              },
+              {
+                quote:
+                  'As a pharmacy, we need deliveries handled with care and discretion. RiderGuy riders are professional, on time, and our customers feel confident receiving their medications.',
+                name: 'Dr. Grace Mensah',
+                role: 'Owner, LifeCare Pharmacy',
+                rating: 5.0,
+              },
+            ].map((testimonial) => (
+              <div
+                key={testimonial.name}
+                className="flex flex-col rounded-2xl border border-surface-100 bg-white p-7"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className="h-4 w-4 fill-amber-400 text-amber-400"
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-medium text-surface-600">
+                    {testimonial.rating}
+                  </span>
+                </div>
+                <blockquote className="mt-4 flex-1 leading-relaxed text-surface-600">
+                  &ldquo;{testimonial.quote}&rdquo;
+                </blockquote>
+                <div className="mt-6 border-t border-surface-100 pt-4">
+                  <p className="font-semibold text-surface-900">
+                    {testimonial.name}
+                  </p>
+                  <p className="text-sm text-surface-500">
+                    {testimonial.role}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          NUMBERS — Proof at scale
+          ================================================================ */}
+      <section className="border-y border-surface-100 bg-surface-50 py-20">
+        <div className="reveal mx-auto grid max-w-5xl grid-cols-2 gap-8 px-5 sm:px-8 lg:grid-cols-4 lg:px-10">
+          {[
+            { value: '50,000+', label: 'Packages delivered' },
+            { value: '500+', label: 'Business partners' },
+            { value: '99.5%', label: 'On-time rate' },
+            { value: '4.9/5', label: 'Business satisfaction' },
+          ].map((stat) => (
+            <div key={stat.label} className="text-center">
+              <p className="text-3xl font-bold text-surface-900 sm:text-4xl">{stat.value}</p>
+              <p className="mt-1 text-sm text-surface-500">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ================================================================
+          FAQ — Business questions
+          ================================================================ */}
+      <section className="bg-white py-24 sm:py-32">
+        <div className="mx-auto max-w-3xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal text-center">
+            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+              FAQ
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
+              Common questions from businesses
+            </h2>
+          </div>
+
+          <div className="stagger-children mt-14 space-y-4">
+            {[
+              {
+                q: 'How long does it take to set up a business account?',
+                a: 'You can create your account in under five minutes. Verification typically completes within 24 hours. Once verified, you can start requesting deliveries immediately.',
+              },
+              {
+                q: 'Is there a minimum number of deliveries per month?',
+                a: 'No. There are no minimums and no monthly fees. You pay only for the deliveries you request. Volume discounts kick in automatically once you pass 100 deliveries per month.',
+              },
+              {
+                q: 'Can I integrate RiderGuy with my existing systems?',
+                a: 'Yes. Our REST API and webhook system let you connect your e-commerce platform, POS system, or custom application. We provide official SDKs for JavaScript, Python, and PHP.',
+              },
+              {
+                q: 'What happens if a delivery is late or a package is damaged?',
+                a: 'Every delivery is covered by our insurance policy. If a package is damaged or lost, we investigate and compensate you according to our service level agreement. Late deliveries are flagged and reviewed.',
+              },
+              {
+                q: 'Do you support cash on delivery?',
+                a: 'Yes. Riders can collect payment on your behalf and remit it to your account. Cash on delivery reconciliation is available in your dashboard within 24 hours.',
+              },
+              {
+                q: 'Which cities do you cover?',
+                a: 'We currently operate in 12 cities across Ghana, including Accra, Kumasi, Tamale, Takoradi, Cape Coast, and Sunyani. We are expanding to new cities every quarter.',
+              },
+            ].map((faq) => (
+              <div
+                key={faq.q}
+                className="rounded-2xl border border-surface-100 bg-white p-6"
+              >
+                <h3 className="font-semibold text-surface-900">{faq.q}</h3>
+                <p className="mt-2 leading-relaxed text-surface-500">
+                  {faq.a}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          FINAL CTA
+          ================================================================ */}
+      <section className="relative overflow-hidden bg-brand-500 py-24 sm:py-28">
+        <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-brand-400/30 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-brand-600/30 blur-3xl" />
+
+        <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-16 lg:px-10">
+          <div className="reveal flex-1 text-center lg:text-left">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              Ready to upgrade your delivery?
+            </h2>
+            <p className="mt-4 text-lg text-brand-100">
+              Join hundreds of businesses already using RiderGuy to deliver
+              faster, save money, and keep their customers happy. No setup
+              fees, no long-term contracts.
+            </p>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+              <Button
+                size="lg"
+                className="rounded-full bg-white px-10 text-brand-600 shadow-lg hover:bg-brand-50"
+                asChild
+              >
+                <Link href="/contact">
+                  Contact Sales
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                className="rounded-full border-white/40 px-10 text-white hover:border-transparent hover:bg-brand-600"
+                asChild
+              >
+                <Link href="#pricing">View Pricing</Link>
+              </Button>
+            </div>
+          </div>
+
           <div className="flex-shrink-0">
             <Image
               src="/images/illustrations/biker-business-trans.svg"
-              alt="Business delivery"
-              width={280}
-              height={280}
-              className="h-56 w-auto"
+              alt="Illustration of a RiderGuy business delivery rider"
+              width={320}
+              height={320}
+              className="w-64 lg:w-80"
             />
           </div>
         </div>
       </section>
-
-      {/* CTA */}
-      <section className="bg-brand-500 py-16 px-6 text-center text-white">
-        <h2 className="text-2xl font-bold">Let&#39;s grow together</h2>
-        <p className="mt-2 text-brand-100">
-          Talk to our sales team about how RiderGuy can power your delivery
-          operations.
-        </p>
-        <div className="mt-6">
-          <Button
-            size="lg"
-            className="bg-white text-brand-600 hover:bg-brand-50"
-            asChild
-          >
-            <Link href="/contact">Contact Sales</Link>
-          </Button>
-        </div>
-      </section>
-    </>
+    </HomeClient>
   );
 }
