@@ -180,6 +180,12 @@ export default function ForRidersPage() {
                 desc: 'Top-performing riders earn weekly bonuses and can advance to become zone captains with higher earnings.',
                 color: 'bg-teal-50 text-teal-600',
               },
+              {
+                icon: Bike,
+                title: 'Ride-to-Own Asset Support',
+                desc: 'Access our Ride-to-Own program to get your own motorcycle through affordable, structured payment plans.',
+                color: 'bg-emerald-50 text-emerald-600',
+              },
             ].map((item) => (
               <div
                 key={item.title}
@@ -544,7 +550,7 @@ export default function ForRidersPage() {
               },
               {
                 q: 'Do I need my own motorcycle?',
-                a: 'Yes, you need your own motorcycle or bicycle in good working condition. We are working on vehicle financing partnerships to help riders who need one.',
+                a: 'You can use your own motorcycle or bicycle, or take advantage of our Ride-to-Own Asset Support Program to get a motorcycle through affordable, structured payment plans.',
               },
               {
                 q: 'How quickly will I get verified?',
