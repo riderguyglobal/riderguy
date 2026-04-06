@@ -62,9 +62,9 @@ export default function ContactPage() {
   };
 
   return (
-    <section className="py-20 px-6">
+    <section className="px-4 py-14 sm:px-6 sm:py-20">
       <div className="mx-auto max-w-5xl">
-        <div className="flex flex-col items-center gap-10 lg:flex-row lg:items-start lg:gap-16">
+        <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-start lg:gap-16">
           {/* Left — illustration + info */}
           <div className="flex flex-col items-center gap-6 lg:items-start lg:w-2/5">
             <Image
@@ -72,13 +72,13 @@ export default function ContactPage() {
               alt="Contact us"
               width={320}
               height={320}
-              className="h-56 w-auto lg:h-64"
+              className="h-44 w-auto sm:h-56 lg:h-64"
             />
             <div className="text-center lg:text-left">
-              <h1 className="text-4xl font-bold tracking-tight">
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
                 Get in <span className="text-brand-500">Touch</span>
               </h1>
-              <p className="mt-4 text-lg text-surface-500">
+              <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
                 Have a question, partnership proposal, or just want to say hello?
                 Fill out the form and we&#39;ll get back to you within 24 hours.
               </p>
@@ -88,7 +88,7 @@ export default function ContactPage() {
           {/* Right — form */}
           <div className="flex-1 w-full lg:w-3/5">
             {success ? (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-8 text-center">
+              <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center sm:p-8">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-7 w-7 text-green-600">
                     <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
@@ -180,7 +180,7 @@ export default function ContactPage() {
         </div>
 
         {/* Contact info */}
-        <div className="mt-16 grid gap-6 sm:grid-cols-3 text-center">
+        <div className="mt-12 grid gap-5 text-center sm:mt-16 sm:grid-cols-3 sm:gap-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Email</h3>
             <p className="mt-1 text-sm text-surface-500">hello@myriderguy.com</p>

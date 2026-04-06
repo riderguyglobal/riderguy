@@ -38,7 +38,7 @@ export function SiteHeader() {
           : 'bg-transparent'
       }`}
     >
-      <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-18 sm:px-8 lg:px-10">
         {/* Logo */}
         <Link href="/" className="relative z-10 flex items-center gap-2.5">
           <Image
@@ -46,7 +46,7 @@ export function SiteHeader() {
             alt="RiderGuy"
             width={600}
             height={150}
-            className="h-10 w-auto"
+            className="h-8 w-auto sm:h-10"
             priority
           />
         </Link>
@@ -123,7 +123,7 @@ export function SiteHeader() {
           mobileOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="flex h-18 items-center justify-end px-5">
+        <div className="flex h-14 items-center justify-end px-4 sm:h-18 sm:px-5">
           <button
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-surface-500 hover:bg-surface-100"
             onClick={() => setMobileOpen(false)}
@@ -140,7 +140,7 @@ export function SiteHeader() {
             <Link
               key={link.href}
               href={link.href}
-              className="rounded-xl px-4 py-3.5 text-base font-medium text-surface-800 transition-colors hover:bg-brand-50 hover:text-brand-600"
+              className="rounded-xl px-4 py-3 text-[0.95rem] font-medium text-surface-800 transition-colors hover:bg-brand-50 hover:text-brand-600"
               onClick={() => setMobileOpen(false)}
             >
               {link.label}

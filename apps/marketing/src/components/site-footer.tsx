@@ -75,9 +75,9 @@ export function SiteFooter() {
       {/* Decorative top border */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-500/40 to-transparent" />
 
-      <div className="mx-auto max-w-7xl px-5 pb-10 pt-16 sm:px-8 lg:px-10">
+      <div className="mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-8 sm:pb-10 sm:pt-16 lg:px-10">
         {/* Top section: brand + links */}
-        <div className="grid gap-12 lg:grid-cols-12">
+        <div className="grid gap-8 sm:gap-12 lg:grid-cols-12">
           {/* Brand column */}
           <div className="lg:col-span-4">
             <Image
@@ -87,7 +87,7 @@ export function SiteFooter() {
               height={150}
               className="h-10 w-auto brightness-0 invert"
             />
-            <p className="mt-4 max-w-xs text-[15px] leading-relaxed text-surface-400">
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-surface-400 sm:mt-4 sm:text-[15px]">
               Fast, reliable, and trackable last-mile delivery connecting
               businesses and individuals with verified dispatch riders across
               Ghana.
@@ -133,7 +133,7 @@ export function SiteFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-surface-800 pt-8 sm:flex-row">
+        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-surface-800 pt-6 sm:mt-14 sm:gap-4 sm:pt-8 md:flex-row">
           <p className="text-sm text-surface-500">
             &copy; {new Date().getFullYear()} RiderGuy. All rights reserved.
           </p>

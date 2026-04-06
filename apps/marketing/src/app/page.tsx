@@ -24,16 +24,16 @@ export default function HomePage() {
       {/* ================================================================
           HERO — Full viewport, cinematic presentation
           ================================================================ */}
-      <section className="relative min-h-dvh overflow-hidden bg-white">
+      <section className="relative min-h-[80dvh] overflow-hidden bg-white lg:min-h-dvh">
         {/* Subtle green radial glow behind image */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[800px] w-[800px] rounded-full bg-brand-100/40 blur-3xl" />
-        <div className="absolute left-1/4 top-0 h-[400px] w-[400px] rounded-full bg-brand-50/60 blur-3xl" />
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[400px] w-[400px] rounded-full bg-brand-100/40 blur-3xl sm:h-[800px] sm:w-[800px]" />
+        <div className="absolute left-1/4 top-0 h-[200px] w-[200px] rounded-full bg-brand-50/60 blur-3xl sm:h-[400px] sm:w-[400px]" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-10 px-5 pb-20 pt-32 sm:px-8 lg:flex-row lg:gap-16 lg:px-10 lg:pb-24 lg:pt-36">
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 pb-12 pt-24 sm:gap-10 sm:px-8 sm:pb-20 sm:pt-32 lg:flex-row lg:gap-16 lg:px-10 lg:pb-24 lg:pt-36">
           {/* Left — Copy */}
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
             {/* Badge */}
-            <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-700">
+            <div className="hero-badge-enter mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
@@ -41,20 +41,20 @@ export default function HomePage() {
               Now live across Ghana
             </div>
 
-            <h1 className="hero-text-enter max-w-2xl text-5xl font-bold leading-[1.08] tracking-tight text-surface-950 sm:text-6xl lg:text-7xl">
+            <h1 className="hero-text-enter max-w-2xl text-[2rem] font-bold leading-[1.1] tracking-tight text-surface-950 sm:text-5xl lg:text-7xl">
               Your delivery,{' '}
               <span className="text-gradient">handled.</span>
             </h1>
 
-            <p className="hero-text-enter-delay-1 mt-6 max-w-lg text-lg leading-relaxed text-surface-500 sm:text-xl">
+            <p className="hero-text-enter-delay-1 mt-3 max-w-lg text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg lg:text-xl">
               RiderGuy connects you with verified dispatch riders for fast,
               reliable, and trackable deliveries across Ghanaian cities.
             </p>
 
-            <div className="hero-text-enter-delay-2 mt-10 flex flex-wrap items-center gap-4">
+            <div className="hero-text-enter-delay-2 mt-6 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
               <Button
                 size="lg"
-                className="rounded-full bg-brand-500 px-8 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600 hover:shadow-brand-500/30"
+                className="rounded-full bg-brand-500 px-6 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600 hover:shadow-brand-500/30 sm:px-8"
                 asChild
               >
                 <Link href="https://app.myriderguy.com/register">
@@ -65,7 +65,7 @@ export default function HomePage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full border-surface-300 px-8 text-surface-800 hover:bg-surface-50"
+                className="rounded-full border-surface-300 px-6 text-surface-800 hover:bg-surface-50 sm:px-8"
                 asChild
               >
                 <Link href="/for-riders">Become a Rider</Link>
@@ -73,17 +73,17 @@ export default function HomePage() {
             </div>
 
             {/* Trust signals */}
-            <div className="hero-text-enter-delay-3 mt-10 flex items-center gap-6 text-sm text-surface-500">
+            <div className="hero-text-enter-delay-3 mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-surface-500 sm:mt-10 sm:gap-x-6 sm:text-sm">
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-brand-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" />
                 Verified riders
               </div>
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-brand-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" />
                 Live tracking
               </div>
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-brand-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" />
                 Secure payments
               </div>
             </div>
@@ -145,16 +145,16 @@ export default function HomePage() {
           SOCIAL PROOF — Metrics strip
           ================================================================ */}
       <section className="relative border-y border-surface-100 bg-surface-50/80">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-5 py-14 sm:px-8 md:grid-cols-4 lg:px-10">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-8 sm:gap-6 sm:px-8 sm:py-14 md:grid-cols-4 lg:px-10">
           {[
             { value: 'Fast', label: 'Same-Day Delivery', icon: Package },
             { value: 'Verified', label: 'Trained Riders', icon: Bike },
             { value: 'Growing', label: 'Cities Across Ghana', icon: MapPin },
             { value: 'Tracked', label: 'Every Delivery', icon: Star },
           ].map((stat) => (
-            <div key={stat.label} className="flex flex-col items-center gap-2 text-center">
-              <stat.icon className="h-6 w-6 text-brand-500" />
-              <span className="text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
+            <div key={stat.label} className="flex flex-col items-center gap-1.5 text-center sm:gap-2">
+              <stat.icon className="h-5 w-5 text-brand-500 sm:h-6 sm:w-6" />
+              <span className="text-xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-4xl">
                 {stat.value}
               </span>
               <span className="text-sm text-surface-500">{stat.label}</span>
@@ -166,37 +166,37 @@ export default function HomePage() {
       {/* ================================================================
           HOW IT WORKS — Three elegant steps
           ================================================================ */}
-      <section id="how-it-works" className="bg-white py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section id="how-it-works" className="bg-white py-14 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:px-10">
           {/* Section header */}
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Simple Process
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               How It Works
             </h2>
-            <p className="mt-4 text-lg text-surface-500">
+            <p className="mt-3 text-base text-surface-500 sm:mt-4 sm:text-lg">
               Three straightforward steps from request to doorstep delivery.
             </p>
           </div>
 
           {/* Steps */}
-          <div className="stagger-children mt-16 grid items-start gap-8 lg:grid-cols-3 lg:gap-12">
+          <div className="stagger-children mt-10 grid items-start gap-4 sm:mt-16 sm:gap-8 lg:grid-cols-3 lg:gap-12">
             {/* Step 1 */}
-            <div className="group relative rounded-3xl border border-surface-100 bg-white p-8 transition-all hover:border-brand-200 hover:shadow-lg">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-xl font-bold text-white shadow-lg shadow-brand-500/20">
+            <div className="group relative rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:rounded-3xl sm:p-8">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-lg font-bold text-white shadow-lg shadow-brand-500/20 sm:h-14 sm:w-14 sm:rounded-2xl sm:text-xl">
                 1
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-surface-900">
+              <h3 className="mt-4 text-lg font-semibold text-surface-900 sm:mt-6 sm:text-xl">
                 Place Your Order
               </h3>
-              <p className="mt-3 leading-relaxed text-surface-500">
+              <p className="mt-2 text-sm leading-relaxed text-surface-500 sm:mt-3 sm:text-base">
                 Enter your pickup and drop-off locations, select your package
                 type, and receive an instant price estimate. Quick, transparent,
                 and straightforward.
               </p>
-              <div className="mt-6 flex items-center gap-3 text-sm text-surface-400">
+              <div className="mt-4 flex items-center gap-3 text-xs text-surface-400 sm:mt-6 sm:text-sm">
                 <div className="flex items-center gap-1.5">
                   <Zap className="h-3.5 w-3.5 text-brand-500" />
                   Instant pricing
@@ -209,19 +209,19 @@ export default function HomePage() {
             </div>
 
             {/* Step 2 */}
-            <div className="group relative rounded-3xl border border-surface-100 bg-white p-8 transition-all hover:border-brand-200 hover:shadow-lg">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-900 text-xl font-bold text-white shadow-lg shadow-surface-900/20">
+            <div className="group relative rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:rounded-3xl sm:p-8">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-900 text-lg font-bold text-white shadow-lg shadow-surface-900/20 sm:h-14 sm:w-14 sm:rounded-2xl sm:text-xl">
                 2
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-surface-900">
+              <h3 className="mt-4 text-lg font-semibold text-surface-900 sm:mt-6 sm:text-xl">
                 Rider Is Assigned
               </h3>
-              <p className="mt-3 leading-relaxed text-surface-500">
+              <p className="mt-2 text-sm leading-relaxed text-surface-500 sm:mt-3 sm:text-base">
                 A verified dispatch rider near you accepts the order. Watch them
                 approach in real time on an interactive map as they head to your
                 pickup point.
               </p>
-              <div className="mt-6 flex items-center gap-3 text-sm text-surface-400">
+              <div className="mt-4 flex items-center gap-3 text-xs text-surface-400 sm:mt-6 sm:text-sm">
                 <div className="flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5 text-brand-500" />
                   Verified
@@ -234,19 +234,19 @@ export default function HomePage() {
             </div>
 
             {/* Step 3 */}
-            <div className="group relative rounded-3xl border border-surface-100 bg-white p-8 transition-all hover:border-brand-200 hover:shadow-lg">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-xl font-bold text-white shadow-lg shadow-brand-500/20">
+            <div className="group relative rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:rounded-3xl sm:p-8">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-lg font-bold text-white shadow-lg shadow-brand-500/20 sm:h-14 sm:w-14 sm:rounded-2xl sm:text-xl">
                 3
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-surface-900">
+              <h3 className="mt-4 text-lg font-semibold text-surface-900 sm:mt-6 sm:text-xl">
                 Delivered and Confirmed
               </h3>
-              <p className="mt-3 leading-relaxed text-surface-500">
+              <p className="mt-2 text-sm leading-relaxed text-surface-500 sm:mt-3 sm:text-base">
                 Your package arrives at its destination. Delivery is confirmed
                 with photo proof and a unique PIN. Payment settles instantly.
                 That is it.
               </p>
-              <div className="mt-6 flex items-center gap-3 text-sm text-surface-400">
+              <div className="mt-4 flex items-center gap-3 text-xs text-surface-400 sm:mt-6 sm:text-sm">
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-brand-500" />
                   Photo proof
@@ -264,11 +264,11 @@ export default function HomePage() {
       {/* ================================================================
           DELIVERY IMAGE — Package handover showcase
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-24 sm:py-32">
+      <section className="relative overflow-hidden bg-surface-950 py-14 sm:py-24 lg:py-32">
         {/* Background pattern */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(34,197,94,0.08),transparent_70%)]" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
           {/* Left — Image */}
           <div className="reveal-left flex-1">
             <div className="relative">
@@ -288,17 +288,17 @@ export default function HomePage() {
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
               Reliable Delivery
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
               Every package matters.{' '}
               <span className="text-brand-400">Every time.</span>
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-surface-400">
+            <p className="mt-4 text-base leading-relaxed text-surface-400 sm:mt-6 sm:text-lg">
               Our riders are trained professionals who treat every package with
               care. From fragile documents to bulky parcels, your items are in
               safe, verified hands from pickup to doorstep.
             </p>
 
-            <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            <div className="mt-6 grid gap-4 sm:mt-10 sm:grid-cols-2 sm:gap-6">
               {[
                 {
                   icon: Shield,
@@ -339,22 +339,22 @@ export default function HomePage() {
       {/* ================================================================
           WHY RIDERGUY — Value propositions
           ================================================================ */}
-      <section className="bg-white py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section className="bg-white py-14 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+            <span className="text-xs font-semibold uppercase tracking-widest text-brand-600 sm:text-sm">
               Why Choose Us
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Built for Ghana. Built to deliver.
             </h2>
-            <p className="mt-4 text-lg text-surface-500">
+            <p className="mt-3 text-base text-surface-500 sm:mt-4 sm:text-lg">
               A logistics platform designed from the ground up for the realities
               of West African cities.
             </p>
           </div>
 
-          <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger-children mt-8 grid gap-3 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {[
               {
                 icon: Zap,
@@ -395,15 +395,15 @@ export default function HomePage() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="group relative rounded-2xl border border-surface-100 bg-white p-7 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover"
+                className="group relative rounded-xl border border-surface-100 bg-white p-4 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover sm:rounded-2xl sm:p-7"
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
-                  <item.icon className="h-6 w-6" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg sm:h-12 sm:w-12 sm:rounded-xl ${item.color}`}>
+                  <item.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-surface-900">
+                <h3 className="mt-3 text-base font-semibold text-surface-900 sm:mt-5 sm:text-lg">
                   {item.title}
                 </h3>
-                <p className="mt-2 leading-relaxed text-surface-500">
+                <p className="mt-1.5 text-sm leading-relaxed text-surface-500 sm:mt-2">
                   {item.desc}
                 </p>
               </div>
@@ -415,8 +415,8 @@ export default function HomePage() {
       {/* ================================================================
           FOR BUSINESSES — Side-by-side with business delivery image
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row-reverse lg:gap-20 lg:px-10">
+      <section className="relative overflow-hidden bg-surface-50 py-14 sm:py-24 lg:py-32">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-8 lg:flex-row-reverse lg:gap-20 lg:px-10">
           {/* Right — Image */}
           <div className="reveal-right flex-1">
             <div className="relative">
@@ -436,17 +436,17 @@ export default function HomePage() {
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               For Businesses
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Deliver more.{' '}
               <span className="text-gradient">Grow faster.</span>
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-surface-500">
+            <p className="mt-4 text-base leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
               Restaurants, pharmacies, e-commerce shops, and retailers use
               RiderGuy to handle their deliveries so they can focus on what they
               do best.
             </p>
 
-            <ul className="mt-8 space-y-4">
+            <ul className="mt-6 space-y-3 sm:mt-8 sm:space-y-4">
               {[
                 'Dedicated fleet management dashboard',
                 'API integration for your online store',
@@ -454,17 +454,17 @@ export default function HomePage() {
                 'Priority rider assignment for business customers',
                 'Real-time delivery analytics and reporting',
               ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-left">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-500" />
-                  <span className="text-surface-700">{item}</span>
+                <li key={item} className="flex items-start gap-2.5 text-left sm:gap-3">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-500 sm:h-5 sm:w-5" />
+                  <span className="text-sm text-surface-700 sm:text-base">{item}</span>
                 </li>
               ))}
             </ul>
 
-            <div className="mt-10 flex flex-wrap items-center gap-4">
+            <div className="mt-7 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
               <Button
                 size="lg"
-                className="rounded-full bg-surface-900 px-8 text-white hover:bg-surface-800 shadow-sm"
+                className="rounded-full bg-surface-900 px-6 text-white hover:bg-surface-800 shadow-sm sm:px-8"
                 asChild
               >
                 <Link href="/for-businesses">
@@ -488,8 +488,8 @@ export default function HomePage() {
       {/* ================================================================
           LIFESTYLE — Rider delivering groceries at doorstep
           ================================================================ */}
-      <section className="relative overflow-hidden bg-white py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+      <section className="relative overflow-hidden bg-white py-14 sm:py-24 lg:py-32">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
           {/* Left — Image */}
           <div className="reveal-left flex-1">
             <div className="img-zoom relative overflow-hidden rounded-3xl">
@@ -508,27 +508,27 @@ export default function HomePage() {
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Everyday Delivery
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               From market to doorstep
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-surface-500">
+            <p className="mt-4 text-base leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
               Whether it is fresh groceries from the market, a hot meal from
               your favourite restaurant, or an important document across town,
               RiderGuy brings it to your door with care and speed.
             </p>
 
-            <div className="mt-8 grid grid-cols-2 gap-6">
-              <div className="rounded-2xl bg-surface-50 p-5">
-                <Package className="h-7 w-7 text-brand-500" />
-                <h3 className="mt-3 font-semibold text-surface-900">Parcels</h3>
-                <p className="mt-1 text-sm text-surface-500">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-6">
+              <div className="rounded-xl bg-surface-50 p-4 sm:rounded-2xl sm:p-5">
+                <Package className="h-6 w-6 text-brand-500 sm:h-7 sm:w-7" />
+                <h3 className="mt-2 text-sm font-semibold text-surface-900 sm:mt-3 sm:text-base">Parcels</h3>
+                <p className="mt-1 text-xs text-surface-500 sm:text-sm">
                   Documents, gifts, and packages of all sizes.
                 </p>
               </div>
-              <div className="rounded-2xl bg-surface-50 p-5">
-                <Building2 className="h-7 w-7 text-brand-500" />
-                <h3 className="mt-3 font-semibold text-surface-900">Food</h3>
-                <p className="mt-1 text-sm text-surface-500">
+              <div className="rounded-xl bg-surface-50 p-4 sm:rounded-2xl sm:p-5">
+                <Building2 className="h-6 w-6 text-brand-500 sm:h-7 sm:w-7" />
+                <h3 className="mt-2 text-sm font-semibold text-surface-900 sm:mt-3 sm:text-base">Food</h3>
+                <p className="mt-1 text-xs text-surface-500 sm:text-sm">
                   Hot meals and groceries delivered fast.
                 </p>
               </div>
@@ -551,18 +551,18 @@ export default function HomePage() {
       {/* ================================================================
           TESTIMONIALS
           ================================================================ */}
-      <section className="bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section className="bg-surface-50 py-14 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+            <span className="text-xs font-semibold uppercase tracking-widest text-brand-600 sm:text-sm">
               Testimonials
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-4xl">
               What people love about RiderGuy
             </h2>
           </div>
 
-          <div className="stagger-children mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger-children mt-8 grid gap-3 sm:mt-14 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {[
               {
                 highlight: 'For Businesses',
@@ -582,12 +582,12 @@ export default function HomePage() {
             ].map((testimonial) => (
               <div
                 key={testimonial.highlight}
-                className="flex flex-col rounded-2xl border border-surface-100 bg-white p-7"
+                className="flex flex-col rounded-xl border border-surface-100 bg-white p-4 sm:rounded-2xl sm:p-7"
               >
                 <span className="w-fit rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600">
                   {testimonial.highlight}
                 </span>
-                <p className="mt-4 flex-1 leading-relaxed text-surface-600">
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-surface-600 sm:mt-4 sm:text-base">
                   {testimonial.quote}
                 </p>
               </div>
@@ -599,24 +599,24 @@ export default function HomePage() {
       {/* ================================================================
           FOR RIDERS — Join the team
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-24 sm:py-32">
+      <section className="relative overflow-hidden bg-surface-950 py-14 sm:py-24 lg:py-32">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(34,197,94,0.1),transparent_60%)]" />
 
-        <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-3xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
+            <span className="text-xs font-semibold uppercase tracking-widest text-brand-400 sm:text-sm">
               For Riders
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
               Ride with us. Earn with purpose.
             </h2>
-            <p className="mt-6 text-lg text-surface-400">
+            <p className="mt-4 text-base text-surface-400 sm:mt-6 sm:text-lg">
               Join a growing network of dispatch riders earning a fair income
               with flexible hours. You bring the bike, we bring the orders.
             </p>
           </div>
 
-          <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="stagger-children mt-8 grid grid-cols-2 gap-3 sm:mt-16 sm:gap-6 lg:grid-cols-4">
             {[
               {
                 icon: TrendingUp,
@@ -641,18 +641,18 @@ export default function HomePage() {
             ].map((perk) => (
               <div
                 key={perk.title}
-                className="rounded-2xl border border-surface-800 bg-surface-900/50 p-6 backdrop-blur-sm transition-all hover:border-brand-500/30 hover:bg-surface-800/50"
+                className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 backdrop-blur-sm transition-all hover:border-brand-500/30 hover:bg-surface-800/50 sm:rounded-2xl sm:p-6"
               >
-                <perk.icon className="h-7 w-7 text-brand-400" />
-                <h3 className="mt-4 font-semibold text-white">{perk.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-surface-400">
+                <perk.icon className="h-5 w-5 text-brand-400 sm:h-7 sm:w-7" />
+                <h3 className="mt-3 text-sm font-semibold text-white sm:mt-4 sm:text-base">{perk.title}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-surface-400 sm:mt-2 sm:text-sm">
                   {perk.desc}
                 </p>
               </div>
             ))}
           </div>
 
-          <div className="reveal mt-12 text-center">
+          <div className="reveal mt-8 text-center sm:mt-12">
             <Button
               size="lg"
               className="rounded-full bg-brand-500 px-10 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600"
@@ -670,23 +670,23 @@ export default function HomePage() {
       {/* ================================================================
           FINAL CTA
           ================================================================ */}
-      <section className="relative overflow-hidden bg-brand-500 py-24 sm:py-28">
+      <section className="relative overflow-hidden bg-brand-500 py-14 sm:py-24 lg:py-28">
         {/* Decorative circles */}
-        <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-brand-400/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-brand-600/30 blur-3xl" />
+        <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-brand-400/30 blur-3xl sm:h-80 sm:w-80" />
+        <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-brand-600/30 blur-3xl sm:h-80 sm:w-80" />
 
-        <div className="reveal relative mx-auto max-w-3xl px-5 text-center sm:px-8">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        <div className="reveal relative mx-auto max-w-3xl px-4 text-center sm:px-8">
+          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
             Ready to get moving?
           </h2>
-          <p className="mt-4 text-lg text-brand-100">
+          <p className="mt-3 text-base text-brand-100 sm:mt-4 sm:text-lg">
             Join thousands of businesses, individuals, and riders who trust
             RiderGuy for fast, reliable delivery across Ghana.
           </p>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3 sm:mt-10 sm:gap-4">
             <Button
               size="lg"
-              className="rounded-full bg-white px-10 text-brand-600 shadow-lg hover:bg-brand-50"
+              className="rounded-full bg-white px-8 text-brand-600 shadow-lg hover:bg-brand-50 sm:px-10"
               asChild
             >
               <Link href="https://app.myriderguy.com/register">

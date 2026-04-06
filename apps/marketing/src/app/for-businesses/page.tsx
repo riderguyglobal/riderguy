@@ -33,34 +33,34 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           HERO
           ================================================================ */}
-      <section className="relative min-h-[85vh] overflow-hidden bg-surface-950">
+      <section className="relative min-h-[70dvh] overflow-hidden bg-surface-950 sm:min-h-[85vh]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(34,197,94,0.1),transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_80%,rgba(34,197,94,0.08),transparent_60%)]" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 pb-20 pt-32 sm:px-8 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 pb-12 pt-24 sm:gap-12 sm:px-6 sm:pb-20 sm:pt-32 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
           {/* Left — Copy */}
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-400">
+            <div className="hero-badge-enter mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-400 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
               <Building2 className="h-4 w-4" />
               Built for business delivery
             </div>
 
-            <h1 className="hero-text-enter max-w-xl text-5xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            <h1 className="hero-text-enter max-w-xl text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-7xl">
               Delivery{' '}
               <span className="text-gradient">infrastructure</span>{' '}
               for your business
             </h1>
 
-            <p className="hero-text-enter-delay-1 mt-6 max-w-lg text-lg leading-relaxed text-surface-400 sm:text-xl">
+            <p className="hero-text-enter-delay-1 mt-3 max-w-lg text-[0.95rem] leading-relaxed text-surface-400 sm:mt-6 sm:text-lg">
               Whether you run a restaurant, an online store, a pharmacy, or a
               retail shop, RiderGuy gives you fast, reliable delivery your
               customers will love. No fleet required.
             </p>
 
-            <div className="hero-text-enter-delay-2 mt-10 flex flex-wrap items-center gap-4">
+            <div className="hero-text-enter-delay-2 mt-6 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
               <Button
                 size="lg"
-                className="rounded-full bg-brand-500 px-8 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600"
+                className="rounded-full bg-brand-500 px-6 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600 sm:px-8"
                 asChild
               >
                 <Link href="/contact">
@@ -71,7 +71,7 @@ export default function ForBusinessesPage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full border-surface-700 px-8 text-surface-300 hover:bg-surface-800 hover:text-white"
+                className="rounded-full border-surface-700 px-6 text-surface-300 hover:bg-surface-800 hover:text-white sm:px-8"
                 asChild
               >
                 <Link href="#features">See Features</Link>
@@ -79,15 +79,15 @@ export default function ForBusinessesPage() {
             </div>
 
             {/* Quick stats */}
-            <div className="hero-text-enter-delay-3 mt-12 flex items-center gap-8 text-sm">
+            <div className="hero-text-enter-delay-3 mt-6 flex items-center gap-4 text-xs sm:mt-12 sm:gap-8 sm:text-sm">
               <div className="text-center lg:text-left">
-                <p className="text-2xl font-bold text-white">Reliable</p>
-                <p className="text-surface-500">On-time delivery</p>
+                <p className="text-lg font-bold text-white sm:text-2xl">Reliable</p>
+                <p className="text-xs text-surface-500 sm:text-sm">On-time delivery</p>
               </div>
-              <div className="h-10 w-px bg-surface-800" />
+              <div className="h-8 w-px bg-surface-800 sm:h-10" />
               <div className="text-center lg:text-left">
-                <p className="text-2xl font-bold text-white">Same-day</p>
-                <p className="text-surface-500">Delivery available</p>
+                <p className="text-lg font-bold text-white sm:text-2xl">Same-day</p>
+                <p className="text-xs text-surface-500 sm:text-sm">Delivery available</p>
               </div>
               <div className="hidden h-10 w-px bg-surface-800 sm:block" />
               <div className="hidden text-center sm:block lg:text-left">
@@ -117,12 +117,12 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           SOCIAL PROOF — Industries served
           ================================================================ */}
-      <section className="border-b border-surface-100 bg-white py-10">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-          <p className="text-center text-sm font-medium uppercase tracking-widest text-surface-400">
+      <section className="border-b border-surface-100 bg-white py-6 sm:py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+          <p className="text-center text-xs font-medium uppercase tracking-widest text-surface-400 sm:text-sm">
             Powering delivery for businesses across Ghana
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 sm:mt-6 sm:gap-x-12 sm:gap-y-4">
             {[
               { label: 'Restaurants', icon: '🍽️' },
               { label: 'E-commerce', icon: '🛒' },
@@ -149,16 +149,16 @@ export default function ForBusinessesPage() {
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               How It Works
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Up and running in minutes
             </h2>
-            <p className="mt-4 text-lg text-surface-500">
+            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
               No complicated onboarding. No hardware to install. Just sign up,
               request a pickup, and we handle the rest.
             </p>
           </div>
 
-          <div className="stagger-children mt-16 grid gap-8 lg:grid-cols-3">
+          <div className="stagger-children mt-10 grid gap-4 sm:mt-16 sm:gap-8 lg:grid-cols-3">
             {[
               {
                 step: '01',
@@ -181,15 +181,15 @@ export default function ForBusinessesPage() {
             ].map((item) => (
               <div
                 key={item.step}
-                className="relative rounded-2xl border border-surface-100 bg-white p-8 transition-all hover:border-brand-200 hover:shadow-lg"
+                className="relative rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:p-8"
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-lg font-bold text-white shadow-lg">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-sm font-bold text-white shadow-lg sm:h-14 sm:w-14 sm:rounded-2xl sm:text-lg">
                   {item.step}
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-surface-900">
+                <h3 className="mt-4 text-lg font-semibold text-surface-900 sm:mt-6">
                   {item.title}
                 </h3>
-                <p className="mt-3 leading-relaxed text-surface-500">
+                <p className="mt-2 text-sm leading-relaxed text-surface-500 sm:mt-3 sm:text-base">
                   {item.desc}
                 </p>
                 <item.icon className="absolute right-6 top-6 h-8 w-8 text-surface-100" />
@@ -202,22 +202,22 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           FEATURES — Everything you need
           ================================================================ */}
-      <section id="features" className="bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section id="features" className="bg-surface-50 py-16 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Platform Features
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Built for serious businesses
             </h2>
-            <p className="mt-4 text-lg text-surface-500">
+            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
               Everything you need to manage deliveries at scale, from a single
               dashboard to a full API integration.
             </p>
           </div>
 
-          <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger-children mt-10 grid gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {[
               {
                 icon: Code2,
@@ -258,7 +258,7 @@ export default function ForBusinessesPage() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="group rounded-2xl border border-surface-100 bg-white p-7 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover"
+                className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover sm:p-7"
               >
                 <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
                   <item.icon className="h-6 w-6" />
@@ -278,11 +278,11 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           WHY RIDERGUY — Side-by-side with illustration
           ================================================================ */}
-      <section className="relative overflow-hidden bg-white py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+      <section className="relative overflow-hidden bg-white py-16 sm:py-24 lg:py-32">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
           {/* Left — Illustration */}
           <div className="reveal-left flex-1">
-            <div className="relative flex items-center justify-center rounded-3xl bg-surface-50 p-10">
+            <div className="relative flex items-center justify-center rounded-2xl bg-surface-50 p-6 sm:rounded-3xl sm:p-10">
               <Image
                 src="/images/illustrations/maps-bike.svg"
                 alt="Illustration of RiderGuy delivery routing and coverage map"
@@ -298,16 +298,16 @@ export default function ForBusinessesPage() {
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Why RiderGuy
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Your customers deserve better delivery
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-surface-500">
+            <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
               Late deliveries and poor communication cost you customers.
               RiderGuy gives you a professional delivery fleet without the
               overhead of managing one yourself.
             </p>
 
-            <ul className="mt-8 space-y-4">
+            <ul className="mt-5 space-y-3 sm:mt-8 sm:space-y-4">
               {[
                 'Real-time GPS tracking on every delivery',
                 'Automatic SMS and push notifications to customers',
@@ -341,25 +341,25 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           INDUSTRY SOLUTIONS — Who we serve
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-24 sm:py-32">
+      <section className="relative overflow-hidden bg-surface-950 py-16 sm:py-24 lg:py-32">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(34,197,94,0.08),transparent_60%)]" />
 
-        <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
               Industry Solutions
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
               Tailored for your industry
             </h2>
-            <p className="mt-4 text-lg text-surface-400">
+            <p className="mt-3 text-[0.95rem] text-surface-400 sm:mt-4 sm:text-lg">
               We understand that a restaurant has different delivery needs than
               a pharmacy. That is why we have built solutions specific to each
               industry.
             </p>
           </div>
 
-          <div className="stagger-children mt-16 grid gap-6 sm:grid-cols-2">
+          <div className="stagger-children mt-10 grid gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6">
             {[
               {
                 title: 'Restaurants and Food Service',
@@ -388,10 +388,10 @@ export default function ForBusinessesPage() {
             ].map((industry) => (
               <div
                 key={industry.title}
-                className="rounded-2xl border border-surface-800 bg-surface-900/50 p-8 transition-all hover:border-brand-500/30"
+                className="rounded-2xl border border-surface-800 bg-surface-900/50 p-5 transition-all hover:border-brand-500/30 sm:p-8"
               >
-                <div className="flex items-start gap-4">
-                  <span className="text-3xl">{industry.icon}</span>
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <span className="text-2xl sm:text-3xl">{industry.icon}</span>
                   <div>
                     <h3 className="text-xl font-semibold text-white">
                       {industry.title}
@@ -420,11 +420,11 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           API SPOTLIGHT — Developer-friendly
           ================================================================ */}
-      <section className="relative overflow-hidden bg-white py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row-reverse lg:gap-20 lg:px-10">
+      <section className="relative overflow-hidden bg-white py-16 sm:py-24 lg:py-32">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row-reverse lg:gap-20 lg:px-10">
           {/* Right — Illustration */}
           <div className="reveal-right flex-1">
-            <div className="relative flex items-center justify-center rounded-3xl bg-surface-950 p-10">
+            <div className="relative flex items-center justify-center rounded-2xl bg-surface-950 p-6 sm:rounded-3xl sm:p-10">
               <Image
                 src="/images/illustrations/biker-talk.svg"
                 alt="Illustration of a RiderGuy rider with smart technology integration"
@@ -440,10 +440,10 @@ export default function ForBusinessesPage() {
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               For Developers
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Integrate in hours, not weeks
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-surface-500">
+            <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
               Our RESTful API is designed for developers who value clean
               documentation and predictable behaviour. Create deliveries,
               track in real time, and receive webhook updates with just a
@@ -500,22 +500,22 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           PRICING — Transparent, no hidden fees
           ================================================================ */}
-      <section id="pricing" className="bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section id="pricing" className="bg-surface-50 py-16 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Pricing
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
               Simple, transparent pricing
             </h2>
-            <p className="mt-4 text-lg text-surface-500">
+            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
               No monthly fees. No setup costs. Pay only for the deliveries you
               make, with volume discounts as you grow.
             </p>
           </div>
 
-          <div className="stagger-children mx-auto mt-16 grid max-w-5xl gap-6 lg:grid-cols-3">
+          <div className="stagger-children mx-auto mt-10 grid max-w-5xl gap-4 sm:mt-16 sm:gap-6 lg:grid-cols-3">
             {[
               {
                 name: 'Starter',
@@ -562,7 +562,7 @@ export default function ForBusinessesPage() {
             ].map((plan) => (
               <div
                 key={plan.name}
-                className={`flex flex-col rounded-2xl border p-8 transition-all ${
+                className={`flex flex-col rounded-2xl border p-5 transition-all sm:p-8 ${
                   plan.accent
                     ? 'border-brand-200 bg-white shadow-xl ring-2 ring-brand-500/20'
                     : 'border-surface-100 bg-white hover:border-brand-200 hover:shadow-lg'
@@ -608,18 +608,18 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           TESTIMONIALS — Business partners
           ================================================================ */}
-      <section className="bg-white py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section className="bg-white py-16 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Testimonials
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl">
               Trusted by businesses across Ghana
             </h2>
           </div>
 
-          <div className="stagger-children mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger-children mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {[
               {
                 highlight: 'Restaurants',
@@ -656,8 +656,8 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           NUMBERS — Proof at scale
           ================================================================ */}
-      <section className="border-y border-surface-100 bg-surface-50 py-20">
-        <div className="reveal mx-auto grid max-w-5xl grid-cols-2 gap-8 px-5 sm:px-8 lg:grid-cols-4 lg:px-10">
+      <section className="border-y border-surface-100 bg-surface-50 py-12 sm:py-20">
+        <div className="reveal mx-auto grid max-w-5xl grid-cols-2 gap-4 px-4 sm:gap-8 sm:px-8 lg:grid-cols-4 lg:px-10">
           {[
             { value: 'Same-day', label: 'Delivery available' },
             { value: 'Growing', label: 'Business partners' },
@@ -665,7 +665,7 @@ export default function ForBusinessesPage() {
             { value: 'Tracked', label: 'Every package' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
-              <p className="text-3xl font-bold text-surface-900 sm:text-4xl">{stat.value}</p>
+              <p className="text-2xl font-bold text-surface-900 sm:text-3xl lg:text-4xl">{stat.value}</p>
               <p className="mt-1 text-sm text-surface-500">{stat.label}</p>
             </div>
           ))}
@@ -675,18 +675,18 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           FAQ — Business questions
           ================================================================ */}
-      <section className="bg-white py-24 sm:py-32">
-        <div className="mx-auto max-w-3xl px-5 sm:px-8 lg:px-10">
+      <section className="bg-white py-16 sm:py-24 lg:py-32">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-10">
           <div className="reveal text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               FAQ
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl">
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl">
               Common questions from businesses
             </h2>
           </div>
 
-          <div className="stagger-children mt-14 space-y-4">
+          <div className="stagger-children mt-10 space-y-3 sm:mt-14 sm:space-y-4">
             {[
               {
                 q: 'How long does it take to set up a business account?',
@@ -715,7 +715,7 @@ export default function ForBusinessesPage() {
             ].map((faq) => (
               <div
                 key={faq.q}
-                className="rounded-2xl border border-surface-100 bg-white p-6"
+                className="rounded-2xl border border-surface-100 bg-white p-4 sm:p-6"
               >
                 <h3 className="font-semibold text-surface-900">{faq.q}</h3>
                 <p className="mt-2 leading-relaxed text-surface-500">
@@ -730,16 +730,16 @@ export default function ForBusinessesPage() {
       {/* ================================================================
           FINAL CTA
           ================================================================ */}
-      <section className="relative overflow-hidden bg-brand-500 py-24 sm:py-28">
-        <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-brand-400/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-brand-600/30 blur-3xl" />
+      <section className="relative overflow-hidden bg-brand-500 py-16 sm:py-24 lg:py-28">
+        <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-brand-400/30 blur-3xl sm:h-80 sm:w-80" />
+        <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-brand-600/30 blur-3xl sm:h-80 sm:w-80" />
 
-        <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-16 lg:px-10">
+        <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-16 lg:px-10">
           <div className="reveal flex-1 text-center lg:text-left">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
               Ready to upgrade your delivery?
             </h2>
-            <p className="mt-4 text-lg text-brand-100">
+            <p className="mt-3 text-[0.95rem] text-brand-100 sm:mt-4 sm:text-lg">
               Join hundreds of businesses already using RiderGuy to deliver
               faster, save money, and keep their customers happy. No setup
               fees, no long-term contracts.
