@@ -63,6 +63,8 @@ export interface Order {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   paymentReference: string | null;
+  riderPaymentConfirmed: boolean;
+  actualPaymentMethod: PaymentMethod | null;
 
   // Status
   status: OrderStatus;

@@ -74,14 +74,28 @@ if (isRedisConfigured()) {
 
     logger.info('Rate limiter initialised with Redis backend');
   } catch {
-    logger.warn('Redis not available — using in-memory rate limiter');
+    if (config.isProduction) {
+      throw new Error(
+        'Redis connection failed for rate limiter in production. ' +
+        'In-memory rate limiting is unsafe behind a load balancer.'
+      );
+    }
+
+    logger.warn('Redis not available — using in-memory rate limiter (dev only)');
 
     globalLimiter = new RateLimiterMemory({ points: 100, duration: 60, keyPrefix: 'rl_global' });
     authLimiter = new RateLimiterMemory({ points: 10, duration: 60, keyPrefix: 'rl_auth' });
     sensitiveApiLimiter = new RateLimiterMemory({ points: 5, duration: 60, keyPrefix: 'rl_sensitive' });
   }
 } else {
-  logger.info('Redis not configured — using in-memory rate limiter');
+  if (config.isProduction) {
+    throw new Error(
+      'REDIS_URL is required in production for distributed rate limiting. ' +
+      'In-memory rate limiting is unsafe behind a load balancer.'
+    );
+  }
+
+  logger.info('Redis not configured — using in-memory rate limiter (dev only)');
 
   globalLimiter = new RateLimiterMemory({ points: 100, duration: 60, keyPrefix: 'rl_global' });
   authLimiter = new RateLimiterMemory({ points: 10, duration: 60, keyPrefix: 'rl_auth' });

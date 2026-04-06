@@ -60,4 +60,31 @@
 # Render auto-deploys on push to `main` branch.
 # To disable: Settings → Build & Deploy → Auto-Deploy = No
 #
+# ── REDIS REQUIREMENT (PRODUCTION) ───────────────────────────
+#
+# Redis (REDIS_URL) is REQUIRED in production. The API will
+# fail to start without it. The following features depend on it:
+#
+#   1. Rate Limiting (rate-limiter-flexible)
+#      - Without Redis, rate limits are per-instance only.
+#      - Behind a load balancer, attackers bypass limits by
+#        hitting different instances.
+#      - The API throws on startup if REDIS_URL is missing
+#        in production (see middleware/rate-limit.ts).
+#
+#   2. BullMQ Job Queues
+#      - Payout processing (Paystack transfers)
+#      - Email receipt generation
+#      - Commission tracking
+#      - Push notifications (FCM)
+#      - Data cleanup (LocationHistory retention purge, daily)
+#
+#   3. Socket.IO Adapter (future)
+#      - Required for multi-instance WebSocket support.
+#      - Without it, socket events are per-instance only.
+#
+# In development, all Redis-dependent features gracefully
+# degrade: rate limiting uses in-memory, BullMQ jobs become
+# no-ops (except push notifications which fire directly).
+#
 # ============================================================

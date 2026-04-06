@@ -27,6 +27,13 @@ export interface RiderProfile {
   lastLocationUpdate: Date | null;
   rewardPoints: number;
   referredByPartnerId: string | null;
+  // Presence tracking
+  lastHeartbeat: Date | null;
+  socketId: string | null;
+  isConnected: boolean;
+  sessionStartedAt: Date | null;
+  totalOnlineSeconds: number;
+  connectionQuality: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

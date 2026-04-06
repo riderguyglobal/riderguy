@@ -11,6 +11,7 @@ export interface User {
   lastName: string;
   avatarUrl: string | null;
   role: UserRole;
+  roles: UserRole[];
   status: AccountStatus;
   lastLoginAt: Date | null;
   createdAt: Date;

@@ -235,7 +235,7 @@ export class AuthService {
     if (input.email) {
       const emailExists = await prisma.user.findUnique({ where: { email: input.email } });
       if (emailExists) {
-        throw ApiError.conflict('A user with this email already exists', 'EMAIL_EXISTS');
+        throw ApiError.badRequest('Unable to create account. Please try a different email or log in.', 'REGISTRATION_FAILED');
       }
     }
 
@@ -405,7 +405,9 @@ export class AuthService {
     // ---- 1. Uniqueness check ----
     const existingEmail = await prisma.user.findUnique({ where: { email: input.email } });
     if (existingEmail) {
-      throw ApiError.conflict('A user with this email already exists', 'EMAIL_EXISTS');
+      // Return a generic message to prevent email enumeration attacks.
+      // Do NOT reveal whether the email is already registered.
+      throw ApiError.badRequest('Unable to create account. Please try a different email or log in.', 'REGISTRATION_FAILED');
     }
 
     // ---- 2. Hash password ----
@@ -431,7 +433,7 @@ export class AuthService {
       });
     } catch (err: any) {
       if (err?.code === 'P2002') {
-        throw ApiError.conflict('A user with this email already exists', 'EMAIL_EXISTS');
+        throw ApiError.badRequest('Unable to create account. Please try a different email or log in.', 'REGISTRATION_FAILED');
       }
       throw err;
     }

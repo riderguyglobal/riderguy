@@ -107,7 +107,6 @@ export enum PackageType {
 /** Proof of delivery method */
 export enum ProofOfDeliveryType {
   PHOTO = 'PHOTO',
-  SIGNATURE = 'SIGNATURE',
   PIN_CODE = 'PIN_CODE',
   LEFT_AT_DOOR = 'LEFT_AT_DOOR',
 }

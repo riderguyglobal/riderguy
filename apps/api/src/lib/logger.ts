@@ -3,6 +3,12 @@ import { config } from '../config';
 
 export const logger = pino({
   level: config.isProduction ? 'info' : 'debug',
+  redact: config.isProduction
+    ? {
+        paths: ['phone', 'email', 'to', '*.phone', '*.email', '*.to'],
+        censor: '[REDACTED]',
+      }
+    : undefined,
   transport: config.isProduction
     ? undefined
     : {

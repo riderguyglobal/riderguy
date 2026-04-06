@@ -37,6 +37,7 @@ let payoutWorker: Worker | null = null;
 let receiptWorker: Worker | null = null;
 let commissionWorker: Worker | null = null;
 let pushWorker: Worker | null = null;
+let cleanupWorker: Worker | null = null;
 
 // ── Start all workers (only when Redis is configured) ──
 
@@ -357,7 +358,42 @@ export async function startWorkers(): Promise<void> {
     logger.error({ jobId: job?.id, err: err.message }, 'Push notification job failed');
   });
 
-  logger.info('BullMQ workers started: payouts, receipts, commissions, push-notifications');
+  // ── Data Cleanup Worker — purges old LocationHistory records ──
+  cleanupWorker = new Worker(
+    'data-cleanup',
+    async (job: Job<{ retentionDays: number }>) => {
+      const retentionDays = job.data.retentionDays ?? 90;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+      const result = await prisma.locationHistory.deleteMany({
+        where: {
+          createdAt: { lt: cutoffDate },
+        },
+      });
+
+      logger.info(
+        { deletedCount: result.count, retentionDays, cutoffDate: cutoffDate.toISOString() },
+        'Location history cleanup completed'
+      );
+
+      return { deletedCount: result.count };
+    },
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  );
+
+  cleanupWorker.on('completed', (job: Job) => {
+    logger.info({ jobId: job.id }, 'Data cleanup job completed');
+  });
+
+  cleanupWorker.on('failed', (job: Job | undefined, err: Error) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Data cleanup job failed');
+  });
+
+  logger.info('BullMQ workers started: payouts, receipts, commissions, push-notifications, data-cleanup');
 }
 
 // ── Graceful shutdown ──
@@ -368,6 +404,7 @@ export async function stopWorkers(): Promise<void> {
   if (receiptWorker) closing.push(receiptWorker.close());
   if (commissionWorker) closing.push(commissionWorker.close());
   if (pushWorker) closing.push(pushWorker.close());
+  if (cleanupWorker) closing.push(cleanupWorker.close());
   if (closing.length > 0) {
     await Promise.all(closing);
     logger.info('BullMQ workers stopped');

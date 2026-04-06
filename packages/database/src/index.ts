@@ -33,6 +33,52 @@ function createPrismaClient(): PrismaClient {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
+// ── Soft Delete Middleware ──────────────────────────────────
+// Models with a `deletedAt` field get automatic soft delete:
+// - findMany/findFirst/findUnique filter out soft-deleted rows
+// - delete/deleteMany become updates that set deletedAt
+const SOFT_DELETE_MODELS = new Set(['User', 'Order', 'Wallet', 'Transaction']);
+
+prisma.$use(async (params, next) => {
+  if (!params.model || !SOFT_DELETE_MODELS.has(params.model)) {
+    return next(params);
+  }
+
+  // Intercept reads: exclude soft-deleted records by default
+  if (['findFirst', 'findMany', 'findUnique', 'findFirstOrThrow', 'findUniqueOrThrow'].includes(params.action)) {
+    if (!params.args) params.args = {};
+    if (!params.args.where) params.args.where = {};
+    // Allow explicitly querying deleted records with { deletedAt: { not: null } }
+    if (params.args.where.deletedAt === undefined) {
+      params.args.where.deletedAt = null;
+    }
+  }
+
+  // Intercept count: exclude soft-deleted records
+  if (params.action === 'count') {
+    if (!params.args) params.args = {};
+    if (!params.args.where) params.args.where = {};
+    if (params.args.where.deletedAt === undefined) {
+      params.args.where.deletedAt = null;
+    }
+  }
+
+  // Intercept delete: convert to soft delete
+  if (params.action === 'delete') {
+    params.action = 'update';
+    params.args.data = { deletedAt: new Date() };
+  }
+
+  // Intercept deleteMany: convert to soft delete
+  if (params.action === 'deleteMany') {
+    params.action = 'updateMany';
+    if (!params.args) params.args = {};
+    params.args.data = { deletedAt: new Date() };
+  }
+
+  return next(params);
+});
+
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }

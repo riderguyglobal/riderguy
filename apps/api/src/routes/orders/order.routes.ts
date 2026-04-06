@@ -78,6 +78,7 @@ router.use(authenticate);
 /** POST /orders/upload-photo — Upload a package photo/video (multipart) */
 router.post(
   '/upload-photo',
+  requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
   packagePhotoUpload.single('file'),
   asyncHandler(async (req, res) => {
     const file = req.file;

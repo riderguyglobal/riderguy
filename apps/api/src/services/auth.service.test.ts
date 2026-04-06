@@ -341,7 +341,7 @@ describe('AuthService', () => {
           email: TEST_EMAIL,
           role: 'RIDER' as any,
         }),
-      ).rejects.toThrow('A user with this email already exists');
+      ).rejects.toThrow('Unable to create account. Please try a different email or log in.');
     });
 
     it('should add a new role to existing user (multi-role)', async () => {

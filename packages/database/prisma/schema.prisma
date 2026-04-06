@@ -241,6 +241,7 @@ model User {
   lastLoginAt    DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
 
   // Relations
   riderProfile   RiderProfile?
@@ -691,6 +692,7 @@ model Order {
   cancelledAt           DateTime?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
+  deletedAt             DateTime?
 
   // Relations
   statusHistory         OrderStatusHistory[]
@@ -706,6 +708,8 @@ model Order {
   @@index([createdAt])
   @@index([scheduledDeliveryId])
   @@index([promoCodeId])
+  @@index([clientId, createdAt])
+  @@index([riderId, status])
   @@map("orders")
 }
 
@@ -750,7 +754,7 @@ model OrderStop {
   updatedAt         DateTime   @updatedAt
 
   @@index([orderId])
-  @@index([orderId, sequence])
+  @@unique([orderId, sequence])
   @@map("order_stops")
 }
 
@@ -884,6 +888,7 @@ model Wallet {
   isActive       Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
 
   // Relations
   transactions   Transaction[]
@@ -905,6 +910,7 @@ model Transaction {
   referenceType String?         // 'order', 'withdrawal', 'bonus'
   metadata      Json?
   createdAt     DateTime        @default(now())
+  deletedAt     DateTime?
 
   @@index([walletId])
   @@index([walletId, createdAt])

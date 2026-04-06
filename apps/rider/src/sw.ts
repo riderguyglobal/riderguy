@@ -76,15 +76,16 @@ interface QueuedLocation {
   latitude: number;
   longitude: number;
   timestamp: number;
-  token: string;
-  apiUrl: string;
 }
 
 // ── IndexedDB-backed queue (survives SW restarts) ───────────
+// Tokens are stored in a separate 'sw-config' store (single entry)
+// to avoid duplicating credentials across every queued location.
 
 const IDB_NAME = 'riderguy-sw';
 const IDB_STORE = 'location-queue';
-const IDB_VERSION = 1;
+const IDB_CONFIG_STORE = 'sw-config';
+const IDB_VERSION = 2;
 
 function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -94,10 +95,53 @@ function openIDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(IDB_STORE)) {
         db.createObjectStore(IDB_STORE, { autoIncrement: true });
       }
+      if (!db.objectStoreNames.contains(IDB_CONFIG_STORE)) {
+        db.createObjectStore(IDB_CONFIG_STORE);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+async function idbSetConfig(token: string, apiUrl: string): Promise<void> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_CONFIG_STORE, 'readwrite');
+    tx.objectStore(IDB_CONFIG_STORE).put({ token, apiUrl }, 'auth');
+    await new Promise<void>((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+  } catch {
+    // Silently fail
+  }
+}
+
+async function idbGetConfig(): Promise<{ token: string; apiUrl: string } | null> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_CONFIG_STORE, 'readonly');
+    const result = await new Promise<{ token: string; apiUrl: string } | null>((res, rej) => {
+      const req = tx.objectStore(IDB_CONFIG_STORE).get('auth');
+      req.onsuccess = () => res(req.result ?? null);
+      req.onerror = () => rej(req.error);
+    });
+    db.close();
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+async function idbClearConfig(): Promise<void> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_CONFIG_STORE, 'readwrite');
+    tx.objectStore(IDB_CONFIG_STORE).clear();
+    await new Promise<void>((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+  } catch {
+    // Silently fail
+  }
 }
 
 async function idbPush(item: QueuedLocation): Promise<void> {
@@ -150,11 +194,12 @@ self.addEventListener('message', (event) => {
       latitude: data.latitude,
       longitude: data.longitude,
       timestamp: Date.now(),
-      token: data.token,
-      apiUrl: data.apiUrl,
     };
 
-    // Store in IndexedDB (persistent across SW restarts)
+    // Store token + apiUrl once (overwritten each time, not duplicated per location)
+    idbSetConfig(data.token, data.apiUrl);
+
+    // Store location in IndexedDB (persistent across SW restarts)
     idbPush(item);
 
     // Try to sync immediately if online
@@ -180,6 +225,7 @@ self.addEventListener('message', (event) => {
   if (type === 'CLEAR_CACHES') {
     caches.delete('api-data').catch(() => {});
     idbClear(); // Clear any queued locations from the prior session
+    idbClearConfig(); // Clear stored auth token
   }
 
   // ── Persistent "Return to App" notification when rider opens external Maps ──
@@ -250,12 +296,19 @@ async function flushLocationQueue(): Promise<void> {
 
   if (!latest) return;
 
+  // Retrieve auth config (stored separately from location data)
+  const config = await idbGetConfig();
+  if (!config) {
+    console.warn('[SW] No auth config found, cannot flush location queue');
+    return;
+  }
+
   try {
-    await fetch(`${latest.apiUrl}/riders/location`, {
+    await fetch(`${config.apiUrl}/riders/location`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${latest.token}`,
+        Authorization: `Bearer ${config.token}`,
       },
       body: JSON.stringify({
         latitude: latest.latitude,

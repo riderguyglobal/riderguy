@@ -22,12 +22,27 @@ interface QueuedEvent {
   queuedAt: number;
 }
 
-const QUEUE_KEY = 'riderguy:socket_queue';
+const QUEUE_KEY_PREFIX = 'riderguy:socket_queue';
 const QUEUE_MAX_AGE_MS = 120_000; // Drop queued events older than 2 min
+
+/** Derive a user-scoped queue key from the current JWT to prevent cross-user leakage */
+function getQueueKey(): string {
+  try {
+    const token = tokenStorage.getAccessToken();
+    if (token) {
+      const parts = token.split('.');
+      if (parts.length === 3 && parts[1]) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload.sub) return `${QUEUE_KEY_PREFIX}:${payload.sub}`;
+      }
+    }
+  } catch { /* fall through */ }
+  return QUEUE_KEY_PREFIX;
+}
 
 function getOfflineQueue(): QueuedEvent[] {
   try {
-    const raw = sessionStorage.getItem(QUEUE_KEY);
+    const raw = sessionStorage.getItem(getQueueKey());
     if (!raw) return [];
     const items: QueuedEvent[] = JSON.parse(raw);
     const now = Date.now();
@@ -41,7 +56,7 @@ function enqueueOffline(event: string, data: unknown): void {
   const queue = getOfflineQueue();
   queue.push({ event, data, queuedAt: Date.now() });
   try {
-    sessionStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    sessionStorage.setItem(getQueueKey(), JSON.stringify(queue));
   } catch { /* storage full — skip */ }
 }
 
@@ -52,7 +67,7 @@ function flushOfflineQueue(s: Socket): void {
   for (const item of queue) {
     s.emit(item.event as any, item.data as any);
   }
-  try { sessionStorage.removeItem(QUEUE_KEY); } catch {}
+  try { sessionStorage.removeItem(getQueueKey()); } catch {}
 }
 
 /** Emit a critical event — queues if offline, sends immediately if connected */
@@ -78,7 +93,7 @@ export function disconnectSocket(): void {
     listenerCount = 0;
   }
   // Clear the offline queue so the next user doesn't replay stale events
-  try { sessionStorage.removeItem(QUEUE_KEY); } catch {}
+  try { sessionStorage.removeItem(getQueueKey()); } catch {}
 }
 
 function getOrCreateSocket(): Socket {

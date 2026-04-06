@@ -44,6 +44,7 @@ let payoutQueue: Queue | null = null;
 let receiptQueue: Queue | null = null;
 let commissionQueue: Queue | null = null;
 let pushQueue: Queue | null = null;
+let cleanupQueue: Queue | null = null;
 
 if (redisEnabled) {
   const redisConnection = parseRedisUrl(config.redis.url);
@@ -88,12 +89,30 @@ if (redisEnabled) {
     },
   });
 
+  cleanupQueue = new Queue('data-cleanup', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      removeOnComplete: { count: 50 },
+      removeOnFail: { count: 20 },
+      attempts: 2,
+      backoff: { type: 'exponential', delay: 10000 },
+    },
+  });
+
+  // Schedule daily location history cleanup at 3 AM
+  cleanupQueue.add('purge-location-history', { retentionDays: 90 }, {
+    repeat: { pattern: '0 3 * * *' }, // Daily at 03:00
+    jobId: 'daily-location-cleanup',
+  }).catch(() => {
+    logger.warn('Failed to schedule location history cleanup job');
+  });
+
   logger.info('BullMQ queues initialized (Redis connected)');
 } else {
   logger.warn('Redis not configured — BullMQ queues disabled. Set REDIS_URL to enable.');
 }
 
-export { payoutQueue, receiptQueue, commissionQueue, pushQueue };
+export { payoutQueue, receiptQueue, commissionQueue, pushQueue, cleanupQueue };
 
 // ── Job data interfaces ──
 
