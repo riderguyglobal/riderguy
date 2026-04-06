@@ -37,7 +37,7 @@ export default function AboutPage() {
         <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 pb-16 pt-24 sm:gap-12 sm:px-6 sm:pb-20 sm:pt-32 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
           {/* Left — Copy */}
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-400">
+            <div className="hero-badge-enter mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-400 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
               <Heart className="h-4 w-4" />
               Made in Ghana with purpose
             </div>
@@ -109,8 +109,8 @@ export default function AboutPage() {
 
           <div className="stagger-children mt-10 grid gap-5 sm:mt-16 sm:gap-8 lg:grid-cols-2">
             <div className="rounded-2xl border border-surface-100 bg-white p-6 transition-all hover:border-brand-200 hover:shadow-lg sm:p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
-                <Target className="h-7 w-7 text-brand-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 sm:h-14 sm:w-14 sm:rounded-2xl">
+                <Target className="h-6 w-6 text-brand-600 sm:h-7 sm:w-7" />
               </div>
               <h3 className="mt-5 text-xl font-bold text-surface-900 sm:mt-6 sm:text-2xl">Our Mission</h3>
               <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
@@ -123,9 +123,9 @@ export default function AboutPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-surface-100 bg-white p-10 transition-all hover:border-brand-200 hover:shadow-lg">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
-                <Eye className="h-7 w-7 text-brand-600" />
+            <div className="rounded-2xl border border-surface-100 bg-white p-6 transition-all hover:border-brand-200 hover:shadow-lg sm:p-10">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 sm:h-14 sm:w-14 sm:rounded-2xl">
+                <Eye className="h-6 w-6 text-brand-600 sm:h-7 sm:w-7" />
               </div>
               <h3 className="mt-5 text-xl font-bold text-surface-900 sm:mt-6 sm:text-2xl">Our Vision</h3>
               <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
@@ -145,7 +145,7 @@ export default function AboutPage() {
           OUR STORY — Side-by-side with photo
           ================================================================ */}
       <section className="relative overflow-hidden bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
           {/* Left — Photo */}
           <div className="reveal-left flex-1">
             <div className="img-zoom relative overflow-hidden rounded-3xl">
@@ -374,7 +374,7 @@ export default function AboutPage() {
           COMMUNITY IMPACT — Rider lifestyle photo
           ================================================================ */}
       <section className="relative overflow-hidden bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
           {/* Left — Photo */}
           <div className="reveal-left flex-1">
             <div className="img-zoom relative overflow-hidden rounded-3xl">

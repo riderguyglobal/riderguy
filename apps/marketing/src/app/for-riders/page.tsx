@@ -39,7 +39,7 @@ export default function ForRidersPage() {
         <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 pb-16 pt-24 sm:gap-12 sm:px-6 sm:pb-20 sm:pt-32 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
           {/* Left — Copy */}
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="hero-badge-enter mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-400">
+            <div className="hero-badge-enter mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-400 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
               <Bike className="h-4 w-4" />
               Now accepting rider applications
             </div>
@@ -319,10 +319,10 @@ export default function ForRidersPage() {
                 key={item.step}
                 className="relative rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:p-7"
               >
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-lg ${item.accent}`}>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-base font-bold text-white shadow-lg sm:h-14 sm:w-14 sm:rounded-2xl sm:text-lg ${item.accent}`}>
                   {item.step}
                 </div>
-                <h3 className="mt-6 text-lg font-semibold text-surface-900">
+                <h3 className="mt-4 text-base font-semibold text-surface-900 sm:mt-6 sm:text-lg">
                   {item.title}
                 </h3>
                 <p className="mt-3 leading-relaxed text-surface-500">
