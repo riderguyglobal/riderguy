@@ -9,8 +9,9 @@ import { phoneSchema, emailSchema, passwordSchema } from '@riderguy/validators';
 import {
   Phone, Mail, AlertCircle, Eye, EyeOff, ArrowRight, ArrowLeft,
   Fingerprint, KeyRound, MessageSquare, ShieldCheck, Smartphone,
-  ChevronRight,
+  ChevronRight, Package,
 } from 'lucide-react';
+import Image from 'next/image';
 
 type Tab = 'phone' | 'email';
 type Stage = 'input' | 'method-select' | 'pin' | 'otp' | 'biometric';
@@ -231,9 +232,9 @@ export default function LoginPage() {
   // Whether we're in the multi-stage phone flow (past the initial input)
   const inPhoneFlow = tab === 'phone' && stage !== 'input';
 
-  return (
+return (
     <div>
-      {/* â”€â”€ Back button (multi-step phone flow) â”€â”€ */}
+      {/* ── Back button (multi-step phone flow) ── */}
       {inPhoneFlow && (
         <button onClick={goBack} className="flex items-center gap-2 text-surface-400 hover:text-surface-900 transition-colors group mb-6">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -241,25 +242,32 @@ export default function LoginPage() {
         </button>
       )}
 
-      {/* â”€â”€ Heading (initial stage only) â”€â”€ */}
+      {/* ── Heading (initial stage only) ── */}
       {!inPhoneFlow && (
-        <div className="mb-10">
+        <div className="mb-8">
+          {/* Mobile illustration peek */}
+          <div className="lg:hidden flex justify-center mb-6">
+            <div className="relative">
+              <div className="absolute inset-0 scale-150 rounded-full bg-brand-500/[0.06] blur-2xl" />
+              <Image src="/images/illustrations/maps-bike.svg" alt="" width={120} height={120} className="relative w-24 h-24 animate-float" />
+            </div>
+          </div>
           <h1 className="text-3xl font-extrabold text-surface-900 tracking-tight leading-tight">Welcome back</h1>
-          <p className="text-surface-400 text-base mt-2">Sign in to your RiderGuy account</p>
+          <p className="text-surface-400 text-base mt-1.5">Sign in to your RiderGuy account</p>
         </div>
       )}
 
-      {/* â”€â”€ Error banner â”€â”€ */}
+      {/* ── Error banner ── */}
       {error && (
-        <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 animate-shake">
+        <div className="mb-5 p-3.5 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-2.5 animate-shake">
           <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <p className="text-sm text-red-600 leading-snug">{error}</p>
         </div>
       )}
 
-      {/* â”€â”€ Segmented toggle (initial stage) â”€â”€ */}
+      {/* ── Segmented pill toggle (initial stage) ── */}
       {!inPhoneFlow && (
-        <div className="flex gap-0 mb-8 border-b border-surface-200">
+        <div className="flex p-1 rounded-2xl bg-surface-50 border border-surface-100 mb-8">
           {([
             { key: 'phone' as Tab, icon: Phone, label: 'Phone' },
             { key: 'email' as Tab, icon: Mail, label: 'Email' },
@@ -267,10 +275,10 @@ export default function LoginPage() {
             <button
               key={key}
               onClick={() => { setTab(key); setError(''); setStage('input'); }}
-              className={`flex items-center justify-center gap-2 pb-3.5 px-6 text-base font-semibold transition-all border-b-2 -mb-px ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 tab === key
-                  ? 'text-brand-500 border-brand-500'
-                  : 'text-surface-400 border-transparent hover:text-surface-600'
+                  ? 'bg-white text-brand-600 shadow-sm'
+                  : 'text-surface-400 hover:text-surface-600'
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -280,20 +288,20 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â• Phone Tab â•â•â•â•â•â•â• */}
+      {/* ══════ Phone Tab ══════ */}
       {tab === 'phone' && (
         <>
-          {/* â”€â”€ Stage: Phone Input â”€â”€ */}
+          {/* ── Stage: Phone Input ── */}
           {stage === 'input' && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <label className="block text-base font-medium text-surface-600 mb-2.5">Phone number</label>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Phone number</label>
                 <PhoneInput value={phone} onValueChange={setPhone} placeholder="024 XXX XXXX" />
               </div>
               <button
                 onClick={handlePhoneContinue}
                 disabled={loading || !phone}
-                className="w-full h-[56px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-base transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(34,197,94,0.28)] hover:shadow-[0_4px_32px_rgba(34,197,94,0.42)]"
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.3)] hover:shadow-[0_6px_28px_rgba(34,197,94,0.4)]"
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -304,15 +312,15 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* â”€â”€ Stage: Method Selection â”€â”€ */}
+          {/* ── Stage: Method Selection ── */}
           {stage === 'method-select' && (
             <div className="space-y-3 animate-fade-in">
-              <div className="text-center mb-5">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
-                  <ShieldCheck className="h-5 w-5 text-brand-500" />
+              <div className="text-center mb-6">
+                <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-500/5 border border-brand-500/20 flex items-center justify-center">
+                  <ShieldCheck className="h-6 w-6 text-brand-500" />
                 </div>
-                <p className="text-sm font-semibold text-surface-900">Verify your identity</p>
-                <p className="text-surface-400 text-xs mt-1">
+                <p className="text-base font-bold text-surface-900">Verify your identity</p>
+                <p className="text-surface-400 text-sm mt-1">
                   Signing in as <span className="text-surface-600 font-medium">{phone}</span>
                 </p>
               </div>
@@ -321,16 +329,16 @@ export default function LoginPage() {
                 <button
                   onClick={handleBiometricLogin}
                   disabled={loading}
-                  className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-surface-50 border border-surface-200 hover:border-brand-500/40 hover:bg-brand-50 transition-all btn-press disabled:opacity-50 group"
+                  className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-r from-brand-50 to-white border border-brand-200/60 hover:border-brand-300 hover:shadow-md transition-all btn-press disabled:opacity-50 group"
                 >
-                  <div className="h-10 w-10 rounded-full bg-brand-500 flex items-center justify-center shrink-0 shadow-[0_0_16px_rgba(34,197,94,0.35)] group-hover:shadow-[0_0_24px_rgba(34,197,94,0.5)] transition-shadow">
+                  <div className="h-11 w-11 rounded-xl bg-brand-500 flex items-center justify-center shrink-0 shadow-[0_0_16px_rgba(34,197,94,0.35)] group-hover:shadow-[0_0_24px_rgba(34,197,94,0.5)] transition-shadow">
                     <Fingerprint className="h-5 w-5 text-white" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
                     <p className="text-surface-900 font-semibold text-sm">Fingerprint / Face ID</p>
-                    <p className="text-surface-400 text-xs">Quick and secure</p>
+                    <p className="text-surface-400 text-xs mt-0.5">Quick and secure</p>
                   </div>
-                  <span className="text-[10px] text-brand-400 font-bold px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 shrink-0">Fastest</span>
+                  <span className="text-[10px] text-brand-500 font-bold px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 shrink-0">Fastest</span>
                   <ChevronRight className="h-4 w-4 text-surface-300 shrink-0" />
                 </button>
               )}
@@ -339,14 +347,14 @@ export default function LoginPage() {
                 <button
                   onClick={() => { setError(''); setStage('pin'); }}
                   disabled={loading}
-                  className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-surface-50 border border-surface-200 hover:border-brand-500/40 hover:bg-brand-50 transition-all btn-press disabled:opacity-50 group"
+                  className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-white border border-surface-200 hover:border-brand-200 hover:bg-brand-50/30 hover:shadow-sm transition-all btn-press disabled:opacity-50 group"
                 >
-                  <div className="h-10 w-10 rounded-full bg-surface-100 border border-surface-200 flex items-center justify-center shrink-0">
-                    <KeyRound className="h-5 w-5 text-surface-600" />
+                  <div className="h-11 w-11 rounded-xl bg-surface-100 border border-surface-200 flex items-center justify-center shrink-0 group-hover:bg-brand-50 group-hover:border-brand-200 transition-colors">
+                    <KeyRound className="h-5 w-5 text-surface-500 group-hover:text-brand-500 transition-colors" />
                   </div>
                   <div className="text-left flex-1 min-w-0">
                     <p className="text-surface-900 font-semibold text-sm">Enter PIN</p>
-                    <p className="text-surface-400 text-xs">Your 6-digit security PIN</p>
+                    <p className="text-surface-400 text-xs mt-0.5">Your 6-digit security PIN</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-surface-300 shrink-0" />
                 </button>
@@ -355,28 +363,28 @@ export default function LoginPage() {
               <button
                 onClick={handleSendOtp}
                 disabled={loading}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-surface-50 border border-surface-200 hover:border-brand-500/40 hover:bg-brand-50 transition-all btn-press disabled:opacity-50 group"
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-white border border-surface-200 hover:border-brand-200 hover:bg-brand-50/30 hover:shadow-sm transition-all btn-press disabled:opacity-50 group"
               >
-                <div className="h-10 w-10 rounded-full bg-surface-100 border border-surface-200 flex items-center justify-center shrink-0">
-                  <MessageSquare className="h-5 w-5 text-surface-600" />
+                <div className="h-11 w-11 rounded-xl bg-surface-100 border border-surface-200 flex items-center justify-center shrink-0 group-hover:bg-brand-50 group-hover:border-brand-200 transition-colors">
+                  <MessageSquare className="h-5 w-5 text-surface-500 group-hover:text-brand-500 transition-colors" />
                 </div>
                 <div className="text-left flex-1 min-w-0">
                   <p className="text-surface-900 font-semibold text-sm">Send OTP</p>
-                  <p className="text-surface-400 text-xs">One-time code via SMS</p>
+                  <p className="text-surface-400 text-xs mt-0.5">One-time code via SMS</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-surface-300 shrink-0" />
               </button>
             </div>
           )}
 
-          {/* â”€â”€ Stage: PIN Entry â”€â”€ */}
+          {/* ── Stage: PIN Entry ── */}
           {stage === 'pin' && (
             <div className="space-y-5 animate-fade-in">
-              <div className="text-center mb-2">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-surface-50 border border-surface-200 flex items-center justify-center">
+              <div className="text-center p-5 rounded-2xl bg-surface-50/80 border border-surface-100 mb-1">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center shadow-sm">
                   <KeyRound className="h-5 w-5 text-surface-600" />
                 </div>
-                <p className="text-surface-900 font-semibold text-sm">Enter your PIN</p>
+                <p className="text-surface-900 font-bold text-sm">Enter your PIN</p>
                 <p className="text-surface-400 text-xs mt-1">
                   6-digit PIN for <span className="text-surface-600 font-medium">{phone}</span>
                 </p>
@@ -394,7 +402,7 @@ export default function LoginPage() {
               <button
                 onClick={() => handlePinComplete(pin)}
                 disabled={loading || pin.length < 6}
-                className="w-full h-[52px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_24px_rgba(34,197,94,0.25)]"
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -408,21 +416,21 @@ export default function LoginPage() {
                   Different method
                 </button>
                 <span className="text-surface-200">&middot;</span>
-                <Link href={`/forgot-pin?phone=${encodeURIComponent(phone)}`} className="text-amber-400 font-medium hover:text-amber-300 transition-colors">
+                <Link href={`/forgot-pin?phone=${encodeURIComponent(phone)}`} className="text-amber-500 font-medium hover:text-amber-400 transition-colors">
                   Forgot PIN?
                 </Link>
               </div>
             </div>
           )}
 
-          {/* â”€â”€ Stage: OTP Entry â”€â”€ */}
+          {/* ── Stage: OTP Entry ── */}
           {stage === 'otp' && (
             <div className="space-y-5 animate-fade-in">
-              <div className="text-center mb-2">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-surface-50 border border-surface-200 flex items-center justify-center">
+              <div className="text-center p-5 rounded-2xl bg-surface-50/80 border border-surface-100 mb-1">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center shadow-sm">
                   <Smartphone className="h-5 w-5 text-surface-600" />
                 </div>
-                <p className="text-surface-900 font-semibold text-sm">Enter verification code</p>
+                <p className="text-surface-900 font-bold text-sm">Enter verification code</p>
                 <p className="text-surface-400 text-xs mt-1">Sent to <span className="font-medium text-surface-600">{phone}</span></p>
               </div>
 
@@ -438,7 +446,7 @@ export default function LoginPage() {
               <button
                 onClick={() => handleOtpComplete(otp)}
                 disabled={loading || otp.length < 6}
-                className="w-full h-[52px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_24px_rgba(34,197,94,0.25)]"
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -462,19 +470,19 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* â”€â”€ Stage: Biometric â”€â”€ */}
+          {/* ── Stage: Biometric ── */}
           {stage === 'biometric' && (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center py-10">
-                <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-brand-500 flex items-center justify-center shadow-[0_0_40px_rgba(34,197,94,0.5)] animate-pulse">
-                  <Fingerprint className="h-8 w-8 text-white" />
+                <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-[0_0_50px_rgba(34,197,94,0.45)] animate-pulse">
+                  <Fingerprint className="h-9 w-9 text-white" />
                 </div>
                 <p className="text-surface-900 font-bold text-lg mb-1">Verifying identity&hellip;</p>
                 <p className="text-surface-400 text-sm">Use your fingerprint or Face ID</p>
               </div>
               <button
                 onClick={() => { setError(''); setStage('method-select'); }}
-                className="w-full h-11 rounded-xl border border-surface-200 text-surface-500 font-medium text-sm hover:bg-surface-100 hover:text-surface-900 transition-all btn-press"
+                className="w-full h-11 rounded-2xl border border-surface-200 text-surface-500 font-medium text-sm hover:bg-surface-50 hover:text-surface-900 transition-all btn-press"
               >
                 Cancel
               </button>
@@ -483,21 +491,21 @@ export default function LoginPage() {
         </>
       )}
 
-      {/* â•â•â•â•â•â•â• Email Tab â•â•â•â•â•â•â• */}
+      {/* ══════ Email Tab ══════ */}
       {tab === 'email' && (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-5 animate-fade-in">
           <div>
-            <label className="block text-base font-medium text-surface-600 mb-2.5">Email address</label>
+            <label className="block text-sm font-semibold text-surface-700 mb-2">Email address</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+              className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
             />
           </div>
           <div>
-            <label className="block text-base font-medium text-surface-600 mb-2.5">Password</label>
+            <label className="block text-sm font-semibold text-surface-700 mb-2">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -505,7 +513,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
                 onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
-                className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 pr-12 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+                className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 pr-12 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
               />
               <button
                 type="button"
@@ -524,7 +532,7 @@ export default function LoginPage() {
           <button
             onClick={handleEmailSubmit}
             disabled={loading || !email || !password}
-            className="w-full h-[56px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-base transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_24px_rgba(34,197,94,0.25)]"
+            className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
           >
             {loading ? (
               <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -535,13 +543,13 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* â”€â”€ Sign up link â”€â”€ */}
+      {/* ── Sign up link ── */}
       {!inPhoneFlow && (
-        <div className="mt-10 text-center">
-          <p className="text-base text-surface-400">
+        <div className="mt-10 pt-6 border-t border-surface-100 text-center">
+          <p className="text-sm text-surface-400">
             Don&apos;t have an account?{' '}
             <Link href="/register" className="text-brand-500 font-semibold hover:text-brand-400 transition-colors">
-              Sign up
+              Create account
             </Link>
           </p>
         </div>

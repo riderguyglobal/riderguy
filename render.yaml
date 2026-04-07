@@ -77,7 +77,7 @@ services:
       - key: MNOTIFY_API_KEY
         sync: false
       - key: MNOTIFY_SENDER_ID
-        value: Riderguy
+        value: RiderGuy
 
       # ── Email (SendGrid) ──
       - key: SENDGRID_API_KEY

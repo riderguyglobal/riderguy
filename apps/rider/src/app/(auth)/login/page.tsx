@@ -239,26 +239,28 @@ export default function LoginPage() {
     }
   };
 
-  return (
+return (
     <div>
       {/* ── Header area ── */}
       {stage === 'input' ? (
-        <div className="text-center space-y-4 mb-8">
-          {/* Rider illustration circle */}
-          <div className="relative mx-auto w-24 h-24">
-            <div className="absolute inset-0 rounded-full bg-brand-500/10 animate-pulse" />
-            <div className="relative w-full h-full rounded-full bg-gradient-to-br from-brand-500/20 to-brand-500/5 border border-brand-500/20 flex items-center justify-center overflow-hidden">
-              <Image
-                src="/images/illustrations/biker-train.svg"
-                alt=""
-                width={68}
-                height={68}
-                className="h-[68px] w-[68px] object-contain drop-shadow-sm"
-                priority
-              />
+        <div className="space-y-5 mb-8">
+          {/* Mobile: Rider illustration */}
+          <div className="lg:hidden flex justify-center">
+            <div className="relative">
+              <div className="absolute inset-0 scale-150 rounded-full bg-brand-500/[0.08] blur-2xl" />
+              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-500/5 border border-brand-500/20 flex items-center justify-center overflow-hidden">
+                <Image
+                  src="/images/illustrations/biker-train.svg"
+                  alt=""
+                  width={64}
+                  height={64}
+                  className="h-16 w-16 object-contain animate-float"
+                  priority
+                />
+              </div>
             </div>
           </div>
-          <div>
+          <div className="text-center lg:text-left">
             <h2 className="text-2xl font-extrabold text-primary tracking-tight">Welcome back, rider</h2>
             <p className="text-muted text-sm mt-1">Sign in to start delivering</p>
           </div>
@@ -272,7 +274,7 @@ export default function LoginPage() {
 
       {/* ── Error banner ── */}
       {error && (
-        <div className="mb-6 p-3 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2.5 animate-shake backdrop-blur-sm">
+        <div className="mb-6 p-3.5 rounded-2xl bg-danger-500/10 border border-danger-500/20 flex items-start gap-2.5 animate-shake">
           <AlertCircle className="h-4 w-4 text-danger-400 shrink-0 mt-0.5" />
           <p className="text-sm text-danger-300 leading-snug">{error}</p>
         </div>
@@ -310,9 +312,9 @@ export default function LoginPage() {
           </div>
 
           {tab === 'phone' ? (
-            <>
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <label className="block text-sm font-medium text-secondary mb-2">Phone Number</label>
+                <label className="block text-sm font-semibold text-secondary mb-2">Phone Number</label>
                 <PhoneInput value={phone} onValueChange={setPhone} />
               </div>
               <Button
@@ -323,11 +325,11 @@ export default function LoginPage() {
               >
                 Continue
               </Button>
-            </>
+            </div>
           ) : (
-            <>
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <label className="block text-sm font-medium text-secondary mb-2">Email</label>
+                <label className="block text-sm font-semibold text-secondary mb-2">Email</label>
                 <Input
                   type="email"
                   value={email}
@@ -337,7 +339,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-secondary mb-2">Password</label>
+                <label className="block text-sm font-semibold text-secondary mb-2">Password</label>
                 <div className="relative">
                   <Input
                     type={showPassword ? 'text' : 'password'}
@@ -369,11 +371,11 @@ export default function LoginPage() {
               >
                 Sign In
               </Button>
-            </>
+            </div>
           )}
 
-          {/* Divider + Sign up */}
-          <div className="pt-2">
+          {/* Sign up link */}
+          <div className="pt-3">
             <div className="relative flex items-center gap-4 mb-4">
               <div className="flex-1 h-px bg-themed" />
               <span className="text-xs text-subtle font-medium">or</span>
@@ -391,13 +393,13 @@ export default function LoginPage() {
 
       {/* ====== Stage: Method Selection ====== */}
       {stage === 'method-select' && (
-        <div className="space-y-3">
-          <div className="text-center mb-5">
+        <div className="space-y-3 animate-fade-in">
+          <div className="text-center mb-6">
             <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-brand-500/10 flex items-center justify-center ring-4 ring-brand-500/5">
               <ShieldCheck className="h-7 w-7 text-brand-400" />
             </div>
-            <p className="text-sm font-semibold text-primary mb-0.5">Verify your identity</p>
-            <p className="text-muted text-xs">
+            <p className="text-base font-bold text-primary mb-0.5">Verify your identity</p>
+            <p className="text-muted text-sm">
               Signing in as <span className="text-secondary font-medium">{phone}</span>
             </p>
           </div>
@@ -407,16 +409,16 @@ export default function LoginPage() {
             <button
               onClick={handleBiometricLogin}
               disabled={submitting}
-              className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-themed hover:border-brand-500/40 hover:bg-card-elevated transition-all group btn-press disabled:opacity-50"
+              className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-r from-brand-500/[0.08] to-transparent border border-brand-500/20 hover:border-brand-500/40 hover:shadow-md transition-all group btn-press disabled:opacity-50"
             >
-              <div className="h-11 w-11 rounded-xl gradient-brand flex items-center justify-center shrink-0 shadow-lg glow-brand group-hover:scale-105 transition-transform">
+              <div className="h-12 w-12 rounded-xl gradient-brand flex items-center justify-center shrink-0 shadow-lg glow-brand group-hover:scale-105 transition-transform">
                 <Fingerprint className="h-5 w-5 text-white" />
               </div>
               <div className="text-left flex-1 min-w-0">
                 <p className="text-primary font-semibold text-sm">Fingerprint / Face ID</p>
                 <p className="text-muted text-xs mt-0.5">Quick and secure</p>
               </div>
-              <div className="text-[10px] text-brand-400 font-bold px-2 py-1 rounded-lg bg-brand-500/10 shrink-0">
+              <div className="text-[10px] text-brand-400 font-bold px-2.5 py-1 rounded-lg bg-brand-500/10 shrink-0">
                 Fastest
               </div>
               <ChevronRight className="h-4 w-4 text-muted shrink-0" />
@@ -428,9 +430,9 @@ export default function LoginPage() {
             <button
               onClick={() => { setError(''); setStage('pin'); }}
               disabled={submitting}
-              className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-themed hover:border-emerald-500/40 hover:bg-card-elevated transition-all group btn-press disabled:opacity-50"
+              className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-card border border-themed hover:border-emerald-500/40 hover:shadow-sm transition-all group btn-press disabled:opacity-50"
             >
-              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <KeyRound className="h-5 w-5 text-emerald-400" />
               </div>
               <div className="text-left flex-1 min-w-0">
@@ -445,9 +447,9 @@ export default function LoginPage() {
           <button
             onClick={handleSendOtp}
             disabled={submitting}
-            className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-themed hover:border-blue-500/40 hover:bg-card-elevated transition-all group btn-press disabled:opacity-50"
+            className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-card border border-themed hover:border-blue-500/40 hover:shadow-sm transition-all group btn-press disabled:opacity-50"
           >
-            <div className="h-11 w-11 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <MessageSquare className="h-5 w-5 text-blue-400" />
             </div>
             <div className="text-left flex-1 min-w-0">
@@ -461,12 +463,12 @@ export default function LoginPage() {
 
       {/* ====== Stage: PIN Entry ====== */}
       {stage === 'pin' && (
-        <div className="space-y-5">
-          <div className="text-center glass-elevated rounded-2xl p-5">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center ring-4 ring-emerald-500/5">
+        <div className="space-y-5 animate-fade-in">
+          <div className="text-center glass-elevated rounded-2xl p-6">
+            <div className="mx-auto mb-3 h-13 w-13 rounded-2xl bg-emerald-500/10 flex items-center justify-center ring-4 ring-emerald-500/5">
               <KeyRound className="h-6 w-6 text-emerald-400" />
             </div>
-            <p className="text-primary font-semibold mb-0.5">Enter your PIN</p>
+            <p className="text-primary font-bold mb-0.5">Enter your PIN</p>
             <p className="text-muted text-xs">
               6-digit PIN for <span className="text-secondary font-medium">{phone}</span>
             </p>
@@ -511,12 +513,12 @@ export default function LoginPage() {
 
       {/* ====== Stage: OTP Entry ====== */}
       {stage === 'otp' && (
-        <div className="space-y-5">
-          <div className="text-center glass-elevated rounded-2xl p-5">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center ring-4 ring-blue-500/5">
+        <div className="space-y-5 animate-fade-in">
+          <div className="text-center glass-elevated rounded-2xl p-6">
+            <div className="mx-auto mb-3 h-13 w-13 rounded-2xl bg-blue-500/10 flex items-center justify-center ring-4 ring-blue-500/5">
               <MessageSquare className="h-6 w-6 text-blue-400" />
             </div>
-            <p className="text-primary font-semibold mb-0.5">Enter verification code</p>
+            <p className="text-primary font-bold mb-0.5">Enter verification code</p>
             <p className="text-secondary text-xs">
               Sent to <span className="font-medium">{phone}</span>
             </p>
@@ -565,12 +567,12 @@ export default function LoginPage() {
 
       {/* ====== Stage: Biometric in progress ====== */}
       {stage === 'biometric' && (
-        <div className="space-y-6">
-          <div className="text-center py-8">
+        <div className="space-y-6 animate-fade-in">
+          <div className="text-center py-10">
             <div className="mx-auto mb-5 h-20 w-20 rounded-3xl gradient-brand flex items-center justify-center shadow-lg glow-brand animate-pulse">
               <Fingerprint className="h-10 w-10 text-white" />
             </div>
-            <p className="text-primary font-bold text-lg mb-1">Verifying identity…</p>
+            <p className="text-primary font-bold text-lg mb-1">Verifying identity...</p>
             <p className="text-muted text-sm">
               Use your fingerprint or Face ID
             </p>

@@ -10,6 +10,7 @@ import {
   Sparkles, Smartphone, Eye, EyeOff, User,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
@@ -152,22 +153,27 @@ export default function RegisterPage() {
 
   const inPhoneFlow = tab === 'phone' && phoneStep !== 'phone';
 
-  // ---- Success screen ----
+// ---- Success screen ----
   if (success) {
     return (
       <div className="space-y-6">
-        <div className="text-center py-8 animate-scale-in">
+        <div className="text-center py-6 animate-scale-in">
+          {/* Illustration */}
           <div className="relative inline-flex mb-6">
+            <div className="absolute inset-0 scale-150 rounded-full bg-brand-500/[0.08] blur-2xl" />
+            <Image src="/images/illustrations/handing-over.svg" alt="" width={140} height={140} className="relative w-28 h-28" />
+          </div>
+          <div className="relative inline-flex mb-4">
             <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-2xl scale-150 animate-ping-soft" />
-            <div className="relative h-20 w-20 rounded-full bg-brand-500/10 border border-brand-500/30 flex items-center justify-center">
-              <CheckCircle className="h-10 w-10 text-brand-500" />
+            <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)]">
+              <CheckCircle className="h-8 w-8 text-white" />
             </div>
           </div>
           <h2 className="text-xl font-extrabold text-surface-900 mb-2">Welcome to RiderGuy!</h2>
           <p className="text-surface-400 text-sm mb-8">Your account is ready. Start sending packages now.</p>
           <button
             onClick={() => router.replace('/dashboard')}
-            className="h-[52px] px-8 rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-[15px] transition-all btn-press inline-flex items-center gap-2 shadow-[0_4px_24px_rgba(34,197,94,0.3)]"
+            className="h-[52px] px-8 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press inline-flex items-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.3)]"
           >
             <Sparkles className="h-4 w-4" />
             Go to Dashboard
@@ -188,21 +194,28 @@ export default function RegisterPage() {
       ) : (
         <button onClick={() => router.replace('/login')} className="flex items-center gap-2 text-surface-400 hover:text-surface-900 transition-colors group mb-6">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span className="text-sm font-medium">Back</span>
+          <span className="text-sm font-medium">Back to sign in</span>
         </button>
       )}
 
       {/* Heading (initial stage only) */}
       {!inPhoneFlow && (
-        <div className="mb-10">
+        <div className="mb-8">
+          {/* Mobile illustration */}
+          <div className="lg:hidden flex justify-center mb-5">
+            <div className="relative">
+              <div className="absolute inset-0 scale-150 rounded-full bg-brand-500/[0.06] blur-2xl" />
+              <Image src="/images/illustrations/handing-over.svg" alt="" width={100} height={100} className="relative w-20 h-20 animate-float" />
+            </div>
+          </div>
           <h1 className="text-3xl font-extrabold text-surface-900 tracking-tight leading-tight">Create account</h1>
-          <p className="text-surface-400 text-base mt-2">Join RiderGuy to start sending packages</p>
+          <p className="text-surface-400 text-base mt-1.5">Join RiderGuy to start sending packages</p>
         </div>
       )}
 
       {/* Error banner */}
       {error && (
-        <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 animate-shake">
+        <div className="mb-5 p-3.5 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-2.5 animate-shake">
           <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <p className="text-sm text-red-600 leading-snug">{error}</p>
         </div>
@@ -210,7 +223,7 @@ export default function RegisterPage() {
 
       {/* Tab toggle (initial stage only) */}
       {!inPhoneFlow && (
-        <div className="flex gap-0 mb-8 border-b border-surface-200">
+        <div className="flex p-1 rounded-2xl bg-surface-50 border border-surface-100 mb-8">
           {([
             { key: 'phone' as Tab, icon: Phone, label: 'Phone' },
             { key: 'email' as Tab, icon: Mail, label: 'Email' },
@@ -218,10 +231,10 @@ export default function RegisterPage() {
             <button
               key={key}
               onClick={() => { setTab(key); setError(''); setPhoneStep('phone'); }}
-              className={`flex items-center justify-center gap-2 pb-3.5 px-6 text-base font-semibold transition-all border-b-2 -mb-px ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 tab === key
-                  ? 'text-brand-500 border-brand-500'
-                  : 'text-surface-400 border-transparent hover:text-surface-600'
+                  ? 'bg-white text-brand-600 shadow-sm'
+                  : 'text-surface-400 hover:text-surface-600'
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -236,15 +249,15 @@ export default function RegisterPage() {
         <>
           {/* Phone input */}
           {phoneStep === 'phone' && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <label className="block text-base font-medium text-surface-600 mb-2.5">Phone number</label>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Phone number</label>
                 <PhoneInput value={phone} onValueChange={setPhone} placeholder="024 XXX XXXX" />
               </div>
               <button
                 onClick={handleSendOtp}
                 disabled={loading || !phone}
-                className="w-full h-[56px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-base transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(34,197,94,0.28)] hover:shadow-[0_4px_32px_rgba(34,197,94,0.42)]"
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.3)] hover:shadow-[0_6px_28px_rgba(34,197,94,0.4)]"
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -258,11 +271,11 @@ export default function RegisterPage() {
           {/* OTP verification */}
           {phoneStep === 'otp' && (
             <div className="space-y-5 animate-fade-in">
-              <div className="text-center mb-2">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-surface-50 border border-surface-200 flex items-center justify-center">
+              <div className="text-center p-5 rounded-2xl bg-surface-50/80 border border-surface-100 mb-1">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center shadow-sm">
                   <Smartphone className="h-5 w-5 text-surface-600" />
                 </div>
-                <p className="text-surface-900 font-semibold text-sm">Enter verification code</p>
+                <p className="text-surface-900 font-bold text-sm">Enter verification code</p>
                 <p className="text-surface-400 text-xs mt-1">Sent to <span className="font-medium text-surface-600">{phone}</span></p>
               </div>
               <OtpInput
@@ -275,12 +288,12 @@ export default function RegisterPage() {
               <button
                 onClick={() => handleVerifyOtp()}
                 disabled={loading || otp.length < 6}
-                className="w-full h-[52px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_24px_rgba(34,197,94,0.25)]"
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  'Verify & Create Account'
+                  'Verify'
                 )}
               </button>
               <div className="flex items-center justify-center">
@@ -298,34 +311,34 @@ export default function RegisterPage() {
           {/* Name collection */}
           {phoneStep === 'name' && (
             <div className="space-y-5 animate-fade-in">
-              <div className="text-center mb-2">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-surface-50 border border-surface-200 flex items-center justify-center">
+              <div className="text-center p-5 rounded-2xl bg-surface-50/80 border border-surface-100 mb-1">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center shadow-sm">
                   <User className="h-5 w-5 text-surface-600" />
                 </div>
-                <p className="text-surface-900 font-semibold text-sm">What&apos;s your name?</p>
+                <p className="text-surface-900 font-bold text-sm">What&apos;s your name?</p>
                 <p className="text-surface-400 text-xs mt-1">This helps us personalise your experience</p>
               </div>
               <div>
-                <label className="block text-base font-medium text-surface-600 mb-2.5">First name</label>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">First name</label>
                 <input
                   type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)}
                   placeholder="e.g. Kwame" autoFocus
-                  className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+                  className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-base font-medium text-surface-600 mb-2.5">Last name</label>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Last name</label>
                 <input
                   type="text" value={lastName} onChange={(e) => setLastName(e.target.value)}
                   placeholder="e.g. Mensah"
                   onKeyDown={(e) => e.key === 'Enter' && handlePhoneRegister()}
-                  className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+                  className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
                 />
               </div>
               <button
                 onClick={handlePhoneRegister}
                 disabled={loading || !firstName.trim() || !lastName.trim()}
-                className="w-full h-[52px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(34,197,94,0.25)]"
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -340,12 +353,12 @@ export default function RegisterPage() {
 
       {/* ======= EMAIL TAB ======= */}
       {tab === 'email' && (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-5 animate-fade-in">
           {/* Google button */}
           <button
             onClick={handleGoogleClick}
             disabled={loading}
-            className="w-full h-[56px] rounded-xl border border-surface-200 bg-white hover:bg-surface-50 text-surface-700 font-semibold text-base transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-3"
+            className="w-full h-[52px] rounded-2xl border border-surface-200 bg-white hover:bg-surface-50 text-surface-700 font-semibold text-sm transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-3 hover:shadow-sm"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -363,38 +376,38 @@ export default function RegisterPage() {
             <div className="flex-1 h-px bg-surface-200" />
           </div>
 
-          {/* Email + Password */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Name fields */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-base font-medium text-surface-600 mb-2.5">First name</label>
+              <label className="block text-sm font-semibold text-surface-700 mb-2">First name</label>
               <input
                 type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Kwame"
-                className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+                className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
               />
             </div>
             <div>
-              <label className="block text-base font-medium text-surface-600 mb-2.5">Last name</label>
+              <label className="block text-sm font-semibold text-surface-700 mb-2">Last name</label>
               <input
                 type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Mensah"
-                className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+                className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
               />
             </div>
           </div>
           <div>
-            <label className="block text-base font-medium text-surface-600 mb-2.5">Email address</label>
+            <label className="block text-sm font-semibold text-surface-700 mb-2">Email address</label>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
-              className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+              className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
             />
           </div>
           <div>
-            <label className="block text-base font-medium text-surface-600 mb-2.5">Password</label>
+            <label className="block text-sm font-semibold text-surface-700 mb-2">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
                 onKeyDown={(e) => e.key === 'Enter' && handleEmailRegister()}
-                className="w-full h-[56px] rounded-xl bg-surface-50 border border-surface-200 px-5 pr-12 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/50 transition-all"
+                className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 pr-12 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
               />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors p-1">
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -405,7 +418,7 @@ export default function RegisterPage() {
           <button
             onClick={handleEmailRegister}
             disabled={loading || !email || !password || !firstName.trim() || !lastName.trim()}
-            className="w-full h-[56px] rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-base transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(34,197,94,0.28)]"
+            className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.3)]"
           >
             {loading ? (
               <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -418,8 +431,8 @@ export default function RegisterPage() {
 
       {/* Sign in link */}
       {!inPhoneFlow && (
-        <div className="mt-10 text-center">
-          <p className="text-base text-surface-400">
+        <div className="mt-10 pt-6 border-t border-surface-100 text-center">
+          <p className="text-sm text-surface-400">
             Already have an account?{' '}
             <Link href="/login" className="text-brand-500 font-semibold hover:text-brand-400 transition-colors">
               Sign in

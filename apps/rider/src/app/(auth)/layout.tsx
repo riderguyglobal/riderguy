@@ -16,48 +16,60 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Deep cinematic gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#022c22] via-[#064e3b] to-[#011f18]" />
 
-        {/* Central radial glow — draws eye to illustration */}
-        <div className="absolute top-[28%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] rounded-full bg-emerald-500/[0.12] blur-[150px]" />
-        <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[280px] h-[180px] rounded-full bg-teal-400/[0.06] blur-[100px]" />
+        {/* Central radial glow */}
+        <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-emerald-500/[0.12] blur-[160px]" />
+        <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[300px] h-[200px] rounded-full bg-teal-400/[0.06] blur-[100px]" />
 
-        {/* Subtle grid texture */}
-        <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 0.5px, transparent 0)', backgroundSize: '32px 32px' }} />
+        {/* Subtle dot texture */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 0.5px, transparent 0)', backgroundSize: '28px 28px' }} />
 
-        {/* Content — centered vertically */}
-        <div className={`relative z-10 flex flex-col items-center justify-center w-full h-full px-10 xl:px-14 transition-opacity duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        {/* Content */}
+        <div className={`relative z-10 flex flex-col items-center justify-between w-full h-full px-10 xl:px-14 py-14 transition-opacity duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
 
-          {/* Logo */}
-          <div className="mb-8">
-            <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-36 xl:h-44 w-auto object-contain brightness-0 invert" priority />
+          {/* Top: Logo */}
+          <div className="self-start">
+            <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-10 w-auto brightness-0 invert" priority />
           </div>
 
-          {/* Illustration with ambient glow */}
-          <div className="relative w-72 h-72 xl:w-80 xl:h-80 mb-12">
-            <div className="absolute inset-0 scale-[1.6] rounded-full bg-emerald-400/[0.08] blur-3xl" />
-            <Image
-              src="/images/branding/biker-for-homepage.png"
-              alt=""
-              width={320}
-              height={320}
-              className="relative w-full h-full object-contain drop-shadow-2xl animate-float"
-              priority
-            />
+          {/* Center: Rider photo + tagline */}
+          <div className="flex flex-col items-center">
+            {/* Rider image with ambient glow */}
+            <div className="relative w-72 h-72 xl:w-80 xl:h-80 mb-10">
+              <div className="absolute inset-0 scale-[1.5] rounded-full bg-emerald-400/[0.08] blur-3xl" />
+              <Image
+                src="/images/branding/biker-for-homepage.png"
+                alt=""
+                width={320}
+                height={320}
+                className="relative w-full h-full object-contain drop-shadow-2xl animate-float"
+                priority
+              />
+            </div>
+
+            {/* Tagline */}
+            <div className="text-center space-y-1.5">
+              <p className="text-[2.25rem] xl:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
+                Deliver Safely.
+              </p>
+              <p className="text-[2.25rem] xl:text-[2.75rem] font-black tracking-tight leading-[1.1] bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 via-green-200 to-teal-300">
+                Earn More.
+              </p>
+              <p className="text-[2.25rem] xl:text-[2.75rem] font-black text-white/80 tracking-tight leading-[1.1]">
+                Prioritize Your Welfare.
+              </p>
+              <p className="text-[2.25rem] xl:text-[2.75rem] font-black text-white/25 tracking-tight leading-[1.1]">
+                Secure Your Future.
+              </p>
+            </div>
           </div>
 
-          {/* Tagline */}
-          <div className="text-center space-y-2" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
-            <p className="text-[2.5rem] xl:text-[3.25rem] font-black text-white tracking-tight leading-[1.1]">
-              Deliver Safely.
-            </p>
-            <p className="text-[2.5rem] xl:text-[3.25rem] font-black tracking-tight leading-[1.1] bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 via-green-200 to-teal-300 drop-shadow-sm">
-              Earn More.
-            </p>
-            <p className="text-[2.5rem] xl:text-[3.25rem] font-black text-white/90 tracking-tight leading-[1.1]">
-              Prioritize Your Welfare.
-            </p>
-            <p className="text-[2.5rem] xl:text-[3.25rem] font-black text-white/30 tracking-tight leading-[1.1]">
-              Secure Your Future.
-            </p>
+          {/* Bottom: Status badge */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </div>
+            <span className="text-white/40 text-[10px] tracking-[0.15em] uppercase font-medium">Rider Network Active</span>
           </div>
         </div>
       </div>
@@ -65,14 +77,24 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* ── Mobile header ── */}
       <div className="lg:hidden safe-area-top">
         <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-black" />
-          <div className="relative px-5 pt-4 pb-5 flex items-center justify-between">
+          <div className="absolute inset-0 bg-gradient-to-b from-[#022c22] to-[#064e3b]" />
+          {/* Ghost illustration */}
+          <div className="absolute -right-4 -bottom-2 opacity-[0.08] pointer-events-none">
+            <Image src="/images/illustrations/biker-train.svg" alt="" width={160} height={160} className="w-36 h-36" />
+          </div>
+          <div className="relative px-5 pt-4 pb-4 flex items-center justify-between">
             <Link href="/" className="btn-press">
               <div className="h-9 w-9 rounded-xl overflow-hidden ring-1 ring-white/10">
                 <Image src="/images/branding/logo-square.png" alt="RiderGuy" width={192} height={192} className="h-9 w-9 rounded-xl object-cover" priority />
               </div>
             </Link>
-            <span className="text-[11px] text-white/35 font-medium tracking-widest uppercase">Rider</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+              </div>
+              <span className="text-[10px] text-white/40 font-medium tracking-widest uppercase">Rider</span>
+            </div>
           </div>
         </div>
       </div>
