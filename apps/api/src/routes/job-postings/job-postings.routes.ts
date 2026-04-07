@@ -119,7 +119,7 @@ router.patch(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(updateJobSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const data = req.body;
 
     // If status is changing to PUBLISHED, set publishedAt
@@ -153,7 +153,7 @@ router.delete(
   authenticate,
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.jobPosting.delete({ where: { id } });
 
