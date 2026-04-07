@@ -31,56 +31,89 @@ function createPrismaClient(): PrismaClient {
   return new PrismaClient({ log: logConfig });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-// ── Soft Delete Middleware ──────────────────────────────────
+// ── Soft Delete Extension ───────────────────────────────────
 // Models with a `deletedAt` field get automatic soft delete:
 // - findMany/findFirst/findUnique filter out soft-deleted rows
 // - delete/deleteMany become updates that set deletedAt
-const SOFT_DELETE_MODELS = new Set(['User', 'Order', 'Wallet', 'Transaction']);
+// Uses Prisma Client extensions ($extends) since $use middleware
+// was removed in Prisma 5+.
 
-prisma.$use(async (params, next) => {
-  if (!params.model || !SOFT_DELETE_MODELS.has(params.model)) {
-    return next(params);
+function addSoftDeleteWhere(args: any) {
+  if (!args) args = {};
+  if (!args.where) args.where = {};
+  if (args.where.deletedAt === undefined) {
+    args.where.deletedAt = null;
   }
+  return args;
+}
 
-  // Intercept reads: exclude soft-deleted records by default
-  if (['findFirst', 'findMany', 'findUnique', 'findFirstOrThrow', 'findUniqueOrThrow'].includes(params.action)) {
-    if (!params.args) params.args = {};
-    if (!params.args.where) params.args.where = {};
-    // Allow explicitly querying deleted records with { deletedAt: { not: null } }
-    if (params.args.where.deletedAt === undefined) {
-      params.args.where.deletedAt = null;
-    }
-  }
-
-  // Intercept count: exclude soft-deleted records
-  if (params.action === 'count') {
-    if (!params.args) params.args = {};
-    if (!params.args.where) params.args.where = {};
-    if (params.args.where.deletedAt === undefined) {
-      params.args.where.deletedAt = null;
-    }
-  }
-
-  // Intercept delete: convert to soft delete
-  if (params.action === 'delete') {
-    params.action = 'update';
-    params.args.data = { deletedAt: new Date() };
-  }
-
-  // Intercept deleteMany: convert to soft delete
-  if (params.action === 'deleteMany') {
-    params.action = 'updateMany';
-    if (!params.args) params.args = {};
-    params.args.data = { deletedAt: new Date() };
-  }
-
-  return next(params);
+const softDeleteExtension = Prisma.defineExtension({
+  name: 'soft-delete',
+  query: {
+    user: {
+      findFirst({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findMany({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUnique({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findFirstOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUniqueOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      count({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      async delete({ args }) {
+        return prisma.user.update({ where: args.where, data: { deletedAt: new Date() } }) as any;
+      },
+      async deleteMany({ args }) {
+        return prisma.user.updateMany({ where: args?.where ?? {}, data: { deletedAt: new Date() } }) as any;
+      },
+    },
+    order: {
+      findFirst({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findMany({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUnique({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findFirstOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUniqueOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      count({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      async delete({ args }) {
+        return prisma.order.update({ where: args.where, data: { deletedAt: new Date() } }) as any;
+      },
+      async deleteMany({ args }) {
+        return prisma.order.updateMany({ where: args?.where ?? {}, data: { deletedAt: new Date() } }) as any;
+      },
+    },
+    wallet: {
+      findFirst({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findMany({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUnique({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findFirstOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUniqueOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      count({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      async delete({ args }) {
+        return prisma.wallet.update({ where: args.where, data: { deletedAt: new Date() } }) as any;
+      },
+      async deleteMany({ args }) {
+        return prisma.wallet.updateMany({ where: args?.where ?? {}, data: { deletedAt: new Date() } }) as any;
+      },
+    },
+    transaction: {
+      findFirst({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findMany({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUnique({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findFirstOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      findUniqueOrThrow({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      count({ args, query }) { return query(addSoftDeleteWhere(args)); },
+      async delete({ args }) {
+        return prisma.transaction.update({ where: args.where, data: { deletedAt: new Date() } }) as any;
+      },
+      async deleteMany({ args }) {
+        return prisma.transaction.updateMany({ where: args?.where ?? {}, data: { deletedAt: new Date() } }) as any;
+      },
+    },
+  },
 });
 
+const basePrisma = globalForPrisma.prisma ?? createPrismaClient();
+export const prisma = basePrisma.$extends(softDeleteExtension) as unknown as PrismaClient;
+
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+  globalForPrisma.prisma = basePrisma;
 }
 
 // Graceful shutdown — disconnect from DB on process exit
