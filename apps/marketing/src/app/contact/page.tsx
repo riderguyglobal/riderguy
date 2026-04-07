@@ -62,7 +62,7 @@ export default function ContactPage() {
   };
 
   return (
-    <section className="px-4 py-14 sm:px-6 sm:py-20">
+    <section className="px-4 pt-28 pb-14 sm:px-6 sm:pt-32 sm:pb-20">
       <div className="mx-auto max-w-5xl">
         <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-start lg:gap-16">
           {/* Left — illustration + info */}

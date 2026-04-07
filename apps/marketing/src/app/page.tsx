@@ -481,7 +481,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="stagger-children mt-12 grid grid-cols-2 gap-4 sm:mt-16 sm:gap-6 lg:grid-cols-4">
+          <div className="stagger-children mt-12 grid grid-cols-1 gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
             {[
               { icon: TrendingUp, title: 'Fair, Transparent Pay', desc: 'See exactly how much you earn per trip before accepting. No hidden deductions, ever.' },
               { icon: Shield, title: 'Insurance Coverage', desc: 'Ride with confidence knowing you are covered. Accident and liability insurance included.' },

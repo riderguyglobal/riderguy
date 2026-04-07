@@ -32,7 +32,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="bg-white font-sans text-surface-900 antialiased">
+      <body className="overflow-x-hidden bg-white font-sans text-surface-900 antialiased">
         <SiteHeader />
         <main>{children}</main>
         <SiteFooter />

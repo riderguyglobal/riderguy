@@ -39,7 +39,7 @@ export default async function RiderStoriesPage() {
   return (
     <>
       {/* Hero */}
-      <section className="py-16 px-6 lg:py-24 text-center">
+      <section className="pt-28 pb-16 px-6 lg:pt-32 lg:pb-24 text-center">
         <div className="mx-auto max-w-3xl">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
             Rider <span className="text-brand-500">Spotlight</span>

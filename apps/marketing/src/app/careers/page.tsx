@@ -54,7 +54,7 @@ export default async function CareersPage() {
       {/* ================================================================
           HERO
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-36">
+      <section className="relative overflow-hidden bg-surface-950 pt-28 pb-20 sm:pt-36 sm:pb-28 lg:pt-44 lg:pb-36">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(34,197,94,0.1),transparent_60%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(34,197,94,0.06),transparent_50%)]" />
 
