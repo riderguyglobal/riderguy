@@ -112,12 +112,16 @@ export class SmsService {
     }
   }
 
-  // ---- Convenience: send OTP SMS ----
+  // ---- Convenience: send OTP SMS (with 1 retry) ----
   static async sendOtp(phone: string, code: string): Promise<boolean> {
-    return this.send({
-      to: phone,
-      message: `Your RiderGuy verification code is: ${code}. It expires in 5 minutes. Do not share this code with anyone.\n\n@app.myriderguy.com #${code}`,
-    });
+    const message = `Your RiderGuy verification code is: ${code}. It expires in 5 minutes. Do not share this code with anyone.\n\n@app.myriderguy.com #${code}`;
+    const sent = await this.send({ to: phone, message });
+    if (sent) return true;
+
+    // One retry after a brief delay
+    logger.info({ phone }, '[SMS] OTP send failed, retrying once...');
+    await new Promise((r) => setTimeout(r, 1500));
+    return this.send({ to: phone, message });
   }
 
   // ---- Order status notifications ----

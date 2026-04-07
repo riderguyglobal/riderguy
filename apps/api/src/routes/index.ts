@@ -23,6 +23,7 @@ import { favoriteRiderRouter } from './favorite-riders/favorite-rider.routes';
 import { scheduledDeliveryRouter } from './scheduled-deliveries/scheduled-delivery.routes';
 import { placesRouter } from './places/places.routes';
 import { promoRouter } from './promo/promo.routes';
+import { jobPostingRouter } from './job-postings/job-postings.routes';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../lib/async-handler';
 import { ApiError } from '../lib/api-error';
@@ -51,6 +52,7 @@ router.use('/favorite-riders', favoriteRiderRouter);
 router.use('/scheduled-deliveries', scheduledDeliveryRouter);
 router.use('/places', placesRouter);
 router.use('/promo', promoRouter);
+router.use('/job-postings', jobPostingRouter);
 
 // ────── Authenticated file serving (protects PII uploads) ──────
 router.get(

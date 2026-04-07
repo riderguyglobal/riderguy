@@ -117,6 +117,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(function
         ref={ref}
         type="tel"
         inputMode="numeric"
+        autoComplete="tel-national"
         value={localNumber}
         onChange={handleLocalChange}
         placeholder={placeholder}

@@ -18,3 +18,4 @@ export * from './api';
 export * from './enums';
 export * from './websocket';
 export * from './gamification';
+export * from './job-posting';

@@ -200,17 +200,19 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
 
   return (
     <div className={cn('flex items-center justify-center gap-2 sm:gap-3', className)}>
-      {/* Hidden input for iOS Safari OTP autofill — positioned over digit boxes so iOS detects it */}
+      {/* Hidden input for iOS Safari OTP autofill — iOS 17+ requires the input to be
+          visually present (not opacity-0 or pointer-events-none) for autocomplete="one-time-code"
+          to trigger the SMS code suggestion. We position it with sr-only so it is accessible
+          and detectable by iOS but not visually intrusive. */}
       <input
         ref={hiddenRef}
         type="text"
         autoComplete="one-time-code"
         inputMode="numeric"
         pattern="[0-9]*"
-        className="absolute opacity-0 pointer-events-none"
-        style={{ width: 1, height: 1 }}
+        className="sr-only"
+        style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}
         tabIndex={-1}
-        aria-hidden="true"
         onChange={(e) => {
           const digits = e.target.value.replace(/\D/g, '').slice(0, length);
           if (digits.length === length) {
@@ -230,7 +232,7 @@ export const OtpInput = forwardRef<OtpInputHandle, OtpInputProps>(function OtpIn
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          autoComplete="off"
+          autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={1}
           value={values[i]}
           disabled={disabled}

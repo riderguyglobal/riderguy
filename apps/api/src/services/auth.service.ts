@@ -124,10 +124,11 @@ export class AuthService {
       data: { verified: true },
     }).catch(() => {});
 
-    // Send OTP via mNotify SMS (fire-and-forget)
-    SmsService.sendOtp(phone, code).catch((err) => {
-      logger.error({ err, phone, purpose }, 'Failed to send OTP SMS');
-    });
+    // Send OTP via mNotify SMS — await to detect delivery failures
+    const smsSent = await SmsService.sendOtp(phone, code);
+    if (!smsSent) {
+      logger.error({ phone, purpose }, 'Failed to send OTP SMS via mNotify');
+    }
 
     if (config.nodeEnv === 'development') {
       logger.info({ phone, purpose, code }, 'OTP created (dev only)');

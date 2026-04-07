@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@riderguy/ui';
 import { HomeClient } from '@/components/home-client';
+import { JOB_TYPE_LABELS } from '@riderguy/types';
+import type { JobType } from '@riderguy/types';
 
 export const metadata: Metadata = {
   title: 'Careers | RiderGuy',
@@ -19,58 +21,34 @@ export const metadata: Metadata = {
     'Join the team building the operating system for the rider economy. Explore open roles at RiderGuy.',
 };
 
-const JOB_OPENINGS = [
-  {
-    title: 'Operations Manager',
-    department: 'Operations',
-    location: 'Accra, Ghana',
-    type: 'Full-time',
-    description:
-      'Lead day-to-day operations across our delivery network. Manage rider onboarding, zone performance, and service quality.',
-  },
-  {
-    title: 'Full-Stack Developer',
-    department: 'Engineering',
-    location: 'Remote / Accra',
-    type: 'Full-time',
-    description:
-      'Build and maintain our rider, client, and admin platforms using Next.js, Node.js, and PostgreSQL.',
-  },
-  {
-    title: 'Rider Success Coordinator',
-    department: 'Rider Relations',
-    location: 'Accra, Ghana',
-    type: 'Full-time',
-    description:
-      'Support and mentor active riders. Handle escalations, conduct training sessions, and improve rider satisfaction.',
-  },
-  {
-    title: 'Marketing & Growth Lead',
-    department: 'Marketing',
-    location: 'Accra, Ghana',
-    type: 'Full-time',
-    description:
-      'Drive rider and client acquisition through digital campaigns, partnerships, and community engagement.',
-  },
-  {
-    title: 'Customer Support Agent',
-    department: 'Support',
-    location: 'Accra, Ghana',
-    type: 'Full-time',
-    description:
-      'Provide responsive support to clients and riders via chat, phone, and email. Resolve delivery issues efficiently.',
-  },
-  {
-    title: 'Zone Captain (Multiple Cities)',
-    department: 'Field Operations',
-    location: 'Kumasi / Tamale / Cape Coast',
-    type: 'Full-time',
-    description:
-      'Manage and coordinate riders in your zone. Ensure delivery quality, handle local partnerships, and grow the rider network.',
-  },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
-export default function CareersPage() {
+interface PublishedJob {
+  id: string;
+  title: string;
+  department: string;
+  location: string;
+  type: JobType;
+  description: string;
+  requirements: string | null;
+  publishedAt: string | null;
+}
+
+async function getPublishedJobs(): Promise<PublishedJob[]> {
+  try {
+    const res = await fetch(`${API_URL}/job-postings`, {
+      next: { revalidate: 60 }, // revalidate every 60 seconds
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function CareersPage() {
+  const jobs = await getPublishedJobs();
   return (
     <HomeClient>
       {/* ================================================================
@@ -183,47 +161,57 @@ export default function CareersPage() {
           </div>
 
           <div className="stagger-children mt-12 space-y-4 sm:mt-16">
-            {JOB_OPENINGS.map((job) => (
-              <div
-                key={job.title}
-                className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-lg sm:p-6"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-surface-900 group-hover:text-brand-600 transition-colors">
-                      {job.title}
-                    </h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-surface-500">
-                      {job.description}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-surface-400">
-                      <span className="inline-flex items-center gap-1">
-                        <Building2 className="h-3.5 w-3.5" />
-                        {job.department}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {job.location}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        {job.type}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="w-full rounded-full bg-brand-500 text-white hover:bg-brand-600 sm:w-auto sm:px-6"
-                    asChild
-                  >
-                    <Link href={`/contact?subject=Application: ${encodeURIComponent(job.title)}`}>
-                      Apply
-                      <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                    </Link>
-                  </Button>
-                </div>
+            {jobs.length === 0 ? (
+              <div className="rounded-2xl border border-surface-100 bg-white p-10 text-center">
+                <Briefcase className="mx-auto h-10 w-10 text-surface-300" />
+                <p className="mt-4 text-lg font-semibold text-surface-900">No open roles right now</p>
+                <p className="mt-2 text-sm text-surface-500">
+                  We are not currently hiring for specific positions, but we are always interested in great people. Send us your CV below.
+                </p>
               </div>
-            ))}
+            ) : (
+              jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-lg sm:p-6"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-surface-900 group-hover:text-brand-600 transition-colors">
+                        {job.title}
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-surface-500">
+                        {job.description}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-surface-400">
+                        <span className="inline-flex items-center gap-1">
+                          <Building2 className="h-3.5 w-3.5" />
+                          {job.department}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {job.location}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          {JOB_TYPE_LABELS[job.type] || job.type}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full rounded-full bg-brand-500 text-white hover:bg-brand-600 sm:w-auto sm:px-6"
+                      asChild
+                    >
+                      <Link href={`/contact?subject=Application: ${encodeURIComponent(job.title)}`}>
+                        Apply
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* General application */}

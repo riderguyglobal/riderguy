@@ -294,10 +294,10 @@ export default function HomePage() {
               Why Choose Us
             </span>
             <h2 className="mt-4 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
-              Built for Ghana. Built to deliver.
+              Built for You. Built to Deliver.
             </h2>
             <p className="mt-4 text-base text-surface-500 sm:text-lg">
-              A logistics platform designed from the ground up for the realities of West African cities.
+              One platform designed for Riders, Clients and Businesses.
             </p>
           </div>
 
