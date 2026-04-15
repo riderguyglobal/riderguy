@@ -113,7 +113,7 @@ done
 
 # ── Step 9: Restart services ──
 echo -e "\n${BOLD}▸ Step 9: Restarting PM2 services...${NC}"
-cd /var/www/riderguy/source
+cd /var/www/riderguy
 pm2 reload ecosystem.config.js --update-env 2>&1 | tail -5
 pm2 save
 sleep 3
