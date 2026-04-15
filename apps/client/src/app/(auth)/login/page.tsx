@@ -9,9 +9,9 @@ import { phoneSchema, emailSchema, passwordSchema } from '@riderguy/validators';
 import {
   Phone, Mail, AlertCircle, Eye, EyeOff, ArrowRight, ArrowLeft,
   Fingerprint, KeyRound, MessageSquare, ShieldCheck, Smartphone,
-  ChevronRight, Package,
+  ChevronRight, Package, CreditCard,
 } from 'lucide-react';
-type Tab = 'phone' | 'email';
+type Tab = 'phone' | 'email' | 'ghanacard';
 type Stage = 'input' | 'method-select' | 'pin' | 'otp' | 'biometric';
 
 const LAST_PHONE_KEY = 'riderguy_client_last_phone';
@@ -24,6 +24,7 @@ export default function LoginPage() {
     loginWithOtp,
     loginWithPin,
     loginWithBiometric,
+    loginWithGhanaCard,
     requestOtp,
     checkAuthMethods,
     isAuthenticated,
@@ -44,6 +45,15 @@ export default function LoginPage() {
   const [methods, setMethods] = useState<{ otp: boolean; pin: boolean; biometric: boolean } | null>(null);
   const otpRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const pinRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
+  // Ghana Card state
+  const [ghanaCardNumber, setGhanaCardNumber] = useState('');
+  const [ghanaCardPassword, setGhanaCardPassword] = useState('');
+  const [showGhanaCardPassword, setShowGhanaCardPassword] = useState(false);
+  const [ghanaCardLoading, setGhanaCardLoading] = useState(false);
+  const [ghanaCardRequiresPin, setGhanaCardRequiresPin] = useState(false);
+  const [ghanaCardPin, setGhanaCardPin] = useState('');
+  const ghanaCardPinRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
   // Biometric support (client-side)
   const biometricAvailable = isBiometricSupported();
@@ -215,11 +225,51 @@ export default function LoginPage() {
     }
   };
 
+  // ── Ghana Card Login ──
+  const handleGhanaCardSubmit = async () => {
+    if (!ghanaCardNumber || !ghanaCardPassword) return;
+    if (ghanaCardNumber.length < 10) { setError('Enter a valid Ghana Card number'); return; }
+    setGhanaCardLoading(true);
+    setError('');
+    try {
+      const result = await loginWithGhanaCard(ghanaCardNumber, ghanaCardPassword);
+      if (result?.requiresPin) {
+        setGhanaCardRequiresPin(true);
+      } else {
+        router.replace('/dashboard');
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message;
+      setError(msg || 'Invalid Ghana Card or password.');
+    } finally {
+      setGhanaCardLoading(false);
+    }
+  };
+
+  const handleGhanaCardPinComplete = async (code: string) => {
+    setGhanaCardLoading(true);
+    setError('');
+    try {
+      await loginWithPin(ghanaCardNumber, code);
+      router.replace('/dashboard');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message;
+      setError(msg || 'Invalid PIN.');
+      ghanaCardPinRef.current?.clear();
+      ghanaCardPinRef.current?.focus();
+    } finally {
+      setGhanaCardLoading(false);
+    }
+  };
+
   const goBack = () => {
     setError('');
     setPin('');
     setOtp('');
-    if (stage === 'method-select') {
+    if (tab === 'ghanacard' && ghanaCardRequiresPin) {
+      setGhanaCardRequiresPin(false);
+      setGhanaCardPin('');
+    } else if (stage === 'method-select') {
       setStage('input');
       setMethods(null);
     } else {
@@ -229,11 +279,13 @@ export default function LoginPage() {
 
   // Whether we're in the multi-stage phone flow (past the initial input)
   const inPhoneFlow = tab === 'phone' && stage !== 'input';
+  const inGhanaCardPinFlow = tab === 'ghanacard' && ghanaCardRequiresPin;
+  const inMultiStep = inPhoneFlow || inGhanaCardPinFlow;
 
 return (
     <div>
-      {/* ── Back button (multi-step phone flow) ── */}
-      {inPhoneFlow && (
+      {/* ── Back button (multi-step flow) ── */}
+      {inMultiStep && (
         <button onClick={goBack} className="flex items-center gap-2 text-surface-400 hover:text-surface-900 transition-colors group mb-6">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
           <span className="text-sm font-medium">Back</span>
@@ -241,7 +293,7 @@ return (
       )}
 
       {/* ── Heading (initial stage only) ── */}
-      {!inPhoneFlow && (
+      {!inMultiStep && (
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold text-surface-900 tracking-tight leading-tight">Welcome back</h1>
           <p className="text-surface-400 text-base mt-1.5">Sign in to your RiderGuy account</p>
@@ -257,15 +309,16 @@ return (
       )}
 
       {/* ── Segmented pill toggle (initial stage) ── */}
-      {!inPhoneFlow && (
+      {!inMultiStep && (
         <div className="flex p-1 rounded-2xl bg-surface-50 border border-surface-100 mb-8">
           {([
             { key: 'phone' as Tab, icon: Phone, label: 'Phone' },
             { key: 'email' as Tab, icon: Mail, label: 'Email' },
+            { key: 'ghanacard' as Tab, icon: CreditCard, label: 'Ghana Card' },
           ]).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => { setTab(key); setError(''); setStage('input'); }}
+              onClick={() => { setTab(key); setError(''); setStage('input'); setGhanaCardRequiresPin(false); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 tab === key
                   ? 'bg-white text-brand-600 shadow-sm'
@@ -534,8 +587,107 @@ return (
         </div>
       )}
 
+      {/* ══════ Ghana Card Tab ══════ */}
+      {tab === 'ghanacard' && (
+        <>
+          {!ghanaCardRequiresPin && (
+            <div className="space-y-5 animate-fade-in">
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Ghana Card number</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={ghanaCardNumber}
+                    onChange={(e) => {
+                      const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                      let formatted = '';
+                      for (let i = 0; i < raw.length && i < 13; i++) {
+                        if (i === 3 || i === 12) formatted += '-';
+                        formatted += raw[i];
+                      }
+                      setGhanaCardNumber(formatted);
+                      setError('');
+                    }}
+                    placeholder="GHA-XXXXXXXXX-X"
+                    maxLength={15}
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 pl-12 pr-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all font-mono tracking-wide"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Password</label>
+                <div className="relative">
+                  <input
+                    type={showGhanaCardPassword ? 'text' : 'password'}
+                    value={ghanaCardPassword}
+                    onChange={(e) => setGhanaCardPassword(e.target.value)}
+                    placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+                    onKeyDown={(e) => e.key === 'Enter' && handleGhanaCardSubmit()}
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 pr-12 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGhanaCardPassword(!showGhanaCardPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors p-1"
+                  >
+                    {showGhanaCardPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={handleGhanaCardSubmit}
+                disabled={ghanaCardLoading || !ghanaCardNumber || !ghanaCardPassword}
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
+              >
+                {ghanaCardLoading ? (
+                  <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </div>
+          )}
+
+          {ghanaCardRequiresPin && (
+            <div className="space-y-5 animate-fade-in">
+              <div className="text-center p-5 rounded-2xl bg-surface-50/80 border border-surface-100 mb-1">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center shadow-sm">
+                  <KeyRound className="h-5 w-5 text-surface-600" />
+                </div>
+                <p className="text-surface-900 font-bold text-sm">Enter your PIN</p>
+                <p className="text-surface-400 text-xs mt-1">6-digit PIN for your account</p>
+              </div>
+
+              <OtpInput
+                ref={ghanaCardPinRef}
+                length={6}
+                variant="light"
+                onChange={(code) => setGhanaCardPin(code)}
+                onComplete={handleGhanaCardPinComplete}
+                disabled={ghanaCardLoading}
+              />
+
+              <button
+                onClick={() => handleGhanaCardPinComplete(ghanaCardPin)}
+                disabled={ghanaCardLoading || ghanaCardPin.length < 6}
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.25)]"
+              >
+                {ghanaCardLoading ? (
+                  <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       {/* ── Sign up link ── */}
-      {!inPhoneFlow && (
+      {!inMultiStep && (
         <div className="mt-10 pt-6 border-t border-surface-100 text-center">
           <p className="text-sm text-surface-400">
             Don&apos;t have an account?{' '}

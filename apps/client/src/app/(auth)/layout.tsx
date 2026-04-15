@@ -1,6 +1,16 @@
+'use client';
+
+import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isRegister = pathname?.startsWith('/register') ?? false;
+  const heroImage = isRegister ? '/images/auth/delivery-essentials.png' : '/images/auth/package-exchange.png';
+  const heroAlt = isRegister
+    ? 'RiderGuy delivery essentials flat lay'
+    : 'RiderGuy rider handing a package to a happy customer in Accra';
+
   return (
     <div className="min-h-[100dvh] bg-white">
       {/* ══════════════════════════════════════════════════
@@ -10,8 +20,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* ── Left: Image covers the entire panel ── */}
         <div className="w-[50%] xl:w-[48%] relative h-[100dvh] overflow-hidden">
           <Image
-            src="/images/auth/package-exchange.png"
-            alt="RiderGuy rider handing a package to a happy customer in Accra"
+            src={heroImage}
+            alt={heroAlt}
             fill
             className="object-cover"
             priority
@@ -70,7 +80,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Hero: image fills the top section */}
         <div className="relative h-[40vh] min-h-[240px] max-h-[340px] shrink-0">
           <Image
-            src="/images/auth/package-exchange.png"
+            src={heroImage}
             alt=""
             fill
             className="object-cover object-center"

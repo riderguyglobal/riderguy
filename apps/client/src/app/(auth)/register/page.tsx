@@ -7,19 +7,19 @@ import { OtpInput, PhoneInput } from '@riderguy/ui';
 import { phoneSchema, emailSchema, passwordSchema } from '@riderguy/validators';
 import {
   Phone, Mail, AlertCircle, CheckCircle, ArrowLeft, ArrowRight,
-  Sparkles, Smartphone, Eye, EyeOff, User,
+  Sparkles, Smartphone, Eye, EyeOff, User, CreditCard, ShieldQuestion, Lock, ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
-type Tab = 'phone' | 'email';
+type Tab = 'phone' | 'email' | 'ghanacard';
 
 export default function RegisterPage() {
   const router = useRouter();
   const {
-    requestOtp, verifyOtp, register, registerWithEmail,
+    requestOtp, verifyOtp, register, registerWithEmail, registerWithGhanaCard,
     isAuthenticated, isLoading: authLoading,
   } = useAuth();
 
@@ -45,6 +45,15 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Ghana Card flow state
+  const [ghanaCardStep, setGhanaCardStep] = useState<'info' | 'security'>('info');
+  const [ghanaCard, setGhanaCard] = useState('');
+  const [ghanaCardPassword, setGhanaCardPassword] = useState('');
+  const [confirmGhanaCardPassword, setConfirmGhanaCardPassword] = useState('');
+  const [showGhanaCardPassword, setShowGhanaCardPassword] = useState(false);
+  const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
   // Cooldown timer
   useEffect(() => {
@@ -132,6 +141,49 @@ export default function RegisterPage() {
     } finally { setLoading(false); }
   };
 
+  const SECURITY_QUESTIONS = [
+    'What was the name of your first pet?',
+    'What is the name of the street you grew up on?',
+    'What was your childhood nickname?',
+    'What is your mother\'s maiden name?',
+    'What was the name of your first school?',
+    'In what city were you born?',
+    'What is your favourite food?',
+  ];
+
+  // ---- Ghana Card flow handlers ----
+  const handleGhanaCardInfoSubmit = () => {
+    setError('');
+    if (!firstName.trim()) { setError('First name is required'); return; }
+    if (!lastName.trim()) { setError('Last name is required'); return; }
+    if (ghanaCard.length < 10) { setError('Enter a valid Ghana Card number'); return; }
+    if (ghanaCardPassword.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (ghanaCardPassword !== confirmGhanaCardPassword) { setError('Passwords do not match'); return; }
+    setGhanaCardStep('security');
+  };
+
+  const handleGhanaCardSecuritySubmit = async () => {
+    setError('');
+    if (!securityQuestion) { setError('Select a security question'); return; }
+    if (securityAnswer.trim().length < 2) { setError('Security answer must be at least 2 characters'); return; }
+    setLoading(true);
+    try {
+      await registerWithGhanaCard({
+        ghanaCard,
+        password: ghanaCardPassword,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        role: 'CLIENT',
+        securityQuestion,
+        securityAnswer: securityAnswer.trim(),
+      });
+      setSuccess(true);
+    } catch (err: unknown) {
+      const msg = (err as any)?.response?.data?.error?.message;
+      setError(msg || 'Registration failed. Try again.');
+    } finally { setLoading(false); }
+  };
+
   // ---- Google handler ----
   const handleGoogleClick = () => {
     if (!GOOGLE_CLIENT_ID) { setError('Google sign-in is not configured yet.'); return; }
@@ -146,12 +198,15 @@ export default function RegisterPage() {
 
   const goBack = () => {
     setError('');
-    if (phoneStep === 'name') { setPhoneStep('otp'); }
+    if (tab === 'ghanacard' && ghanaCardStep === 'security') { setGhanaCardStep('info'); }
+    else if (phoneStep === 'name') { setPhoneStep('otp'); }
     else if (phoneStep === 'otp') { setPhoneStep('phone'); setOtp(''); }
     else { router.replace('/login'); }
   };
 
   const inPhoneFlow = tab === 'phone' && phoneStep !== 'phone';
+  const inGhanaCardFlow = tab === 'ghanacard' && ghanaCardStep === 'security';
+  const inMultiStep = inPhoneFlow || inGhanaCardFlow;
 
 // ---- Success screen ----
   if (success) {
@@ -186,7 +241,7 @@ export default function RegisterPage() {
   return (
     <div>
       {/* Back button */}
-      {inPhoneFlow ? (
+      {inMultiStep ? (
         <button onClick={goBack} className="flex items-center gap-2 text-surface-400 hover:text-surface-900 transition-colors group mb-6">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
           <span className="text-sm font-medium">Back</span>
@@ -199,7 +254,7 @@ export default function RegisterPage() {
       )}
 
       {/* Heading (initial stage only) */}
-      {!inPhoneFlow && (
+      {!inMultiStep && (
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold text-surface-900 tracking-tight leading-tight">Create account</h1>
           <p className="text-surface-400 text-base mt-1.5">Join RiderGuy to start sending packages</p>
@@ -215,15 +270,16 @@ export default function RegisterPage() {
       )}
 
       {/* Tab toggle (initial stage only) */}
-      {!inPhoneFlow && (
+      {!inMultiStep && (
         <div className="flex p-1 rounded-2xl bg-surface-50 border border-surface-100 mb-8">
           {([
             { key: 'phone' as Tab, icon: Phone, label: 'Phone' },
             { key: 'email' as Tab, icon: Mail, label: 'Email' },
+            { key: 'ghanacard' as Tab, icon: CreditCard, label: 'Ghana Card' },
           ]).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => { setTab(key); setError(''); setPhoneStep('phone'); }}
+              onClick={() => { setTab(key); setError(''); setPhoneStep('phone'); setGhanaCardStep('info'); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 tab === key
                   ? 'bg-white text-brand-600 shadow-sm'
@@ -422,8 +478,164 @@ export default function RegisterPage() {
         </div>
       )}
 
+      {/* ======= GHANA CARD TAB ======= */}
+      {tab === 'ghanacard' && (
+        <>
+          {ghanaCardStep === 'info' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Name fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-2">First name</label>
+                  <input
+                    type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Kwame" autoFocus
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-2">Last name</label>
+                  <input
+                    type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Mensah"
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Ghana Card number */}
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Ghana Card number</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={ghanaCard}
+                    onChange={(e) => {
+                      const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                      let formatted = '';
+                      for (let i = 0; i < raw.length && i < 13; i++) {
+                        if (i === 3 || i === 12) formatted += '-';
+                        formatted += raw[i];
+                      }
+                      setGhanaCard(formatted);
+                      setError('');
+                    }}
+                    placeholder="GHA-XXXXXXXXX-X"
+                    maxLength={15}
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 pl-12 pr-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all font-mono tracking-wide"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Password</label>
+                <div className="relative">
+                  <input
+                    type={showGhanaCardPassword ? 'text' : 'password'}
+                    value={ghanaCardPassword}
+                    onChange={(e) => { setGhanaCardPassword(e.target.value); setError(''); }}
+                    placeholder="Min. 8 characters"
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 pr-12 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
+                  />
+                  <button type="button" onClick={() => setShowGhanaCardPassword(!showGhanaCardPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors p-1">
+                    {showGhanaCardPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Confirm password</label>
+                <input
+                  type={showGhanaCardPassword ? 'text' : 'password'}
+                  value={confirmGhanaCardPassword}
+                  onChange={(e) => { setConfirmGhanaCardPassword(e.target.value); setError(''); }}
+                  placeholder="Confirm your password"
+                  onKeyDown={(e) => e.key === 'Enter' && handleGhanaCardInfoSubmit()}
+                  className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
+                />
+              </div>
+
+              <button
+                onClick={handleGhanaCardInfoSubmit}
+                disabled={!firstName.trim() || !lastName.trim() || ghanaCard.length < 10 || !ghanaCardPassword || !confirmGhanaCardPassword}
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.3)]"
+              >
+                Next: Security Question
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {ghanaCardStep === 'security' && (
+            <div className="space-y-5 animate-fade-in">
+              <div className="text-center p-5 rounded-2xl bg-surface-50/80 border border-surface-100 mb-1">
+                <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center shadow-sm">
+                  <ShieldQuestion className="h-5 w-5 text-surface-600" />
+                </div>
+                <p className="text-surface-900 font-bold text-sm">Security question</p>
+                <p className="text-surface-400 text-xs mt-1">This helps recover your account</p>
+              </div>
+
+              {/* Step indicator */}
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-8 h-1 rounded-full bg-brand-500" />
+                <div className="w-8 h-1 rounded-full bg-brand-500" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Security question</label>
+                <select
+                  value={securityQuestion}
+                  onChange={(e) => { setSecurityQuestion(e.target.value); setError(''); }}
+                  className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 px-4 text-base text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all appearance-none"
+                >
+                  <option value="">Select a question...</option>
+                  {SECURITY_QUESTIONS.map((q) => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-2">Your answer</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={securityAnswer}
+                    onChange={(e) => { setSecurityAnswer(e.target.value); setError(''); }}
+                    placeholder="Enter your answer"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleGhanaCardSecuritySubmit()}
+                    className="w-full h-[52px] rounded-2xl bg-surface-50 border border-surface-200 pl-12 pr-4 text-base text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500/40 transition-all"
+                  />
+                </div>
+                <p className="text-xs text-surface-400 mt-1.5">Remember this answer exactly. It is case-insensitive.</p>
+              </div>
+
+              <button
+                onClick={handleGhanaCardSecuritySubmit}
+                disabled={loading || !securityQuestion || securityAnswer.trim().length < 2}
+                className="w-full h-[52px] rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-[15px] transition-all btn-press disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(34,197,94,0.3)]"
+              >
+                {loading ? (
+                  <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <><Sparkles className="h-4 w-4" /> Create Account</>
+                )}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Sign in link */}
-      {!inPhoneFlow && (
+      {!inMultiStep && (
         <div className="mt-10 pt-6 border-t border-surface-100 text-center">
           <p className="text-sm text-surface-400">
             Already have an account?{' '}

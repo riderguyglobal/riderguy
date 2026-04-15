@@ -1,12 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
   useEffect(() => { setMounted(true); }, []);
+
+  const isSignup = pathname.startsWith('/signup');
+  const heroImage = isSignup ? '/images/auth/rider-twilight.png' : '/images/auth/rider-sunset.png';
+  const heroAlt = isSignup
+    ? 'Young RiderGuy rider in urban Accra at twilight'
+    : 'RiderGuy rider delivering at sunset in Accra';
 
   return (
     <div className="min-h-[100dvh] bg-page">
@@ -17,8 +25,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* ── Left: Image covers the entire panel ── */}
         <div className="w-[50%] xl:w-[48%] relative h-[100dvh] overflow-hidden">
           <Image
-            src="/images/auth/rider-sunset.png"
-            alt="RiderGuy rider delivering at sunset in Accra"
+            src={heroImage}
+            alt={heroAlt}
             fill
             className="object-cover"
             priority
@@ -77,7 +85,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Hero: image fills the top section */}
         <div className="relative h-[44vh] min-h-[260px] max-h-[380px] shrink-0">
           <Image
-            src="/images/auth/rider-sunset.png"
+            src={heroImage}
             alt=""
             fill
             className="object-cover object-top"
