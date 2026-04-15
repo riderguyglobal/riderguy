@@ -56,6 +56,7 @@ log "Disk space OK: ${FREE_GB}GB free"
 
 # ── Step 1: Pull latest code ──
 echo -e "\n${BOLD}▸ Step 1: Pulling latest code...${NC}"
+git stash --quiet 2>/dev/null || true
 git pull origin main 2>&1 | tail -5
 log "Code updated"
 
