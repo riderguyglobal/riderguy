@@ -1,10 +1,10 @@
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN "ghanaCardNumber" TEXT,
+ALTER TABLE "users" ADD COLUMN "ghanaCardNumber" TEXT,
 ADD COLUMN "securityQuestion" TEXT,
 ADD COLUMN "securityAnswerHash" TEXT;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_ghanaCardNumber_key" ON "User"("ghanaCardNumber");
+CREATE UNIQUE INDEX "users_ghanaCardNumber_key" ON "users"("ghanaCardNumber");
 
 -- CreateIndex
-CREATE INDEX "User_ghanaCardNumber_idx" ON "User"("ghanaCardNumber");
+CREATE INDEX "users_ghanaCardNumber_idx" ON "users"("ghanaCardNumber");
