@@ -152,7 +152,7 @@ router.post(
     // Reverse-geocode to get a proper address
     const geocoded = await safeReverseGeocode(latitude, longitude);
 
-    const displayName = name || placeName || geocoded?.address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const displayName = name || placeName || geocoded?.address || 'Unnamed location';
     const plusCode = formatPlusCode(latitude, longitude);
 
     const place = await prisma.communityPlace.create({
@@ -204,7 +204,7 @@ router.post(
     }
 
     const geocoded = await safeReverseGeocode(latitude, longitude);
-    const displayName = name || geocoded?.address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const displayName = name || geocoded?.address || 'Unnamed location';
     const plusCode = formatPlusCode(latitude, longitude);
 
     const place = await prisma.communityPlace.create({

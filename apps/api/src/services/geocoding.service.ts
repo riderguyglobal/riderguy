@@ -553,7 +553,7 @@ export async function reverseGeocode(
   if (!apiKey) {
     warnMockFallback('reverseGeocode');
     return {
-      address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+      address: 'Address not available',
       latitude,
       longitude,
       placeType: 'coordinate',

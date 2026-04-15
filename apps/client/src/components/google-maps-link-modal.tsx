@@ -292,9 +292,6 @@ export function GoogleMapsLinkModal({
                       Plus Code: {resolved.plusCode}
                     </p>
                   )}
-                  <p className="text-xs text-accent-400 mt-1">
-                    {resolved.coordinates[1].toFixed(6)}, {resolved.coordinates[0].toFixed(6)}
-                  </p>
                 </div>
               </div>
 

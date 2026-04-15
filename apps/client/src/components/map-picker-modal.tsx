@@ -33,7 +33,6 @@ export function MapPickerModal({
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string; lat: number; lng: number }>>([]);
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
-  const abortRef = useRef<AbortController>();
 
   // Android back button trap
   useEffect(() => {
@@ -57,7 +56,7 @@ export function MapPickerModal({
       setAddress(result.address);
       setPlusCode(result.plusCode?.display || '');
     } catch {
-      setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      setAddress('Finding address... Please try again.');
       setPlusCode('');
     } finally {
       setLoading(false);
@@ -164,46 +163,71 @@ export function MapPickerModal({
     );
   };
 
-  // Simple search using existing API proxy
+  // Simple search using Google Places Autocomplete
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
     clearTimeout(searchTimer.current);
     if (q.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
       try {
-        const { tokenStorage } = await import('@riderguy/auth');
-        const { API_BASE_URL } = await import('@/lib/constants');
-        const token = tokenStorage.getAccessToken();
+        // Use Google Places AutocompleteService (already loaded with the map)
+        const service = new google.maps.places.AutocompleteService();
         const prox = coreRef.current
-          ? (() => { const c = coreRef.current!.map.getCenter(); return c ? { lng: c.lng(), lat: c.lat() } : { lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] }; })()
-          : { lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] };
-        const res = await fetch(
-          `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}&lat=${prox.lat}&lng=${prox.lng}`,
+          ? (() => { const c = coreRef.current!.map.getCenter(); return c ? new google.maps.LatLng(c.lat(), c.lng()) : new google.maps.LatLng(DEFAULT_CENTER[1], DEFAULT_CENTER[0]); })()
+          : new google.maps.LatLng(DEFAULT_CENTER[1], DEFAULT_CENTER[0]);
+
+        service.getPlacePredictions(
           {
-            credentials: 'include',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            signal: ctrl.signal,
+            input: q,
+            componentRestrictions: { country: 'gh' },
+            location: prox,
+            radius: 50000,
+          },
+          (predictions, status) => {
+            if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+              setSearchResults([]);
+              setSearching(false);
+              return;
+            }
+
+            // Get coordinates for each prediction via PlacesService
+            const placesService = new google.maps.places.PlacesService(
+              coreRef.current?.map ?? document.createElement('div'),
+            );
+
+            const items: Array<{ id: string; name: string; lat: number; lng: number }> = [];
+            let pending = Math.min(predictions.length, 5);
+
+            predictions.slice(0, 5).forEach((prediction) => {
+              placesService.getDetails(
+                { placeId: prediction.place_id, fields: ['geometry', 'name', 'formatted_address'] },
+                (place, detailStatus) => {
+                  if (detailStatus === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+                    items.push({
+                      id: prediction.place_id,
+                      name: place.formatted_address ?? prediction.description,
+                      lat: place.geometry.location.lat(),
+                      lng: place.geometry.location.lng(),
+                    });
+                  }
+                  pending--;
+                  if (pending <= 0) {
+                    setSearchResults(items);
+                    setSearching(false);
+                  }
+                },
+              );
+            });
+
+            if (predictions.length === 0) {
+              setSearchResults([]);
+              setSearching(false);
+            }
           },
         );
-        if (!res.ok) throw new Error();
-        const json = await res.json();
-        const items = (json.data ?? [])
-          .filter((s: Record<string, unknown>) => s.latitude && s.longitude)
-          .slice(0, 5)
-          .map((s: Record<string, unknown>) => ({
-            id: s.id as string,
-            name: (s.placeName ?? s.text) as string,
-            lat: s.latitude as number,
-            lng: s.longitude as number,
-          }));
-        setSearchResults(items);
       } catch {
-        if (!ctrl.signal.aborted) setSearchResults([]);
-      } finally {
+        setSearchResults([]);
         setSearching(false);
       }
     }, 300);

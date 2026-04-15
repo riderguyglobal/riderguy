@@ -53,7 +53,7 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
   const loader = new Loader({
     apiKey: options.token,
     version: 'weekly',
-    libraries: ['marker', 'geometry'],
+    libraries: ['marker', 'geometry', 'places'],
   });
 
   await loader.load();

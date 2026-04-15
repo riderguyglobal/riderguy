@@ -1,44 +1,43 @@
 'use client';
 
 // ══════════════════════════════════════════════════════════
-// useAutocomplete — Address autocomplete via API proxy
+// useAutocomplete — Google Places Autocomplete + Gazetteer
 //
-// Multi-provider strategy (Google Geocoding + Nominatim +
-// local Ghana gazetteer) through the backend API proxy.
+// Uses Google Places Autocomplete API (client-side) as the
+// PRIMARY provider for rich, real-time place predictions
+// with proper session tokens for cost efficiency.
+//
+// Also queries the backend gazetteer (42,000+ Ghana locations)
+// in parallel for local coverage.
 //
 // Flow:
-// 1. User types → API proxy → merged results (with coords!)
-// 2. User selects → if coords present: instant, no retrieve call
-//                  → if no coords: retrieve endpoint for details
+// 1. User types → Google Places Autocomplete + backend gazetteer
+// 2. Results merged: Google predictions first, then gazetteer
+// 3. User selects → Google Place Details (formatted address,
+//    coordinates, place types) — no raw coordinates ever shown
 // ══════════════════════════════════════════════════════════
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { API_BASE_URL, DEFAULT_CENTER } from '@/lib/constants';
 import { useAuth, tokenStorage } from '@riderguy/auth';
+import {
+  loadGoogleMaps,
+  reverseGeocodeWithGoogle,
+} from '@/lib/google-maps-loader';
 
-export interface GeocodingFeature {
-  id: string;
-  text: string;
-  place_name: string;
-  center: [number, number]; // [lng, lat]
-  place_type: string[];
-  context?: Array<{ id: string; text: string }>;
-}
-
-/** Suggestion returned by autocomplete (coordinates included for most providers) */
+/** Suggestion returned by autocomplete */
 export interface SearchSuggestion {
-  id: string;           // place_id, gaz-*, nom-* — used for retrieve
+  id: string;           // Google place_id or gaz-*/nom-* ID
   text: string;         // short display name
-  placeName: string;    // full formatted address
-  placeType?: string;   // feature_type (poi, address, place, etc.)
+  placeName: string;    // full formatted address / description
+  placeType?: string;   // feature type (poi, address, place, etc.)
   category?: string;    // POI category if applicable
-  /** Coordinates are included for Google Geocoding, Nominatim, and gazetteer results */
-  latitude?: number;
+  latitude?: number;    // coordinates (always present for gazetteer)
   longitude?: number;
   source?: string;      // 'google' | 'nominatim' | 'gazetteer'
 }
 
-/** Full place returned by Search Box retrieve (WITH coordinates) */
+/** Full place returned after retrieving details */
 export interface RetrievedPlace {
   id: string;
   name: string;
@@ -54,11 +53,6 @@ interface UseAutocompleteOptions {
   debounce?: number;
 }
 
-/** Generate a random UUID v4 for session tokens */
-function uuid() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 export function useAutocomplete(options: UseAutocompleteOptions = {}) {
   const { debounce = 250 } = options;
   const { api } = useAuth();
@@ -71,24 +65,41 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController>();
   const userLocationRef = useRef<[number, number] | null>(null);
-  // Session token groups suggest + retrieve calls for billing
-  const sessionTokenRef = useRef<string>(uuid());
+  // Google Places AutocompleteService + PlacesService
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  // Google session token groups autocomplete + getDetails for billing
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   // Track the last search query for recording selections
   const lastSearchQueryRef = useRef<string>('');
 
-  // Try to get user's actual location for better proximity bias
+  // Initialize Google Places services
+  useEffect(() => {
+    let cancelled = false;
+    loadGoogleMaps().then(() => {
+      if (cancelled) return;
+      autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+      placesServiceRef.current = new google.maps.places.PlacesService(
+        document.createElement('div'),
+      );
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Get user's actual location for proximity bias
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         userLocationRef.current = [pos.coords.longitude, pos.coords.latitude];
       },
-      () => { /* ignore — API will use Accra default */ },
+      () => {},
       { enableHighAccuracy: false, timeout: 5000, maximumAge: 300_000 },
     );
   }, []);
 
-  /** Fetch suggestions from Search Box suggest endpoint */
+  /** Fetch suggestions from Google Places Autocomplete + backend gazetteer */
   const search = useCallback(async (q: string) => {
     if (!q || q.length < 2) {
       setResults([]);
@@ -97,45 +108,197 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
     }
 
     lastSearchQueryRef.current = q;
-
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setLoading(true);
 
-    try {
-      if (!api) { setLoading(false); return; }
-      const prox = userLocationRef.current || DEFAULT_CENTER;
-      const { data: json } = await api.get('/orders/autocomplete', {
-        params: { q, lat: prox[1], lng: prox[0], session_token: sessionTokenRef.current },
-        signal: ctrl.signal,
-      });
+    const prox = userLocationRef.current || DEFAULT_CENTER;
+    const location = new google.maps.LatLng(prox[1], prox[0]);
 
-      const suggestions: SearchSuggestion[] = (json.data ?? []).map((s: Record<string, unknown>) => ({
-        id: s.id as string,
-        text: s.text as string,
-        placeName: (s.placeName ?? s.place_name ?? s.text) as string,
-        placeType: s.placeType as string | undefined,
-        category: s.category as string | undefined,
-        latitude: s.latitude as number | undefined,
-        longitude: s.longitude as number | undefined,
-        source: s.source as string | undefined,
-      }));
+    // Run Google Places Autocomplete + backend gazetteer in parallel
+    const [googleResults, gazetteerResults] = await Promise.allSettled([
+      // ── Google Places Autocomplete (client-side) ──
+      new Promise<SearchSuggestion[]>((resolve) => {
+        if (!autocompleteServiceRef.current) { resolve([]); return; }
+        autocompleteServiceRef.current.getPlacePredictions(
+          {
+            input: q,
+            sessionToken: sessionTokenRef.current!,
+            componentRestrictions: { country: 'gh' },
+            location,
+            radius: 50000,
+            types: ['establishment', 'geocode'],
+          },
+          (predictions, status) => {
+            if (
+              ctrl.signal.aborted ||
+              status !== google.maps.places.PlacesServiceStatus.OK ||
+              !predictions
+            ) {
+              resolve([]);
+              return;
+            }
+            resolve(
+              predictions.map((p) => ({
+                id: p.place_id,
+                text: p.structured_formatting.main_text,
+                placeName: p.description,
+                placeType: p.types?.[0] ?? 'place',
+                source: 'google' as const,
+              })),
+            );
+          },
+        );
+      }),
 
-      setResults(suggestions);
-    } catch {
-      if (!ctrl.signal.aborted) setResults([]);
-    } finally {
-      if (!ctrl.signal.aborted) setLoading(false);
+      // ── Backend gazetteer (42K+ Ghana locations) ──
+      (async (): Promise<SearchSuggestion[]> => {
+        try {
+          if (!api) return [];
+          const { data: json } = await api.get('/orders/autocomplete', {
+            params: { q, lat: prox[1], lng: prox[0] },
+            signal: ctrl.signal,
+          });
+          return (json.data ?? [])
+            .filter((s: Record<string, unknown>) => s.source !== 'google')
+            .map((s: Record<string, unknown>) => ({
+              id: s.id as string,
+              text: s.text as string,
+              placeName: (s.placeName ?? s.place_name ?? s.text) as string,
+              placeType: s.placeType as string | undefined,
+              category: s.category as string | undefined,
+              latitude: s.latitude as number | undefined,
+              longitude: s.longitude as number | undefined,
+              source: s.source as string | undefined,
+            }));
+        } catch {
+          return [];
+        }
+      })(),
+    ]);
+
+    if (ctrl.signal.aborted) return;
+
+    const google_ = googleResults.status === 'fulfilled' ? googleResults.value : [];
+    const gazetteer_ = gazetteerResults.status === 'fulfilled' ? gazetteerResults.value : [];
+
+    // Merge: Google predictions first (richer data), then gazetteer
+    // Deduplicate by similar name
+    const seen = new Set<string>();
+    const merged: SearchSuggestion[] = [];
+
+    for (const s of google_) {
+      const key = s.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(s);
+      }
     }
+    for (const s of gazetteer_) {
+      const key = s.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(s);
+      }
+    }
+
+    setResults(merged.slice(0, 8));
+    setLoading(false);
   }, [api]);
 
-  /** Retrieve full place details (coordinates) for a selected suggestion */
+  /** Retrieve full place details for a selected suggestion */
   const retrieve = useCallback(async (suggestion: SearchSuggestion): Promise<RetrievedPlace | null> => {
-    // If coordinates are already present (Geocoding v6, Nominatim, gazetteer),
-    // skip the retrieve API call entirely — build the place object directly.
+    // ── Google Places: use Place Details API for full info ──
+    if (suggestion.source === 'google' && placesServiceRef.current) {
+      setRetrieving(true);
+      try {
+        const place = await new Promise<RetrievedPlace | null>((resolve) => {
+          placesServiceRef.current!.getDetails(
+            {
+              placeId: suggestion.id,
+              sessionToken: sessionTokenRef.current!,
+              fields: [
+                'formatted_address',
+                'geometry',
+                'name',
+                'place_id',
+                'types',
+                'address_components',
+                'plus_code',
+              ],
+            },
+            (result, status) => {
+              if (
+                status !== google.maps.places.PlacesServiceStatus.OK ||
+                !result?.geometry?.location
+              ) {
+                resolve(null);
+                return;
+              }
+
+              const lat = result.geometry.location.lat();
+              const lng = result.geometry.location.lng();
+
+              // Extract Plus Code
+              let plusCode: RetrievedPlace['plusCode'] | undefined;
+              if (result.plus_code) {
+                const globalCode = result.plus_code.global_code ?? '';
+                const compoundCode = result.plus_code.compound_code ?? '';
+                const shortCode = compoundCode
+                  ? compoundCode.split(' ')[0] ?? globalCode.slice(4)
+                  : globalCode.slice(4);
+                const city = compoundCode
+                  ? compoundCode.replace(/^\S+\s*/, '')
+                  : '';
+
+                plusCode = {
+                  full: globalCode,
+                  short: shortCode,
+                  display: shortCode,
+                  city,
+                };
+              }
+
+              resolve({
+                id: result.place_id ?? suggestion.id,
+                name: result.name ?? suggestion.text,
+                fullAddress: result.formatted_address ?? suggestion.placeName,
+                latitude: lat,
+                longitude: lng,
+                placeType: result.types?.[0] ?? 'place',
+                plusCode,
+              });
+            },
+          );
+        });
+
+        // New session token for next search (billing: session complete)
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+
+        // Record selection for usage-based learning
+        if (api && lastSearchQueryRef.current && place) {
+          api.post('/orders/record-selection', {
+            query: lastSearchQueryRef.current,
+            suggestion: {
+              id: place.id,
+              text: place.name,
+              placeName: place.fullAddress,
+              latitude: place.latitude,
+              longitude: place.longitude,
+              source: 'google',
+            },
+          }).catch(() => {});
+        }
+
+        return place;
+      } finally {
+        setRetrieving(false);
+      }
+    }
+
+    // ── Gazetteer / Nominatim: coordinates already present ──
     if (suggestion.latitude != null && suggestion.longitude != null) {
-      // Record the selection for usage-based learning (fire-and-forget)
       if (api && lastSearchQueryRef.current) {
         api.post('/orders/record-selection', {
           query: lastSearchQueryRef.current,
@@ -150,8 +313,7 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
         }).catch(() => {});
       }
 
-      // Start a new session for the next search
-      sessionTokenRef.current = uuid();
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
       return {
         id: suggestion.id,
         name: suggestion.text,
@@ -162,20 +324,15 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
       };
     }
 
-    // Legacy path: Search Box IDs that need a retrieve call for coordinates
+    // ── Fallback: retrieve from backend ──
     setRetrieving(true);
     try {
       if (!api) return null;
       const { data: json } = await api.get(
         `/orders/retrieve-place/${encodeURIComponent(suggestion.id)}`,
-        { params: { session_token: sessionTokenRef.current } },
       );
-
       const place = json.data as RetrievedPlace | undefined;
-
-      // Start a new session for the next search
-      sessionTokenRef.current = uuid();
-
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
       return place ?? null;
     } catch {
       return null;
@@ -202,8 +359,7 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
     setResults([]);
     setOpen(false);
     abortRef.current?.abort();
-    // New session for next search
-    sessionTokenRef.current = uuid();
+    sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
   }, []);
 
   useEffect(() => {
@@ -218,13 +374,30 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
 
 /**
  * Reverse geocode coordinates to a human-readable address.
- * Routes through the backend API proxy (no token exposure).
- * Returns both the address and Plus Code when available.
+ *
+ * Uses Google Maps Geocoder (client-side) as primary, with
+ * backend API proxy as fallback. NEVER returns raw coordinates.
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<{
   address: string;
   plusCode?: { full: string; short: string; display: string; city: string };
 }> {
+  // Primary: Google Maps Geocoder (client-side) — fastest, most accurate
+  try {
+    const result = await reverseGeocodeWithGoogle(lat, lng);
+    if (result.address && !result.address.includes('Unknown') && !result.address.includes('Unable')) {
+      return {
+        address: result.address,
+        plusCode: result.plusCode
+          ? { full: result.plusCode, short: result.plusCode, display: result.plusCode, city: '' }
+          : undefined,
+      };
+    }
+  } catch {
+    // Fall through to backend
+  }
+
+  // Fallback: Backend API proxy
   try {
     const url = `${API_BASE_URL}/orders/reverse-geocode?latitude=${lat}&longitude=${lng}`;
     const token = tokenStorage.getAccessToken();
@@ -232,14 +405,16 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{
       credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (!res.ok) return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
+    if (!res.ok) {
+      return { address: 'Address not found. Please search for the location.' };
+    }
     const json = await res.json();
     return {
-      address: json.data?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      address: json.data?.address || 'Address not found. Please search for the location.',
       plusCode: json.data?.plusCode,
     };
   } catch {
-    return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
+    return { address: 'Address not found. Please search for the location.' };
   }
 }
 
