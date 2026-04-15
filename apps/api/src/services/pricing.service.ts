@@ -46,7 +46,7 @@ import { correctEta } from './eta-learning.service';
 //   - Payment method–specific service fee rates
 //   - Business volume discounts
 //   - Promo code discounts
-//   - Mapbox route distance (when available)
+//   - Google Routes API distance (when available)
 //   - Wait time charging (post-delivery adjustment)
 //   - Rider distance-to-pickup compensation
 //
@@ -473,10 +473,10 @@ export function calculatePickupDistanceBonus(
   return roundGhs(chargeableKm * RIDER_PICKUP_DISTANCE_RATE);
 }
 
-// ── Mapbox Route Distance ──────────────────────────────────
+// ── Google Routes Distance ──────────────────────────────────
 
 /**
- * Fetch actual driving distance from Mapbox Directions API.
+ * Fetch actual driving distance from Google Routes API.
  * Returns route distance in km, or null if API call fails.
  */
 export async function fetchRouteDistance(
@@ -487,22 +487,40 @@ export async function fetchRouteDistance(
 ): Promise<{ distanceKm: number; durationMinutes: number } | null> {
   try {
     const { config } = await import('../config/index');
-    const mapboxToken = config.mapbox?.accessToken;
-    if (!mapboxToken) return null;
+    const apiKey = config.google?.mapsApiKey;
+    if (!apiKey) return null;
 
-    const coords = `${pickupLng},${pickupLat};${dropoffLng},${dropoffLat}`;
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=false&access_token=${mapboxToken}`;
+    const body = {
+      origin: { location: { latLng: { latitude: pickupLat, longitude: pickupLng } } },
+      destination: { location: { latLng: { latitude: dropoffLat, longitude: dropoffLng } } },
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_AWARE',
+    };
 
-    const response = await fetch(url);
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters',
+      },
+      body: JSON.stringify(body),
+    });
+
     if (!response.ok) return null;
 
-    const data = (await response.json()) as { routes?: Array<{ distance: number; duration: number }> };
+    const data = (await response.json()) as {
+      routes?: Array<{ distanceMeters: number; duration: string }>;
+    };
     const route = data?.routes?.[0];
     if (!route) return null;
 
+    const durationMatch = (route.duration ?? '0s').match(/^([\d.]+)s?$/);
+    const durationSec = durationMatch ? parseFloat(durationMatch[1]!) : 0;
+
     return {
-      distanceKm: roundGhs(route.distance / 1000),
-      durationMinutes: Math.max(10, Math.ceil(route.duration / 60)),
+      distanceKm: roundGhs(route.distanceMeters / 1000),
+      durationMinutes: Math.max(10, Math.ceil(durationSec / 60)),
     };
   } catch {
     return null;

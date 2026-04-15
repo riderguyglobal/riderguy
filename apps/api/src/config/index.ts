@@ -83,19 +83,15 @@ export const config = {
     privateKey: optionalEnv('FIREBASE_PRIVATE_KEY', '').replace(/\\n/g, '\n'),
   },
 
-  // Mapbox
-  mapbox: {
-    accessToken: optionalEnv('MAPBOX_ACCESS_TOKEN', ''),
+  // Google Maps
+  google: {
+    clientId: optionalEnv('GOOGLE_CLIENT_ID', ''),
+    mapsApiKey: optionalEnv('GOOGLE_MAPS_API_KEY', ''),
   },
 
   // CORS
   cors: {
     origins: optionalEnv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003').split(',').map(s => s.trim()),
-  },
-
-  // Google OAuth
-  google: {
-    clientId: optionalEnv('GOOGLE_CLIENT_ID', ''),
   },
 
   // WebAuthn (biometric login)
@@ -113,5 +109,23 @@ if (process.env.NODE_ENV === 'production') {
   }
   if (!process.env.WEBAUTHN_ORIGIN || config.webauthn.origin.some(o => o.includes('localhost'))) {
     console.warn('[CONFIG] WARNING: WEBAUTHN_ORIGIN contains localhost in production. Biometric login will fail.');
+  }
+
+  // Warn about critical services that will silently fail if unconfigured
+  const criticalServices: [string, string, string][] = [
+    ['PAYSTACK_SECRET_KEY', config.paystack.secretKey, 'Payment processing'],
+    ['MNOTIFY_API_KEY', config.mnotify.apiKey, 'SMS/OTP delivery'],
+    ['SENDGRID_API_KEY', config.sendgrid.apiKey, 'Email delivery'],
+    ['FIREBASE_PROJECT_ID', config.firebase.projectId, 'Push notifications'],
+    ['REDIS_URL', process.env.REDIS_URL ?? '', 'Session store / rate limiting / queues'],
+    ['S3_ENDPOINT', config.s3.endpoint, 'File uploads (S3/R2)'],
+    ['GOOGLE_MAPS_API_KEY', config.google.mapsApiKey, 'Maps / geocoding'],
+  ];
+  const missing = criticalServices.filter(([, val]) => !val);
+  if (missing.length > 0) {
+    console.warn('[CONFIG] WARNING: The following production services are UNCONFIGURED:');
+    for (const [key, , desc] of missing) {
+      console.warn(`  - ${key} (${desc})`);
+    }
   }
 }

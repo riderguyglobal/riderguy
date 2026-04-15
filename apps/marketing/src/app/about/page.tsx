@@ -1,7 +1,6 @@
-import { Button } from '@riderguy/ui';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import type { Metadata } from 'next';
 import {
   Heart,
   Eye,
@@ -16,8 +15,11 @@ import {
   Building2,
   ShieldCheck,
   Handshake,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
-import { HomeClient } from '@/components/home-client';
+import { ScrollRevealProvider } from '@/components/scroll-reveal';
+import { Counter } from '@/components/counter';
 
 export const metadata: Metadata = {
   title: 'About | RiderGuy',
@@ -25,67 +27,71 @@ export const metadata: Metadata = {
     'RiderGuy is the operating system for the rider economy in Ghana. Learn about our mission to transform delivery riding into a dignified career.',
 };
 
+const VALUES = [
+  { icon: ShieldCheck, title: 'Trust & Safety', desc: 'Every rider is verified, trained, and insured. Trust is not optional. It is the product.' },
+  { icon: Handshake, title: 'Fairness', desc: 'Riders keep 85% of every delivery fee. Fair pay builds a platform people believe in.' },
+  { icon: Lightbulb, title: 'Innovation', desc: 'We build technology that solves real problems for real people in real cities.' },
+  { icon: Heart, title: 'Community', desc: 'RiderGuy is more than an app. It is a network of riders, businesses, and communities growing together.' },
+  { icon: Globe, title: 'Local First', desc: 'Built for Ghana. Designed for African cities. We understand the roads, the culture, the hustle.' },
+  { icon: Sparkles, title: 'Excellence', desc: 'Good enough is not good enough. Every feature, every interaction, every delivery. We aim higher.' },
+];
+
 export default function AboutPage() {
   return (
-    <HomeClient>
+    <ScrollRevealProvider>
       {/* ================================================================
           HERO
           ================================================================ */}
       <section className="relative min-h-[70dvh] overflow-hidden bg-surface-950 sm:min-h-[80vh]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,197,94,0.1),transparent_60%)]" />
+        <div className="noise absolute inset-0" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 pb-16 pt-24 sm:gap-12 sm:px-6 sm:pb-20 sm:pt-32 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-10 px-5 pb-16 pt-28 sm:gap-14 sm:px-8 sm:pb-20 sm:pt-36 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-44">
           {/* Left — Copy */}
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="hero-badge-enter mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-400 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
+            <div className="hero-badge-in mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400 sm:mb-7 sm:text-sm">
               <Heart className="h-4 w-4" />
               Made in Ghana with purpose
             </div>
 
-            <h1 className="hero-text-enter max-w-xl text-[2rem] font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-7xl">
+            <h1 className="hero-text-in text-hero text-white">
               Moving Ghana{' '}
-              <span className="text-gradient">forward</span>
+              <span className="text-gradient-light">forward</span>
             </h1>
 
-            <p className="hero-text-enter-delay-1 mt-4 max-w-lg text-[0.95rem] leading-relaxed text-surface-400 sm:mt-6 sm:text-lg lg:text-xl">
-              RiderGuy is the operating system for the rider economy. We
-              connect riders, businesses, and individuals through a platform
-              that turns delivery riding into a dignified career with real
-              progression, training, and financial tools.
+            <p className="hero-text-in-d1 mt-5 max-w-lg text-base leading-relaxed text-surface-400 sm:mt-7 sm:text-lg">
+              RiderGuy is the operating system for the rider economy. We connect riders,
+              businesses, and individuals through a platform that turns delivery riding
+              into a dignified career with real progression, training, and financial tools.
             </p>
 
-            <div className="hero-text-enter-delay-2 mt-7 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
-              <Button
-                size="lg"
-                className="rounded-full bg-brand-500 px-6 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600 sm:px-8"
-                asChild
+            <div className="hero-text-in-d2 mt-7 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
+              <Link
+                href="/for-riders"
+                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-7 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600 sm:px-9"
               >
-                <Link href="/for-riders">
-                  Join as a Rider
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="rounded-full border-surface-700 px-6 text-surface-300 hover:bg-surface-800 hover:text-white sm:px-8"
-                asChild
+                Join as a Rider
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/for-businesses"
+                className="inline-flex h-12 items-center rounded-full border border-surface-700 px-7 text-[0.9rem] font-semibold text-surface-300 transition-colors hover:bg-surface-800 hover:text-white sm:px-9"
               >
-                <Link href="/for-businesses">Partner With Us</Link>
-              </Button>
+                Partner With Us
+              </Link>
             </div>
           </div>
 
-          {/* Right — Illustration */}
-          <div className="hero-image-enter relative flex-1">
-            <div className="relative mx-auto w-full max-w-md">
+          {/* Right — Image */}
+          <div className="hero-text-in-d1 relative flex-1">
+            <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
               <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 blur-3xl" />
               <Image
-                src="/images/illustrations/biker-talking.svg"
-                alt="Illustration of RiderGuy riders working together as a team"
-                width={520}
-                height={520}
-                className="relative z-10 w-full"
+                src="/images/general/Confident delivery riders at RiderGuy hub.png"
+                alt="RiderGuy riders at the hub"
+                width={600}
+                height={450}
+                className="relative z-10 w-full rounded-3xl object-cover shadow-2xl"
                 priority
               />
             </div>
@@ -94,47 +100,43 @@ export default function AboutPage() {
       </section>
 
       {/* ================================================================
-          MISSION AND VISION
+          MISSION & VISION
           ================================================================ */}
-      <section className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+      <section className="bg-white py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
               Why We Exist
             </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
+            <h2 className="text-section mt-3 text-surface-900">
               Our mission and vision
             </h2>
           </div>
 
-          <div className="stagger-children mt-10 grid gap-5 sm:mt-16 sm:gap-8 lg:grid-cols-2">
-            <div className="rounded-2xl border border-surface-100 bg-white p-6 transition-all hover:border-brand-200 hover:shadow-lg sm:p-10">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 sm:h-14 sm:w-14 sm:rounded-2xl">
-                <Target className="h-6 w-6 text-brand-600 sm:h-7 sm:w-7" />
+          <div className="stagger mt-12 grid gap-6 sm:mt-16 lg:grid-cols-2">
+            <div className="card-lift rounded-3xl border border-surface-100 bg-white p-8 sm:p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
+                <Target className="h-7 w-7 text-brand-600" />
               </div>
-              <h3 className="mt-5 text-xl font-bold text-surface-900 sm:mt-6 sm:text-2xl">Our Mission</h3>
-              <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
-                To transform delivery riding from a disposable gig into a
-                dignified, rewarding career. We believe every rider deserves
-                professional training, fair compensation, financial tools, and
-                a clear path to grow. RiderGuy exists to make that a reality
-                while giving businesses and individuals reliable, transparent
-                delivery they can count on.
+              <h3 className="mt-6 text-xl font-bold text-surface-900 sm:text-2xl">Our Mission</h3>
+              <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:text-base">
+                To transform delivery riding from a disposable gig into a dignified, rewarding career.
+                We believe every rider deserves professional training, fair compensation, financial tools,
+                and a clear path to grow. RiderGuy exists to make that a reality while giving businesses
+                and individuals reliable, transparent delivery they can count on.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-surface-100 bg-white p-6 transition-all hover:border-brand-200 hover:shadow-lg sm:p-10">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 sm:h-14 sm:w-14 sm:rounded-2xl">
-                <Eye className="h-6 w-6 text-brand-600 sm:h-7 sm:w-7" />
+            <div className="card-lift rounded-3xl border border-surface-100 bg-white p-6 sm:p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
+                <Eye className="h-7 w-7 text-brand-600" />
               </div>
-              <h3 className="mt-5 text-xl font-bold text-surface-900 sm:mt-6 sm:text-2xl">Our Vision</h3>
-              <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
-                To be the operating system for the rider economy. A single
-                platform where riders build careers, businesses access
-                reliable delivery, and communities thrive. Starting in Ghana
-                and expanding across the continent, RiderGuy is creating the
-                infrastructure that treats riders as skilled professionals,
-                not disposable labour.
+              <h3 className="mt-6 text-xl font-bold text-surface-900 sm:text-2xl">Our Vision</h3>
+              <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:text-base">
+                To be the operating system for the rider economy. A single platform where riders
+                build careers, businesses access reliable delivery, and communities thrive. Starting
+                in Ghana and expanding across the continent, RiderGuy is creating the infrastructure
+                that treats riders as skilled professionals, not disposable labour.
               </p>
             </div>
           </div>
@@ -142,54 +144,34 @@ export default function AboutPage() {
       </section>
 
       {/* ================================================================
-          OUR STORY — Side-by-side with photo
+          OUR STORY — Full Bleed Image + Overlay Text
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
-          {/* Left — Photo */}
-          <div className="reveal-left flex-1">
-            <div className="img-zoom relative overflow-hidden rounded-3xl">
-              <Image
-                src="/images/photos/rider-hero.jpg"
-                alt="RiderGuy rider on a motorcycle ready for deliveries in Ghana"
-                width={560}
-                height={740}
-                className="w-full object-cover"
-              />
-            </div>
-          </div>
+      <section className="relative h-[40vh] min-h-[300px] overflow-hidden sm:h-[60vh]">
+        <Image
+          src="/images/general/RiderGuy at dawn on open road.png"
+          alt="RiderGuy rider at dawn"
+          fill
+          className="object-cover"
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-surface-950/80 via-surface-950/50 to-surface-950/30" />
 
-          {/* Right — Copy */}
-          <div className="reveal-right flex-1 text-center lg:text-left">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Our Story
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              A different question
-            </h2>
-            <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
-              Most delivery platforms ask one question: &ldquo;How do we
-              fulfil more orders?&rdquo; They treat riders as interchangeable
-              resources, faceless labour behind an algorithm. Riders work
-              long hours, pay commissions of 20 to 30 percent, and have no
-              path forward. RiderGuy was built because we asked a different
-              question: &ldquo;How do we build better riders, and a better
-              world for them?&rdquo;
-            </p>
-            <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
-              That question led to a 4-in-1 super-platform: a rider app,
-              a client app, an admin portal, and this website, all built
-              as Progressive Web Apps so any rider in Ghana can install and
-              use them on any phone, even with limited internet. Riders keep
-              85 percent of every delivery. They level up, earn certifications,
-              access financial tools, and build real careers.
-            </p>
-            <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
-              This is not just a delivery app. It is the operating system
-              for the rider economy, starting in Ghana and scaling across
-              the continent. We are building the world&rsquo;s most supported
-              rider network, one rider at a time.
-            </p>
+        <div className="relative flex h-full items-center">
+          <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10">
+            <div className="reveal max-w-xl">
+              <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
+                Our Story
+              </span>
+              <h2 className="text-section mt-3 text-white">
+                Born from the roads of Accra
+              </h2>
+              <p className="mt-5 text-base leading-relaxed text-white/70 sm:text-[1.05rem]">
+                RiderGuy started with a simple observation: the riders who keep Ghana&apos;s cities
+                moving deserve better. Better pay. Better tools. Better futures. So we built the
+                platform that gives them exactly that, starting from the ground up, in the streets
+                where it matters most.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -197,73 +179,28 @@ export default function AboutPage() {
       {/* ================================================================
           VALUES
           ================================================================ */}
-      <section className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+      <section className="bg-surface-50 py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              What We Stand For
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+              Our Values
             </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              Our values
+            <h2 className="text-section mt-4 text-surface-900">
+              What drives us every day
             </h2>
-            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
-              These are the principles that guide every decision we make,
-              from how we design our app to how we treat our riders.
-            </p>
           </div>
 
-          <div className="stagger-children mt-10 grid gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-            {[
-              {
-                icon: ShieldCheck,
-                title: 'Reliability',
-                desc: 'We deliver on our promises. Every package, every time. Our riders, our technology, and our processes are built around consistency.',
-                color: 'bg-brand-50 text-brand-600',
-              },
-              {
-                icon: Eye,
-                title: 'Transparency',
-                desc: 'Fair pricing with no hidden fees. Real-time tracking on every delivery. Honest communication, even when things go wrong.',
-                color: 'bg-blue-50 text-blue-600',
-              },
-              {
-                icon: Handshake,
-                title: 'Community',
-                desc: 'Our riders are partners, not contractors. We invest in their training, safety, and growth. When they succeed, we all succeed.',
-                color: 'bg-amber-50 text-amber-600',
-              },
-              {
-                icon: Lightbulb,
-                title: 'Innovation',
-                desc: 'We are constantly improving our platform. Smart routing, instant payments, and predictive dispatching are just the beginning.',
-                color: 'bg-purple-50 text-purple-600',
-              },
-              {
-                icon: Globe,
-                title: 'Accessibility',
-                desc: 'Delivery should be available to everyone, not just those in capital cities. We are expanding to cover every corner of Ghana.',
-                color: 'bg-rose-50 text-rose-600',
-              },
-              {
-                icon: Heart,
-                title: 'Care',
-                desc: 'We treat every package as if it were our own. Every customer interaction matters. Every rider deserves respect and support.',
-                color: 'bg-teal-50 text-teal-600',
-              },
-            ].map((value) => (
+          <div className="stagger mt-14 grid gap-6 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
+            {VALUES.map((v) => (
               <div
-                key={value.title}
-                className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover sm:p-7"
+                key={v.title}
+                className="card-lift rounded-2xl border border-surface-100 bg-white p-5 sm:p-8"
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${value.color}`}>
-                  <value.icon className="h-6 w-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
+                  <v.icon className="h-6 w-6 text-brand-600" />
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-surface-900">
-                  {value.title}
-                </h3>
-                <p className="mt-2 leading-relaxed text-surface-500">
-                  {value.desc}
-                </p>
+                <h3 className="mt-5 text-lg font-bold text-surface-900">{v.title}</h3>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{v.desc}</p>
               </div>
             ))}
           </div>
@@ -273,41 +210,30 @@ export default function AboutPage() {
       {/* ================================================================
           BY THE NUMBERS
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-16 sm:py-24 lg:py-32">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(34,197,94,0.08),transparent_60%)]" />
+      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-32">
+        <div className="noise absolute inset-0" />
+        <div className="orb orb-green left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 opacity-40" />
 
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+        <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
-              By the Numbers
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
-              Our impact so far
-            </h2>
-            <p className="mt-3 text-[0.95rem] text-surface-400 sm:mt-4 sm:text-lg">
-              We measure our success by the impact we have on riders,
-              businesses, and communities across Ghana.
+            <h2 className="text-section text-white">By the numbers</h2>
+            <p className="mt-4 text-base text-surface-400 sm:text-[1.05rem]">
+              We let our impact speak for itself.
             </p>
           </div>
 
-          <div className="stagger-children mt-10 grid gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+          <div className="stagger mt-14 grid grid-cols-2 gap-6 sm:mt-16 lg:grid-cols-4">
             {[
-              { value: 'Fast', label: 'Same-day delivery', icon: Package },
-              { value: 'Verified', label: 'Trained riders', icon: Bike },
-              { value: 'Growing', label: 'Business partners', icon: Building2 },
-              { value: 'Expanding', label: 'Cities across Ghana', icon: MapPin },
+              { value: 85, suffix: '%', label: 'Rider Earnings Share' },
+              { value: 7, suffix: '', label: 'Rider Career Levels' },
+              { value: 0, suffix: '', label: 'Setup Fees' },
+              { value: 1, suffix: '', label: 'Mission: Empower Riders' },
             ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-2xl border border-surface-800 bg-surface-900/50 p-5 text-center transition-all hover:border-brand-500/30 sm:p-8"
-              >
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10">
-                  <stat.icon className="h-6 w-6 text-brand-400" />
+              <div key={stat.label} className="text-center">
+                <div className="text-2xl font-bold text-white sm:text-4xl lg:text-5xl">
+                  <Counter target={stat.value} suffix={stat.suffix} />
                 </div>
-                <p className="mt-3 text-2xl font-bold text-white sm:mt-4 sm:text-3xl lg:text-4xl">
-                  {stat.value}
-                </p>
-                <p className="mt-2 text-sm text-surface-400">{stat.label}</p>
+                <p className="mt-2 text-sm font-medium text-surface-400">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -315,245 +241,77 @@ export default function AboutPage() {
       </section>
 
       {/* ================================================================
-          WHAT DRIVES US — Side-by-side with illustration
+          WHAT WE DO — 4 Pillars
           ================================================================ */}
-      <section className="relative overflow-hidden bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row-reverse lg:gap-20 lg:px-10">
-          {/* Right — Illustration */}
-          <div className="reveal-right flex-1">
-            <div className="relative flex items-center justify-center rounded-3xl bg-surface-50 p-6 sm:p-10">
-              <Image
-                src="/images/illustrations/biker-train.svg"
-                alt="Illustration of RiderGuy investing in rider training and development"
-                width={480}
-                height={480}
-                className="w-full max-w-md"
-              />
-            </div>
-          </div>
-
-          {/* Left — Copy */}
-          <div className="reveal-left flex-1 text-center lg:text-left">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              What Drives Us
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              People first, always
-            </h2>
-            <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
-              Behind every delivery is a rider who chose RiderGuy as their
-              source of income. Behind every order is a business owner
-              trusting us with their reputation. Behind every package is a
-              customer waiting for something that matters to them.
-            </p>
-            <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-lg">
-              That is why we invest heavily in rider training, safety
-              equipment, and insurance. That is why we build tools that give
-              businesses complete visibility. That is why we obsess over
-              every detail of the delivery experience.
-            </p>
-
-            <ul className="mt-6 space-y-3 sm:mt-8 sm:space-y-4">
-              {[
-                'Free safety and route optimization training for all riders',
-                'Insurance coverage for every active delivery',
-                'Instant payouts so riders are never waiting for their money',
-                '24/7 support for riders, businesses, and customers',
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-left">
-                  <Heart className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-500" />
-                  <span className="text-surface-600">{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================
-          COMMUNITY IMPACT — Rider lifestyle photo
-          ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-50 py-24 sm:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
-          {/* Left — Photo */}
-          <div className="reveal-left flex-1">
-            <div className="img-zoom relative overflow-hidden rounded-3xl">
-              <Image
-                src="/images/photos/rider-lifestyle.jpg"
-                alt="RiderGuy rider delivering groceries at a customer doorstep in the evening"
-                width={640}
-                height={520}
-                className="w-full object-cover"
-              />
-            </div>
-          </div>
-
-          {/* Right — Copy */}
-          <div className="reveal-right flex-1 text-center lg:text-left">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Community Impact
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              More than a delivery company
-            </h2>
-            <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
-              Every delivery completed through RiderGuy supports a rider's
-              livelihood, helps a local business grow, and makes life a
-              little easier for someone in our community. We are not just
-              moving packages. We are building economic opportunity.
-            </p>
-
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-4">
-              <div className="rounded-2xl bg-white p-4 text-center shadow-sm sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Instant</p>
-                <p className="mt-1 text-xs text-surface-500">Rider payouts</p>
-              </div>
-              <div className="rounded-2xl bg-white p-4 text-center shadow-sm sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Growing</p>
-                <p className="mt-1 text-xs text-surface-500">Rider community</p>
-              </div>
-              <div className="rounded-2xl bg-white p-4 text-center shadow-sm sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Trusted</p>
-                <p className="mt-1 text-xs text-surface-500">Business partners</p>
-              </div>
-              <div className="rounded-2xl bg-white p-4 text-center shadow-sm sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Expanding</p>
-                <p className="mt-1 text-xs text-surface-500">Cities connected</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================
-          RIDER GROWTH — Career progression on the platform
-          ================================================================ */}
-      <section id="rider-growth" className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+      <section className="bg-white py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Rider Growth
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+              What We Do
             </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              Build a real career on two wheels
+            <h2 className="text-section mt-4 text-surface-900">
+              A 4-in-1 platform
             </h2>
-            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
-              RiderGuy is more than a delivery platform. It is the operating
-              system for your riding career, with structured progression,
-              professional training, financial tools, and a community that
-              has your back every step of the way.
+            <p className="mt-4 text-base text-surface-500 sm:text-[1.05rem]">
+              RiderGuy connects every side of the delivery ecosystem in one place.
             </p>
           </div>
 
-          <div className="stagger-children mx-auto mt-10 grid max-w-4xl gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+          <div className="stagger mt-14 grid gap-6 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              {
-                icon: Target,
-                title: 'Career Levels',
-                desc: 'Progress through seven tiers, from Rookie to Legend. Earn XP, unlock badges, and access higher-paying delivery zones as you grow.',
-                color: 'bg-brand-50 text-brand-600',
-              },
-              {
-                icon: Lightbulb,
-                title: 'Training Academy',
-                desc: 'Access professional training covering road safety, customer service, route optimization, and financial literacy.',
-                color: 'bg-blue-50 text-blue-600',
-              },
-              {
-                icon: Package,
-                title: 'Financial Tools',
-                desc: 'A built-in digital wallet with instant payouts, savings tools, and earnings insights to help you manage and grow your income.',
-                color: 'bg-amber-50 text-amber-600',
-              },
-              {
-                icon: Users,
-                title: 'Rider Community',
-                desc: 'Connect with fellow riders in your zone through group chat, mentorship programmes, rider councils, and local events.',
-                color: 'bg-purple-50 text-purple-600',
-              },
-              {
-                icon: ShieldCheck,
-                title: 'Welfare and Support',
-                desc: 'Insurance coverage on every active delivery, emergency assistance funds, and subsidised safety gear to keep you protected.',
-                color: 'bg-rose-50 text-rose-600',
-              },
-              {
-                icon: Handshake,
-                title: 'Partner Programme',
-                desc: 'Refer new riders to the platform and earn commissions. Help grow the community while building an additional income stream.',
-                color: 'bg-teal-50 text-teal-600',
-              },
-            ].map((item) => (
+              { icon: Package, title: 'Client App', desc: 'Send packages, track deliveries, and pay, all from your phone.' },
+              { icon: Bike, title: 'Rider App', desc: 'Accept deliveries, navigate routes, earn money, and grow your career.' },
+              { icon: Building2, title: 'Business Dashboard', desc: 'Manage fleet deliveries, track analytics, and scale operations.' },
+              { icon: Users, title: 'Admin Platform', desc: 'Oversee the entire ecosystem: riders, clients, orders, and payouts.' },
+            ].map((pillar) => (
               <div
-                key={item.title}
-                className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover sm:p-7"
+                key={pillar.title}
+                className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:p-8"
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
-                  <item.icon className="h-6 w-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-950 transition-colors group-hover:bg-brand-500">
+                  <pillar.icon className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-surface-900">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-surface-500">
-                  {item.desc}
-                </p>
+                <h3 className="mt-5 text-lg font-bold text-surface-900">{pillar.title}</h3>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{pillar.desc}</p>
               </div>
             ))}
-          </div>
-
-          <div className="reveal mt-10 text-center sm:mt-12">
-            <Button
-              size="lg"
-              className="rounded-full bg-brand-500 px-6 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600 sm:px-8"
-              asChild
-            >
-              <Link href="/for-riders">
-                Start Your Riding Career
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-            </Button>
           </div>
         </div>
       </section>
 
       {/* ================================================================
-          FINAL CTA
+          JOIN THE MOVEMENT CTA
           ================================================================ */}
-      <section className="relative overflow-hidden bg-brand-500 py-16 sm:py-24 lg:py-28">
-        <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-brand-400/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-brand-600/30 blur-3xl" />
+      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-32">
+        <div className="noise absolute inset-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,197,94,0.08),transparent_70%)]" />
 
-        <div className="reveal relative mx-auto max-w-3xl px-4 text-center sm:px-8">
-          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
-            Let us move Ghana forward together
-          </h2>
-          <p className="mt-3 text-[0.95rem] text-brand-100 sm:mt-4 sm:text-lg">
-            Whether you are a rider looking for fair work, a business
-            needing reliable delivery, or a customer who wants to send a
-            package, RiderGuy is here for you.
-          </p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3 sm:mt-10 sm:gap-4">
-            <Button
-              size="lg"
-              className="rounded-full bg-white px-7 text-brand-600 shadow-lg hover:bg-brand-50 sm:px-10"
-              asChild
-            >
-              <Link href="/for-riders">
+        <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
+          <div className="reveal">
+            <h2 className="text-section text-white">
+              Join the movement
+            </h2>
+            <p className="mt-5 text-base text-surface-400 sm:text-lg">
+              Whether you want to ride, send, or build a business on reliable delivery, RiderGuy is your platform.
+            </p>
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+              <Link
+                href="/for-riders"
+                className="btn-glow inline-flex h-13 items-center gap-2 rounded-full bg-brand-500 px-9 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600"
+              >
                 Become a Rider
-                <ChevronRight className="ml-1 h-4 w-4" />
+                <ArrowRight className="h-4 w-4" />
               </Link>
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="rounded-full border-white/40 px-7 text-white hover:border-transparent hover:bg-brand-600 sm:px-10"
-              asChild
-            >
-              <Link href="/for-businesses">Partner With Us</Link>
-            </Button>
+              <Link
+                href="/for-businesses"
+                className="inline-flex h-13 items-center rounded-full border border-surface-700 px-9 text-[0.9rem] font-semibold text-surface-300 transition-colors hover:border-surface-600 hover:text-white"
+              >
+                Partner With Us
+              </Link>
+            </div>
           </div>
         </div>
       </section>
-    </HomeClient>
+    </ScrollRevealProvider>
   );
 }

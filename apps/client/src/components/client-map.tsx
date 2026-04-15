@@ -2,8 +2,8 @@
 // ClientMap — Dashboard map for the client (sender) app
 //
 // Features:
-// • Mapbox GL JS v3.19 via initMapCore (NavigationControl,
-//   GeolocateControl, ScaleControl, 3D buildings, fog)
+// • Google Maps JS API via initMapCore (zoom, scale,
+//   3D buildings, dark-mode styles)
 // • Nearby rider markers (polled via REST)
 // • Live rider position updates (WebSocket rider:location)
 // • Real-time traffic overlay (toggle)
@@ -14,8 +14,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type mapboxgl from 'mapbox-gl';
-import { MAPBOX_TOKEN, DEFAULT_CENTER } from '@/lib/constants';
+import { GOOGLE_MAPS_API_KEY, DEFAULT_CENTER } from '@/lib/constants';
 import { MAP_ZOOM, LOCATION_INTERVALS } from '@riderguy/utils';
 import { useAuth } from '@riderguy/auth';
 import { useSocket } from '@/hooks/use-socket';
@@ -37,8 +36,8 @@ interface NearbyRider {
 export default function ClientMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<MapCoreInstance | null>(null);
-  const riderMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const riderMarkersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const userMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [trafficOn, setTrafficOn] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -61,7 +60,7 @@ export default function ClientMap() {
 
   // ── Fetch nearby riders ───────────────────────────────
   const fetchNearbyRiders = useCallback(
-    async (map: mapboxgl.Map, mapboxglLib: typeof import('mapbox-gl').default, center: [number, number]) => {
+    async (map: google.maps.Map, center: [number, number]) => {
       try {
         const currentApi = apiRef.current;
         if (!currentApi) return;
@@ -76,7 +75,7 @@ export default function ClientMap() {
         // Remove markers for riders no longer nearby
         riderMarkersRef.current.forEach((marker, id) => {
           if (!currentIds.has(id)) {
-            marker.remove();
+            marker.map = null;
             riderMarkersRef.current.delete(id);
           }
         });
@@ -85,12 +84,11 @@ export default function ClientMap() {
         for (const rider of riders) {
           const existing = riderMarkersRef.current.get(rider.id);
           if (existing) {
-            existing.setLngLat([rider.longitude, rider.latitude]);
+            existing.position = { lat: rider.latitude, lng: rider.longitude };
           } else {
-            const marker = createSmallRiderMarker(mapboxglLib, [rider.longitude, rider.latitude], {
+            const marker = createSmallRiderMarker(map, [rider.longitude, rider.latitude], {
               popup: rider.firstName ? `Rider nearby` : undefined,
             });
-            marker.addTo(map);
             riderMarkersRef.current.set(rider.id, marker);
           }
         }
@@ -103,7 +101,7 @@ export default function ClientMap() {
 
   // ── Initialize map ────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || !MAPBOX_TOKEN) return;
+    if (!containerRef.current || !GOOGLE_MAPS_API_KEY) return;
     let cancelled = false;
 
     (async () => {
@@ -112,27 +110,27 @@ export default function ClientMap() {
 
       const core = await initMapCore({
         container: containerRef.current!,
-        token: MAPBOX_TOKEN,
+        token: GOOGLE_MAPS_API_KEY,
         center: userPos ?? DEFAULT_CENTER,
         zoom: userPos ? MAP_ZOOM.close : MAP_ZOOM.default,
-        onLoad: (map, mapboxglLib) => {
+        onLoad: (map) => {
           // Traffic overlay (hidden by default)
-          addTrafficLayer(map, false);
+          addTrafficLayer(map);
+          toggleTraffic(map, false);
 
           // User location dot
           if (userPos) {
-            const dot = createUserDotMarker(mapboxglLib, userPos);
-            dot.addTo(map);
+            const dot = createUserDotMarker(map, userPos);
             userMarkerRef.current = dot;
           }
 
           // Initial nearby riders fetch
-          fetchNearbyRiders(map, mapboxglLib, userPos ?? DEFAULT_CENTER);
+          fetchNearbyRiders(map, userPos ?? DEFAULT_CENTER);
 
           // Poll nearby riders
           pollTimerRef.current = setInterval(() => {
             const center = map.getCenter();
-            fetchNearbyRiders(map, mapboxglLib, [center.lng, center.lat]);
+            if (center) fetchNearbyRiders(map, [center.lng(), center.lat()]);
           }, LOCATION_INTERVALS.nearbyPoll);
 
           setMapReady(true);
@@ -149,9 +147,9 @@ export default function ClientMap() {
     return () => {
       cancelled = true;
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      riderMarkersRef.current.forEach((m) => m.remove());
+      riderMarkersRef.current.forEach((m) => { m.map = null; });
       riderMarkersRef.current.clear();
-      userMarkerRef.current?.remove();
+      if (userMarkerRef.current) userMarkerRef.current.map = null;
       coreRef.current?.destroy();
       coreRef.current = null;
     };
@@ -168,10 +166,9 @@ export default function ClientMap() {
 
       const existing = riderMarkersRef.current.get(data.riderId);
       if (existing) {
-        existing.setLngLat([data.longitude, data.latitude]);
+        existing.position = { lat: data.latitude, lng: data.longitude };
       } else {
-        const marker = createSmallRiderMarker(core.mapboxgl, [data.longitude, data.latitude]);
-        marker.addTo(core.map);
+        const marker = createSmallRiderMarker(core.map, [data.longitude, data.latitude]);
         riderMarkersRef.current.set(data.riderId, marker);
       }
     };

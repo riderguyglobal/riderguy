@@ -113,7 +113,7 @@ export async function awardXp(
   const newLevel = calculateLevel(newTotalXp);
   const leveledUp = newLevel > previousLevel;
 
-  // Update rider XP + level, create XP event (sequential — no interactive tx for PgBouncer)
+  // Update rider XP + level, create XP event
   await prisma.riderProfile.update({
     where: { id: riderId },
     data: {
@@ -205,7 +205,7 @@ async function checkAndAwardBadges(
     const count = actionCounts[criteria.action] ?? 0;
     if (count >= criteria.threshold) {
       try {
-        // Sequential writes — no interactive tx for PgBouncer
+        // Sequential writes for badge award
         await prisma.riderBadge.create({
           data: { riderId, badgeId: badge.id },
         });
@@ -536,7 +536,7 @@ export async function adminAdjustXp(
   const newTotalXp = Math.max(0, rider.totalXp + points);
   const newLevel = calculateLevel(newTotalXp);
 
-  // Sequential writes — no interactive tx for PgBouncer
+  // Sequential XP adjustment
   await prisma.riderProfile.update({
     where: { id: riderId },
     data: { totalXp: newTotalXp, currentLevel: newLevel },
@@ -566,7 +566,7 @@ export async function adminAwardBadge(riderId: string, badgeId: string): Promise
   });
   if (existing) throw ApiError.badRequest('Rider already has this badge');
 
-  // Sequential writes — no interactive tx for PgBouncer
+  // Award badge and XP
   await prisma.riderBadge.create({ data: { riderId, badgeId } });
 
   if (badge.xpReward > 0) {

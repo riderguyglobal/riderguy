@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════
 // Map Constants — shared across client, rider, and API apps
-// Full Mapbox GL JS v3.19 feature set
+// Google Maps JavaScript API
 // ══════════════════════════════════════════════════════════
 
 /** Ghana bounding box [minLng, minLat, maxLng, maxLat] */
@@ -14,47 +14,67 @@ export const ACCRA_CENTER: [number, number] = [-0.187, 5.603];
 
 // ── Map Styles ──────────────────────────────────────────
 
-/** Mapbox map styles — all built-in Mapbox styles */
+/** Google Maps map style IDs */
 export const MAP_STYLES = {
-  /** Clean light style — client app default */
-  light: 'mapbox://styles/mapbox/light-v11',
-  /** Street detail style — good for navigation */
-  streets: 'mapbox://styles/mapbox/streets-v12',
-  /** Dark style — general dark mode */
-  dark: 'mapbox://styles/mapbox/dark-v11',
-  /** Dark navigation style — rider app default */
-  navigationNight: 'mapbox://styles/mapbox/navigation-night-v1',
+  /** Clean light style - client app default */
+  light: 'roadmap',
+  /** Street detail style - good for navigation */
+  streets: 'roadmap',
+  /** Dark style - general dark mode (applied via styles array) */
+  dark: 'roadmap',
+  /** Dark navigation style - rider app default */
+  navigationNight: 'roadmap',
   /** Navigation day style */
-  navigationDay: 'mapbox://styles/mapbox/navigation-day-v1',
+  navigationDay: 'roadmap',
   /** Satellite view with labels */
-  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-  /** Outdoors style — terrain-oriented */
-  outdoors: 'mapbox://styles/mapbox/outdoors-v12',
-  /** Standard style with 3D features */
-  standard: 'mapbox://styles/mapbox/standard',
+  satellite: 'hybrid',
+  /** Terrain-oriented */
+  outdoors: 'terrain',
+  /** Standard style */
+  standard: 'roadmap',
 } as const;
+
+/** Google Maps dark mode style array */
+export const DARK_MAP_STYLES: Array<{
+  elementType?: string;
+  featureType?: string;
+  stylers: Array<Record<string, string>>;
+}> = [
+  { elementType: 'geometry', stylers: [{ color: '#212121' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#212121' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#757575' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#2a2a2a' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1b3a1b' }] },
+  { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#2c2c2c' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#373737' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3c3c3c' }] },
+  { featureType: 'road.highway.controlled_access', elementType: 'geometry', stylers: [{ color: '#4e4e4e' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
+];
 
 // ── Geocoding & Search ──────────────────────────────────
 
-/** Mapbox place types for Ghana-focused autocomplete (v6 API) */
-export const AUTOCOMPLETE_PLACE_TYPES = 'address,street,place,locality,neighborhood,district';
-
-/** Geocoding API v6 endpoints */
+/** Google Geocoding API endpoint */
 export const GEOCODING_ENDPOINTS = {
-  forward: 'https://api.mapbox.com/search/geocode/v6/forward',
-  reverse: 'https://api.mapbox.com/search/geocode/v6/reverse',
-  batch: 'https://api.mapbox.com/search/geocode/v6/batch',
+  forward: 'https://maps.googleapis.com/maps/api/geocode/json',
+  reverse: 'https://maps.googleapis.com/maps/api/geocode/json',
 } as const;
 
-/** Directions API v5 endpoints */
-export const DIRECTIONS_ENDPOINT = 'https://api.mapbox.com/directions/v5/mapbox';
+/** Google Routes API endpoint */
+export const ROUTES_ENDPOINT = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
-/** Directions API profiles */
-export const DIRECTIONS_PROFILES = {
-  drivingTraffic: 'driving-traffic',
-  driving: 'driving',
-  cycling: 'cycling',
-  walking: 'walking',
+/** Travel mode mapping for Google Routes API */
+export const TRAVEL_MODES = {
+  driving: 'DRIVE',
+  cycling: 'BICYCLE',
+  walking: 'WALK',
+  transit: 'TRANSIT',
 } as const;
 
 // ── Route Rendering ─────────────────────────────────────
@@ -88,27 +108,17 @@ export const ROUTE_LINE_WIDTHS = {
   congestionLine: 6,
 } as const;
 
-/** Route source and layer IDs */
+/** Route identifier keys (used for tracking polyline instances) */
 export const ROUTE_LAYER_IDS = {
-  source: 'rg-route',
-  altSource: 'rg-alt-route',
+  primary: 'rg-route-primary',
   shadow: 'rg-route-shadow',
   border: 'rg-route-border',
   glow: 'rg-route-glow',
   line: 'rg-route-line',
   arrow: 'rg-route-arrow',
-  arrowImage: 'rg-arrow-chevron',
   congestion: 'rg-route-congestion',
-  altShadow: 'rg-alt-shadow',
   altLine: 'rg-alt-line',
-} as const;
-
-/** Traffic overlay IDs */
-export const TRAFFIC_IDS = {
-  source: 'rg-traffic',
-  layer: 'rg-traffic-flow',
-  tilesetUrl: 'mapbox://mapbox.mapbox-traffic-v1',
-  sourceLayer: 'traffic',
+  altShadow: 'rg-alt-shadow',
 } as const;
 
 // ── Marker Colors ───────────────────────────────────────
@@ -178,32 +188,18 @@ export const MAP_PITCH = {
 
 // ── 3D & Fog ────────────────────────────────────────────
 
-/** Fog configuration for atmospheric depth effect */
+/** Fog configuration — not applicable to Google Maps (kept as no-op) */
 export const MAP_FOG = {
-  light: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    'high-color': '#add8e6',
-    'horizon-blend': 0.02,
-    'space-color': '#d8f2ff',
-    'star-intensity': 0.0,
-  },
-  dark: {
-    color: 'rgba(20, 20, 30, 0.9)',
-    'high-color': '#1a1a2e',
-    'horizon-blend': 0.04,
-    'space-color': '#0d1117',
-    'star-intensity': 0.6,
-  },
+  light: {},
+  dark: {},
 } as const;
 
-/** 3D building layer configuration */
+/** 3D building configuration — Google Maps uses tilt for 3D */
 export const BUILDING_3D = {
-  layerId: 'rg-3d-buildings',
-  sourceLayer: 'building',
+  /** Default tilt angle for 3D building view */
+  tilt: 45,
+  /** Min zoom for 3D buildings to appear */
   minzoom: 14,
-  fillExtrusionOpacity: 0.6,
-  fillExtrusionColor: '#aaa',
-  fillExtrusionColorDark: '#333',
 } as const;
 
 // ── Geolocation Options ─────────────────────────────────

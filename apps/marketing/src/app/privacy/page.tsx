@@ -1,17 +1,17 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — RiderGuy',
+  title: 'Privacy Policy | RiderGuy',
   description: 'Learn how RiderGuy collects, uses, and protects your personal information.',
 };
 
 export default function PrivacyPolicyPage() {
   return (
-    <section className="pt-28 pb-20 px-6 sm:pt-32">
-      <div className="mx-auto max-w-3xl prose prose-gray prose-headings:font-bold">
+    <section className="px-5 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
+      <div className="prose prose-gray prose-headings:font-bold mx-auto max-w-3xl">
         <h1>Privacy Policy</h1>
         <p className="lead">
-          Last updated: {new Date().toLocaleDateString('en-GH', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Last updated: 10 April 2026
         </p>
         <p>
           RiderGuy (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) is committed to protecting
@@ -69,16 +69,15 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li><strong>Other users:</strong> Riders see client names and delivery addresses; clients see rider names and real-time location during active deliveries.</li>
           <li><strong>Payment processors:</strong> We share necessary data with Paystack to process payments.</li>
-          <li><strong>Service providers:</strong> Cloud hosting, analytics, and communication service providers who assist in operating the Platform.</li>
+          <li><strong>Service providers:</strong> Cloud hosting, analytics, and communication providers who assist in operating the Platform.</li>
           <li><strong>Law enforcement:</strong> When required by law, subpoena, or legal process.</li>
         </ul>
 
         <h2>4. Data Retention</h2>
         <p>
           We retain personal data for as long as your account is active or as needed to
-          provide services. Transaction records are retained for a minimum of 7 years
-          for compliance purposes. You may request deletion of your account data by
-          contacting us.
+          provide services. Transaction records are retained for a minimum of 7 years.
+          You may request deletion of your account data by contacting us.
         </p>
 
         <h2>5. Data Security</h2>
@@ -109,8 +108,8 @@ export default function PrivacyPolicyPage() {
         <h2>8. Changes to This Policy</h2>
         <p>
           We may update this Privacy Policy from time to time. We will notify you of
-          material changes through the Platform or via email. Continued use after changes
-          constitutes acceptance.
+          material changes through the Platform or via email. Continued use constitutes
+          acceptance.
         </p>
 
         <h2>9. Contact Us</h2>

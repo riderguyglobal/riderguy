@@ -1,15 +1,14 @@
 // ══════════════════════════════════════════════════════════
 // Map Markers — Rider app marker factory functions
 //
-// Dark theme-aware, professional markers using Mapbox v3.19:
-// • Popup API for info windows
+// Dark theme-aware, professional markers using Google Maps:
+// • AdvancedMarkerElement for custom content
+// • InfoWindow for popups
 // • Status-aware dot with animated pulse
-// • Proper anchor positioning
-// • Draggable support
+// • Proper anchor positioning via CSS transform
 // • ARIA labels for accessibility
 // ══════════════════════════════════════════════════════════
 
-import type mapboxgl from 'mapbox-gl';
 import { MARKER_COLORS, ROUTE_COLORS } from '@riderguy/utils';
 
 // ── SVG Icons ─────────────────────────────────────────────
@@ -43,17 +42,42 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// ── Shared InfoWindow instance (only one open at a time) ─
+
+let sharedInfoWindow: google.maps.InfoWindow | null = null;
+
+function attachInfoWindow(
+  map: google.maps.Map,
+  marker: google.maps.marker.AdvancedMarkerElement,
+  html: string,
+): void {
+  marker.addListener('click', () => {
+    if (!sharedInfoWindow) {
+      sharedInfoWindow = new google.maps.InfoWindow();
+    }
+    sharedInfoWindow.setContent(`<div class="px-3 py-2 text-sm font-medium">${html}</div>`);
+    sharedInfoWindow.open({ anchor: marker, map });
+  });
+}
+
+// ── Helper to convert [lng, lat] to Google LatLng ────────
+
+function toLatLng(lngLat: [number, number]): google.maps.LatLngLiteral {
+  return { lat: lngLat[1], lng: lngLat[0] };
+}
+
 // ── Pickup Marker ───────────────────────────────────────
 
 export function createPickupMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const el = document.createElement('div');
   el.className = 'rg-marker pickup';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', 'Pickup location');
+  el.style.transform = 'translateY(-50%)';
   el.innerHTML = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
       <div style="width:36px;height:36px;border-radius:50%;background:${MARKER_COLORS.pickup};border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;">
@@ -63,14 +87,14 @@ export function createPickupMarker(
     </div>
   `;
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-    .setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
-    );
+    attachInfoWindow(map, marker, escapeHtml(options.popup));
   }
 
   return marker;
@@ -79,14 +103,15 @@ export function createPickupMarker(
 // ── Dropoff Marker ──────────────────────────────────────
 
 export function createDropoffMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const el = document.createElement('div');
   el.className = 'rg-marker dropoff';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', 'Dropoff location');
+  el.style.transform = 'translateY(-50%)';
   el.innerHTML = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
       <div style="width:36px;height:36px;border-radius:50%;background:${MARKER_COLORS.dropoff};border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;">
@@ -96,14 +121,14 @@ export function createDropoffMarker(
     </div>
   `;
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-    .setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
-    );
+    attachInfoWindow(map, marker, escapeHtml(options.popup));
   }
 
   return marker;
@@ -112,10 +137,10 @@ export function createDropoffMarker(
 // ── Stop Marker ─────────────────────────────────────────
 
 export function createStopMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { popup?: string; label?: string; type?: 'PICKUP' | 'DROPOFF' } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const type = options.type ?? 'PICKUP';
   const label = options.label ?? '•';
   const color = type === 'DROPOFF' ? MARKER_COLORS.dropoff : MARKER_COLORS.pickup;
@@ -123,6 +148,7 @@ export function createStopMarker(
   el.className = 'rg-marker stop';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', `Stop ${label} marker`);
+  el.style.transform = 'translateY(-50%)';
   el.innerHTML = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
       <div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.3),0 0 0 1px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;">
@@ -132,14 +158,14 @@ export function createStopMarker(
     </div>
   `;
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-    .setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 20, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
-    );
+    attachInfoWindow(map, marker, escapeHtml(options.popup));
   }
 
   return marker;
@@ -148,10 +174,10 @@ export function createStopMarker(
 // ── Rider Marker (with bike icon) ───────────────────────
 
 export function createRiderMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const el = document.createElement('div');
   el.className = 'rg-marker rider';
   el.setAttribute('role', 'img');
@@ -165,13 +191,14 @@ export function createRiderMarker(
     </div>
   `;
 
-  const marker = new mapboxgl.Marker({ element: el }).setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${escapeHtml(options.popup)}</div>`),
-    );
+    attachInfoWindow(map, marker, escapeHtml(options.popup));
   }
 
   return marker;
@@ -188,10 +215,10 @@ const STATUS_DOT_COLORS: Record<RiderMapStatus, { main: string; glow: string; ri
 };
 
 export function createRiderStatusDot(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   status: RiderMapStatus = 'offline',
-): { marker: mapboxgl.Marker; element: HTMLDivElement } {
+): { marker: google.maps.marker.AdvancedMarkerElement; element: HTMLDivElement } {
   const c = STATUS_DOT_COLORS[status];
   const el = document.createElement('div');
   el.className = 'rg-marker rider-dot';
@@ -208,7 +235,11 @@ export function createRiderStatusDot(
   `;
 
   return {
-    marker: new mapboxgl.Marker({ element: el }).setLngLat(lngLat),
+    marker: new google.maps.marker.AdvancedMarkerElement({
+      map,
+      position: toLatLng(lngLat),
+      content: el,
+    }),
     element: el,
   };
 }
@@ -229,9 +260,8 @@ export function updateRiderStatusDot(el: HTMLDivElement, status: RiderMapStatus)
 
 // ── Cleanup ─────────────────────────────────────────────
 
-export function removeMarkers(markers: mapboxgl.Marker[]): void {
+export function removeMarkers(markers: google.maps.marker.AdvancedMarkerElement[]): void {
   for (const m of markers) {
-    m.getPopup()?.remove();
-    m.remove();
+    m.map = null;
   }
 }

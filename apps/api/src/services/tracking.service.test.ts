@@ -8,7 +8,7 @@ const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
 vi.mock('../config', () => ({
   config: {
     nodeEnv: 'test',
-    mapbox: { accessToken: '' }, // no Mapbox in tests — will use haversine fallback
+    google: { mapsApiKey: '' }, // no Google Maps in tests — will use haversine fallback
   },
 }));
 
@@ -111,7 +111,7 @@ describe('Tracking & Rider Location', () => {
   });
 
   // ────────────────────────────────────────────────────────────
-  // 2. ETA CALCULATION — haversine fallback (no Mapbox in tests)
+  // 2. ETA CALCULATION — haversine fallback (no Google Maps in tests)
   // ────────────────────────────────────────────────────────────
   describe('getETA', () => {
     it('should calculate ETA using haversine fallback at 25 km/h', async () => {

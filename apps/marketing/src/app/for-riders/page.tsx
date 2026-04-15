@@ -1,205 +1,163 @@
-import { Button } from '@riderguy/ui';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import type { Metadata } from 'next';
 import {
-  Wallet,
-  Clock,
-  Shield,
-  TrendingUp,
-  Users,
-  Headphones,
-  Award,
-  MapPin,
-  ChevronRight,
-  CheckCircle2,
   Bike,
-  Zap,
-  Heart,
+  DollarSign,
+  GraduationCap,
+  ShieldCheck,
+  Clock,
+  TrendingUp,
+  Wallet,
+  HeartHandshake,
+  ArrowRight,
+  CheckCircle2,
 } from 'lucide-react';
-import { HomeClient } from '@/components/home-client';
+import { ScrollRevealProvider } from '@/components/scroll-reveal';
+import { Counter } from '@/components/counter';
 
 export const metadata: Metadata = {
-  title: 'Become a Rider | RiderGuy',
+  title: 'For Riders | RiderGuy',
   description:
-    'Earn on your own schedule as a verified RiderGuy dispatch rider. Fair pay, flexible hours, full support. Apply today.',
+    'Join RiderGuy and turn delivery riding into a real career. Keep 85% of every delivery fee, get free training, insurance, and a clear path to grow.',
 };
+
+const BENEFITS = [
+  { icon: DollarSign, title: 'Keep 85%', desc: 'The highest rider earnings share in Ghana. Your work, your money.' },
+  { icon: GraduationCap, title: 'Free Training', desc: 'Professional road safety, customer service, and delivery best practices, all free.' },
+  { icon: ShieldCheck, title: 'Insurance Included', desc: 'Accident and liability coverage for every active rider. Ride with peace of mind.' },
+  { icon: Wallet, title: 'Instant Payouts', desc: 'Earnings go straight to your in-app wallet. Withdraw anytime to your bank or mobile money.' },
+  { icon: TrendingUp, title: 'Career Growth', desc: 'Progress from Rookie to Legend across 7 levels. Higher levels unlock bonuses and priority jobs.' },
+  { icon: Clock, title: 'Flexible Hours', desc: 'Go online when you want, offline when you need to. You control your schedule.' },
+  { icon: HeartHandshake, title: 'Community', desc: 'Join a network of riders who look out for each other. Forums, events, and peer support.' },
+];
+
+const REQUIREMENTS = [
+  'Be at least 18 years old',
+  'Own a motorcycle, bicycle, or vehicle in good condition',
+  'Have a valid national ID or driver\'s license',
+  'Own a smartphone with data access',
+  'Pass our background and vehicle check',
+  'Complete the free onboarding training',
+];
+
+const FAQS = [
+  { q: 'How much can I earn?', a: 'Earnings depend on your zone, hours, and delivery volume. You keep 85% of every delivery fee, plus 100% of tips. The more you ride, the more you earn.' },
+  { q: 'Is there a joining fee?', a: 'No. Signing up and training are completely free. You will never pay to join RiderGuy.' },
+  { q: 'What areas do you cover?', a: 'We are live in Accra, Kumasi, Tamale, Cape Coast, Takoradi, and Tema, with more cities launching soon.' },
+  { q: 'How do I get paid?', a: 'Earnings land in your RiderGuy wallet after each delivery. Withdraw instantly to mobile money or bank transfer.' },
+  { q: 'Do I need my own motorcycle?', a: 'Yes, riders must have their own vehicle. We support motorcycles, bicycles, cars, and vans.' },
+  { q: 'What about insurance?', a: 'Every active rider is covered by our accident and third-party liability insurance at no cost.' },
+];
 
 export default function ForRidersPage() {
   return (
-    <HomeClient>
+    <ScrollRevealProvider>
       {/* ================================================================
           HERO
           ================================================================ */}
       <section className="relative min-h-[70dvh] overflow-hidden bg-surface-950 sm:min-h-[85vh]">
-        {/* Background glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(34,197,94,0.12),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(34,197,94,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(34,197,94,0.12),transparent_55%)]" />
+        <div className="noise absolute inset-0" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 pb-16 pt-24 sm:gap-12 sm:px-6 sm:pb-20 sm:pt-32 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-40">
-          {/* Left — Copy */}
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-10 px-5 pb-16 pt-28 sm:gap-14 sm:px-8 sm:pb-20 sm:pt-36 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-44">
           <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="hero-badge-enter mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-400 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
+            <div className="hero-badge-in mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400 sm:mb-7 sm:text-sm">
               <Bike className="h-4 w-4" />
-              Now accepting rider applications
+              Earn on your terms
             </div>
 
-            <h1 className="hero-text-enter max-w-xl text-[2rem] font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-7xl">
-              Earn on{' '}
-              <span className="text-gradient">your terms</span>
+            <h1 className="hero-text-in text-hero text-white">
+              Your delivery career{' '}
+              <span className="text-gradient-light">starts here</span>
             </h1>
 
-            <p className="hero-text-enter-delay-1 mt-4 max-w-lg text-[0.95rem] leading-relaxed text-surface-400 sm:mt-6 sm:text-lg lg:text-xl">
-              Become a RiderGuy dispatch rider. Choose your own hours, get paid
-              instantly after every delivery, and join a community of
-              professionals who move Ghana forward.
+            <p className="hero-text-in-d1 mt-5 max-w-lg text-base leading-relaxed text-surface-400 sm:mt-7 sm:text-lg">
+              We believe delivery riding should be a career, not a dead end. At RiderGuy,
+              riders keep 85% of every delivery fee, get free professional training, insurance
+              coverage, and a clear path to grow from Rookie to Legend.
             </p>
 
-            <div className="hero-text-enter-delay-2 mt-7 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
-              <Button
-                size="lg"
-                className="rounded-full bg-brand-500 px-6 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600 sm:px-8"
-                asChild
+            <div className="hero-text-in-d2 mt-7 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
+              <Link
+                href="https://rider.myriderguy.com/register"
+                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-7 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600 sm:px-9"
               >
-                <Link href="https://rider.myriderguy.com/register">
-                  Apply Now
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="rounded-full border-surface-700 px-6 text-surface-300 hover:bg-surface-800 hover:text-white sm:px-8"
-                asChild
+                Apply Now, It&apos;s Free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="#benefits"
+                className="inline-flex h-12 items-center rounded-full border border-surface-700 px-7 text-[0.9rem] font-semibold text-surface-300 transition-colors hover:bg-surface-800 hover:text-white sm:px-9"
               >
-                <Link href="#how-to-join">See How It Works</Link>
-              </Button>
+                See Benefits
+              </Link>
             </div>
 
             {/* Quick stats */}
-            <div className="hero-text-enter-delay-3 mt-8 flex items-center gap-5 text-xs sm:mt-12 sm:gap-8 sm:text-sm">
+            <div className="hero-text-in-d3 mt-8 flex flex-wrap items-center gap-4 text-sm sm:mt-12 sm:flex-nowrap sm:gap-8">
               <div className="text-center lg:text-left">
-                <p className="text-lg font-bold text-white sm:text-2xl">Instant</p>
-                <p className="text-surface-500">Payouts after delivery</p>
+                <p className="text-lg font-bold text-white sm:text-2xl">85%</p>
+                <p className="text-xs text-surface-500">Earnings Share</p>
               </div>
-              <div className="h-8 w-px bg-surface-800 sm:h-10" />
+              <div className="hidden h-8 w-px bg-surface-800 sm:block" />
               <div className="text-center lg:text-left">
-                <p className="text-lg font-bold text-white sm:text-2xl">Flexible</p>
-                <p className="text-surface-500">Set your own hours</p>
+                <p className="text-lg font-bold text-white sm:text-2xl">7 Levels</p>
+                <p className="text-xs text-surface-500">Career Path</p>
               </div>
-              <div className="hidden h-8 w-px bg-surface-800 sm:block sm:h-10" />
-              <div className="hidden text-center sm:block lg:text-left">
-                <p className="text-lg font-bold text-white sm:text-2xl">Insured</p>
-                <p className="text-surface-500">Full coverage included</p>
+              <div className="hidden h-8 w-px bg-surface-800 sm:block" />
+              <div className="text-center lg:text-left">
+                <p className="text-lg font-bold text-white sm:text-2xl">Free</p>
+                <p className="text-xs text-surface-500">Training & Insurance</p>
               </div>
             </div>
           </div>
 
-          {/* Right — Hero Image */}
-          <div className="hero-image-enter relative flex-1">
-            <div className="relative mx-auto w-full max-w-md">
+          {/* Right — Image */}
+          <div className="hero-text-in-d1 relative flex-1">
+            <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
               <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 blur-3xl" />
               <Image
-                src="/images/branding/biker-homepage.png"
-                alt="RiderGuy dispatch rider on a motorcycle ready for deliveries"
-                width={520}
-                height={720}
-                className="relative z-10 w-full object-contain drop-shadow-[0_20px_40px_rgba(34,197,94,0.2)]"
+                src="/images/riders/rider life 1.jpeg"
+                alt="A RiderGuy rider on the road"
+                width={600}
+                height={450}
+                className="relative z-10 w-full rounded-3xl object-cover shadow-2xl"
                 priority
               />
-              {/* Floating feature card */}
-              <div className="absolute -left-6 bottom-20 z-20 hidden rounded-2xl bg-white/95 p-4 shadow-elevated backdrop-blur-sm lg:block">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100">
-                    <Wallet className="h-5 w-5 text-brand-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-surface-500">Payout status</p>
-                    <p className="text-lg font-bold text-surface-900">Instant</p>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ================================================================
-          BENEFITS — Why ride with us
+          BENEFITS
           ================================================================ */}
-      <section className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+      <section id="benefits" className="bg-white py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
               Rider Benefits
             </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
+            <h2 className="text-section mt-4 text-surface-900">
               Why riders choose RiderGuy
             </h2>
-            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
-              We have built a platform that puts riders first. Fair pay,
-              real support, and the tools you need to succeed.
+            <p className="mt-4 text-base text-surface-500 sm:text-[1.05rem]">
+              We take care of our riders because great riders take care of great deliveries.
             </p>
           </div>
 
-          <div className="stagger-children mt-10 grid gap-4 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-            {[
-              {
-                icon: Wallet,
-                title: 'Instant Payouts',
-                desc: 'Earnings arrive in your wallet immediately after each completed delivery. No waiting, no delays.',
-                color: 'bg-brand-50 text-brand-600',
-              },
-              {
-                icon: Clock,
-                title: 'Flexible Schedule',
-                desc: 'Go online whenever you want. No minimum hours, no mandatory shifts. You decide when to ride.',
-                color: 'bg-blue-50 text-blue-600',
-              },
-              {
-                icon: TrendingUp,
-                title: 'Fair, Transparent Pay',
-                desc: 'See exactly how much you earn per trip before accepting. No hidden deductions, ever.',
-                color: 'bg-amber-50 text-amber-600',
-              },
-              {
-                icon: Shield,
-                title: 'Insurance Coverage',
-                desc: 'Ride with confidence knowing you are covered. Accident and liability insurance included for active riders.',
-                color: 'bg-rose-50 text-rose-600',
-              },
-              {
-                icon: Users,
-                title: 'Free Training',
-                desc: 'Comprehensive onboarding, safety training, and route optimization guidance at no cost to you.',
-                color: 'bg-purple-50 text-purple-600',
-              },
-              {
-                icon: Award,
-                title: 'Growth and Bonuses',
-                desc: 'Top-performing riders earn weekly bonuses and can advance to become zone captains with higher earnings.',
-                color: 'bg-teal-50 text-teal-600',
-              },
-              {
-                icon: Bike,
-                title: 'Ride-to-Own Asset Support',
-                desc: 'Access our Ride-to-Own program to get your own motorcycle through affordable, structured payment plans.',
-                color: 'bg-emerald-50 text-emerald-600',
-              },
-            ].map((item) => (
+          <div className="stagger mt-14 grid gap-6 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {BENEFITS.map((b) => (
               <div
-                key={item.title}
-                className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-card-hover sm:p-7"
+                key={b.title}
+                className="card-lift rounded-2xl border border-surface-100 bg-white p-5 sm:p-8"
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
-                  <item.icon className="h-6 w-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
+                  <b.icon className="h-6 w-6 text-brand-600" />
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-surface-900">
-                  {item.title}
-                </h3>
-                <p className="mt-2 leading-relaxed text-surface-500">
-                  {item.desc}
-                </p>
+                <h3 className="mt-5 text-lg font-bold text-surface-900">{b.title}</h3>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{b.desc}</p>
               </div>
             ))}
           </div>
@@ -207,133 +165,36 @@ export default function ForRidersPage() {
       </section>
 
       {/* ================================================================
-          DELIVERY IMAGE — Side-by-side with rider delivering
+          A DAY IN THE LIFE — Image Gallery Section
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-50 py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
-          {/* Left — Illustration */}
-          <div className="reveal-left flex-1">
-            <div className="relative flex items-center justify-center rounded-3xl bg-brand-50/60 p-6 sm:p-10">
-              <Image
-                src="/images/illustrations/talking-rider.svg"
-                alt="Illustration of a RiderGuy rider interacting with the community"
-                width={480}
-                height={480}
-                className="w-full max-w-md"
-              />
-            </div>
-          </div>
-
-          {/* Right — Copy */}
-          <div className="reveal-right flex-1 text-center lg:text-left">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              A Day in the Life
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              More than just delivery
-            </h2>
-            <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
-              As a RiderGuy rider, you are not just delivering packages. You
-              are connecting communities, powering local businesses, and
-              building a career on your terms.
-            </p>
-
-            <div className="mt-7 space-y-4 sm:mt-10 sm:space-y-5">
-              {[
-                {
-                  icon: MapPin,
-                  title: 'Smart Routing',
-                  desc: 'Our app optimizes your route so you spend less time driving and more time earning.',
-                },
-                {
-                  icon: Headphones,
-                  title: '24/7 Support',
-                  desc: 'Real humans available whenever you need help. Call, chat, or email any time.',
-                },
-                {
-                  icon: Zap,
-                  title: 'Quick Matching',
-                  desc: 'Get matched with orders near you instantly. Less waiting, more delivering.',
-                },
-                {
-                  icon: Heart,
-                  title: 'Rider Community',
-                  desc: 'Connect with fellow riders, share tips, and participate in rider events.',
-                },
-              ].map((feature) => (
-                <div key={feature.title} className="flex gap-4 text-left">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                    <feature.icon className="h-5 w-5 text-brand-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-surface-900">{feature.title}</h3>
-                    <p className="mt-1 text-sm text-surface-500">{feature.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================
-          HOW TO JOIN — Step-by-step onboarding
-          ================================================================ */}
-      <section id="how-to-join" className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+      <section className="relative overflow-hidden bg-surface-50 py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Getting Started
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+              Rider Life
             </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              Four steps to your first delivery
+            <h2 className="text-section mt-4 text-surface-900">
+              A day in the life of a RiderGuy rider
             </h2>
-            <p className="mt-3 text-[0.95rem] text-surface-500 sm:mt-4 sm:text-lg">
-              From sign-up to your first earning, the entire process takes
-              as little as 48 hours.
-            </p>
           </div>
 
-          <div className="stagger-children mt-10 grid gap-5 sm:mt-16 sm:grid-cols-2 sm:gap-8 lg:grid-cols-4">
+          <div className="stagger mt-14 grid gap-5 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              {
-                step: '01',
-                title: 'Create Your Account',
-                desc: 'Download the RiderGuy Rider app and sign up with your phone number. It takes under two minutes.',
-                accent: 'bg-brand-500',
-              },
-              {
-                step: '02',
-                title: 'Submit Your Documents',
-                desc: 'Upload your national ID, driver licence, and vehicle registration. We keep your data secure.',
-                accent: 'bg-surface-900',
-              },
-              {
-                step: '03',
-                title: 'Get Verified',
-                desc: 'Our team reviews your documents and runs a background check. You will be notified once approved.',
-                accent: 'bg-brand-500',
-              },
-              {
-                step: '04',
-                title: 'Start Earning',
-                desc: 'Go online, accept your first order, and start earning immediately. Welcome to the team.',
-                accent: 'bg-surface-900',
-              },
-            ].map((item) => (
-              <div
-                key={item.step}
-                className="relative rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-lg sm:p-7"
-              >
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-base font-bold text-white shadow-lg sm:h-14 sm:w-14 sm:rounded-2xl sm:text-lg ${item.accent}`}>
-                  {item.step}
+              { img: '/images/riders/rider life 1.jpeg', caption: 'Starting the day: gear up and go online' },
+              { img: '/images/riders/rider life 2.jpeg', caption: 'On the move: navigating Accra\'s streets' },
+              { img: '/images/riders/rider life 3.jpeg', caption: 'Delivering with care: every package matters' },
+            ].map((photo) => (
+              <div key={photo.caption} className="group img-reveal overflow-hidden rounded-2xl">
+                <Image
+                  src={photo.img}
+                  alt={photo.caption}
+                  width={500}
+                  height={350}
+                  className="aspect-[4/3] w-full object-cover"
+                />
+                <div className="bg-white px-5 py-4">
+                  <p className="text-sm font-medium text-surface-600">{photo.caption}</p>
                 </div>
-                <h3 className="mt-4 text-base font-semibold text-surface-900 sm:mt-6 sm:text-lg">
-                  {item.title}
-                </h3>
-                <p className="mt-3 leading-relaxed text-surface-500">
-                  {item.desc}
-                </p>
               </div>
             ))}
           </div>
@@ -341,50 +202,74 @@ export default function ForRidersPage() {
       </section>
 
       {/* ================================================================
-          BUSINESS RIDER — Showcasing partnership deliveries
+          HOW TO JOIN — 4 Steps
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-16 sm:py-24 lg:py-32">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(34,197,94,0.08),transparent_60%)]" />
-
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row-reverse lg:gap-20 lg:px-10">
-          {/* Right — Illustration */}
-          <div className="reveal-right flex-1">
-            <div className="relative flex items-center justify-center rounded-3xl bg-surface-900 p-6 sm:p-10">
-              <Image
-                src="/images/illustrations/hero-business.svg"
-                alt="Illustration of a RiderGuy rider delivering for partner businesses"
-                width={480}
-                height={480}
-                className="w-full max-w-md"
-              />
-            </div>
+      <section className="bg-white py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal mx-auto max-w-2xl text-center">
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+              How to Join
+            </span>
+            <h2 className="text-section mt-4 text-surface-900">
+              Start earning in 4 easy steps
+            </h2>
           </div>
 
-          {/* Left — Copy */}
-          <div className="reveal-left flex-1 text-center lg:text-left">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-400">
-              Earn More
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
-              Deliver for top brands.{' '}
-              <span className="text-brand-400">Earn top pay.</span>
-            </h2>
-            <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-400 sm:mt-6 sm:text-lg">
-              Restaurants, e-commerce shops, and pharmacies partner with
-              RiderGuy. As a rider, you get access to a steady stream of
-              high-value orders from businesses across your city.
-            </p>
+          <div className="stagger mt-14 grid gap-8 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { num: '01', title: 'Sign Up', desc: 'Create your account in under 2 minutes. It is completely free.' },
+              { num: '02', title: 'Submit Documents', desc: 'Upload your ID, vehicle details, and a selfie for verification.' },
+              { num: '03', title: 'Complete Training', desc: 'Take our free online training course on safety and delivery standards.' },
+              { num: '04', title: 'Go Online & Earn', desc: 'Once approved, go online and start accepting deliveries immediately.' },
+            ].map((step) => (
+              <div key={step.num} className="group relative">
+                <div className="text-[3.5rem] font-bold leading-none text-brand-100 transition-colors group-hover:text-brand-200 sm:text-[5.5rem]">
+                  {step.num}
+                </div>
+                <h3 className="mt-1 text-lg font-bold text-surface-900 sm:mt-2 sm:text-xl">{step.title}</h3>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{step.desc}</p>
+              </div>
+            ))}
+          </div>
 
-            <ul className="mt-6 space-y-3 sm:mt-8 sm:space-y-4">
-              {[
-                'Priority access to business orders in your zone',
-                'Higher per-trip earnings on bulk and scheduled deliveries',
-                'Weekly performance bonuses for consistent riders',
-                'Dedicated support line for business delivery issues',
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-left">
+          <div className="reveal mt-14 text-center sm:mt-16">
+            <Link
+              href="https://rider.myriderguy.com/register"
+              className="btn-glow inline-flex h-13 items-center gap-2 rounded-full bg-brand-500 px-9 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600"
+            >
+              Apply to Ride
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          REQUIREMENTS
+          ================================================================ */}
+      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-36">
+        <div className="noise absolute inset-0" />
+        <div className="orb orb-green right-0 top-1/4 h-[400px] w-[400px]" />
+
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-14 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
+          <div className="flex-1 text-center lg:text-left">
+            <span className="inline-block rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-400">
+              Requirements
+            </span>
+            <h2 className="text-section mt-4 text-white">
+              What you need to get started
+            </h2>
+            <p className="mt-5 text-base text-surface-400 sm:text-[1.05rem]">
+              We keep the barrier low so talented riders can join quickly.
+            </p>
+          </div>
+
+          <div className="flex-1">
+            <ul className="flex flex-col gap-4">
+              {REQUIREMENTS.map((req) => (
+                <li key={req} className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-400" />
-                  <span className="text-surface-300">{item}</span>
+                  <span className="text-[0.95rem] text-surface-300">{req}</span>
                 </li>
               ))}
             </ul>
@@ -393,186 +278,27 @@ export default function ForRidersPage() {
       </section>
 
       {/* ================================================================
-          REQUIREMENTS
-          ================================================================ */}
-      <section className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
-          <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Requirements
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-4xl">
-              What you need to get started
-            </h2>
-          </div>
-
-          <div className="stagger-children mx-auto mt-10 grid max-w-4xl gap-4 sm:mt-14 sm:grid-cols-2 sm:gap-6">
-            {[
-              { label: 'Valid Ghana Card or national ID', icon: Shield },
-              { label: 'Motorcycle or bicycle in good condition', icon: Bike },
-              { label: 'Valid driver licence (for motorcycles)', icon: Award },
-              { label: 'Smartphone with mobile data', icon: Zap },
-              { label: 'Minimum age of 18 years', icon: Users },
-              { label: 'Clean background check', icon: CheckCircle2 },
-            ].map((req) => (
-              <div
-                key={req.label}
-                className="flex items-center gap-4 rounded-2xl border border-surface-100 bg-white p-5 transition-all hover:border-brand-200 hover:shadow-sm"
-              >
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                  <req.icon className="h-5 w-5 text-brand-600" />
-                </div>
-                <span className="font-medium text-surface-800">{req.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================
-          TESTIMONIAL — Rider spotlight
-          ================================================================ */}
-      <section className="bg-surface-50 py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
-          <div className="reveal mx-auto max-w-3xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Rider Stories
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-4xl">
-              Hear from our riders
-            </h2>
-          </div>
-
-          <div className="stagger-children mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-            {[
-              {
-                highlight: 'Steady Income',
-                quote:
-                  'Earn consistently with a steady stream of delivery requests. Get paid instantly after every completed delivery, directly to your mobile wallet.',
-              },
-              {
-                highlight: 'Flexibility',
-                quote:
-                  'Go online when you want, go offline when you need to. No mandatory shifts, no minimum hours. The perfect balance for students and part-time riders.',
-              },
-              {
-                highlight: 'Career Growth',
-                quote:
-                  'Start as a rider and grow into a zone captain with higher earnings and leadership responsibilities. We invest in your training and development.',
-              },
-            ].map((item) => (
-              <div
-                key={item.highlight}
-                className="flex flex-col rounded-2xl border border-surface-100 bg-white p-5 sm:p-7"
-              >
-                <span className="w-fit rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600">
-                  {item.highlight}
-                </span>
-                <p className="mt-4 flex-1 leading-relaxed text-surface-600">
-                  {item.quote}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================
-          LIFESTYLE — Doorstep delivery image
-          ================================================================ */}
-      <section className="relative overflow-hidden bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 sm:gap-12 sm:px-6 lg:flex-row lg:gap-20 lg:px-10">
-          {/* Left — Illustration */}
-          <div className="reveal-left flex-1">
-            <div className="relative flex items-center justify-center rounded-3xl bg-surface-50 p-6 sm:p-10">
-              <Image
-                src="/images/illustrations/handing-over.svg"
-                alt="Illustration of a RiderGuy rider completing a delivery handover"
-                width={480}
-                height={480}
-                className="w-full max-w-md"
-              />
-            </div>
-          </div>
-
-          {/* Right — Copy */}
-          <div className="reveal-right flex-1 text-center lg:text-left">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-              Make a Difference
-            </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-5xl">
-              Every delivery matters
-            </h2>
-            <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-6 sm:text-lg">
-              You are the link between businesses and their customers. Whether
-              it is groceries for a family, medication for someone in need, or a
-              birthday gift across town, your work makes a real difference
-              in people's lives every single day.
-            </p>
-
-            <div className="mt-6 grid grid-cols-3 gap-3 sm:mt-8 sm:gap-4">
-              <div className="rounded-2xl bg-surface-50 p-4 text-center sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Fast</p>
-                <p className="mt-1 text-xs text-surface-500">Same-day delivery</p>
-              </div>
-              <div className="rounded-2xl bg-surface-50 p-4 text-center sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Growing</p>
-                <p className="mt-1 text-xs text-surface-500">Cities covered</p>
-              </div>
-              <div className="rounded-2xl bg-surface-50 p-4 text-center sm:p-5">
-                <p className="text-lg font-bold text-brand-600 sm:text-2xl">Reliable</p>
-                <p className="mt-1 text-xs text-surface-500">Consistent service</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================
           FAQ
           ================================================================ */}
-      <section className="bg-surface-50 py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-10">
+      <section className="bg-white py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-3xl px-5 sm:px-8 lg:px-10">
           <div className="reveal text-center">
-            <span className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
               FAQ
             </span>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-4xl">
+            <h2 className="text-section mt-4 text-surface-900">
               Common questions
             </h2>
           </div>
 
-          <div className="stagger-children mt-10 space-y-3 sm:mt-14 sm:space-y-4">
-            {[
-              {
-                q: 'How much can I earn as a RiderGuy rider?',
-                a: 'Earnings vary based on your location, hours, and number of deliveries. You get paid instantly after each completed delivery. The more you ride, the more you earn.',
-              },
-              {
-                q: 'Do I need my own motorcycle?',
-                a: 'You can use your own motorcycle or bicycle, or take advantage of our Ride-to-Own Asset Support Program to get a motorcycle through affordable, structured payment plans.',
-              },
-              {
-                q: 'How quickly will I get verified?',
-                a: 'Most riders are verified within 24 to 48 hours after submitting all required documents. You will receive an SMS and app notification once approved.',
-              },
-              {
-                q: 'Is there an insurance policy for riders?',
-                a: 'Yes. All active riders are covered by our insurance policy, which includes accident coverage and third-party liability while on an active delivery.',
-              },
-              {
-                q: 'Can I ride part-time?',
-                a: 'Absolutely. There are no minimum hour requirements. Many of our riders are students or have other jobs. You go online only when you are available.',
-              },
-            ].map((faq) => (
+          <div className="stagger mt-12 flex flex-col gap-6 sm:mt-14">
+            {FAQS.map((faq) => (
               <div
                 key={faq.q}
-                className="rounded-2xl border border-surface-100 bg-white p-5 sm:p-6"
+                className="rounded-2xl border border-surface-100 bg-white p-6 sm:p-7"
               >
-                <h3 className="font-semibold text-surface-900">{faq.q}</h3>
-                <p className="mt-2 leading-relaxed text-surface-500">
-                  {faq.a}
-                </p>
+                <h3 className="text-base font-bold text-surface-900 sm:text-lg">{faq.q}</h3>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{faq.a}</p>
               </div>
             ))}
           </div>
@@ -582,40 +308,37 @@ export default function ForRidersPage() {
       {/* ================================================================
           FINAL CTA
           ================================================================ */}
-      <section className="relative overflow-hidden bg-brand-500 py-16 sm:py-24 lg:py-28">
-        <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-brand-400/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-brand-600/30 blur-3xl" />
+      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-32">
+        <div className="noise absolute inset-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,197,94,0.08),transparent_70%)]" />
 
-        <div className="reveal relative mx-auto max-w-3xl px-4 text-center sm:px-8">
-          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-5xl">
-            Ready to start earning?
-          </h2>
-          <p className="mt-3 text-[0.95rem] text-brand-100 sm:mt-4 sm:text-lg">
-            Join thousands of riders already earning with RiderGuy. The
-            sign-up process takes under five minutes.
-          </p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3 sm:mt-10 sm:gap-4">
-            <Button
-              size="lg"
-              className="rounded-full bg-white px-7 text-brand-600 shadow-lg hover:bg-brand-50 sm:px-10"
-              asChild
-            >
-              <Link href="https://rider.myriderguy.com/register">
-                Apply Now
-                <ChevronRight className="ml-1 h-4 w-4" />
+        <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
+          <div className="reveal">
+            <h2 className="text-section text-white">
+              Ready to ride with us?
+            </h2>
+            <p className="mt-5 text-base text-surface-400 sm:text-lg">
+              Join hundreds of riders already building their future with RiderGuy.
+              Sign up is free, training is free, and you can start earning from day one.
+            </p>
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+              <Link
+                href="https://rider.myriderguy.com/register"
+                className="btn-glow inline-flex h-13 items-center gap-2 rounded-full bg-brand-500 px-9 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600"
+              >
+                Apply Now, It&apos;s Free
+                <ArrowRight className="h-4 w-4" />
               </Link>
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="rounded-full border-white/40 px-7 text-white hover:border-transparent hover:bg-brand-600 sm:px-10"
-              asChild
-            >
-              <Link href="/contact">Have Questions?</Link>
-            </Button>
+              <Link
+                href="/contact"
+                className="inline-flex h-13 items-center rounded-full border border-surface-700 px-9 text-[0.9rem] font-semibold text-surface-300 transition-colors hover:border-surface-600 hover:text-white"
+              >
+                Have Questions? Contact Us
+              </Link>
+            </div>
           </div>
         </div>
       </section>
-    </HomeClient>
+    </ScrollRevealProvider>
   );
 }

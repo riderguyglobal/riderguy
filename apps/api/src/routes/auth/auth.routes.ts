@@ -24,6 +24,11 @@ import {
   webauthnRegisterVerifySchema,
   webauthnLoginOptionsSchema,
   webauthnLoginVerifySchema,
+  ghanaCardRegisterSchema,
+  loginWithGhanaCardSchema,
+  recoveryRequestSchema,
+  verifySecurityAnswerSchema,
+  recoveryResetPinSchema,
 } from '@riderguy/validators';
 import { asyncHandler } from '../../lib/async-handler';
 
@@ -84,6 +89,55 @@ router.post(
   authRateLimit,
   validate(loginWithPasswordSchema),
   asyncHandler(AuthController.loginWithPassword)
+);
+
+// Ghana Card auth routes
+router.post(
+  '/register/ghanacard',
+  authRateLimit,
+  validate(ghanaCardRegisterSchema),
+  asyncHandler(AuthController.registerWithGhanaCard)
+);
+
+router.post(
+  '/login/ghanacard',
+  authRateLimit,
+  validate(loginWithGhanaCardSchema),
+  asyncHandler(AuthController.loginWithGhanaCard)
+);
+
+// Recovery routes
+router.post(
+  '/recovery/request',
+  authRateLimit,
+  validate(recoveryRequestSchema),
+  asyncHandler(AuthController.recoveryRequest)
+);
+
+router.post(
+  '/recovery/verify-otp',
+  authRateLimit,
+  asyncHandler(AuthController.verifyRecoveryOtp)
+);
+
+router.post(
+  '/recovery/verify-security',
+  authRateLimit,
+  validate(verifySecurityAnswerSchema),
+  asyncHandler(AuthController.verifySecurityAnswer)
+);
+
+router.post(
+  '/recovery/reset-pin',
+  authRateLimit,
+  validate(recoveryResetPinSchema),
+  asyncHandler(AuthController.recoveryResetPin)
+);
+
+router.get(
+  '/recovery/security-question',
+  authRateLimit,
+  asyncHandler(AuthController.getSecurityQuestion)
 );
 
 // Check available auth methods for a phone number

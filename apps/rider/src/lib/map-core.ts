@@ -1,25 +1,17 @@
 // ══════════════════════════════════════════════════════════
 // Map Core — Advanced map initialization engine for Rider
 //
-// Encapsulates Mapbox GL JS v3.19 best practices:
-// • Dynamic import (no SSR)
-// • NavigationControl, GeolocateControl, ScaleControl
-// • 3D buildings layer
-// • Atmospheric fog
-// • Terrain-ready configuration
+// Encapsulates Google Maps JavaScript API:
+// • Dynamic loading via @googlemaps/js-api-loader (no SSR)
+// • Zoom / Scale controls
+// • 3D tilt for buildings
 // • ResizeObserver lifecycle
 // • Proper cleanup
 // ══════════════════════════════════════════════════════════
 
-import type mapboxgl from 'mapbox-gl';
 import {
-  MAP_STYLES,
   MAP_ZOOM,
-  MAP_PITCH,
-  MAP_FOG,
-  MAP_ANIMATION,
-  BUILDING_3D,
-  GEOLOCATION_OPTIONS,
+  DARK_MAP_STYLES,
   ACCRA_CENTER,
 } from '@riderguy/utils';
 
@@ -34,190 +26,84 @@ export interface MapCoreOptions {
   pitch?: number;
   bearing?: number;
   interactive?: boolean;
-  /** Show NavigationControl (zoom +/- and compass) */
   navigationControl?: boolean;
-  /** Show GeolocateControl (GPS button) */
   geolocateControl?: boolean;
-  /** Show ScaleControl (distance ruler) */
   scaleControl?: boolean;
-  /** Enable 3D building extrusions */
   buildings3D?: boolean;
-  /** Enable atmospheric fog effect */
   fog?: boolean;
-  /** Max bounds to restrict panning */
-  maxBounds?: mapboxgl.LngLatBoundsLike;
-  /** Min/max zoom */
+  maxBounds?: unknown;
   minZoom?: number;
   maxZoom?: number;
-  /** Enable cooperative gestures (hold ctrl to zoom) */
   cooperativeGestures?: boolean;
-  /** Callback when map loads */
-  onLoad?: (map: mapboxgl.Map, mapboxgl: typeof import('mapbox-gl').default) => void;
-  /** Callback on map errors */
+  onLoad?: (map: google.maps.Map) => void;
   onError?: (error: Error) => void;
 }
 
 export interface MapCoreInstance {
-  map: mapboxgl.Map;
-  mapboxgl: typeof import('mapbox-gl').default;
-  geolocate: mapboxgl.GeolocateControl | null;
+  map: google.maps.Map;
+  geolocate: null;
   destroy: () => void;
-}
-
-// ── 3D Buildings ────────────────────────────────────────
-
-function add3DBuildings(map: mapboxgl.Map, isDark = false): void {
-  if (map.getLayer(BUILDING_3D.layerId)) return;
-
-  // Find the first label layer to insert buildings below
-  const layers = map.getStyle().layers ?? [];
-  let labelLayerId: string | undefined;
-  for (const layer of layers) {
-    if (layer.type === 'symbol' && (layer.layout as Record<string, unknown>)?.['text-field']) {
-      labelLayerId = layer.id;
-      break;
-    }
-  }
-
-  map.addLayer(
-    {
-      id: BUILDING_3D.layerId,
-      source: 'composite',
-      'source-layer': BUILDING_3D.sourceLayer,
-      filter: ['==', 'extrude', 'true'],
-      type: 'fill-extrusion',
-      minzoom: BUILDING_3D.minzoom,
-      paint: {
-        'fill-extrusion-color': isDark ? BUILDING_3D.fillExtrusionColorDark : BUILDING_3D.fillExtrusionColor,
-        'fill-extrusion-height': [
-          'interpolate', ['linear'], ['zoom'],
-          14, 0,
-          14.05, ['get', 'height'],
-        ],
-        'fill-extrusion-base': [
-          'interpolate', ['linear'], ['zoom'],
-          14, 0,
-          14.05, ['get', 'min_height'],
-        ],
-        'fill-extrusion-opacity': BUILDING_3D.fillExtrusionOpacity,
-      },
-    },
-    labelLayerId,
-  );
-}
-
-// ── Fog ─────────────────────────────────────────────────
-
-function setFog(map: mapboxgl.Map, isDark = false): void {
-  const fogConfig = isDark ? MAP_FOG.dark : MAP_FOG.light;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  map.setFog(fogConfig as any);
 }
 
 // ── Core Init ───────────────────────────────────────────
 
 /**
- * Initialize a Mapbox GL JS map with full feature set.
- * Dynamically imports mapbox-gl to avoid SSR issues.
+ * Initialize a Google Maps map with full feature set.
+ * Dynamically loads the Maps API to avoid SSR issues.
  */
 export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInstance> {
-  const mapboxgl = (await import('mapbox-gl')).default;
-  mapboxgl.accessToken = options.token;
+  const { Loader } = await import('@googlemaps/js-api-loader');
 
-  const map = new mapboxgl.Map({
-    container: options.container,
-    style: options.style ?? MAP_STYLES.navigationNight,
-    center: options.center ?? ACCRA_CENTER,
-    zoom: options.zoom ?? MAP_ZOOM.default,
-    pitch: options.pitch ?? MAP_PITCH.flat,
-    bearing: options.bearing ?? 0,
-    interactive: options.interactive ?? true,
-    antialias: true,
-    attributionControl: true,
-    fadeDuration: 0,
-    maxBounds: options.maxBounds,
-    minZoom: options.minZoom,
-    maxZoom: options.maxZoom ?? MAP_ZOOM.max,
-    cooperativeGestures: options.cooperativeGestures,
-    projection: 'mercator',
-    hash: false,
-    trackResize: false,
+  const loader = new Loader({
+    apiKey: options.token,
+    version: 'weekly',
+    libraries: ['marker', 'geometry'],
   });
 
-  // ── Controls ──────────────────────────────────────────
+  await loader.load();
 
-  if (options.navigationControl !== false) {
-    map.addControl(
-      new mapboxgl.NavigationControl({
-        showCompass: true,
-        showZoom: true,
-        visualizePitch: true,
-      }),
-      'top-right',
-    );
-  }
+  const isDark = options.style?.includes('dark') || options.style?.includes('night');
+  const center = options.center ?? ACCRA_CENTER;
 
-  if (options.scaleControl !== false) {
-    map.addControl(
-      new mapboxgl.ScaleControl({
-        maxWidth: 100,
-        unit: 'metric',
-      }),
-      'bottom-left',
-    );
-  }
+  const mapOptions: google.maps.MapOptions = {
+    center: { lat: center[1], lng: center[0] },
+    zoom: options.zoom ?? MAP_ZOOM.default,
+    tilt: options.buildings3D !== false ? 45 : 0,
+    heading: options.bearing ?? 0,
+    mapId: 'riderguy-map',
+    mapTypeId: 'roadmap',
+    zoomControl: options.navigationControl !== false,
+    scaleControl: options.scaleControl !== false,
+    streetViewControl: false,
+    fullscreenControl: false,
+    mapTypeControl: false,
+    rotateControl: true,
+    gestureHandling: options.cooperativeGestures ? 'cooperative' : 'greedy',
+    minZoom: options.minZoom,
+    maxZoom: options.maxZoom ?? MAP_ZOOM.max,
+    styles: isDark ? DARK_MAP_STYLES as google.maps.MapTypeStyle[] : undefined,
+    clickableIcons: false,
+  };
 
-  let geolocate: mapboxgl.GeolocateControl | null = null;
-  if (options.geolocateControl !== false) {
-    geolocate = new mapboxgl.GeolocateControl({
-      positionOptions: GEOLOCATION_OPTIONS.highAccuracy,
-      trackUserLocation: true,
-      showUserHeading: true,
-      showAccuracyCircle: true,
-      fitBoundsOptions: {
-        maxZoom: MAP_ZOOM.close,
-        duration: MAP_ANIMATION.flyTo,
-      },
-    });
-    map.addControl(geolocate, 'bottom-right');
-  }
+  const map = new google.maps.Map(options.container, mapOptions);
 
   // ── ResizeObserver ────────────────────────────────────
 
-  const resizeObserver = new ResizeObserver(() => map.resize());
+  const resizeObserver = new ResizeObserver(() => {
+    google.maps.event.trigger(map, 'resize');
+  });
   resizeObserver.observe(options.container);
 
-  // ── Map Event Handlers ────────────────────────────────
-
-  map.on('error', (e) => {
-    const msg = e.error?.message ?? String(e);
-    console.error('[MapCore] Mapbox error:', msg);
-    options.onError?.(new Error(msg));
-  });
-
-  map.once('idle', () => map.resize());
-
-  // ── Load Event (with timeout to prevent hanging) ──────
+  // ── Wait for map to be idle (loaded) ──────────────────
 
   await new Promise<void>((resolve, reject) => {
     const loadTimeout = setTimeout(() => {
       reject(new Error('Map failed to load within 15 seconds. Check your connection and try again.'));
     }, 15_000);
 
-    map.on('load', () => {
+    google.maps.event.addListenerOnce(map, 'idle', () => {
       clearTimeout(loadTimeout);
-
-      if (options.buildings3D !== false) {
-        try {
-          add3DBuildings(map, options.style?.includes('dark') || options.style?.includes('night'));
-        } catch { /* Some styles don't have building source */ }
-      }
-
-      if (options.fog !== false) {
-        setFog(map, options.style?.includes('dark') || options.style?.includes('night'));
-      }
-
-      options.onLoad?.(map, mapboxgl);
+      options.onLoad?.(map);
       resolve();
     });
   });
@@ -226,88 +112,60 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
 
   const destroy = () => {
     resizeObserver.disconnect();
-    map.remove();
+    google.maps.event.clearInstanceListeners(map);
   };
 
-  return { map, mapboxgl, geolocate, destroy };
+  return { map, geolocate: null, destroy };
 }
 
 // ── Style Switching ─────────────────────────────────────
 
 export function switchMapStyle(
-  map: mapboxgl.Map,
+  map: google.maps.Map,
   newStyle: string,
   callbacks?: { onStyleLoad?: () => void },
 ): void {
-  const center = map.getCenter();
-  const zoom = map.getZoom();
-  const bearing = map.getBearing();
-  const pitch = map.getPitch();
-
-  map.setStyle(newStyle);
-
-  map.once('style.load', () => {
-    map.setCenter(center);
-    map.setZoom(zoom);
-    map.setBearing(bearing);
-    map.setPitch(pitch);
-
-    const isDark = newStyle.includes('dark') || newStyle.includes('night');
-    try { add3DBuildings(map, isDark); } catch { /* ignore */ }
-    setFog(map, isDark);
-
-    callbacks?.onStyleLoad?.();
+  const isDark = newStyle.includes('dark') || newStyle.includes('night');
+  map.setOptions({
+    styles: isDark ? DARK_MAP_STYLES as google.maps.MapTypeStyle[] : [],
   });
+  callbacks?.onStyleLoad?.();
 }
 
 // ── Camera Utilities ────────────────────────────────────
 
 export function flyToPoint(
-  map: mapboxgl.Map,
+  map: google.maps.Map,
   center: [number, number],
-  options?: { zoom?: number; pitch?: number; bearing?: number; duration?: number },
+  options?: { zoom?: number },
 ): void {
-  map.flyTo({
-    center,
-    zoom: options?.zoom ?? MAP_ZOOM.close,
-    pitch: options?.pitch ?? map.getPitch(),
-    bearing: options?.bearing ?? map.getBearing(),
-    duration: options?.duration ?? MAP_ANIMATION.flyTo,
-    essential: true,
-  });
+  map.panTo({ lat: center[1], lng: center[0] });
+  if (options?.zoom) map.setZoom(options.zoom);
 }
 
 export function easeToPoint(
-  map: mapboxgl.Map,
+  map: google.maps.Map,
   center: [number, number],
-  options?: { zoom?: number; duration?: number },
+  options?: { zoom?: number },
 ): void {
-  map.easeTo({
-    center,
-    zoom: options?.zoom ?? map.getZoom(),
-    duration: options?.duration ?? MAP_ANIMATION.easeTo,
-  });
+  map.panTo({ lat: center[1], lng: center[0] });
+  if (options?.zoom) map.setZoom(options.zoom);
 }
 
 export function fitBoundsToCoords(
-  map: mapboxgl.Map,
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   coords: [number, number][],
-  padding?: mapboxgl.PaddingOptions | number,
-  options?: { maxZoom?: number; duration?: number },
+  padding?: number | google.maps.Padding,
 ): void {
   if (coords.length === 0) return;
   if (coords.length === 1) {
     flyToPoint(map, coords[0]!);
     return;
   }
-  const bounds = coords.reduce(
-    (b, c) => b.extend(c),
-    new mapboxgl.LngLatBounds(coords[0]!, coords[0]!),
-  );
-  map.fitBounds(bounds, {
-    padding: padding ?? { top: 80, bottom: 120, left: 50, right: 50 },
-    maxZoom: options?.maxZoom ?? MAP_ZOOM.routeFit,
-    duration: options?.duration ?? MAP_ANIMATION.fitBounds,
-  });
+  const bounds = new google.maps.LatLngBounds();
+  for (const c of coords) {
+    bounds.extend({ lat: c[1], lng: c[0] });
+  }
+  const padValue = typeof padding === 'number' ? padding : (padding ? Math.max(padding.top ?? 0, padding.bottom ?? 0, padding.left ?? 0, padding.right ?? 0) : 80);
+  map.fitBounds(bounds, padValue);
 }

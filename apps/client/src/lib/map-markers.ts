@@ -1,17 +1,16 @@
 // ══════════════════════════════════════════════════════════
 // Map Markers — Client app marker factory functions
 //
-// Professional, accessible markers using Mapbox GL JS v3.19:
-// • Marker API with custom HTML elements
-// • Popup integration with proper Mapbox Popup API
+// Professional, accessible markers using Google Maps JS API:
+// • AdvancedMarkerElement with custom HTML content
+// • InfoWindow integration for popups
 // • Draggable support for pickup/dropoff adjustment
 // • Animated pulse rings for live entities
 // • Color-coded markers for status awareness
-// • Proper anchor positioning
+// • Proper anchor positioning via CSS transform
 // • Cleanup-safe (all markers returned for removal)
 // ══════════════════════════════════════════════════════════
 
-import type mapboxgl from 'mapbox-gl';
 import { MARKER_COLORS } from '@riderguy/utils';
 
 // ── SVG Icon Library ────────────────────────────────────
@@ -40,13 +39,32 @@ const SVG = {
 
 // ── Helpers ─────────────────────────────────────────────
 
-/** Lighten or darken a hex color by an amount */
 function adjustColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + amount));
   const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amount));
   const b = Math.min(255, Math.max(0, (num & 0xff) + amount));
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+function toLatLng(lngLat: [number, number]): google.maps.LatLngLiteral {
+  return { lat: lngLat[1], lng: lngLat[0] };
+}
+
+// ── Shared InfoWindow (only one open at a time) ─────────
+
+let sharedInfoWindow: google.maps.InfoWindow | null = null;
+
+function attachInfoWindow(
+  map: google.maps.Map,
+  marker: google.maps.marker.AdvancedMarkerElement,
+  html: string,
+): void {
+  marker.addListener('click', () => {
+    if (!sharedInfoWindow) sharedInfoWindow = new google.maps.InfoWindow();
+    sharedInfoWindow.setContent(html);
+    sharedInfoWindow.open({ anchor: marker, map });
+  });
 }
 
 /** Create a marker pin element with tail */
@@ -60,6 +78,7 @@ function createPinElement(
   el.className = `rg-marker ${className}`;
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', className.replace('rg-marker-', '').replace(/-/g, ' ') + ' marker');
+  el.style.transform = 'translateY(-50%)';
   el.innerHTML = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 6px rgba(0,0,0,.25));cursor:pointer;">
       <div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:3px solid white;display:flex;align-items:center;justify-content:center;transition:transform .2s ease;">
@@ -72,78 +91,64 @@ function createPinElement(
 
 // ── Marker Factory Functions ────────────────────────────
 
-/** Pickup marker — yellow pin with white dot center */
 export function createPickupMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { color?: string; size?: number; draggable?: boolean; popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const color = options.color ?? MARKER_COLORS.pickup;
   const size = options.size ?? 36;
   const el = createPinElement(SVG.dot, color, size, 'rg-marker-pickup');
 
-  const marker = new mapboxgl.Marker({
-    element: el,
-    anchor: 'bottom',
-    draggable: options.draggable ?? false,
-  }).setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+    gmpDraggable: options.draggable ?? false,
+  });
 
   if (options.popup) {
-    const popup = new mapboxgl.Popup({
-      offset: 25,
-      closeButton: false,
-      closeOnClick: true,
-      maxWidth: '200px',
-      className: 'rg-popup',
-    }).setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
-    marker.setPopup(popup);
+    attachInfoWindow(map, marker, `<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
   }
 
   return marker;
 }
 
-/** Dropoff marker — green pin with flag icon */
 export function createDropoffMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { color?: string; size?: number; draggable?: boolean; popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const color = options.color ?? MARKER_COLORS.dropoff;
   const size = options.size ?? 36;
   const el = createPinElement(SVG.flag, color, size, 'rg-marker-dropoff');
 
-  const marker = new mapboxgl.Marker({
-    element: el,
-    anchor: 'bottom',
-    draggable: options.draggable ?? false,
-  }).setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+    gmpDraggable: options.draggable ?? false,
+  });
 
   if (options.popup) {
-    const popup = new mapboxgl.Popup({
-      offset: 25,
-      closeButton: false,
-      closeOnClick: true,
-      maxWidth: '200px',
-      className: 'rg-popup',
-    }).setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
-    marker.setPopup(popup);
+    attachInfoWindow(map, marker, `<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
   }
 
   return marker;
 }
 
-/** Numbered stop/waypoint marker */
 export function createStopMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { color?: string; popup?: string; label?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const color = options.color ?? MARKER_COLORS.stop;
   const label = options.label ?? '•';
   const el = document.createElement('div');
   el.className = 'rg-marker rg-marker-stop';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', `Stop ${label} marker`);
+  el.style.transform = 'translateY(-50%)';
   el.innerHTML = `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 5px rgba(0,0,0,.2));">
       <div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;display:flex;align-items:center;justify-content:center;">
@@ -152,25 +157,24 @@ export function createStopMarker(
       <div style="width:2px;height:6px;background:${color};border-radius:0 0 2px 2px;"></div>
     </div>`;
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-    .setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 20, closeButton: false, maxWidth: '200px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`),
-    );
+    attachInfoWindow(map, marker, `<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
   }
 
   return marker;
 }
 
-/** Animated rider marker with pulse ring + bike icon */
 export function createRiderMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { color?: string; withBike?: boolean; size?: number; popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const color = options.color ?? MARKER_COLORS.rider;
   const size = options.size ?? 40;
   const showBike = options.withBike ?? true;
@@ -188,25 +192,24 @@ export function createRiderMarker(
       }
     </div>`;
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-    .setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 25, closeButton: false, maxWidth: '220px', className: 'rg-popup' })
-        .setHTML(`<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`),
-    );
+    attachInfoWindow(map, marker, `<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
   }
 
   return marker;
 }
 
-/** Small rider marker for nearby-riders overview map */
 export function createSmallRiderMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   options: { color?: string; popup?: string } = {},
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const color = options.color ?? MARKER_COLORS.riderOnline;
   const el = document.createElement('div');
   el.className = 'rg-marker rg-marker-rider-sm';
@@ -220,25 +223,24 @@ export function createSmallRiderMarker(
       </div>
     </div>`;
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-    .setLngLat(lngLat);
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 
   if (options.popup) {
-    marker.setPopup(
-      new mapboxgl.Popup({ offset: 15, closeButton: false, maxWidth: '180px', className: 'rg-popup' })
-        .setHTML(`<div class="px-2 py-1 text-xs">${options.popup}</div>`),
-    );
+    attachInfoWindow(map, marker, `<div class="px-2 py-1 text-xs">${options.popup}</div>`);
   }
 
   return marker;
 }
 
-/** User "You are here" blue dot with pulse animation */
 export function createUserDotMarker(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   color = MARKER_COLORS.user,
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const el = document.createElement('div');
   el.className = 'rg-marker rg-marker-user';
   el.setAttribute('role', 'img');
@@ -248,15 +250,18 @@ export function createUserDotMarker(
       <div class="rg-pulse-ring" style="position:absolute;inset:-6px;border-radius:50%;background:${color}26;animation:rg-pulse 2.5s ease-out infinite;"></div>
       <div style="width:16px;height:16px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 0 8px ${color}80;"></div>
     </div>`;
-  return new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat);
+  return new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 }
 
-/** Rider status dot — Google Maps-style, changes color based on status */
 export function createRiderStatusDot(
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   lngLat: [number, number],
   status: 'offline' | 'online' | 'on-route' = 'offline',
-): mapboxgl.Marker {
+): google.maps.marker.AdvancedMarkerElement {
   const colors = getStatusColors(status);
   const el = document.createElement('div');
   el.className = 'rg-marker rg-marker-status';
@@ -270,16 +275,20 @@ export function createRiderStatusDot(
         ${SVG.statusDot(colors.main)}
       </div>
     </div>`;
-  return new mapboxgl.Marker({ element: el }).setLngLat(lngLat);
+  return new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
 }
 
-/** Update a rider status dot's colors */
 export function updateRiderStatusDot(
-  marker: mapboxgl.Marker,
+  marker: google.maps.marker.AdvancedMarkerElement,
   status: 'offline' | 'online' | 'on-route',
 ): void {
   const colors = getStatusColors(status);
-  const el = marker.getElement();
+  const el = marker.content as HTMLElement;
+  if (!el) return;
   const ring = el.querySelector<HTMLDivElement>('[data-ring]');
   const glow = el.querySelector<HTMLDivElement>('[data-glow]');
   const dot = el.querySelector<HTMLDivElement>('[data-dot]');
@@ -291,21 +300,19 @@ export function updateRiderStatusDot(
   if (dot) dot.innerHTML = SVG.statusDot(colors.main);
 }
 
-/** Marker cleanup utility — removes an array of markers */
-export function removeMarkers(markers: mapboxgl.Marker[]): void {
+export function removeMarkers(markers: google.maps.marker.AdvancedMarkerElement[]): void {
   for (const m of markers) {
-    m.getPopup()?.remove();
-    m.remove();
+    m.map = null;
   }
 }
 
 // ── Internal ────────────────────────────────────────────
 
 function getStatusColors(status: 'offline' | 'online' | 'on-route') {
-  const map: Record<string, { main: string; glow: string; ring: string }> = {
+  const colorMap: Record<string, { main: string; glow: string; ring: string }> = {
     offline:    { main: '#9ca3af', glow: 'rgba(156,163,175,.25)', ring: 'rgba(156,163,175,.12)' },
     online:     { main: '#22c55e', glow: 'rgba(34,197,94,.40)',   ring: 'rgba(34,197,94,.15)' },
     'on-route': { main: '#4285F4', glow: 'rgba(66,133,244,.40)',  ring: 'rgba(66,133,244,.15)' },
   };
-  return map[status]!;
+  return colorMap[status]!;
 }

@@ -12,10 +12,8 @@ import { PrismaClient, Prisma } from '@prisma/client';
 // Re-uses a single PrismaClient across hot-reloads in dev and
 // guarantees one connection pool in production.
 //
-// Uses standard TCP connections everywhere. The Neon serverless
-// WebSocket adapter is only needed in edge/serverless runtimes
-// (Cloudflare Workers, Vercel Edge). Render and local dev both
-// support standard TCP which works with Neon's pooled URL.
+// Connects directly to PostgreSQL 16 on Hetzner via standard
+// TCP. No pooling proxy needed for self-hosted deployments.
 // ============================================================
 
 const globalForPrisma = globalThis as unknown as {

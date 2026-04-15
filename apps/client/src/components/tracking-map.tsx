@@ -2,8 +2,8 @@
 // TrackingMap — Live order tracking map for the client app
 //
 // Features:
-// • Mapbox GL JS v3.19 via initMapCore (all controls, 3D, fog)
-// • Pickup / dropoff / rider markers with Popup
+// • Google Maps JS API via initMapCore (controls, 3D)
+// • Pickup / dropoff / rider markers with InfoWindow
 // • Multi-layer route rendering with congestion coloring
 // • Auto route refresh when rider moves > 100 m
 // • Traffic overlay
@@ -15,8 +15,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type mapboxgl from 'mapbox-gl';
-import { MAPBOX_TOKEN } from '@/lib/constants';
+import { GOOGLE_MAPS_API_KEY } from '@/lib/constants';
 import { ROUTE_COLORS, MAP_PADDING, ROUTE_REFRESH_DISTANCE_M, haversineDistance, formatPlusCode } from '@riderguy/utils';
 import { initMapCore, fitBoundsToCoords, type MapCoreInstance } from '@/lib/map-core';
 import { createPickupMarker, createDropoffMarker, createRiderMarker, removeMarkers } from '@/lib/map-markers';
@@ -47,8 +46,8 @@ function getRouteColor(status: string): string {
 export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, status }: TrackingMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<MapCoreInstance | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const riderMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const riderMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const lastRouteRiderRef = useRef<[number, number] | null>(null);
   const [trafficOn, setTrafficOn] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -58,8 +57,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
   // ── Draw route helper ─────────────────────────────────
   const drawRouteFromDirections = useCallback(
     async (
-      map: mapboxgl.Map,
-      mapboxglLib: typeof import('mapbox-gl').default,
+      map: google.maps.Map,
       from: [number, number],
       to: [number, number],
     ) => {
@@ -67,7 +65,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
       if (!routes?.[0]) return;
 
       const route = routes[0];
-      drawRoute(map, mapboxglLib, {
+      drawRoute(map, {
         geometry: route.geometry,
         duration: route.duration,
         distance: route.distance,
@@ -85,16 +83,17 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
 
   // ── Initialize map ────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || !MAPBOX_TOKEN) return;
+    if (!containerRef.current || !GOOGLE_MAPS_API_KEY) return;
     let cancelled = false;
 
     (async () => {
       const core = await initMapCore({
         container: containerRef.current!,
-        token: MAPBOX_TOKEN,
+        token: GOOGLE_MAPS_API_KEY,
         center: pickupCoords ?? undefined,
-        onLoad: (map, mapboxglLib) => {
-          addTrafficLayer(map, false);
+        onLoad: (map) => {
+          addTrafficLayer(map);
+          toggleTraffic(map, false);
           setMapReady(true);
         },
       });
@@ -110,7 +109,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
       cancelled = true;
       removeMarkers(markersRef.current);
       markersRef.current = [];
-      riderMarkerRef.current?.remove();
+      if (riderMarkerRef.current) riderMarkerRef.current.map = null;
       riderMarkerRef.current = null;
       coreRef.current?.destroy();
       coreRef.current = null;
@@ -122,9 +121,9 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     if (!mapReady) return;
     const core = coreRef.current;
     if (!core) return;
-    const { map, mapboxgl: mapboxglLib } = core;
+    const { map } = core;
 
-    // Helper — guard against NaN coords that crash Mapbox
+    // Helper — guard against NaN coords
     const isValid = (c: [number, number] | null): c is [number, number] =>
       c !== null && Number.isFinite(c[0]) && Number.isFinite(c[1]);
 
@@ -137,10 +136,9 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     // Pickup marker (with Plus Code)
     if (isValid(pickupCoords)) {
       const pc = formatPlusCode(pickupCoords[1], pickupCoords[0]);
-      const m = createPickupMarker(mapboxglLib, pickupCoords, {
+      const m = createPickupMarker(map, pickupCoords, {
         popup: `Pickup<br/><span style="font-size:11px;opacity:0.7">${pc.display}</span>`,
       });
-      m.addTo(map);
       markersRef.current.push(m);
       boundsCoords.push(pickupCoords);
     }
@@ -148,10 +146,9 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     // Dropoff marker (with Plus Code)
     if (isValid(dropoffCoords)) {
       const pc = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
-      const m = createDropoffMarker(mapboxglLib, dropoffCoords, {
+      const m = createDropoffMarker(map, dropoffCoords, {
         popup: `Dropoff<br/><span style="font-size:11px;opacity:0.7">${pc.display}</span>`,
       });
-      m.addTo(map);
       markersRef.current.push(m);
       boundsCoords.push(dropoffCoords);
     }
@@ -160,12 +157,11 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
     if (isValid(riderCoords)) {
       if (riderMarkerRef.current) {
         // Smooth transition for marker movement
-        const el = riderMarkerRef.current.getElement();
-        el.style.transition = 'transform 1s ease-out';
-        riderMarkerRef.current.setLngLat(riderCoords);
+        const el = riderMarkerRef.current.content as HTMLElement;
+        if (el) el.style.transition = 'transform 1s ease-out';
+        riderMarkerRef.current.position = { lat: riderCoords[1], lng: riderCoords[0] };
       } else {
-        const m = createRiderMarker(mapboxglLib, riderCoords, { popup: 'Your rider' });
-        m.addTo(map);
+        const m = createRiderMarker(map, riderCoords, { popup: 'Your rider' });
         riderMarkerRef.current = m;
       }
       boundsCoords.push(riderCoords);
@@ -173,7 +169,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
 
     // Fit bounds to all visible points
     if (boundsCoords.length > 0) {
-      fitBoundsToCoords(map, mapboxglLib, boundsCoords, MAP_PADDING.route);
+      fitBoundsToCoords(map, boundsCoords, MAP_PADDING.route);
     }
 
     // Draw/refresh route
@@ -188,7 +184,7 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
       ) * 1000 > ROUTE_REFRESH_DISTANCE_M;
 
       if (shouldRefresh) {
-        drawRouteFromDirections(map, mapboxglLib, origin, dest);
+        drawRouteFromDirections(map, origin, dest);
       }
     }
   }, [

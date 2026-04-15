@@ -28,6 +28,48 @@ import multer from 'multer';
 import type { Request } from 'express';
 import os from 'node:os';
 import path from 'node:path';
+
+// ── Google Routes API helpers ───────────────────────────
+
+/** Decode a Google encoded polyline into GeoJSON LineString */
+function decodeGooglePolyline(encoded: string): { type: 'LineString'; coordinates: [number, number][] } {
+  const coordinates: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    shift = 0;
+    result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coordinates.push([lng / 1e5, lat / 1e5]);
+  }
+
+  return { type: 'LineString', coordinates };
+}
+
+/** Parse Google duration string like "123s" or "123.456s" to seconds number */
+function parseDuration(d: string): number {
+  if (!d) return 0;
+  const match = d.match(/^([\d.]+)s?$/);
+  return match ? parseFloat(match[1]!) : 0;
+}
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
@@ -149,13 +191,13 @@ router.get(
 router.get(
   '/retrieve-place/:id',
   asyncHandler(async (req, res) => {
-    const mapboxId = req.params.id as string;
-    if (!mapboxId) {
-      throw ApiError.badRequest('Mapbox place ID is required');
+    const placeId = req.params.id as string;
+    if (!placeId) {
+      throw ApiError.badRequest('Place ID is required');
     }
 
     const sessionToken = String(req.query.session_token ?? '') || undefined;
-    const place = await GeocodingService.retrievePlace(mapboxId, sessionToken);
+    const place = await GeocodingService.retrievePlace(placeId, sessionToken);
 
     if (!place) {
       throw ApiError.notFound('Place not found');
@@ -164,13 +206,13 @@ router.get(
     // Record the selection for usage-based learning (fire-and-forget)
     const query = req.query.q as string;
     if (query && place) {
-      // Infer provider from ID prefix (gaz-, nom-, com-, or Mapbox ID)
-      const source = mapboxId.startsWith('gaz-') ? 'gazetteer' as const
-        : mapboxId.startsWith('nom-') ? 'nominatim' as const
-        : mapboxId.startsWith('com-') ? 'community' as const
-        : 'mapbox' as const;
+      // Infer provider from ID prefix (gaz-, nom-, com-, or Google place ID)
+      const source = placeId.startsWith('gaz-') ? 'gazetteer' as const
+        : placeId.startsWith('nom-') ? 'nominatim' as const
+        : placeId.startsWith('com-') ? 'community' as const
+        : 'google' as const;
       GeocodingService.recordSelection(query, {
-        id: mapboxId,
+        id: placeId,
         text: place.name,
         placeName: place.fullAddress || place.name,
         latitude: place.latitude,
@@ -194,7 +236,7 @@ const recordSelectionSchema = z.object({
     placeName: z.string().min(1).max(500).optional(),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
-    source: z.enum(['mapbox', 'nominatim', 'gazetteer', 'community']).optional(),
+    source: z.enum(['google', 'nominatim', 'gazetteer', 'community']).optional(),
   }),
 });
 
@@ -315,7 +357,7 @@ router.get(
   }),
 );
 
-/** GET /orders/directions — Proxy Mapbox Directions API (keeps token server-side) */
+/** GET /orders/directions — Proxy Google Routes API (keeps API key server-side) */
 router.get(
   '/directions',
   asyncHandler(async (req, res) => {
@@ -324,27 +366,103 @@ router.get(
       throw ApiError.badRequest('coordinates query parameter is required (format: lng,lat;lng,lat;...)');
     }
 
-    const mapboxToken = (await import('../../config')).config.mapbox?.accessToken;
-    if (!mapboxToken) throw ApiError.internal('Map service not configured');
+    const googleApiKey = (await import('../../config')).config.google?.mapsApiKey;
+    if (!googleApiKey) throw ApiError.internal('Map service not configured');
 
-    const routeProfile = driveProfile === 'cycling' ? 'cycling' : driveProfile === 'walking' ? 'walking' : 'driving-traffic';
-    const baseParams = `?geometries=geojson&overview=full&steps=true&alternatives=true&annotations=congestion,duration,distance&language=en&access_token=${mapboxToken}`;
-    let url = `https://api.mapbox.com/directions/v5/mapbox/${routeProfile}/${coordinates}${baseParams}`;
-    let response = await fetch(url);
+    // Parse coordinate pairs: "lng,lat;lng,lat;..."
+    const pairs = coordinates.split(';').map(p => {
+      const [lng, lat] = p.split(',').map(Number);
+      return { latitude: lat, longitude: lng };
+    });
+    if (pairs.length < 2) throw ApiError.badRequest('At least 2 coordinate pairs required');
 
-    // Fallback: if driving-traffic fails (not available in all regions), retry with plain driving
-    if (!response.ok && routeProfile === 'driving-traffic') {
-      url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}${baseParams}`;
-      response = await fetch(url);
-    }
+    const travelMode = driveProfile === 'cycling' ? 'BICYCLE' : driveProfile === 'walking' ? 'WALK' : 'DRIVE';
+
+    // Build intermediates (waypoints between origin and destination)
+    const intermediates = pairs.length > 2
+      ? pairs.slice(1, -1).map(p => ({ location: { latLng: p } }))
+      : undefined;
+
+    const body = {
+      origin: { location: { latLng: pairs[0] } },
+      destination: { location: { latLng: pairs[pairs.length - 1] } },
+      ...(intermediates ? { intermediates } : {}),
+      travelMode,
+      routingPreference: travelMode === 'DRIVE' ? 'TRAFFIC_AWARE_OPTIMAL' : undefined,
+      computeAlternativeRoutes: true,
+      routeModifiers: { avoidTolls: false, avoidHighways: false, avoidFerries: false },
+      extraComputations: ['TRAFFIC_ON_POLYLINE'],
+      languageCode: 'en',
+      units: 'METRIC',
+    };
+
+    const fieldMask = 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.routeLabels,routes.travelAdvisory';
+
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': googleApiKey,
+        'X-Goog-FieldMask': fieldMask,
+      },
+      body: JSON.stringify(body),
+    });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw ApiError.internal(`Directions service unavailable: ${response.status} ${body.slice(0, 200)}`);
+      const errBody = await response.text().catch(() => '');
+      throw ApiError.internal(`Routes service unavailable: ${response.status} ${errBody.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-    res.status(StatusCodes.OK).json({ success: true, data });
+    const googleData = await response.json() as { routes?: Array<Record<string, unknown>> };
+
+    // Transform Google Routes response to match frontend expectations
+    const routes = (googleData.routes ?? []).map((route: Record<string, unknown>) => {
+      const legs = (route.legs as Array<Record<string, unknown>> ?? []).map((leg: Record<string, unknown>) => {
+        const steps = (leg.steps as Array<Record<string, unknown>> ?? []).map((step: Record<string, unknown>) => ({
+          geometry: decodeGooglePolyline((step.polyline as Record<string, string>)?.encodedPolyline ?? ''),
+          duration: parseDuration(step.staticDuration as string ?? step.duration as string ?? '0s'),
+          distance: step.distanceMeters as number ?? 0,
+          name: (step.navigationInstruction as Record<string, string>)?.instructions ?? '',
+          maneuver: {
+            type: (step.navigationInstruction as Record<string, string>)?.maneuver ?? '',
+            instruction: (step.navigationInstruction as Record<string, string>)?.instructions ?? '',
+          },
+        }));
+
+        // Extract congestion from traffic-aware polyline
+        const travelAdvisory = leg.travelAdvisory as Record<string, unknown> | undefined;
+        const speedReadings = travelAdvisory?.speedReadingIntervals as Array<Record<string, unknown>> ?? [];
+        const congestion = speedReadings.map((s: Record<string, unknown>) => {
+          const speed = s.speed as string;
+          if (speed === 'SLOW') return 'heavy';
+          if (speed === 'TRAFFIC_JAM') return 'severe';
+          if (speed === 'NORMAL') return 'low';
+          return 'moderate';
+        });
+
+        return {
+          duration: parseDuration(leg.staticDuration as string ?? leg.duration as string ?? '0s'),
+          distance: leg.distanceMeters as number ?? 0,
+          summary: '',
+          steps,
+          annotation: congestion.length > 0 ? { congestion } : undefined,
+        };
+      });
+
+      return {
+        geometry: decodeGooglePolyline((route.polyline as Record<string, string>)?.encodedPolyline ?? ''),
+        duration: parseDuration((route as Record<string, string>).duration ?? '0s'),
+        distance: (route as Record<string, number>).distanceMeters ?? 0,
+        weight: 0,
+        weight_name: 'auto',
+        legs,
+      };
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { routes, waypoints: [] },
+    });
   }),
 );
 

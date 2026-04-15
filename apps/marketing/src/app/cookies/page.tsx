@@ -7,11 +7,11 @@ export const metadata: Metadata = {
 
 export default function CookiePolicyPage() {
   return (
-    <section className="pt-28 pb-20 px-6 sm:pt-32">
-      <div className="mx-auto max-w-3xl prose prose-gray prose-headings:font-bold">
+    <section className="px-5 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
+      <div className="prose prose-gray prose-headings:font-bold mx-auto max-w-3xl">
         <h1>Cookie Policy</h1>
         <p className="lead">
-          Last updated: {new Date().toLocaleDateString('en-GH', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Last updated: 10 April 2026
         </p>
         <p>
           This Cookie Policy explains how RiderGuy (&ldquo;we,&rdquo; &ldquo;our,&rdquo;
@@ -31,8 +31,7 @@ export default function CookiePolicyPage() {
         <h3>2.1 Essential Cookies</h3>
         <p>
           These cookies are strictly necessary for the Platform to function. They enable
-          core features such as authentication, session management, and security. You
-          cannot opt out of essential cookies.
+          core features such as authentication, session management, and security.
         </p>
         <table>
           <thead>
@@ -58,36 +57,29 @@ export default function CookiePolicyPage() {
 
         <h3>2.2 Functional Cookies</h3>
         <p>
-          These cookies remember your preferences and settings, such as language
-          selection and display preferences, to enhance your experience.
+          These cookies remember your preferences and settings to enhance your experience.
         </p>
 
         <h3>2.3 Analytics Cookies</h3>
         <p>
           We may use analytics cookies to understand how visitors interact with the
-          Platform. This helps us improve performance, content, and user experience.
-          Analytics data is aggregated and anonymised.
+          Platform. Analytics data is aggregated and anonymised.
         </p>
 
         <h3>2.4 Local Storage</h3>
         <p>
           In addition to cookies, we use browser local storage to persist authentication
-          tokens and user preferences across sessions. This storage is limited to your
-          device and is not sent to our servers with each request.
+          tokens and user preferences across sessions.
         </p>
 
         <h2>3. Third-Party Cookies</h2>
         <p>
           Our Platform may include third-party services (e.g., Paystack for payments)
-          that set their own cookies. We do not control these cookies and recommend
-          reviewing the respective privacy policies of these providers.
+          that set their own cookies. We do not control these cookies.
         </p>
 
         <h2>4. Managing Cookies</h2>
-        <p>
-          You can control and manage cookies through your browser settings. Most
-          browsers allow you to:
-        </p>
+        <p>You can control and manage cookies through your browser settings:</p>
         <ul>
           <li>View and delete existing cookies</li>
           <li>Block cookies from specific or all websites</li>
@@ -95,15 +87,13 @@ export default function CookiePolicyPage() {
           <li>Enable &ldquo;Do Not Track&rdquo; signals</li>
         </ul>
         <p>
-          Please note that blocking essential cookies may prevent you from using
-          certain features of the Platform.
+          Blocking essential cookies may prevent you from using certain Platform features.
         </p>
 
         <h2>5. Changes to This Policy</h2>
         <p>
-          We may update this Cookie Policy from time to time to reflect changes in
-          technology, legislation, or our practices. We will post the updated version
-          on this page with a revised date.
+          We may update this Cookie Policy from time to time. We will post the updated
+          version on this page with a revised date.
         </p>
 
         <h2>6. Contact Us</h2>

@@ -2,7 +2,7 @@
 // ETA Learning Service — Delivery-time-based Correction
 //
 // Learns from completed deliveries to correct ETA predictions.
-// Compares predicted duration (from Mapbox/haversine) against
+// Compares predicted duration (from Google Routes/haversine) against
 // actual delivery times, building correction factors per:
 // • Zone (Accra traffic ≠ Tamale traffic)
 // • Hour of day (rush hour corrections)
@@ -114,7 +114,7 @@ export async function getCorrectionFactor(
 /**
  * Apply ETA correction to a raw duration prediction.
  *
- * @param rawDurationMinutes Raw ETA from Mapbox or haversine formula
+ * @param rawDurationMinutes Raw ETA from Google Routes or haversine formula
  * @param zoneId Delivery zone
  * @param timestamp Delivery time
  * @returns Corrected duration in minutes

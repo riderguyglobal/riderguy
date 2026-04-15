@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { formatCurrency } from '@riderguy/utils';
 import { LocationInput, type LocationValue } from '@/components/location-input';
-import { reverseGeocodeAddress } from '@/hooks/use-mapbox-autocomplete';
+import { reverseGeocodeAddress } from '@/hooks/use-autocomplete';
 import {
   ArrowLeft,
   Loader2,

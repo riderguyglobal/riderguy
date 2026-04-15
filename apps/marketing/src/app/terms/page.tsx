@@ -1,17 +1,17 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service — RiderGuy',
+  title: 'Terms of Service | RiderGuy',
   description: 'Read the RiderGuy Terms of Service governing use of our delivery platform.',
 };
 
 export default function TermsPage() {
   return (
-    <section className="pt-28 pb-20 px-6 sm:pt-32">
-      <div className="mx-auto max-w-3xl prose prose-gray prose-headings:font-bold">
+    <section className="px-5 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
+      <div className="prose prose-gray prose-headings:font-bold mx-auto max-w-3xl">
         <h1>Terms of Service</h1>
         <p className="lead">
-          Last updated: {new Date().toLocaleDateString('en-GH', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Last updated: 10 April 2026
         </p>
         <p>
           Welcome to RiderGuy. These Terms of Service (&ldquo;Terms&rdquo;) govern your
@@ -22,25 +22,24 @@ export default function TermsPage() {
 
         <h2>1. Definitions</h2>
         <ul>
-          <li><strong>&ldquo;Client&rdquo;</strong> — any user who requests a delivery through the Platform.</li>
-          <li><strong>&ldquo;Rider&rdquo;</strong> — any independent contractor who fulfils deliveries through the Platform.</li>
-          <li><strong>&ldquo;Partner&rdquo;</strong> — any business that uses the Platform for commercial deliveries.</li>
-          <li><strong>&ldquo;Order&rdquo;</strong> — a delivery request placed through the Platform.</li>
+          <li><strong>&ldquo;Client&rdquo;</strong>: any user who requests a delivery through the Platform.</li>
+          <li><strong>&ldquo;Rider&rdquo;</strong>: any independent contractor who fulfils deliveries through the Platform.</li>
+          <li><strong>&ldquo;Partner&rdquo;</strong>: any business that uses the Platform for commercial deliveries.</li>
+          <li><strong>&ldquo;Order&rdquo;</strong>: a delivery request placed through the Platform.</li>
         </ul>
 
         <h2>2. Eligibility</h2>
         <p>
           You must be at least 18 years old to use the Platform. Riders must additionally
-          hold a valid means of identification, possess a roadworthy vehicle, and
-          successfully complete the onboarding verification process.
+          hold valid identification, possess a roadworthy vehicle, and successfully
+          complete the onboarding verification process.
         </p>
 
         <h2>3. Account Registration</h2>
         <p>
           You agree to provide accurate, current, and complete information during
           registration and to keep your account information updated. You are responsible
-          for safeguarding your account credentials and for all activities under your
-          account.
+          for safeguarding your account credentials and for all activities under your account.
         </p>
 
         <h2>4. Platform Services</h2>
@@ -100,9 +99,9 @@ export default function TermsPage() {
         <h2>10. Limitation of Liability</h2>
         <p>
           To the maximum extent permitted by law, RiderGuy shall not be liable for any
-          indirect, incidental, special, consequential, or punitive damages, including loss
-          of profits, data, or goodwill. Our total liability for any claim shall not exceed
-          the amount you paid through the Platform in the 12 months preceding the claim.
+          indirect, incidental, special, consequential, or punitive damages. Our total
+          liability for any claim shall not exceed the amount you paid through the Platform
+          in the 12 months preceding the claim.
         </p>
 
         <h2>11. Indemnification</h2>
@@ -116,8 +115,7 @@ export default function TermsPage() {
         <p>
           We may suspend or terminate your account at our discretion if we believe you
           have violated these Terms, engaged in fraudulent activity, or pose a risk to
-          the safety of other users. You may deactivate your account at any time through
-          the Platform settings.
+          the safety of other users.
         </p>
 
         <h2>13. Dispute Resolution</h2>
@@ -136,8 +134,7 @@ export default function TermsPage() {
         <h2>15. Changes to Terms</h2>
         <p>
           We reserve the right to modify these Terms at any time. Material changes will
-          be communicated through the Platform. Continued use after modifications
-          constitutes acceptance.
+          be communicated through the Platform. Continued use constitutes acceptance.
         </p>
 
         <h2>16. Contact</h2>

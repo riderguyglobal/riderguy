@@ -259,15 +259,13 @@
   }
 }
 
-/* ─── Mapbox Overrides (Light) ───────────────── */
-.mapboxgl-ctrl-attrib  { @apply !text-[9px] !opacity-60; }
-.mapboxgl-ctrl-attrib a { @apply !text-surface-400; }
-.mapboxgl-ctrl-group   { @apply !rounded-2xl !border-0; box-shadow: 0 2px 8px rgba(0,0,0,.08) !important; }
-.mapboxgl-ctrl-group button { @apply !border-surface-100/50; }
-.mapboxgl-popup-content { @apply !rounded-2xl !p-0; box-shadow: 0 2px 12px rgba(0,0,0,.1) !important; }
-.mapboxgl-popup-tip     { display: none !important; }
-.mapboxgl-canvas        { outline: none !important; }
-.mapboxgl-map           { font: inherit !important; }
+/* ─── Google Maps Overrides ───────────────────── */
+.gm-style .gm-style-cc { @apply !text-[9px] !opacity-60; }
+.gm-style .gm-style-cc a { @apply !text-surface-400; }
+.gm-style-iw { @apply !rounded-2xl !p-0; box-shadow: 0 2px 12px rgba(0,0,0,.1) !important; }
+.gm-style-iw-tc { display: none !important; }
+.gm-style canvas { outline: none !important; }
+.gm-style { font: inherit !important; }
 
 /* ─── Scrollbar ──────────────────────────────── */
 ::-webkit-scrollbar       { width: 3px; height: 3px; }

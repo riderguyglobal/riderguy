@@ -11,8 +11,6 @@ import {
   Fingerprint, KeyRound, MessageSquare, ShieldCheck, Smartphone,
   ChevronRight, Package,
 } from 'lucide-react';
-import Image from 'next/image';
-
 type Tab = 'phone' | 'email';
 type Stage = 'input' | 'method-select' | 'pin' | 'otp' | 'biometric';
 
@@ -245,13 +243,6 @@ return (
       {/* ── Heading (initial stage only) ── */}
       {!inPhoneFlow && (
         <div className="mb-8">
-          {/* Mobile illustration peek */}
-          <div className="lg:hidden flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 scale-150 rounded-full bg-brand-500/[0.06] blur-2xl" />
-              <Image src="/images/illustrations/maps-bike.svg" alt="" width={120} height={120} className="relative w-24 h-24 animate-float" />
-            </div>
-          </div>
           <h1 className="text-3xl font-extrabold text-surface-900 tracking-tight leading-tight">Welcome back</h1>
           <p className="text-surface-400 text-base mt-1.5">Sign in to your RiderGuy account</p>
         </div>

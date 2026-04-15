@@ -245,9 +245,7 @@ export class AuthService {
     const pinHash = input.pin ? await this.hashPassword(input.pin) : null;
 
     // ---- 4. Create user + profile + wallet + session sequentially ----
-    // NOTE: We avoid prisma.$transaction(async callback) because Neon's
-    // pooled connection (PgBouncer) doesn't support interactive transactions.
-    // Instead we do sequential writes with cleanup on failure.
+    // Sequential writes with cleanup on failure for atomicity.
 
     let user;
     let isAddingRole = false;
@@ -506,6 +504,342 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  // ---- Ghana Card Registration ----
+
+  static async registerWithGhanaCard(input: {
+    ghanaCard: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role: UserRole;
+    securityQuestion: string;
+    securityAnswer: string;
+  }, deviceInfo?: string, ipAddress?: string) {
+    // 1. Uniqueness check
+    const existingGhanaCard = await prisma.user.findUnique({
+      where: { ghanaCardNumber: input.ghanaCard },
+    });
+    if (existingGhanaCard) {
+      throw ApiError.badRequest(
+        'Unable to create account. Please try a different method or log in.',
+        'REGISTRATION_FAILED',
+      );
+    }
+
+    // 2. Hash credentials
+    const passwordHash = await this.hashPassword(input.password);
+    const securityAnswerHash = await this.hashPassword(input.securityAnswer.toLowerCase().trim());
+
+    // 3. Create user
+    let user;
+    const placeholderPhone = `ghanacard_${crypto.randomUUID()}`;
+    try {
+      user = await prisma.user.create({
+        data: {
+          phone: placeholderPhone,
+          ghanaCardNumber: input.ghanaCard,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          passwordHash,
+          securityQuestion: input.securityQuestion,
+          securityAnswerHash,
+          role: input.role as PrismaUserRole,
+          roles: [input.role as PrismaUserRole],
+          status: 'ACTIVE',
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw ApiError.badRequest(
+          'Unable to create account. Please try a different method or log in.',
+          'REGISTRATION_FAILED',
+        );
+      }
+      throw err;
+    }
+
+    // 4. Create profile + wallet
+    try {
+      if (input.role === 'RIDER') {
+        await prisma.riderProfile.create({ data: { userId: user.id, onboardingStatus: 'ACTIVATED' } });
+      } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
+        await prisma.clientProfile.create({ data: { userId: user.id } });
+      } else if (input.role === 'PARTNER') {
+        const { generateReferralCode } = await import('@riderguy/utils');
+        await prisma.partnerProfile.create({
+          data: { userId: user.id, referralCode: generateReferralCode() },
+        });
+      }
+      await prisma.wallet.create({ data: { userId: user.id } });
+    } catch (profileOrWalletErr) {
+      logger.error({ err: profileOrWalletErr, userId: user.id }, 'Ghana Card register failed after user.create — cleaning up');
+      await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+      throw profileOrWalletErr;
+    }
+
+    // 5. Create session + tokens
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        deviceInfo,
+        ipAddress,
+        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+      },
+    });
+
+    const roles = getUserRoles(user);
+    const accessToken = this.generateAccessToken({
+      userId: user.id,
+      role: user.role as UserRole,
+      roles,
+      sessionId: session.id,
+    });
+
+    const refreshToken = this.generateRefreshToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
+
+    logger.info({ userId: user.id, role: user.role, ghanaCard: input.ghanaCard }, 'User registered via Ghana Card');
+
+    return {
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        roles,
+        status: user.status,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  // ---- Ghana Card Login ----
+
+  static async loginWithGhanaCard(
+    ghanaCard: string,
+    password: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
+    const user = await prisma.user.findUnique({
+      where: { ghanaCardNumber: ghanaCard },
+    });
+
+    if (!user) {
+      throw ApiError.unauthorized('Invalid Ghana Card number or password');
+    }
+
+    if (!user.passwordHash) {
+      throw ApiError.unauthorized('Invalid Ghana Card number or password');
+    }
+
+    // Brute-force protection
+    await this.checkAccountLock(user);
+
+    const passwordValid = await this.comparePassword(password, user.passwordHash);
+    if (!passwordValid) {
+      await this.recordFailedLogin(user.id);
+      throw ApiError.unauthorized('Invalid Ghana Card number or password');
+    }
+
+    // Clear failed attempts on success
+    await this.clearFailedLoginAttempts(user.id);
+
+    // Determine if PIN is required
+    const requiresPin = !!user.pinHash;
+
+    if (requiresPin) {
+      // Don't create session yet — PIN verification needed
+      return {
+        requiresPin: true,
+        user: {
+          id: user.id,
+          phone: user.phone,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          roles: getUserRoles(user),
+          status: user.status,
+        },
+      };
+    }
+
+    // Create session (no PIN required)
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        deviceInfo,
+        ipAddress,
+        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+      },
+    });
+
+    const roles = getUserRoles(user);
+    const accessToken = this.generateAccessToken({
+      userId: user.id,
+      role: user.role as UserRole,
+      roles,
+      sessionId: session.id,
+    });
+
+    const refreshToken = this.generateRefreshToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    logger.info({ userId: user.id, ghanaCard }, 'Ghana Card login successful');
+
+    return {
+      requiresPin: false,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        roles,
+        status: user.status,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  // ---- Verify Security Answer (for Ghana Card recovery) ----
+
+  static async verifySecurityAnswer(ghanaCard: string, answer: string) {
+    const user = await prisma.user.findUnique({
+      where: { ghanaCardNumber: ghanaCard },
+    });
+
+    if (!user || !user.securityAnswerHash) {
+      // Always return success-like message to prevent enumeration
+      throw ApiError.unauthorized('Invalid Ghana Card or security answer');
+    }
+
+    const answerValid = await this.comparePassword(
+      answer.toLowerCase().trim(),
+      user.securityAnswerHash,
+    );
+
+    if (!answerValid) {
+      throw ApiError.unauthorized('Invalid Ghana Card or security answer');
+    }
+
+    // Generate a short-lived recovery token
+    const recoveryToken = jwt.sign(
+      { userId: user.id, purpose: 'PIN_RESET' },
+      config.jwt.refreshSecret,
+      { expiresIn: '15m' },
+    );
+
+    return {
+      recoveryToken,
+      securityQuestion: user.securityQuestion,
+    };
+  }
+
+  // ---- Get Security Question (for Ghana Card recovery) ----
+
+  static async getSecurityQuestion(ghanaCard: string) {
+    const user = await prisma.user.findUnique({
+      where: { ghanaCardNumber: ghanaCard },
+      select: { securityQuestion: true },
+    });
+
+    // Always return a response — do not reveal existence
+    return {
+      securityQuestion: user?.securityQuestion ?? null,
+    };
+  }
+
+  // ---- Recovery: Reset PIN with token ----
+
+  static async resetPinWithToken(newPin: string, token: string) {
+    let payload: { userId: string; purpose: string };
+    try {
+      payload = jwt.verify(token, config.jwt.refreshSecret) as typeof payload;
+    } catch {
+      throw ApiError.badRequest('Invalid or expired recovery token', 'INVALID_TOKEN');
+    }
+
+    if (payload.purpose !== 'PIN_RESET') {
+      throw ApiError.badRequest('Invalid recovery token', 'INVALID_TOKEN');
+    }
+
+    const pinHash = await this.hashPassword(newPin);
+    await prisma.user.update({
+      where: { id: payload.userId },
+      data: { pinHash },
+    });
+
+    logger.info({ userId: payload.userId }, 'PIN reset via recovery token');
+
+    return { message: 'PIN has been reset successfully' };
+  }
+
+  // ---- Recovery: Request recovery via phone/email/ghanacard ----
+
+  static async requestRecovery(method: string, identifier: string) {
+    if (method === 'phone') {
+      // Send OTP to phone for recovery
+      await this.createOtp(identifier, 'PASSWORD_RESET');
+      return { message: 'Recovery code sent' };
+    }
+
+    if (method === 'email') {
+      // Send password reset email
+      await this.requestPasswordReset(identifier);
+      return { message: 'Recovery link sent' };
+    }
+
+    if (method === 'ghanacard') {
+      // Return the security question
+      const result = await this.getSecurityQuestion(identifier);
+      return {
+        message: 'Security question retrieved',
+        securityQuestion: result.securityQuestion,
+      };
+    }
+
+    throw ApiError.badRequest('Invalid recovery method');
+  }
+
+  // ---- Recovery: Verify OTP and return recovery token ----
+
+  static async verifyRecoveryOtp(phone: string, code: string) {
+    await this._verifyOtpCode(phone, code, 'PASSWORD_RESET');
+
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      throw ApiError.badRequest('Account not found');
+    }
+
+    const recoveryToken = jwt.sign(
+      { userId: user.id, purpose: 'PIN_RESET' },
+      config.jwt.refreshSecret,
+      { expiresIn: '15m' },
+    );
+
+    return { recoveryToken };
   }
 
   // ---- Google OAuth ----

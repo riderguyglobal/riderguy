@@ -4,21 +4,25 @@ import {
   MapPin,
   Clock,
   Briefcase,
-  ChevronRight,
   Users,
   Heart,
   TrendingUp,
   Building2,
+  ArrowRight,
 } from 'lucide-react';
-import { Button } from '@riderguy/ui';
-import { HomeClient } from '@/components/home-client';
-import { JOB_TYPE_LABELS } from '@riderguy/types';
-import type { JobType } from '@riderguy/types';
+import { ScrollRevealProvider } from '@/components/scroll-reveal';
 
 export const metadata: Metadata = {
   title: 'Careers | RiderGuy',
   description:
     'Join the team building the operating system for the rider economy. Explore open roles at RiderGuy.',
+};
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  FULL_TIME: 'Full-Time',
+  PART_TIME: 'Part-Time',
+  CONTRACT: 'Contract',
+  INTERNSHIP: 'Internship',
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
@@ -28,7 +32,7 @@ interface PublishedJob {
   title: string;
   department: string;
   location: string;
-  type: JobType;
+  type: string;
   description: string;
   requirements: string | null;
   publishedAt: string | null;
@@ -37,7 +41,7 @@ interface PublishedJob {
 async function getPublishedJobs(): Promise<PublishedJob[]> {
   try {
     const res = await fetch(`${API_URL}/job-postings`, {
-      next: { revalidate: 60 }, // revalidate every 60 seconds
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     const json = await res.json();
@@ -47,43 +51,50 @@ async function getPublishedJobs(): Promise<PublishedJob[]> {
   }
 }
 
+const PERKS = [
+  { icon: Heart, title: 'Purpose-Driven Work', desc: 'Build technology that empowers thousands of riders and transforms communities.' },
+  { icon: TrendingUp, title: 'Growth & Learning', desc: 'We invest in your development. Conferences, courses, and mentorship included.' },
+  { icon: Users, title: 'Close-Knit Team', desc: 'Small team, big impact. You will work directly with founders and ship fast.' },
+  { icon: Building2, title: 'Flexible & Remote', desc: 'Work from anywhere in Ghana. We trust outcomes, not screen time.' },
+];
+
 export default async function CareersPage() {
   const jobs = await getPublishedJobs();
+
   return (
-    <HomeClient>
+    <ScrollRevealProvider>
       {/* ================================================================
           HERO
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 pt-28 pb-20 sm:pt-36 sm:pb-28 lg:pt-44 lg:pb-36">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(34,197,94,0.1),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(34,197,94,0.06),transparent_50%)]" />
+      <section className="relative overflow-hidden bg-surface-950 pb-16 pt-28 sm:pb-20 sm:pt-36 lg:pb-24 lg:pt-44">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,197,94,0.1),transparent_60%)]" />
+        <div className="noise absolute inset-0" />
 
-        <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-8 lg:px-10">
-          <div className="hero-badge-enter mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400 sm:text-sm">
+        <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
+          <div className="hero-badge-in mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400 sm:mb-7 sm:text-sm">
             <Briefcase className="h-4 w-4" />
-            We are hiring
+            We&apos;re hiring
           </div>
 
-          <h1 className="hero-text-enter text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-7xl">
+          <h1 className="hero-text-in text-hero text-white">
             Build the future of{' '}
-            <span className="text-gradient">delivery in Africa</span>
+            <span className="text-gradient-light">delivery</span>
           </h1>
 
-          <p className="hero-text-enter-delay-1 mx-auto mt-5 max-w-2xl text-base leading-relaxed text-surface-400 sm:mt-6 sm:text-lg">
-            We are building the operating system for the rider economy. Join a passionate team that is transforming delivery riding into a dignified career across Ghana and beyond.
+          <p className="hero-text-in-d1 mt-5 text-base leading-relaxed text-surface-400 sm:mt-7 sm:text-lg">
+            RiderGuy is building the operating system for the rider economy.
+            Join a small, driven team solving real problems for
+            millions of people across West Africa.
           </p>
 
-          <div className="hero-text-enter-delay-2 mt-8 sm:mt-10">
-            <Button
-              size="lg"
-              className="rounded-full bg-brand-500 px-8 text-white shadow-lg shadow-brand-500/25 hover:bg-brand-600"
-              asChild
+          <div className="hero-text-in-d2 mt-7 sm:mt-10">
+            <Link
+              href="#openings"
+              className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-8 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600"
             >
-              <a href="#open-roles">
-                View Open Roles
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </a>
-            </Button>
+              View Open Roles
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
@@ -91,52 +102,26 @@ export default async function CareersPage() {
       {/* ================================================================
           WHY JOIN US
           ================================================================ */}
-      <section className="bg-white py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:px-10">
+      <section className="bg-white py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600 sm:text-sm">
-              Why Join RiderGuy
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+              Why Join Us
             </span>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
-              More than a job. A mission.
-            </h2>
-            <p className="mt-4 text-base text-surface-500 sm:text-lg">
-              We are not just building an app. We are creating economic opportunity for thousands of riders and their families.
-            </p>
+            <h2 className="text-section mt-4 text-surface-900">Work that matters</h2>
           </div>
 
-          <div className="stagger-children mt-12 grid gap-5 sm:mt-16 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
-            {[
-              {
-                icon: Heart,
-                title: 'Purpose-Driven',
-                desc: 'Every line of code, every campaign, every hire directly impacts the livelihood of riders across Ghana.',
-              },
-              {
-                icon: TrendingUp,
-                title: 'Growth Stage',
-                desc: 'Get in early and grow with the company. Shape the product, culture, and strategy from the ground up.',
-              },
-              {
-                icon: Users,
-                title: 'Great Team',
-                desc: 'Work alongside passionate, talented people who care deeply about what they are building.',
-              },
-              {
-                icon: Building2,
-                title: 'Competitive Pay',
-                desc: 'Fair compensation, performance bonuses, and benefits. We take care of our team the way we take care of our riders.',
-              },
-            ].map((item) => (
+          <div className="stagger mt-14 grid gap-6 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
+            {PERKS.map((p) => (
               <div
-                key={item.title}
-                className="group rounded-2xl border border-surface-100 bg-white p-6 transition-all duration-300 hover:border-brand-200 hover:shadow-lg sm:p-7"
+                key={p.title}
+                className="card-lift rounded-2xl border border-surface-100 bg-white p-5 sm:p-8"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-                  <item.icon className="h-6 w-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
+                  <p.icon className="h-6 w-6 text-brand-600" />
                 </div>
-                <h3 className="mt-5 text-lg font-bold text-surface-900">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-surface-500">{item.desc}</p>
+                <h3 className="mt-5 text-lg font-bold text-surface-900">{p.title}</h3>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{p.desc}</p>
               </div>
             ))}
           </div>
@@ -146,93 +131,68 @@ export default async function CareersPage() {
       {/* ================================================================
           OPEN ROLES
           ================================================================ */}
-      <section id="open-roles" className="bg-surface-50 py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-4xl px-4 sm:px-8 lg:px-10">
-          <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600 sm:text-sm">
-              Open Roles
+      <section id="openings" className="bg-surface-50 py-20 sm:py-28 lg:py-36">
+        <div className="mx-auto max-w-4xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal text-center">
+            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+              Open Positions
             </span>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-surface-900 sm:text-4xl lg:text-5xl">
-              Find your role
-            </h2>
-            <p className="mt-4 text-base text-surface-500 sm:text-lg">
-              We are looking for people who want to make a real impact. If you do not see a perfect fit, send us your CV anyway.
-            </p>
+            <h2 className="text-section mt-4 text-surface-900">Current openings</h2>
           </div>
 
-          <div className="stagger-children mt-12 space-y-4 sm:mt-16">
+          <div className="stagger mt-12 flex flex-col gap-4 sm:mt-14">
             {jobs.length === 0 ? (
-              <div className="rounded-2xl border border-surface-100 bg-white p-10 text-center">
-                <Briefcase className="mx-auto h-10 w-10 text-surface-300" />
-                <p className="mt-4 text-lg font-semibold text-surface-900">No open roles right now</p>
-                <p className="mt-2 text-sm text-surface-500">
-                  We are not currently hiring for specific positions, but we are always interested in great people. Send us your CV below.
+              <div className="rounded-2xl border border-surface-200 bg-white px-8 py-16 text-center">
+                <p className="text-lg font-medium text-surface-400">
+                  No open positions right now.
+                </p>
+                <p className="mt-2 text-sm text-surface-400">
+                  Check back soon or send us a speculative application at{' '}
+                  <a href="mailto:careers@myriderguy.com" className="text-brand-600 hover:underline">
+                    careers@myriderguy.com
+                  </a>
                 </p>
               </div>
             ) : (
               jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="group rounded-2xl border border-surface-100 bg-white p-5 transition-all duration-300 hover:border-brand-200 hover:shadow-lg sm:p-6"
+                  className="card-lift rounded-2xl border border-surface-100 bg-white p-6 sm:p-7"
                 >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-surface-900 group-hover:text-brand-600 transition-colors">
-                        {job.title}
-                      </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-surface-500">
-                        {job.description}
-                      </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-surface-400">
-                        <span className="inline-flex items-center gap-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-surface-900">{job.title}</h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-surface-500">
+                        <span className="flex items-center gap-1">
                           <Building2 className="h-3.5 w-3.5" />
                           {job.department}
                         </span>
-                        <span className="inline-flex items-center gap-1">
+                        <span className="flex items-center gap-1">
                           <MapPin className="h-3.5 w-3.5" />
                           {job.location}
                         </span>
-                        <span className="inline-flex items-center gap-1">
+                        <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
                           {JOB_TYPE_LABELS[job.type] || job.type}
                         </span>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      className="w-full rounded-full bg-brand-500 text-white hover:bg-brand-600 sm:w-auto sm:px-6"
-                      asChild
+                    <Link
+                      href={`mailto:careers@myriderguy.com?subject=Application: ${encodeURIComponent(job.title)}`}
+                      className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand-500 px-6 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
                     >
-                      <Link href={`/contact?subject=Application: ${encodeURIComponent(job.title)}`}>
-                        Apply
-                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                      </Link>
-                    </Button>
+                      Apply
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
                   </div>
+                  {job.description && (
+                    <p className="mt-3 text-[0.9rem] leading-relaxed text-surface-500">
+                      {job.description}
+                    </p>
+                  )}
                 </div>
               ))
             )}
-          </div>
-
-          {/* General application */}
-          <div className="reveal mt-10 rounded-2xl border border-dashed border-surface-200 bg-white p-6 text-center sm:mt-14 sm:p-8">
-            <h3 className="text-lg font-bold text-surface-900">
-              Do not see the right role?
-            </h3>
-            <p className="mt-2 text-sm text-surface-500 sm:text-base">
-              We are always looking for talented people. Send us your CV and tell us how you want to contribute.
-            </p>
-            <Button
-              variant="outline"
-              size="lg"
-              className="mt-5 rounded-full border-surface-300 px-8 text-surface-700 hover:bg-surface-50"
-              asChild
-            >
-              <Link href="/contact?subject=General Application">
-                Send Your CV
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-            </Button>
           </div>
         </div>
       </section>
@@ -240,31 +200,25 @@ export default async function CareersPage() {
       {/* ================================================================
           CTA
           ================================================================ */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-500 via-brand-500 to-brand-600 py-16 sm:py-24 lg:py-28">
-        <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-brand-400/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-brand-600/40 blur-3xl" />
+      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-32">
+        <div className="noise absolute inset-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,197,94,0.08),transparent_70%)]" />
 
-        <div className="reveal relative mx-auto max-w-3xl px-4 text-center sm:px-8">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
-            Join us in moving Ghana forward
-          </h2>
-          <p className="mt-4 text-base text-brand-100 sm:text-lg">
-            Be part of a team that is transforming how delivery works across Africa. Your work will directly impact the lives of thousands.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-10 sm:gap-4">
-            <Button
-              size="lg"
-              className="rounded-full bg-white px-8 text-brand-600 shadow-lg hover:bg-brand-50 sm:px-10"
-              asChild
-            >
-              <a href="#open-roles">
-                View Open Roles
-                <ChevronRight className="ml-1 h-4 w-4" />
+        <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
+          <div className="reveal">
+            <h2 className="text-section text-white">
+              Don&apos;t see your role?
+            </h2>
+            <p className="mt-5 text-base text-surface-400 sm:text-lg">
+              We are always looking for talented people. Send your CV and a short note about
+              what excites you to{' '}
+              <a href="mailto:careers@myriderguy.com" className="text-brand-400 hover:text-brand-300">
+                careers@myriderguy.com
               </a>
-            </Button>
+            </p>
           </div>
         </div>
       </section>
-    </HomeClient>
+    </ScrollRevealProvider>
   );
 }

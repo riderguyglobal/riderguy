@@ -28,8 +28,8 @@ export function haversineKm(
 }
 
 /**
- * Calculate ETA from rider position to destination using Mapbox Directions API.
- * Falls back to haversine estimate if Mapbox is unavailable.
+ * Calculate ETA from rider position to destination using Google Routes API.
+ * Falls back to haversine estimate if the API is unavailable.
  *
  * Returns duration in seconds and distance in km.
  */
@@ -39,26 +39,43 @@ export async function getETA(
   destLat: number,
   destLng: number,
 ): Promise<{ durationSeconds: number; distanceKm: number }> {
-  const token = config.mapbox.accessToken;
+  const apiKey = config.google.mapsApiKey;
 
-  if (token) {
+  if (apiKey) {
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${riderLng},${riderLat};${destLng},${destLat}?access_token=${encodeURIComponent(token)}&overview=false`;
-      const response = await fetch(url);
+      const body = {
+        origin: { location: { latLng: { latitude: riderLat, longitude: riderLng } } },
+        destination: { location: { latLng: { latitude: destLat, longitude: destLng } } },
+        travelMode: 'DRIVE',
+        routingPreference: 'TRAFFIC_AWARE',
+      };
+
+      const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters',
+        },
+        body: JSON.stringify(body),
+      });
+
       if (response.ok) {
         const json = (await response.json()) as {
-          routes?: Array<{ duration: number; distance: number }>;
+          routes?: Array<{ duration: string; distanceMeters: number }>;
         };
         const route = json.routes?.[0];
         if (route) {
+          const durationMatch = (route.duration ?? '0s').match(/^([\d.]+)s?$/);
+          const durationSec = durationMatch ? parseFloat(durationMatch[1]!) : 0;
           return {
-            durationSeconds: Math.round(route.duration),
-            distanceKm: Math.round((route.distance / 1000) * 10) / 10,
+            durationSeconds: Math.round(durationSec),
+            distanceKm: Math.round((route.distanceMeters / 1000) * 10) / 10,
           };
         }
       }
     } catch (err) {
-      logger.warn({ err }, 'Mapbox ETA fetch failed, using haversine fallback');
+      logger.warn({ err }, 'Google Routes ETA fetch failed, using haversine fallback');
     }
   }
 

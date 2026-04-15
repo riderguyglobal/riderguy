@@ -164,8 +164,8 @@ export class SmsService {
   ): Promise<boolean> {
     const isRider = role === 'RIDER';
     const appUrl = isRider
-      ? 'https://riderguy-rider.vercel.app'
-      : 'https://riderguy-client.vercel.app';
+      ? 'https://rider.myriderguy.com'
+      : 'https://app.myriderguy.com';
     const roleAction = isRider
       ? 'start earning by delivering packages'
       : 'start sending packages across Ghana';

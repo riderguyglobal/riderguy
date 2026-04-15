@@ -14,8 +14,7 @@ import { logger } from '../lib/logger';
 
 function isRedisConfigured(): boolean {
   const url = config.redis.url;
-  // Skip Redis if not configured or using default localhost in production
-  if (!url || url === 'redis://localhost:6379') return false;
+  if (!url) return false;
   return true;
 }
 

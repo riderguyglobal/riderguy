@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
-import 'mapbox-gl/dist/mapbox-gl.css';
 import './globals.css';
 
 export const dynamic = 'force-dynamic';

@@ -2,7 +2,6 @@ import Script from 'next/script';
 import type { Metadata, Viewport } from 'next';
 import { Inter, Sora } from 'next/font/google';
 import { Providers } from '@/components/providers';
-import 'mapbox-gl/dist/mapbox-gl.css';
 import './globals.css';
 
 const inter = Inter({

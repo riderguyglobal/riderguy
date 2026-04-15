@@ -32,11 +32,11 @@ const apiCaching: RuntimeCaching[] = [
     }),
     method: 'GET',
   },
-  // Cache Mapbox tiles with StaleWhileRevalidate
+  // Cache Google Maps tiles with StaleWhileRevalidate
   {
-    matcher: /^https:\/\/api\.mapbox\.com\//,
+    matcher: /^https:\/\/maps\.googleapis\.com\//,
     handler: new StaleWhileRevalidate({
-      cacheName: 'mapbox-tiles',
+      cacheName: 'google-maps-tiles',
       plugins: [
         new ExpirationPlugin({ maxEntries: 256, maxAgeSeconds: 7 * 24 * 60 * 60 }),
       ],

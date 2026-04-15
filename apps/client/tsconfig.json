@@ -21,7 +21,8 @@
       ]
     },
     "incremental": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "types": ["node", "open-location-code", "google.maps"]
   },
   "include": [
     "next-env.d.ts",

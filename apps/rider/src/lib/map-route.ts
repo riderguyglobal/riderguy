@@ -4,28 +4,31 @@
 // Rider-specific variant with wider line widths for nav mode,
 // delivery-phase color support, and turn-by-turn-ready layers.
 //
-// Full Mapbox GL JS v3.19 layer management:
-// • Multi-layer route rendering (shadow → border → glow → line)
-// • Congestion-colored route segments (driving-traffic data)
-// • Traffic overlay (mapbox-traffic-v1 vector tileset)
-// • Proper source/layer lifecycle management
+// Google Maps JavaScript API:
+// • Multi-polyline route rendering (shadow → border → glow → line)
+// • Congestion-colored route segments
+// • Built-in TrafficLayer for live traffic overlay
+// • Proper polyline lifecycle management
 // ══════════════════════════════════════════════════════════
 
-import type mapboxgl from 'mapbox-gl';
 import {
   ROUTE_COLORS,
   ROUTE_LINE_WIDTHS,
-  ROUTE_LAYER_IDS,
-  TRAFFIC_IDS,
   MAP_PADDING,
   MAP_ZOOM,
-  MAP_ANIMATION,
 } from '@riderguy/utils';
+
+// ── GeoJSON inline types (avoid @types/geojson dependency) ──
+
+type GeoJSONGeometry =
+  | { type: 'LineString'; coordinates: number[][] }
+  | { type: 'MultiLineString'; coordinates: number[][][] }
+  | { type: string; coordinates: unknown };
 
 // ── Types ───────────────────────────────────────────────
 
 export interface RouteData {
-  geometry: GeoJSON.Geometry;
+  geometry: GeoJSONGeometry;
   duration: number;  // seconds
   distance: number;  // meters
   legs?: Array<{
@@ -45,334 +48,212 @@ export interface DrawRouteOptions {
   /** Override phase-based color */
   color?: string;
   fitBounds?: boolean;
-  padding?: mapboxgl.PaddingOptions | number;
+  padding?: number | google.maps.Padding;
   /** Show congestion coloring (requires driving-traffic profile data) */
   showCongestion?: boolean;
 }
 
-// ── Rider-specific widths (1.3× wider for navigation view) ──
+// ── Rider-specific widths (1.3x wider for navigation view) ──
 
 const NAV_WIDTHS = {
-  shadow: Math.round(ROUTE_LINE_WIDTHS.shadow * 1.3),   // 18
-  border: Math.round(ROUTE_LINE_WIDTHS.border * 1.3),   // 13
-  glow: Math.round(ROUTE_LINE_WIDTHS.glow * 1.3),       // 9
-  line: Math.round(ROUTE_LINE_WIDTHS.line * 1.3 * 10) / 10, // 5.9
-  congestionLine: Math.round(ROUTE_LINE_WIDTHS.congestionLine * 1.3), // 8
+  shadow: Math.round(ROUTE_LINE_WIDTHS.shadow * 1.3),
+  border: Math.round(ROUTE_LINE_WIDTHS.border * 1.3),
+  glow: Math.round(ROUTE_LINE_WIDTHS.glow * 1.3),
+  line: Math.round(ROUTE_LINE_WIDTHS.line * 1.3 * 10) / 10,
+  congestionLine: Math.round(ROUTE_LINE_WIDTHS.congestionLine * 1.3),
 } as const;
 
-// ── Arrow Image ─────────────────────────────────────────
+// ── Polyline State ──────────────────────────────────────
 
-/**
- * Load a chevron arrow image into the map style for directional indicators.
- * Uses an SDF (signed distance field) image so `icon-color` paint works.
- */
-function ensureArrowImage(map: mapboxgl.Map): void {
-  if (map.hasImage(ROUTE_LAYER_IDS.arrowImage)) return;
+let routePolylines: google.maps.Polyline[] = [];
+let congestionPolylines: google.maps.Polyline[] = [];
+let trafficLayer: google.maps.TrafficLayer | null = null;
 
-  const size = 24;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
+// ── GeoJSON → LatLng Path ───────────────────────────────
 
-  // Draw a right-pointing chevron (>) — Mapbox rotates it to follow the line
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(6, 3);
-  ctx.lineTo(18, 12);
-  ctx.lineTo(6, 21);
-  ctx.lineTo(9, 12);
-  ctx.closePath();
-  ctx.fill();
-
-  const imageData = ctx.getImageData(0, 0, size, size);
-  map.addImage(ROUTE_LAYER_IDS.arrowImage, imageData, { sdf: true });
+function geojsonToPath(geometry: GeoJSONGeometry): google.maps.LatLngLiteral[] {
+  if (geometry.type === 'LineString') {
+    return (geometry as { type: 'LineString'; coordinates: number[][] }).coordinates.map(
+      (c) => ({ lat: c[1]!, lng: c[0]! }),
+    );
+  }
+  if (geometry.type === 'MultiLineString') {
+    return (geometry as { type: 'MultiLineString'; coordinates: number[][][] }).coordinates
+      .flat()
+      .map((c) => ({ lat: c[1]!, lng: c[0]! }));
+  }
+  return [];
 }
 
 // ── Route Drawing ───────────────────────────────────────
 
-/**
- * Draw a route on the rider's navigation map.
- * Uses wider line widths optimized for the tilted navigation perspective.
- */
 export function drawRoute(
-  map: mapboxgl.Map,
-  mapboxgl: typeof import('mapbox-gl').default,
+  map: google.maps.Map,
   route: RouteData,
   options: DrawRouteOptions = {},
 ): void {
+  // Clear existing route polylines
+  for (const p of routePolylines) p.setMap(null);
+  routePolylines = [];
+  for (const p of congestionPolylines) p.setMap(null);
+  congestionPolylines = [];
+
   const phase = options.phase ?? 'pickup';
   const color = options.color ?? (phase === 'delivery' ? ROUTE_COLORS.delivery : ROUTE_COLORS.primary);
+  const path = geojsonToPath(route.geometry);
+  if (path.length === 0) return;
 
-  const geojson: GeoJSON.Feature = {
-    type: 'Feature',
-    geometry: route.geometry,
-    properties: {},
-  };
+  // Layer 1: Shadow
+  routePolylines.push(new google.maps.Polyline({
+    map,
+    path,
+    strokeColor: '#000000',
+    strokeOpacity: 0.15,
+    strokeWeight: NAV_WIDTHS.shadow,
+    zIndex: 1,
+  }));
 
-  if (map.getSource(ROUTE_LAYER_IDS.source)) {
-    (map.getSource(ROUTE_LAYER_IDS.source) as mapboxgl.GeoJSONSource).setData(geojson);
-    if (map.getLayer(ROUTE_LAYER_IDS.border)) map.setPaintProperty(ROUTE_LAYER_IDS.border, 'line-color', color);
-    if (map.getLayer(ROUTE_LAYER_IDS.glow)) map.setPaintProperty(ROUTE_LAYER_IDS.glow, 'line-color', color);
-    if (map.getLayer(ROUTE_LAYER_IDS.line)) map.setPaintProperty(ROUTE_LAYER_IDS.line, 'line-color', color);
-  } else {
-    map.addSource(ROUTE_LAYER_IDS.source, { type: 'geojson', data: geojson });
+  // Layer 2: Border
+  routePolylines.push(new google.maps.Polyline({
+    map,
+    path,
+    strokeColor: color,
+    strokeOpacity: 0.3,
+    strokeWeight: NAV_WIDTHS.border,
+    zIndex: 2,
+  }));
 
-    // Layer 1: Shadow
-    map.addLayer({
-      id: ROUTE_LAYER_IDS.shadow,
-      type: 'line',
-      source: ROUTE_LAYER_IDS.source,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': 'rgba(0,0,0,0.15)',
-        'line-width': NAV_WIDTHS.shadow,
-        'line-blur': 5,
+  // Layer 3: Glow
+  routePolylines.push(new google.maps.Polyline({
+    map,
+    path,
+    strokeColor: color,
+    strokeOpacity: 0.5,
+    strokeWeight: NAV_WIDTHS.glow,
+    zIndex: 3,
+  }));
+
+  // Layer 4: Main line with direction arrows
+  routePolylines.push(new google.maps.Polyline({
+    map,
+    path,
+    strokeColor: color,
+    strokeOpacity: 1,
+    strokeWeight: NAV_WIDTHS.line,
+    zIndex: 4,
+    icons: [{
+      icon: {
+        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+        scale: 2.5,
+        strokeColor: '#ffffff',
+        strokeOpacity: 0.92,
+        fillColor: '#ffffff',
+        fillOpacity: 0.92,
       },
-    });
+      offset: '0',
+      repeat: '90px',
+    }],
+  }));
 
-    // Layer 2: Border
-    map.addLayer({
-      id: ROUTE_LAYER_IDS.border,
-      type: 'line',
-      source: ROUTE_LAYER_IDS.source,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': color,
-        'line-width': NAV_WIDTHS.border,
-        'line-opacity': 0.3,
-      },
-    });
-
-    // Layer 3: Glow
-    map.addLayer({
-      id: ROUTE_LAYER_IDS.glow,
-      type: 'line',
-      source: ROUTE_LAYER_IDS.source,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': color,
-        'line-width': NAV_WIDTHS.glow,
-        'line-opacity': 0.5,
-      },
-    });
-
-    // Layer 4: Main line
-    map.addLayer({
-      id: ROUTE_LAYER_IDS.line,
-      type: 'line',
-      source: ROUTE_LAYER_IDS.source,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': color,
-        'line-width': NAV_WIDTHS.line,
-        'line-opacity': 1,
-      },
-    });
-
-    // Layer 5: Directional arrows along route
-    ensureArrowImage(map);
-    map.addLayer({
-      id: ROUTE_LAYER_IDS.arrow,
-      type: 'symbol',
-      source: ROUTE_LAYER_IDS.source,
-      layout: {
-        'symbol-placement': 'line',
-        'symbol-spacing': 90,
-        'icon-image': ROUTE_LAYER_IDS.arrowImage,
-        'icon-size': [
-          'interpolate', ['linear'], ['zoom'],
-          10, 0.6,
-          14, 0.85,
-          18, 1.0,
-        ],
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'icon-rotation-alignment': 'map',
-        'icon-pitch-alignment': 'map',
-      },
-      paint: {
-        'icon-color': '#ffffff',
-        'icon-opacity': 0.92,
-      },
-    });
-  }
-
-  // Layer 5: Congestion overlay
+  // Congestion overlay
   if (options.showCongestion && route.legs?.[0]?.annotation?.congestion) {
-    drawCongestionLayer(map, route);
+    drawCongestionPolylines(map, route);
   }
 
   // Fit bounds to route
   if (options.fitBounds !== false) {
-    fitRouteGeometry(map, mapboxgl, route.geometry, options.padding);
+    fitRouteGeometry(map, route.geometry, options.padding);
   }
 }
 
-/** Draw congestion-colored segments over the route */
-function drawCongestionLayer(map: mapboxgl.Map, route: RouteData): void {
-  if (!route.legs?.[0]?.annotation?.congestion) return;
+// ── Congestion Overlay ──────────────────────────────────
 
+const CONGESTION_COLORS: Record<string, string> = {
+  low: ROUTE_COLORS.congestion.low,
+  moderate: ROUTE_COLORS.congestion.moderate,
+  heavy: ROUTE_COLORS.congestion.heavy,
+  severe: ROUTE_COLORS.congestion.severe,
+};
+
+function drawCongestionPolylines(map: google.maps.Map, route: RouteData): void {
+  if (!route.legs?.[0]?.annotation?.congestion) return;
   const geometry = route.geometry;
   if (geometry.type !== 'LineString') return;
 
-  const coords = (geometry as GeoJSON.LineString).coordinates;
+  const coords = (geometry as { type: 'LineString'; coordinates: number[][] }).coordinates;
   const congestion = route.legs[0].annotation.congestion;
 
-  const features: GeoJSON.Feature[] = [];
   for (let i = 0; i < congestion.length && i < coords.length - 1; i++) {
-    features.push({
-      type: 'Feature',
-      properties: { congestion: congestion[i] },
-      geometry: {
-        type: 'LineString',
-        coordinates: [coords[i]!, coords[i + 1]!],
-      },
-    });
-  }
+    const level = congestion[i] ?? '';
+    const segColor = CONGESTION_COLORS[level];
+    if (!segColor) continue;
 
-  const sourceId = ROUTE_LAYER_IDS.source + '-congestion';
-  const layerId = ROUTE_LAYER_IDS.congestion;
-
-  if (map.getSource(sourceId)) {
-    (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData({
-      type: 'FeatureCollection',
-      features,
-    });
-  } else {
-    map.addSource(sourceId, {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features },
-    });
-    map.addLayer({
-      id: layerId,
-      type: 'line',
-      source: sourceId,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': [
-          'match', ['get', 'congestion'],
-          'low', ROUTE_COLORS.congestion.low,
-          'moderate', ROUTE_COLORS.congestion.moderate,
-          'heavy', ROUTE_COLORS.congestion.heavy,
-          'severe', ROUTE_COLORS.congestion.severe,
-          'rgba(0,0,0,0)',
-        ],
-        'line-width': NAV_WIDTHS.congestionLine,
-        'line-opacity': 0.85,
-      },
-    });
+    congestionPolylines.push(new google.maps.Polyline({
+      map,
+      path: [
+        { lat: coords[i]![1]!, lng: coords[i]![0]! },
+        { lat: coords[i + 1]![1]!, lng: coords[i + 1]![0]! },
+      ],
+      strokeColor: segColor,
+      strokeOpacity: 0.85,
+      strokeWeight: NAV_WIDTHS.congestionLine,
+      zIndex: 5,
+    }));
   }
 }
 
-/** Remove route layers and sources */
-export function removeRoute(map: mapboxgl.Map): void {
-  const layers = [
-    ROUTE_LAYER_IDS.arrow,
-    ROUTE_LAYER_IDS.congestion,
-    ROUTE_LAYER_IDS.line,
-    ROUTE_LAYER_IDS.glow,
-    ROUTE_LAYER_IDS.border,
-    ROUTE_LAYER_IDS.shadow,
-  ];
-  for (const id of layers) {
-    if (map.getLayer(id)) map.removeLayer(id);
-  }
-  const sources = [ROUTE_LAYER_IDS.source, ROUTE_LAYER_IDS.source + '-congestion'];
-  for (const id of sources) {
-    if (map.getSource(id)) map.removeSource(id);
-  }
+// ── Remove Route ────────────────────────────────────────
+
+export function removeRoute(_map: google.maps.Map): void {
+  for (const p of routePolylines) p.setMap(null);
+  routePolylines = [];
+  for (const p of congestionPolylines) p.setMap(null);
+  congestionPolylines = [];
 }
 
 // ── Traffic Overlay ─────────────────────────────────────
 
-/** Add real-time traffic overlay for rider navigation */
-export function addTrafficLayer(map: mapboxgl.Map): void {
-  if (map.getSource(TRAFFIC_IDS.source)) return;
-
-  map.addSource(TRAFFIC_IDS.source, {
-    type: 'vector',
-    url: TRAFFIC_IDS.tilesetUrl,
-  });
-
-  const layers = map.getStyle().layers ?? [];
-  let beforeId: string | undefined;
-  for (const layer of layers) {
-    if (layer.id.includes('label') || layer.id.includes('symbol')) {
-      beforeId = layer.id;
-      break;
-    }
-  }
-
-  map.addLayer({
-    id: TRAFFIC_IDS.layer,
-    type: 'line',
-    source: TRAFFIC_IDS.source,
-    'source-layer': TRAFFIC_IDS.sourceLayer,
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: {
-      'line-color': [
-        'match', ['get', 'congestion'],
-        'low', ROUTE_COLORS.congestion.low,
-        'moderate', ROUTE_COLORS.congestion.moderate,
-        'heavy', ROUTE_COLORS.congestion.heavy,
-        'severe', ROUTE_COLORS.congestion.severe,
-        'rgba(0,0,0,0)',
-      ],
-      'line-width': [
-        'interpolate', ['linear'], ['zoom'],
-        7, 1,
-        12, 3,
-        16, 6,
-        20, 12,
-      ],
-      'line-opacity': 0.55,
-      'line-offset': [
-        'interpolate', ['linear'], ['zoom'],
-        7, 0,
-        12, 1,
-        16, 2,
-      ],
-    },
-    minzoom: MAP_ZOOM.minTraffic,
-  }, beforeId);
+export function addTrafficLayer(map: google.maps.Map): void {
+  if (trafficLayer) return;
+  trafficLayer = new google.maps.TrafficLayer();
+  trafficLayer.setMap(map);
 }
 
-/** Toggle traffic layer visibility */
-export function toggleTraffic(map: mapboxgl.Map, visible: boolean): void {
-  if (map.getLayer(TRAFFIC_IDS.layer)) {
-    map.setLayoutProperty(TRAFFIC_IDS.layer, 'visibility', visible ? 'visible' : 'none');
+export function toggleTraffic(map: google.maps.Map, visible: boolean): void {
+  if (trafficLayer) {
+    trafficLayer.setMap(visible ? map : null);
   }
 }
 
-/** Check if traffic layer exists */
-export function hasTrafficLayer(map: mapboxgl.Map): boolean {
-  return !!map.getSource(TRAFFIC_IDS.source);
+export function hasTrafficLayer(_map: google.maps.Map): boolean {
+  return trafficLayer !== null;
 }
 
 // ── Bounds Fitting ──────────────────────────────────────
 
 function fitRouteGeometry(
-  map: mapboxgl.Map,
-  mapboxgl: typeof import('mapbox-gl').default,
-  geometry: GeoJSON.Geometry,
-  padding?: mapboxgl.PaddingOptions | number,
+  map: google.maps.Map,
+  geometry: GeoJSONGeometry,
+  padding?: number | google.maps.Padding,
 ): void {
-  if (geometry.type !== 'LineString' && geometry.type !== 'MultiLineString') return;
-  const coords = geometry.type === 'LineString'
-    ? geometry.coordinates as [number, number][]
-    : (geometry.coordinates as [number, number][][]).flat();
-  if (coords.length === 0) return;
+  const path = geojsonToPath(geometry);
+  if (path.length === 0) return;
 
-  const bounds = coords.reduce(
-    (b, c) => b.extend(c),
-    new mapboxgl.LngLatBounds(coords[0]!, coords[0]!),
-  );
-  map.fitBounds(bounds, {
-    padding: padding ?? MAP_PADDING.navigation,
-    maxZoom: MAP_ZOOM.routeFit,
-    duration: MAP_ANIMATION.fitBounds,
-  });
+  const bounds = new google.maps.LatLngBounds();
+  for (const p of path) bounds.extend(p);
+
+  const padValue = typeof padding === 'number'
+    ? padding
+    : padding
+      ? Math.max(
+          (padding as google.maps.Padding).top ?? 0,
+          (padding as google.maps.Padding).bottom ?? 0,
+          (padding as google.maps.Padding).left ?? 0,
+          (padding as google.maps.Padding).right ?? 0,
+        )
+      : MAP_PADDING.navigation;
+
+  map.fitBounds(bounds, padValue);
 }
 
 

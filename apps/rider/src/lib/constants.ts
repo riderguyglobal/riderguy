@@ -9,17 +9,17 @@ export const API_BASE_URL = (() => {
   return url ?? 'http://localhost:4000/api/v1';
 })();
 
-export const MAPBOX_TOKEN = (() => {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  if (!token && isProd) throw new Error('NEXT_PUBLIC_MAPBOX_TOKEN is required in production');
-  return token ?? '';
+export const GOOGLE_MAPS_API_KEY = (() => {
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!key && isProd) console.warn('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY not set – Maps features will be unavailable');
+  return key ?? '';
 })();
 
-/** Google Maps-like light style */
-export const MAP_STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';
+/** Light style identifier for theme switching */
+export const MAP_STYLE_LIGHT = 'roadmap';
 
-/** Dark style for dark mode */
-export const MAP_STYLE_DARK = 'mapbox://styles/mapbox/navigation-night-v1';
+/** Dark style identifier for theme switching */
+export const MAP_STYLE_DARK = 'dark';
 
 /** Default map center: Accra, Ghana */
 export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];

@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════
 // useMapboxAutocomplete — Address autocomplete via API proxy
 //
-// Multi-provider strategy (Mapbox Geocoding v6 + Nominatim + 
+// Multi-provider strategy (Google Geocoding + Nominatim +
 // local Ghana gazetteer) through the backend API proxy.
 //
 // Flow:
@@ -16,7 +16,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { API_BASE_URL, DEFAULT_CENTER } from '@/lib/constants';
 import { useAuth, tokenStorage } from '@riderguy/auth';
 
-export interface MapboxFeature {
+export interface GeocodingFeature {
   id: string;
   text: string;
   place_name: string;
@@ -27,15 +27,15 @@ export interface MapboxFeature {
 
 /** Suggestion returned by autocomplete (coordinates included for most providers) */
 export interface SearchSuggestion {
-  id: string;           // mapbox_id, gaz-*, nom-* — used for retrieve
+  id: string;           // place_id, gaz-*, nom-* — used for retrieve
   text: string;         // short display name
   placeName: string;    // full formatted address
   placeType?: string;   // feature_type (poi, address, place, etc.)
   category?: string;    // POI category if applicable
-  /** Coordinates are included for Geocoding v6, Nominatim, and gazetteer results */
+  /** Coordinates are included for Google Geocoding, Nominatim, and gazetteer results */
   latitude?: number;
   longitude?: number;
-  source?: string;      // 'mapbox' | 'nominatim' | 'gazetteer'
+  source?: string;      // 'google' | 'nominatim' | 'gazetteer'
 }
 
 /** Full place returned by Search Box retrieve (WITH coordinates) */
@@ -49,7 +49,7 @@ export interface RetrievedPlace {
   plusCode?: { full: string; short: string; display: string; city: string };
 }
 
-interface UseMapboxAutocompleteOptions {
+interface UseAutocompleteOptions {
   /** Debounce delay in ms. Defaults to 250. */
   debounce?: number;
 }
@@ -59,7 +59,7 @@ function uuid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}) {
+export function useAutocomplete(options: UseAutocompleteOptions = {}) {
   const { debounce = 250 } = options;
   const { api } = useAuth();
 
@@ -71,7 +71,7 @@ export function useMapboxAutocomplete(options: UseMapboxAutocompleteOptions = {}
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController>();
   const userLocationRef = useRef<[number, number] | null>(null);
-  // Session token groups suggest + retrieve calls for Mapbox billing
+  // Session token groups suggest + retrieve calls for billing
   const sessionTokenRef = useRef<string>(uuid());
   // Track the last search query for recording selections
   const lastSearchQueryRef = useRef<string>('');
@@ -253,7 +253,7 @@ export async function reverseGeocodeAddress(lat: number, lng: number): Promise<s
 }
 
 /**
- * Split a Mapbox place_name into primary and secondary parts.
+ * Split a place_name into primary and secondary parts.
  * e.g. "East Legon, Accra, Greater Accra Region, Ghana" →
  *   primary: "East Legon"
  *   secondary: "Accra, Greater Accra Region, Ghana"

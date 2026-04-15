@@ -11,11 +11,11 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
-// Use the direct URL for migrations/scripts (not pooled)
+// Use DATABASE_URL for direct PostgreSQL connection
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: process.env.DIRECT_URL || process.env.DATABASE_URL,
+      url: process.env.DATABASE_URL,
     },
   },
 });

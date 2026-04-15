@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════
-// useDirections — React hook for Mapbox Directions API
+// useDirections — React hook for Directions API
 //
-// Fetches directions through the API proxy (keeps token server-side).
+// Fetches directions through the API proxy (keeps key server-side).
 // Returns routes with geometry, duration, distance, congestion data,
 // and step-by-step navigation instructions.
 //
@@ -21,8 +21,10 @@ import { useAuth } from '@riderguy/auth';
 
 // ── Types ───────────────────────────────────────────────
 
+type GeoJSONGeometry = { type: string; coordinates: unknown };
+
 export interface DirectionsRoute {
-  geometry: GeoJSON.Geometry;
+  geometry: GeoJSONGeometry;
   duration: number;  // seconds
   distance: number;  // meters
   weight: number;
@@ -43,7 +45,7 @@ export interface DirectionsLeg {
 }
 
 export interface DirectionsStep {
-  geometry: GeoJSON.Geometry;
+  geometry: GeoJSONGeometry;
   duration: number;
   distance: number;
   name: string;

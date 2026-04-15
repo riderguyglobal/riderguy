@@ -8,7 +8,14 @@ const config: Config = {
     '../../packages/ui/src/**/*.{ts,tsx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      spacing: {
+        '13': '3.25rem',
+      },
+      colors: {
+        'brand-green': '#22c55e',
+      },
+    },
   },
   plugins: [],
 };

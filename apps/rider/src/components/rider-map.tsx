@@ -2,9 +2,9 @@
 // RiderMap — Dashboard map for the rider app
 //
 // Features:
-// • Mapbox GL JS v3.19 via initMapCore (all controls, 3D, fog)
-// • Theme-aware style switching (light ↔ dark)
-// • Rider status dot (offline → online → on-route)
+// • Google Maps JS API via initMapCore (all controls, 3D)
+// • Theme-aware style switching (light / dark)
+// • Rider status dot (offline, online, on-route)
 // • User geolocation tracking
 // • Traffic overlay (toggle)
 // • Branded map controls
@@ -13,10 +13,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MAPBOX_TOKEN, DEFAULT_CENTER, MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/lib/constants';
+import { GOOGLE_MAPS_API_KEY, DEFAULT_CENTER, MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/lib/constants';
 import { MAP_ZOOM } from '@riderguy/utils';
 import { useTheme } from '@/lib/theme';
-import { initMapCore, switchMapStyle, type MapCoreInstance } from '@/lib/map-core';
+import { initMapCore, switchMapStyle, flyToPoint, type MapCoreInstance } from '@/lib/map-core';
 import {
   createRiderStatusDot,
   updateRiderStatusDot,
@@ -39,7 +39,7 @@ interface RiderMapProps {
 export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<MapCoreInstance | null>(null);
-  const statusDotRef = useRef<{ marker: import('mapbox-gl').Marker; element: HTMLDivElement } | null>(null);
+  const statusDotRef = useRef<{ marker: google.maps.marker.AdvancedMarkerElement; element: HTMLDivElement } | null>(null);
   const [trafficOn, setTrafficOn] = useState(true);
   const [mapReady, setMapReady] = useState(false);
 
@@ -59,20 +59,20 @@ export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
 
   // ── Initialize map ────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || !MAPBOX_TOKEN) return;
+    if (!containerRef.current || !GOOGLE_MAPS_API_KEY) return;
     let cancelled = false;
 
     const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
 
-    // Initialize map immediately with default center — don't block on geolocation
+    // Initialize map immediately with default center
     (async () => {
       const core = await initMapCore({
         container: containerRef.current!,
-        token: MAPBOX_TOKEN,
+        token: GOOGLE_MAPS_API_KEY,
         style,
         center: DEFAULT_CENTER,
         zoom: MAP_ZOOM.default,
-        onLoad: (map, mapboxglLib) => {
+        onLoad: (map) => {
           addTrafficLayer(map);
           setMapReady(true);
 
@@ -80,10 +80,9 @@ export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
           getUserPosition().then((userPos) => {
             if (cancelled || !userPos) return;
 
-            map.flyTo({ center: userPos, zoom: MAP_ZOOM.close, duration: 1200 });
+            flyToPoint(map, userPos, { zoom: MAP_ZOOM.close });
 
-            const dot = createRiderStatusDot(mapboxglLib, userPos, status);
-            dot.marker.addTo(map);
+            const dot = createRiderStatusDot(map, userPos, status);
             statusDotRef.current = dot;
           });
         },
@@ -98,7 +97,7 @@ export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
 
     return () => {
       cancelled = true;
-      statusDotRef.current?.marker.remove();
+      if (statusDotRef.current) statusDotRef.current.marker.map = null;
       statusDotRef.current = null;
       coreRef.current?.destroy();
       coreRef.current = null;
@@ -113,8 +112,7 @@ export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
     const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
     switchMapStyle(core.map, style, {
       onStyleLoad: () => {
-        addTrafficLayer(core.map);
-        if (trafficOn) toggleTraffic(core.map, true);
+        if (trafficOn && !hasTrafficLayer(core.map)) addTrafficLayer(core.map);
       },
     });
   }, [resolvedTheme, mapReady]);
@@ -125,19 +123,23 @@ export function RiderMap({ className, status = 'offline' }: RiderMapProps) {
     updateRiderStatusDot(statusDotRef.current.element, status);
   }, [status]);
 
-  // ── Update dot position from GeolocateControl ────────
+  // ── Update dot position via browser geolocation ────────
   useEffect(() => {
-    if (!mapReady) return;
-    const geolocate = coreRef.current?.geolocate;
-    if (!geolocate) return;
-
-    const handleGeolocate = (e: { coords: { longitude: number; latitude: number } }) => {
-      statusDotRef.current?.marker.setLngLat([e.coords.longitude, e.coords.latitude]);
-    };
-
-    geolocate.on('geolocate', handleGeolocate as any);
+    if (!mapReady || !statusDotRef.current) return;
+    const watchId = navigator.geolocation?.watchPosition(
+      (pos) => {
+        if (statusDotRef.current) {
+          statusDotRef.current.marker.position = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          };
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 10000 },
+    );
     return () => {
-      geolocate.off('geolocate', handleGeolocate as any);
+      if (watchId != null) navigator.geolocation?.clearWatch(watchId);
     };
   }, [mapReady]);
 

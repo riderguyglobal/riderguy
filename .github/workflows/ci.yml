@@ -70,7 +70,6 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://riderguy:riderguy_test@localhost:5432/riderguy_test
-      DIRECT_URL: postgresql://riderguy:riderguy_test@localhost:5432/riderguy_test
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: test-access-secret-change-me
       JWT_REFRESH_SECRET: test-refresh-secret-change-me

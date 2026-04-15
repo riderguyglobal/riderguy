@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Loader2, Check, Crosshair, Search, MapPin } from 'lucide-react';
 import { initMapCore, type MapCoreInstance } from '@/lib/map-core';
-import { MAPBOX_TOKEN, DEFAULT_CENTER } from '@/lib/constants';
-import { reverseGeocode } from '@/hooks/use-mapbox-autocomplete';
+import { GOOGLE_MAPS_API_KEY, DEFAULT_CENTER } from '@/lib/constants';
+import { reverseGeocode } from '@/hooks/use-autocomplete';
 import type { LocationValue } from './location-input';
 
 interface MapPickerModalProps {
@@ -80,7 +80,7 @@ export function MapPickerModal({
     const setup = async () => {
       const core = await initMapCore({
         container: mapContainerRef.current!,
-        token: MAPBOX_TOKEN,
+        token: GOOGLE_MAPS_API_KEY,
         center: startCenter,
         zoom: 16,
         navigationControl: false,
@@ -91,24 +91,21 @@ export function MapPickerModal({
         onLoad: (map) => {
           if (destroyed) return;
           // Wait one frame so the flex layout settles and the container
-          // has its final dimensions before Mapbox reads them.
+          // has its final dimensions before Google reads them.
           requestAnimationFrame(() => {
             if (destroyed) return;
-            map.resize();
+            google.maps.event.trigger(map, 'resize');
             setMapReady(true);
             const c = map.getCenter();
-            handleReverseGeocode(c.lng, c.lat);
+            if (c) handleReverseGeocode(c.lng(), c.lat());
 
             // If no initial center was provided, fly to the user's GPS location
             if (!initialCenterRef.current && navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
                 (pos) => {
                   if (destroyed) return;
-                  map.flyTo({
-                    center: [pos.coords.longitude, pos.coords.latitude],
-                    zoom: 17,
-                    duration: 1200,
-                  });
+                  map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  map.setZoom(17);
                 },
                 () => {},
                 { enableHighAccuracy: true, timeout: 8000 },
@@ -121,17 +118,17 @@ export function MapPickerModal({
       coreRef.current = core;
 
       // Reverse geocode on map move end (debounced)
-      core.map.on('moveend', () => {
+      core.map.addListener('idle', () => {
         if (destroyed) return;
         clearTimeout(reverseTimer.current);
         reverseTimer.current = setTimeout(() => {
           const c = core.map.getCenter();
-          handleReverseGeocode(c.lng, c.lat);
+          if (c) handleReverseGeocode(c.lng(), c.lat());
         }, 300);
       });
 
       // Show "moving" state while dragging
-      core.map.on('movestart', () => {
+      core.map.addListener('dragstart', () => {
         if (destroyed) return;
         setLoading(true);
       });
@@ -159,11 +156,8 @@ export function MapPickerModal({
     if (!navigator.geolocation || !coreRef.current) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        coreRef.current?.map.flyTo({
-          center: [pos.coords.longitude, pos.coords.latitude],
-          zoom: 17,
-          duration: 1200,
-        });
+        coreRef.current?.map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        coreRef.current?.map.setZoom(17);
       },
       () => {},
       { enableHighAccuracy: true, timeout: 8000 },
@@ -185,7 +179,7 @@ export function MapPickerModal({
         const { API_BASE_URL } = await import('@/lib/constants');
         const token = tokenStorage.getAccessToken();
         const prox = coreRef.current
-          ? coreRef.current.map.getCenter()
+          ? (() => { const c = coreRef.current!.map.getCenter(); return c ? { lng: c.lng(), lat: c.lat() } : { lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] }; })()
           : { lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] };
         const res = await fetch(
           `${API_BASE_URL}/orders/autocomplete?q=${encodeURIComponent(q)}&lat=${prox.lat}&lng=${prox.lng}`,
@@ -218,11 +212,8 @@ export function MapPickerModal({
   const handleSelectSearchResult = (result: { lat: number; lng: number }) => {
     setSearchResults([]);
     setSearchQuery('');
-    coreRef.current?.map.flyTo({
-      center: [result.lng, result.lat],
-      zoom: 17,
-      duration: 1200,
-    });
+    coreRef.current?.map.panTo({ lat: result.lat, lng: result.lng });
+    coreRef.current?.map.setZoom(17);
   };
 
   const handleConfirm = () => {

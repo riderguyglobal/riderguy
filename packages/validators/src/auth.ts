@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { phoneSchema, emailSchema, passwordSchema, pinSchema, requiredStringSchema } from './common';
 
+/** Ghana Card number validation (format: GHA-XXXXXXXXX-X) */
+export const ghanaCardSchema = z
+  .string()
+  .regex(/^GHA-\d{9}-\d$/, 'Ghana Card number must be in format GHA-XXXXXXXXX-X');
+
 export const registerSchema = z.object({
   phone: phoneSchema,
   firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters').optional().default(''),
@@ -166,7 +171,41 @@ export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+// ---- Ghana Card Auth ----
+
+export const ghanaCardRegisterSchema = z.object({
+  ghanaCard: ghanaCardSchema,
+  password: passwordSchema,
+  firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters'),
+  lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters'),
+  role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
+  securityQuestion: requiredStringSchema.max(200, 'Security question must be at most 200 characters'),
+  securityAnswer: requiredStringSchema.min(2, 'Security answer must be at least 2 characters').max(200),
+});
+
+export const loginWithGhanaCardSchema = z.object({
+  ghanaCard: ghanaCardSchema,
+  password: z.string().min(1, 'Password is required'),
+});
+
+export const recoveryRequestSchema = z.object({
+  method: z.enum(['phone', 'email', 'ghanacard']),
+  identifier: z.string().min(1, 'Identifier is required'),
+});
+
+export const verifySecurityAnswerSchema = z.object({
+  ghanaCard: ghanaCardSchema,
+  answer: z.string().min(1, 'Answer is required'),
+});
+
+export const recoveryResetPinSchema = z.object({
+  newPin: pinSchema,
+  token: z.string().min(1, 'Recovery token is required'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type GhanaCardRegisterInput = z.infer<typeof ghanaCardRegisterSchema>;
+export type LoginWithGhanaCardInput = z.infer<typeof loginWithGhanaCardSchema>;
 export type LoginWithOtpInput = z.infer<typeof loginWithOtpSchema>;
 export type LoginWithPinInput = z.infer<typeof loginWithPinSchema>;
 export type LoginWithPasswordInput = z.infer<typeof loginWithPasswordSchema>;
@@ -182,3 +221,6 @@ export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type RecoveryRequestInput = z.infer<typeof recoveryRequestSchema>;
+export type VerifySecurityAnswerInput = z.infer<typeof verifySecurityAnswerSchema>;
+export type RecoveryResetPinInput = z.infer<typeof recoveryResetPinSchema>;

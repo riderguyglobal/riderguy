@@ -368,4 +368,87 @@ export class AuthController {
       data: result,
     });
   }
+
+  // ---- Ghana Card Auth ----
+
+  /** POST /auth/register/ghanacard */
+  static async registerWithGhanaCard(req: Request, res: Response) {
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
+
+    const result = await AuthService.registerWithGhanaCard(req.body, deviceInfo, ipAddress);
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/login/ghanacard */
+  static async loginWithGhanaCard(req: Request, res: Response) {
+    const { ghanaCard, password } = req.body;
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
+
+    const result = await AuthService.loginWithGhanaCard(ghanaCard, password, deviceInfo, ipAddress);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/recovery/request */
+  static async recoveryRequest(req: Request, res: Response) {
+    const { method, identifier } = req.body;
+    const result = await AuthService.requestRecovery(method, identifier);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/recovery/verify-otp */
+  static async verifyRecoveryOtp(req: Request, res: Response) {
+    const { phone, otp } = req.body;
+    const result = await AuthService.verifyRecoveryOtp(phone, otp);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/recovery/verify-security */
+  static async verifySecurityAnswer(req: Request, res: Response) {
+    const { ghanaCard, answer } = req.body;
+    const result = await AuthService.verifySecurityAnswer(ghanaCard, answer);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/recovery/reset-pin */
+  static async recoveryResetPin(req: Request, res: Response) {
+    const { newPin, token } = req.body;
+    const result = await AuthService.resetPinWithToken(newPin, token);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** GET /auth/recovery/security-question */
+  static async getSecurityQuestion(req: Request, res: Response) {
+    const { ghanaCard } = req.query;
+    const result = await AuthService.getSecurityQuestion(ghanaCard as string);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
 }

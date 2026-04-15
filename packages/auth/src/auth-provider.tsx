@@ -92,6 +92,34 @@ interface AuthContextValue {
   forgotPassword: (email: string) => Promise<void>;
   /** Reset password using token from email link */
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+
+  // Ghana Card auth
+  /** Login with Ghana Card number & password */
+  loginWithGhanaCard: (ghanaCard: string, password: string) => Promise<{ requiresPin?: boolean }>;
+  /** Register with Ghana Card */
+  registerWithGhanaCard: (data: {
+    ghanaCard: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role?: string;
+    securityQuestion: string;
+    securityAnswer: string;
+  }) => Promise<void>;
+
+  // Recovery
+  /** Request account recovery by method (phone/email/ghanacard) */
+  requestRecovery: (method: string, identifier: string) => Promise<{ securityQuestion?: string }>;
+  /** Verify security answer for Ghana Card recovery */
+  verifySecurityAnswer: (ghanaCard: string, answer: string) => Promise<{ token: string }>;
+  /** Reset PIN with recovery token */
+  resetPinWithToken: (newPin: string, token: string) => Promise<void>;
+  /** Verify recovery OTP (phone-based recovery) */
+  verifyRecoveryOtp: (phone: string, otp: string) => Promise<{ token: string }>;
+  /** Get security question for a Ghana Card */
+  getSecurityQuestion: (ghanaCard: string) => Promise<{ question: string }>;
+  /** Set PIN for first-time setup (authenticated) */
+  setPin: (pin: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -395,6 +423,113 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
     [api]
   );
 
+  // ---- Ghana Card auth ----
+  const loginWithGhanaCard = useCallback(
+    async (ghanaCard: string, password: string): Promise<{ requiresPin?: boolean }> => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.post('/auth/login/ghanacard', { ghanaCard, password });
+        if (data.data.requiresPin) {
+          return { requiresPin: true };
+        }
+        storeLogin(
+          { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
+          data.data.user
+        );
+        return {};
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ?? 'Login failed. Please try again.';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setLoading, setError, storeLogin]
+  );
+
+  const registerWithGhanaCard = useCallback(
+    async (payload: {
+      ghanaCard: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+      role?: string;
+      securityQuestion: string;
+      securityAnswer: string;
+    }) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.post('/auth/register/ghanacard', {
+          ...payload,
+          role: payload.role ?? 'RIDER',
+        });
+        storeLogin(
+          { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
+          data.data.user
+        );
+      } catch (err: any) {
+        const message =
+          err.response?.data?.error?.message ?? 'Registration failed. Please try again.';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setLoading, setError, storeLogin]
+  );
+
+  // ---- Recovery ----
+  const requestRecoveryAction = useCallback(
+    async (method: string, identifier: string): Promise<{ securityQuestion?: string }> => {
+      const { data } = await api.post('/auth/recovery/request', { method, identifier });
+      return data.data;
+    },
+    [api]
+  );
+
+  const verifySecurityAnswerAction = useCallback(
+    async (ghanaCard: string, answer: string): Promise<{ token: string }> => {
+      const { data } = await api.post('/auth/recovery/verify-security', { ghanaCard, answer });
+      return data.data;
+    },
+    [api]
+  );
+
+  const resetPinWithTokenAction = useCallback(
+    async (newPin: string, token: string) => {
+      await api.post('/auth/recovery/reset-pin', { newPin, token });
+    },
+    [api]
+  );
+
+  const verifyRecoveryOtpAction = useCallback(
+    async (phone: string, otp: string): Promise<{ token: string }> => {
+      const { data } = await api.post('/auth/recovery/verify-otp', { phone, otp });
+      return data.data;
+    },
+    [api]
+  );
+
+  const getSecurityQuestionAction = useCallback(
+    async (ghanaCard: string): Promise<{ question: string }> => {
+      const { data } = await api.get(`/auth/recovery/security-question?ghanaCard=${encodeURIComponent(ghanaCard)}`);
+      return data.data;
+    },
+    [api]
+  );
+
+  const setPinAction = useCallback(
+    async (pin: string) => {
+      await api.post('/auth/set-pin', { pin });
+    },
+    [api]
+  );
+
   const biometricSupported = useMemo(() => isBiometricSupported(), []);
 
   const getAccessToken = useCallback(() => tokenStorage.getAccessToken(), []);
@@ -427,6 +562,14 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       resendVerification: resendVerificationAction,
       forgotPassword: forgotPasswordAction,
       resetPassword: resetPasswordAction,
+      loginWithGhanaCard,
+      registerWithGhanaCard,
+      requestRecovery: requestRecoveryAction,
+      verifySecurityAnswer: verifySecurityAnswerAction,
+      resetPinWithToken: resetPinWithTokenAction,
+      verifyRecoveryOtp: verifyRecoveryOtpAction,
+      getSecurityQuestion: getSecurityQuestionAction,
+      setPin: setPinAction,
     }),
     [
       user,
@@ -453,6 +596,14 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       resendVerificationAction,
       forgotPasswordAction,
       resetPasswordAction,
+      loginWithGhanaCard,
+      registerWithGhanaCard,
+      requestRecoveryAction,
+      verifySecurityAnswerAction,
+      resetPinWithTokenAction,
+      verifyRecoveryOtpAction,
+      getSecurityQuestionAction,
+      setPinAction,
     ]
   );
 

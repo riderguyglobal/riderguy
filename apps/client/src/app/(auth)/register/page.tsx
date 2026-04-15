@@ -201,13 +201,6 @@ export default function RegisterPage() {
       {/* Heading (initial stage only) */}
       {!inPhoneFlow && (
         <div className="mb-8">
-          {/* Mobile illustration */}
-          <div className="lg:hidden flex justify-center mb-5">
-            <div className="relative">
-              <div className="absolute inset-0 scale-150 rounded-full bg-brand-500/[0.06] blur-2xl" />
-              <Image src="/images/illustrations/handing-over.svg" alt="" width={100} height={100} className="relative w-20 h-20 animate-float" />
-            </div>
-          </div>
           <h1 className="text-3xl font-extrabold text-surface-900 tracking-tight leading-tight">Create account</h1>
           <p className="text-surface-400 text-base mt-1.5">Join RiderGuy to start sending packages</p>
         </div>

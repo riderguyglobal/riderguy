@@ -13,11 +13,11 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import {
-  useMapboxAutocomplete,
+  useAutocomplete,
   reverseGeocode,
   splitPlaceName,
   type SearchSuggestion,
-} from '@/hooks/use-mapbox-autocomplete';
+} from '@/hooks/use-autocomplete';
 import { GoogleMapsLinkModal } from './google-maps-link-modal';
 import { MapPickerModal } from './map-picker-modal';
 
@@ -52,7 +52,7 @@ export function LocationInput({
   inputRef: externalRef,
   className = '',
 }: LocationInputProps) {
-  const ac = useMapboxAutocomplete();
+  const ac = useAutocomplete();
   const internalRef = useRef<HTMLInputElement>(null);
   const inputRef = externalRef || internalRef;
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -258,9 +258,9 @@ export function LocationInput({
             );
           })}
 
-          {/* Mapbox attribution (required by TOS) */}
+          {/* Google Maps attribution */}
           <div className="py-1.5 px-3.5 text-center border-t border-surface-100">
-            <span className="text-[9px] text-surface-300">Powered by Mapbox</span>
+            <span className="text-[9px] text-surface-300">Powered by Google</span>
           </div>
 
           {/* Map picker fallback — always shown at bottom of results */}

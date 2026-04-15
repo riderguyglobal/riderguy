@@ -59,13 +59,46 @@ app.use((req, _res, next) => {
 });
 
 // ---------- Health check ----------
-app.get('/health', (_req, res) => {
-  res.status(StatusCodes.OK).json({
-    status: 'ok',
+app.get('/health', async (_req, res) => {
+  const checks: Record<string, string> = {};
+
+  // Database check
+  try {
+    const { prisma } = await import('@riderguy/database');
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = 'ok';
+  } catch {
+    checks.database = 'error';
+  }
+
+  // Redis check
+  try {
+    const { getRedisClient } = await import('./lib/redis');
+    const redis = getRedisClient();
+    if (redis) {
+      await redis.ping();
+      checks.redis = 'ok';
+    } else {
+      checks.redis = 'not_configured';
+    }
+  } catch {
+    checks.redis = 'error';
+  }
+
+  const allHealthy = Object.values(checks).every(v => v === 'ok' || v === 'not_configured');
+
+  res.status(allHealthy ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE).json({
+    status: allHealthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
+    checks,
     ...(config.nodeEnv !== 'production' && {
       uptime: process.uptime(),
       environment: config.nodeEnv,
+      memory: {
+        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      },
     }),
   });
 });

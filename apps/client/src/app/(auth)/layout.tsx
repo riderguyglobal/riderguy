@@ -3,114 +3,101 @@ import Image from 'next/image';
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-white">
-      {/* ── Mobile header ── */}
-      <div className="lg:hidden safe-area-top">
-        <div className="relative overflow-hidden">
-          {/* Gradient backdrop */}
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-brand-50/30" />
-          {/* Ghost illustration */}
-          <div className="absolute -right-6 -top-2 opacity-[0.07] pointer-events-none select-none">
-            <Image src="/images/illustrations/handing-over.svg" alt="" width={200} height={200} className="w-44 h-44" />
-          </div>
-          <div className="relative px-5 pt-4 pb-4 flex items-center justify-between">
-            <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-7 w-auto" priority />
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-500" />
-              </span>
-              <span className="text-surface-400 text-[9px] tracking-widest uppercase font-medium">Live</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Desktop split layout ── */}
+      {/* ══════════════════════════════════════════════════
+          DESKTOP — Full-bleed cinematic split
+          ══════════════════════════════════════════════════ */}
       <div className="hidden lg:flex min-h-[100dvh]">
-        {/* ═══ LEFT — Hero panel ═══ */}
-        <div className="w-[52%] relative flex flex-col overflow-hidden">
-          {/* Base gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-brand-50/30" />
-
-          {/* Dot pattern */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: 'radial-gradient(circle at 1.5px 1.5px, rgba(34,197,94,0.07) 1px, transparent 0)',
-              backgroundSize: '32px 32px',
-              maskImage: 'radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%)',
-            }}
+        {/* ── Left: Image covers the entire panel ── */}
+        <div className="w-[50%] xl:w-[48%] relative h-[100dvh] overflow-hidden">
+          <Image
+            src="/images/auth/package-exchange.png"
+            alt="RiderGuy rider handing a package to a happy customer in Accra"
+            fill
+            className="object-cover"
+            priority
+            sizes="50vw"
+            quality={90}
           />
+          {/* Cinematic gradient: heavy at bottom for text, subtle elsewhere */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-black/25" />
+          {/* Right-edge fade for transition to form */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black/20" />
 
-          {/* Ambient glow */}
-          <div className="absolute top-[25%] left-[35%] w-[600px] h-[600px] rounded-full bg-brand-500/[0.06] blur-[200px] pointer-events-none" />
-          <div className="absolute bottom-[20%] right-[20%] w-[400px] h-[400px] rounded-full bg-brand-400/[0.04] blur-[150px] pointer-events-none" />
-
-          {/* Edge fade to white */}
-          <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-white/50 to-transparent pointer-events-none z-10" />
-
-          {/* Content */}
-          <div className="relative z-[5] flex flex-col h-full">
+          {/* Content directly on the image */}
+          <div className="absolute inset-0 z-10 flex flex-col justify-between px-10 xl:px-14 py-12">
             {/* Logo */}
-            <div className="px-12 xl:px-16 pt-12">
-              <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-9 w-auto" priority />
+            <div>
+              <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-10 w-auto brightness-0 invert drop-shadow-lg" priority />
             </div>
 
-            {/* Center: Illustration + Hero copy */}
-            <div className="flex-1 flex flex-col items-center justify-center px-12 xl:px-16">
-              {/* Floating illustration with glow */}
-              <div className="relative mb-10">
-                <div className="absolute inset-0 scale-[1.4] rounded-full bg-brand-400/[0.05] blur-[60px]" />
-                <Image
-                  src="/images/illustrations/handing-over.svg"
-                  alt=""
-                  width={400}
-                  height={400}
-                  className="relative w-60 xl:w-72 h-auto animate-float drop-shadow-lg"
-                  priority
-                />
+            {/* Taglines + status */}
+            <div>
+              {/* Status pill */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-sm ring-1 ring-white/20 mb-6">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-white/80 text-[11px] font-semibold tracking-wide">Delivering across Ghana</span>
               </div>
 
-              <div className="text-center space-y-5">
-                {/* Status pill */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-500/[0.08] border border-brand-500/[0.12]">
-                  <div className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-pulse" />
-                  <span className="text-brand-600 text-[11px] font-semibold tracking-wide">Delivering across Ghana</span>
-                </div>
-                {/* Headline */}
-                <h1 className="text-5xl xl:text-[4.5rem] font-black tracking-tight text-surface-900 leading-[0.92]">
-                  Send.<br />
-                  <span className="text-brand-500">Track.</span><br />
+              <div className="space-y-0 mb-8">
+                <p className="text-[2.75rem] xl:text-[3.5rem] font-black text-white tracking-tight leading-[1.02] drop-shadow-lg">
+                  Send.
+                </p>
+                <p className="text-[2.75rem] xl:text-[3.5rem] font-black tracking-tight leading-[1.02] text-emerald-400 drop-shadow-lg">
+                  Track.
+                </p>
+                <p className="text-[2.75rem] xl:text-[3.5rem] font-black text-white/60 tracking-tight leading-[1.02] drop-shadow-lg">
                   Arrive.
-                </h1>
-                <p className="text-surface-400 text-[15px] leading-relaxed max-w-[280px] mx-auto">
-                  Real-time tracking, instant pickup, zero guesswork.
                 </p>
               </div>
-            </div>
 
-            {/* Bottom live badge */}
-            <div className="px-12 xl:px-16 pb-12 flex items-center gap-2.5">
-              <div className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
-              </div>
-              <span className="text-surface-400 text-[10px] tracking-[0.15em] uppercase font-medium">Live across Ghana</span>
+              <p className="text-white/40 text-[15px] leading-relaxed max-w-[300px]">
+                Real-time tracking, instant pickup, zero guesswork.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* ═══ RIGHT — Form ═══ */}
-        <div className="w-[48%] flex items-center justify-center px-10 xl:px-16 bg-white relative">
-          <div className="absolute inset-y-0 left-0 w-px bg-surface-100" />
+        {/* ── Right: Form area ── */}
+        <div className="flex-1 flex items-center justify-center px-10 xl:px-16 bg-white">
           <div className="w-full max-w-[440px] animate-page-enter">{children}</div>
         </div>
       </div>
 
-      {/* ── Mobile form area ── */}
-      <div className="lg:hidden px-5 pt-6 pb-12">
-        <div className="w-full max-w-[440px] mx-auto animate-page-enter">{children}</div>
+      {/* ══════════════════════════════════════════════════
+          MOBILE — Immersive hero + overlapping form card
+          ══════════════════════════════════════════════════ */}
+      <div className="lg:hidden flex flex-col min-h-[100dvh]">
+        {/* Hero: image fills the top section */}
+        <div className="relative h-[40vh] min-h-[240px] max-h-[340px] shrink-0">
+          <Image
+            src="/images/auth/package-exchange.png"
+            alt=""
+            fill
+            className="object-cover object-center"
+            priority
+            sizes="100vw"
+            quality={85}
+          />
+          {/* Gradient fading to white for seamless card overlap */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-white" />
+
+          {/* Top bar: logo + live status */}
+          <div className="absolute inset-x-0 top-0 z-10 px-5 pt-4 flex items-center justify-between safe-area-top">
+            <Image src="/images/branding/logo-wide.png" alt="RiderGuy" width={600} height={150} className="h-7 w-auto brightness-0 invert drop-shadow-md" priority />
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/20 backdrop-blur-sm ring-1 ring-white/10">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-500" />
+              </span>
+              <span className="text-white/70 text-[9px] tracking-widest uppercase font-medium">Live</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Form card slides up over the hero */}
+        <div className="relative z-10 -mt-6 bg-white rounded-t-[28px] flex-1 px-5 pt-8 pb-8 shadow-[0_-4px_30px_rgba(0,0,0,0.05)]">
+          <div className="w-full max-w-[440px] mx-auto animate-page-enter">{children}</div>
+        </div>
       </div>
     </div>
   );

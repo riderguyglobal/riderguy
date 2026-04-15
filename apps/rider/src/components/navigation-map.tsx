@@ -2,12 +2,12 @@
 // NavigationMap — Active delivery navigation for rider app
 //
 // Features:
-// • Mapbox GL JS v3.19 via initMapCore (all controls, 3D, fog)
-// • Theme-aware style switching (light ↔ dark)
-// • Pickup / dropoff / stop markers with Popup
+// • Google Maps JS API via initMapCore (all controls, 3D)
+// • Theme-aware style switching (light / dark)
+// • Pickup / dropoff / stop markers with InfoWindow
 // • Rider position marker (live updates)
-// • Multi-layer route with wider nav-mode widths
-// • Phase-aware coloring (blue pickup → green delivery)
+// • Multi-polyline route with wider nav-mode widths
+// • Phase-aware coloring (blue pickup, green delivery)
 // • Congestion overlay from driving-traffic data
 // • Auto route refresh when rider drifts > 100 m
 // • Traffic overlay (toggle)
@@ -17,8 +17,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type mapboxgl from 'mapbox-gl';
-import { MAPBOX_TOKEN, DEFAULT_CENTER, API_BASE_URL, MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/lib/constants';
+import { GOOGLE_MAPS_API_KEY, DEFAULT_CENTER, API_BASE_URL, MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/lib/constants';
 import {
   ROUTE_COLORS,
   MAP_PADDING,
@@ -93,11 +92,11 @@ export function NavigationMap({
 }: NavigationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<MapCoreInstance | null>(null);
-  const staticMarkersRef = useRef<mapboxgl.Marker[]>([]);
-  const riderMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const staticMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const riderMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const lastRouteRiderRef = useRef<[number, number] | null>(null);
   const hasInitialRouteRef = useRef(false);
-  const lastRouteDataRef = useRef<{ route: Parameters<typeof drawRoute>[2]; options: Parameters<typeof drawRoute>[3] } | null>(null);
+  const lastRouteDataRef = useRef<{ route: Parameters<typeof drawRoute>[1]; options: Parameters<typeof drawRoute>[2] } | null>(null);
   const [trafficOn, setTrafficOn] = useState(true);
   const [mapReady, setMapReady] = useState(false);
 
@@ -139,7 +138,7 @@ export function NavigationMap({
         if (!json.success || !json.data?.routes?.length) return null;
 
         return json.data.routes[0] as {
-          geometry: GeoJSON.Geometry;
+          geometry: { type: string; coordinates: number[][] };
           duration: number;
           distance: number;
           legs: Array<{ annotation?: { congestion?: string[]; duration?: number[]; distance?: number[] } }>;
@@ -155,7 +154,7 @@ export function NavigationMap({
 
   // ── Initialize map ────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || !MAPBOX_TOKEN) return;
+    if (!containerRef.current || !GOOGLE_MAPS_API_KEY) return;
     let cancelled = false;
 
     (async () => {
@@ -163,7 +162,7 @@ export function NavigationMap({
 
       const core = await initMapCore({
         container: containerRef.current!,
-        token: MAPBOX_TOKEN,
+        token: GOOGLE_MAPS_API_KEY,
         style,
         center: riderLat && riderLng ? [riderLng, riderLat] : pickupCoords,
         zoom: MAP_ZOOM.close,
@@ -186,7 +185,7 @@ export function NavigationMap({
       abortRef.current?.abort();
       removeMarkers(staticMarkersRef.current);
       staticMarkersRef.current = [];
-      riderMarkerRef.current?.remove();
+      if (riderMarkerRef.current) riderMarkerRef.current.map = null;
       riderMarkerRef.current = null;
       coreRef.current?.destroy();
       coreRef.current = null;
@@ -201,13 +200,8 @@ export function NavigationMap({
     const style = resolvedTheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
     switchMapStyle(core.map, style, {
       onStyleLoad: () => {
-        addTrafficLayer(core.map);
-        if (trafficOn) toggleTraffic(core.map, true);
-        // Re-draw cached route after style swap clears layers
-        const cached = lastRouteDataRef.current;
-        if (cached && coreRef.current) {
-          drawRoute(coreRef.current.map, coreRef.current.mapboxgl, cached.route, cached.options);
-        }
+        // Traffic layer persists across Google style changes but ensure it's active
+        if (trafficOn && !hasTrafficLayer(core.map)) addTrafficLayer(core.map);
       },
     });
   }, [resolvedTheme, mapReady]);
@@ -217,7 +211,7 @@ export function NavigationMap({
     if (!mapReady) return;
     const core = coreRef.current;
     if (!core) return;
-    const { map, mapboxgl: mapboxglLib } = core;
+    const { map } = core;
 
     // Clear old static markers
     removeMarkers(staticMarkersRef.current);
@@ -225,18 +219,16 @@ export function NavigationMap({
 
     // Pickup (with Plus Code)
     const pickupPC = formatPlusCode(pickupCoords[1], pickupCoords[0]);
-    const pm = createPickupMarker(mapboxglLib, pickupCoords, {
+    const pm = createPickupMarker(map, pickupCoords, {
       popup: `Pickup<br/><span style="font-size:11px;opacity:0.7">${pickupPC.display}</span>`,
     });
-    pm.addTo(map);
     staticMarkersRef.current.push(pm);
 
     // Dropoff (with Plus Code)
     const dropoffPC = formatPlusCode(dropoffCoords[1], dropoffCoords[0]);
-    const dm = createDropoffMarker(mapboxglLib, dropoffCoords, {
+    const dm = createDropoffMarker(map, dropoffCoords, {
       popup: `Dropoff<br/><span style="font-size:11px;opacity:0.7">${dropoffPC.display}</span>`,
     });
-    dm.addTo(map);
     staticMarkersRef.current.push(dm);
 
     // Multi-stop markers (with Plus Code)
@@ -244,11 +236,10 @@ export function NavigationMap({
       for (const stop of stops) {
         const stopPC = formatPlusCode(stop.latitude, stop.longitude);
         const stopLabel = stop.address ?? `Stop ${stop.sequence}`;
-        const sm = createStopMarker(mapboxglLib, [stop.longitude, stop.latitude], {
+        const sm = createStopMarker(map, [stop.longitude, stop.latitude], {
           popup: `${stopLabel}<br/><span style="font-size:11px;opacity:0.7">${stopPC.display}</span>`,
           label: String(stop.sequence),
         });
-        sm.addTo(map);
         staticMarkersRef.current.push(sm);
       }
     }
@@ -260,7 +251,7 @@ export function NavigationMap({
         for (const s of stops) boundsCoords.push([s.longitude, s.latitude]);
       }
       if (riderLat != null && riderLng != null) boundsCoords.push([riderLng, riderLat]);
-      fitBoundsToCoords(map, mapboxglLib, boundsCoords, MAP_PADDING.navigation);
+      fitBoundsToCoords(map, boundsCoords, MAP_PADDING.navigation);
     }
   }, [mapReady, pickupLat, pickupLng, dropoffLat, dropoffLng, stops]);
 
@@ -269,16 +260,15 @@ export function NavigationMap({
     if (!mapReady) return;
     const core = coreRef.current;
     if (!core) return;
-    const { map, mapboxgl: mapboxglLib } = core;
+    const { map } = core;
 
     // Rider marker — update position or create on first appearance
     if (riderLat != null && riderLng != null) {
       const riderCoords: [number, number] = [riderLng, riderLat];
       if (riderMarkerRef.current) {
-        riderMarkerRef.current.setLngLat(riderCoords);
+        riderMarkerRef.current.position = { lat: riderLat, lng: riderLng };
       } else {
-        const rm = createRiderMarker(mapboxglLib, riderCoords, { popup: 'You' });
-        rm.addTo(map);
+        const rm = createRiderMarker(map, riderCoords, { popup: 'You' });
         riderMarkerRef.current = rm;
       }
     }
@@ -306,7 +296,7 @@ export function NavigationMap({
         lastRouteRefreshRef.current = now;
         fetchRoute(origin, dest).then((route) => {
           if (!route) return;
-          drawRoute(map, mapboxglLib, {
+          drawRoute(map, {
             geometry: route.geometry,
             duration: route.duration,
             distance: route.distance,

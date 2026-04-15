@@ -3,10 +3,8 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
-export const MAPBOX_TOKEN: string =
-  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
-  process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-  '';
+export const GOOGLE_MAPS_API_KEY: string =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export const PAYSTACK_PUBLIC_KEY: string =
   process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';

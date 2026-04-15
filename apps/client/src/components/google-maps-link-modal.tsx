@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { parseGoogleMapsUrl, parseRawCoordinates, isGoogleMapsShortLink } from '@riderguy/utils';
 import { useAuth } from '@riderguy/auth';
-import { reverseGeocode } from '@/hooks/use-mapbox-autocomplete';
+import { reverseGeocode } from '@/hooks/use-autocomplete';
 import type { LocationValue } from './location-input';
 
 interface GoogleMapsLinkModalProps {

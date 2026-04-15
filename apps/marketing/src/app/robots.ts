@@ -1,7 +1,5 @@
 import type { MetadataRoute } from 'next';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://myriderguy.com';
-
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -11,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ['/api/', '/dashboard/'],
       },
     ],
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    sitemap: 'https://myriderguy.com/sitemap.xml',
   };
 }

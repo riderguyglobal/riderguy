@@ -26,10 +26,8 @@ import {
 //
 // Strategy for Ghana / West Africa:
 //
-// 1. **Mapbox Geocoding v6** with `autocomplete: true` is the
-//    PRIMARY autocomplete provider — it has global coverage.
-//    ⚠️  Mapbox Search Box v1 (suggest/retrieve) only covers
-//    US, Canada & Europe and returns EMPTY results for Ghana.
+// 1. **Google Geocoding API** is the PRIMARY geocoding provider
+//    for forward and reverse geocoding.
 //
 // 2. **Nominatim (OpenStreetMap)** is queried in parallel as a
 //    SUPPLEMENTARY provider — OSM has excellent community-mapped
@@ -65,13 +63,13 @@ export interface AutocompleteSuggestion {
   id: string;
   text: string;
   placeName: string;
-  /** Coordinates are included whenever available (Geocoding v6, Nominatim, gazetteer) */
+  /** Coordinates are included whenever available (Google Geocoding, Nominatim, gazetteer) */
   latitude?: number;
   longitude?: number;
   placeType?: string;
   category?: string;
   /** Source provider for logging / debugging */
-  source?: 'mapbox' | 'nominatim' | 'gazetteer' | 'community';
+  source?: 'google' | 'nominatim' | 'gazetteer' | 'community';
 }
 
 export interface RetrievedPlace {
@@ -89,12 +87,8 @@ export interface RetrievedPlace {
   };
 }
 
-// ── Geocoding API v6 endpoints ────────────────────────────
-const GEOCODE_FORWARD = 'https://api.mapbox.com/search/geocode/v6/forward';
-const GEOCODE_REVERSE = 'https://api.mapbox.com/search/geocode/v6/reverse';
-
-// ── Search Box API v1 endpoints (kept for retrieve of Mapbox IDs) ──
-const SEARCHBOX_RETRIEVE = 'https://api.mapbox.com/search/searchbox/v1/retrieve';
+// ── Google Geocoding API endpoint ─────────────────────────
+const GOOGLE_GEOCODE = 'https://maps.googleapis.com/maps/api/geocode/json';
 
 // ── Nominatim (OpenStreetMap) endpoint ────────────────────
 const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
@@ -107,7 +101,7 @@ const ACCRA_CENTER = { lng: -0.187, lat: 5.603 };
 
 function warnMockFallback(method: string) {
   console.warn(
-    `[GeocodingService] ${method}: MAPBOX_ACCESS_TOKEN not set — using mock data. Set the token in .env for real geocoding.`
+    `[GeocodingService] ${method}: GOOGLE_MAPS_API_KEY not set — using mock data. Set the key in .env for real geocoding.`
   );
 }
 
@@ -499,52 +493,48 @@ function searchGazetteer(
 
 /**
  * Forward geocode: address text → coordinates.
- * Uses Mapbox Geocoding API v6.
+ * Uses Google Geocoding API.
  * Biased towards Ghana by default.
  */
 export async function forwardGeocode(
   address: string,
   options: { country?: string; limit?: number; proximity?: { lat: number; lng: number } } = {},
 ): Promise<GeocodingResult[]> {
-  const token = config.mapbox?.accessToken;
+  const apiKey = config.google?.mapsApiKey;
 
-  if (!token) {
+  if (!apiKey) {
     warnMockFallback('forwardGeocode');
     return mockForwardGeocode(address);
   }
 
-  const country = options.country ?? 'gh';
   const limit = options.limit ?? 5;
-  const prox = options.proximity ?? ACCRA_CENTER;
 
   const params = new URLSearchParams({
-    q: address,
-    access_token: token,
-    country,
-    limit: String(limit),
-    types: 'address,street,place,locality,neighborhood,district',
+    address,
+    key: apiKey,
+    region: 'gh',
     language: 'en',
-    bbox: GHANA_BBOX,
-    proximity: `${prox.lng},${prox.lat}`,
   });
 
-  const url = `${GEOCODE_FORWARD}?${params.toString()}`;
+  const url = `${GOOGLE_GEOCODE}?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
     throw ApiError.internal('Geocoding service unavailable');
   }
 
-  const data = (await response.json()) as GeocodingV6Response;
+  const data = (await response.json()) as GoogleGeocodingResponse;
 
-  return data.features.map((f) => {
-    const lat = f.properties.coordinates.latitude;
-    const lng = f.properties.coordinates.longitude;
+  if (data.status !== 'OK' || !data.results?.length) return [];
+
+  return data.results.slice(0, limit).map((r) => {
+    const lat = r.geometry.location.lat;
+    const lng = r.geometry.location.lng;
     return {
-      address: f.properties.full_address ?? `${f.properties.name}, ${f.properties.place_formatted ?? ''}`.trim(),
+      address: r.formatted_address,
       latitude: lat,
       longitude: lng,
-      placeType: f.properties.feature_type ?? 'unknown',
+      placeType: r.types?.[0] ?? 'unknown',
       plusCode: formatPlusCode(lat, lng),
     };
   });
@@ -552,15 +542,15 @@ export async function forwardGeocode(
 
 /**
  * Reverse geocode: coordinates → address.
- * Uses Mapbox Geocoding API v6.
+ * Uses Google Geocoding API.
  */
 export async function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<GeocodingResult | null> {
-  const token = config.mapbox?.accessToken;
+  const apiKey = config.google?.mapsApiKey;
 
-  if (!token) {
+  if (!apiKey) {
     warnMockFallback('reverseGeocode');
     return {
       address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
@@ -571,31 +561,29 @@ export async function reverseGeocode(
   }
 
   const params = new URLSearchParams({
-    longitude: String(longitude),
-    latitude: String(latitude),
-    access_token: token,
-    types: 'address,street,place,locality,neighborhood',
-    limit: '1',
+    latlng: `${latitude},${longitude}`,
+    key: apiKey,
     language: 'en',
+    result_type: 'street_address|route|neighborhood|sublocality|locality',
   });
 
-  const url = `${GEOCODE_REVERSE}?${params.toString()}`;
+  const url = `${GOOGLE_GEOCODE}?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) {
     throw ApiError.internal('Reverse geocoding service unavailable');
   }
 
-  const data = (await response.json()) as GeocodingV6Response;
-  const feature = data.features[0];
-  if (!feature) return null;
+  const data = (await response.json()) as GoogleGeocodingResponse;
+  const result = data.results?.[0];
+  if (!result) return null;
 
   return {
-    address: feature.properties.full_address ?? `${feature.properties.name}, ${feature.properties.place_formatted ?? ''}`.trim(),
-    latitude: feature.properties.coordinates.latitude,
-    longitude: feature.properties.coordinates.longitude,
-    placeType: feature.properties.feature_type ?? 'unknown',
-    plusCode: formatPlusCode(feature.properties.coordinates.latitude, feature.properties.coordinates.longitude),
+    address: result.formatted_address,
+    latitude: result.geometry.location.lat,
+    longitude: result.geometry.location.lng,
+    placeType: result.types?.[0] ?? 'unknown',
+    plusCode: formatPlusCode(result.geometry.location.lat, result.geometry.location.lng),
   };
 }
 
@@ -606,7 +594,7 @@ export async function reverseGeocode(
  * 1. Natural language parsing (if query looks like a description)
  * 2. Local Ghana gazetteer with fuzzy trigram search (instant)
  * 3. Community places from database (user-contributed)
- * 4. Mapbox Geocoding v6 with autocomplete: true (global)
+ * 4. Google Geocoding API with autocomplete (global)
  * 5. Nominatim / OpenStreetMap (supplementary)
  * 6. Popularity boosts from learned user selections
  *
@@ -622,28 +610,23 @@ export async function autocomplete(
     sessionToken?: string;
   } = {},
 ): Promise<AutocompleteSuggestion[]> {
-  const token = config.mapbox?.accessToken;
+  const apiKey = config.google?.mapsApiKey;
 
-  if (!token) {
+  if (!apiKey) {
     warnMockFallback('autocomplete');
     return mockAutocomplete(query);
   }
 
-  const country = options.country ?? 'gh';
   const limit = options.limit ?? 8;
   const prox = options.proximity ?? ACCRA_CENTER;
 
   // ── 0. Natural language parsing ──────────────────────────
-  // If the query looks like a description ("near the Total at Lapaz"),
-  // parse it and search for the extracted components.
   let searchQueries = [query];
   if (isNaturalLanguageQuery(query)) {
     const parsed = parseNaturalLocation(query);
-    // Use the parsed primary place as the main search term,
-    // plus alternatives for broader coverage
     searchQueries = [parsed.primaryPlace, ...parsed.alternativeQueries].filter(Boolean);
     if (parsed.primaryPlace !== query) {
-      searchQueries.push(query); // Keep original as fallback
+      searchQueries.push(query);
     }
   }
 
@@ -651,7 +634,6 @@ export async function autocomplete(
   const popularityPromise = getPopularityBoosts(query).catch(() => new Map<string, number>());
 
   // ── 2. Instant local gazetteer lookup (synchronous, zero latency) ──
-  // Search for each parsed query variant, merge results
   const popularityBoosts = await popularityPromise;
   let gazetteerResults: AutocompleteSuggestion[] = [];
   for (const sq of searchQueries) {
@@ -659,85 +641,85 @@ export async function autocomplete(
     gazetteerResults = gazetteerResults.concat(results);
     if (gazetteerResults.length >= 6) break;
   }
-  // Deduplicate within gazetteer results
   gazetteerResults = deduplicateSuggestions(gazetteerResults).slice(0, 6);
 
   // ── 3. Community places — user-contributed locations ──
   const communityPromise = searchCommunityPlaces(searchQueries[0]!, 6, prox);
 
-  // ── 4. Mapbox Geocoding v6 with autocomplete: true ──
-  const mapboxPromise = mapboxGeocodeAutocomplete(query, { proximity: prox, country, limit });
+  // ── 4. Google Geocoding API ──
+  const googlePromise = googleGeocodeAutocomplete(query, { proximity: prox, limit });
 
-  // ── 5. Nominatim / OpenStreetMap (parallel with Mapbox) ──
+  // ── 5. Nominatim / OpenStreetMap (supplementary) ──
   const nominatimPromise = nominatimAutocomplete(query, { proximity: prox, limit: 5 });
 
   // Wait for all API providers in parallel
-  const [communityResults, mapboxResults, nominatimResults] = await Promise.allSettled([
+  const [communityResults, googleResults, nominatimResults] = await Promise.allSettled([
     communityPromise,
-    mapboxPromise,
+    googlePromise,
     nominatimPromise,
   ]);
 
   const community = communityResults.status === 'fulfilled' ? communityResults.value : [];
-  const mapbox = mapboxResults.status === 'fulfilled' ? mapboxResults.value : [];
+  const google = googleResults.status === 'fulfilled' ? googleResults.value : [];
   const nominatim = nominatimResults.status === 'fulfilled' ? nominatimResults.value : [];
 
   if (communityResults.status === 'rejected') {
     console.warn('[GeocodingService] Community places search failed:', communityResults.reason);
   }
-  if (mapboxResults.status === 'rejected') {
-    console.warn('[GeocodingService] Mapbox autocomplete failed:', mapboxResults.reason);
+  if (googleResults.status === 'rejected') {
+    console.warn('[GeocodingService] Google geocoding failed:', googleResults.reason);
   }
   if (nominatimResults.status === 'rejected') {
     console.warn('[GeocodingService] Nominatim autocomplete failed:', nominatimResults.reason);
   }
 
   // Merge: gazetteer first (instant + fuzzy), then community,
-  // then Mapbox (API), then Nominatim (supplementary)
-  const merged = deduplicateSuggestions([...gazetteerResults, ...community, ...mapbox, ...nominatim]);
+  // then Google (API), then Nominatim (supplementary)
+  const merged = deduplicateSuggestions([...gazetteerResults, ...community, ...google, ...nominatim]);
 
   return merged.slice(0, limit);
 }
 
 /**
- * Mapbox Geocoding v6 autocomplete.
- * Returns results WITH coordinates (unlike Search Box suggest).
+ * Google Geocoding API autocomplete.
+ * Returns results WITH coordinates.
  */
-async function mapboxGeocodeAutocomplete(
+async function googleGeocodeAutocomplete(
   query: string,
-  options: { proximity: { lat: number; lng: number }; country: string; limit: number },
+  options: { proximity: { lat: number; lng: number }; limit: number },
 ): Promise<AutocompleteSuggestion[]> {
-  const token = config.mapbox?.accessToken;
-  if (!token) return [];
+  const apiKey = config.google?.mapsApiKey;
+  if (!apiKey) return [];
 
   const params = new URLSearchParams({
-    q: query,
-    access_token: token,
-    country: options.country,
-    limit: String(options.limit),
-    types: 'address,street,place,locality,neighborhood,district',
-    autocomplete: 'true',
+    address: query,
+    key: apiKey,
+    region: 'gh',
     language: 'en',
-    bbox: GHANA_BBOX,
-    proximity: `${options.proximity.lng},${options.proximity.lat}`,
+    bounds: `4.74,-3.26|11.17,1.19`,
   });
 
-  const url = `${GEOCODE_FORWARD}?${params.toString()}`;
+  const url = `${GOOGLE_GEOCODE}?${params.toString()}`;
 
   const response = await fetch(url);
   if (!response.ok) return [];
 
-  const data = (await response.json()) as GeocodingV6Response;
+  const data = (await response.json()) as GoogleGeocodingResponse;
+  if (data.status !== 'OK' || !data.results?.length) return [];
 
-  return data.features.map((f) => ({
-    id: f.properties.mapbox_id ?? f.id,
-    text: f.properties.name,
-    placeName: f.properties.full_address ?? `${f.properties.name}, ${f.properties.place_formatted ?? ''}`.trim(),
-    latitude: f.properties.coordinates.latitude,
-    longitude: f.properties.coordinates.longitude,
-    placeType: f.properties.feature_type,
-    source: 'mapbox' as const,
-  }));
+  return data.results.slice(0, options.limit).map((r) => {
+    // Extract a short display name from address components
+    const shortName = r.address_components?.[0]?.long_name ?? r.formatted_address.split(',')[0] ?? '';
+    return {
+      id: `google-${r.place_id}`,
+      text: shortName,
+      placeName: r.formatted_address,
+      latitude: r.geometry.location.lat,
+      longitude: r.geometry.location.lng,
+      placeType: r.types?.[0] ?? 'place',
+      source: 'google' as const,
+    };
+  });
 }
 
 /**
@@ -916,27 +898,27 @@ function deduplicateSuggestions(suggestions: AutocompleteSuggestion[]): Autocomp
  * Retrieve full place details (including coordinates) for a
  * suggestion selected by the user.
  *
- * For Geocoding v6 and Nominatim results, coordinates are already
- * included in the suggestion — this builds a RetrievedPlace directly.
+ * For Google, Nominatim, and gazetteer results, coordinates are
+ * already included in the suggestion — this builds a RetrievedPlace directly.
  *
- * For legacy Search Box IDs (dXJuO... prefix), uses the retrieve endpoint.
  * For gazetteer IDs (gaz- prefix), looks up the gazetteer.
  * For Nominatim IDs (nom- prefix), data is already in the suggestion.
+ * For Google IDs (google- prefix), uses Google Geocoding by place_id.
  */
 export async function retrievePlace(
-  mapboxId: string,
+  placeId: string,
   sessionToken?: string,
 ): Promise<RetrievedPlace | null> {
-  const token = config.mapbox?.accessToken;
+  const apiKey = config.google?.mapsApiKey;
 
-  if (!token) {
+  if (!apiKey) {
     warnMockFallback('retrievePlace');
     return null;
   }
 
   // Gazetteer entries — search landmarks + GeoNames by name
-  if (mapboxId.startsWith('gaz-')) {
-    const namePart = mapboxId.replace(/^gaz-\d+-/, '').replace(/-/g, ' ');
+  if (placeId.startsWith('gaz-')) {
+    const namePart = placeId.replace(/^gaz-\d+-/, '').replace(/-/g, ' ');
 
     // First check curated landmarks
     const landmark = LANDMARKS.find(
@@ -944,7 +926,7 @@ export async function retrievePlace(
     );
     if (landmark) {
       return {
-        id: mapboxId,
+        id: placeId,
         name: landmark.name,
         fullAddress: `${landmark.name}, ${landmark.area}, Ghana`,
         latitude: landmark.lat,
@@ -962,7 +944,7 @@ export async function retrievePlace(
     if (geoPlace) {
       const area = geoPlace.r ?? (geoPlace.c ? geoPlace.c.charAt(0).toUpperCase() + geoPlace.c.slice(1) : '');
       return {
-        id: mapboxId,
+        id: placeId,
         name: geoPlace.n,
         fullAddress: area ? `${geoPlace.n}, ${area}, Ghana` : `${geoPlace.n}, Ghana`,
         latitude: geoPlace.lat,
@@ -974,21 +956,20 @@ export async function retrievePlace(
   }
 
   // Nominatim entries — coordinates were already in suggestion
-  // The client should skip retrieve for these, but handle gracefully
-  if (mapboxId.startsWith('nom-')) {
-    return null; // Coordinates already in suggestion; client should use them
+  if (placeId.startsWith('nom-')) {
+    return null;
   }
 
   // Community place entries — look up from database and increment usage
-  if (mapboxId.startsWith('com-')) {
-    const placeId = mapboxId.replace('com-', '');
+  if (placeId.startsWith('com-')) {
+    const dbId = placeId.replace('com-', '');
     try {
       const place = await prisma.communityPlace.update({
-        where: { id: placeId },
+        where: { id: dbId },
         data: { usageCount: { increment: 1 } },
       });
       return {
-        id: mapboxId,
+        id: placeId,
         name: place.name,
         fullAddress: place.address ?? `${place.name}, Ghana`,
         latitude: place.latitude,
@@ -1001,119 +982,59 @@ export async function retrievePlace(
     }
   }
 
-  // Mapbox IDs — use Search Box retrieve for dXJuO... IDs,
-  // or Geocoding v6 forward lookup for other Mapbox IDs
-  if (mapboxId.startsWith('dXJuO')) {
-    // Search Box retrieve endpoint
-    const params = new URLSearchParams({ access_token: token });
-    if (sessionToken) {
-      params.set('session_token', sessionToken);
-    }
+  // Google place IDs — use Google Geocoding to retrieve by place_id
+  if (placeId.startsWith('google-')) {
+    const googlePlaceId = placeId.replace('google-', '');
+    const params = new URLSearchParams({
+      place_id: googlePlaceId,
+      key: apiKey,
+      language: 'en',
+    });
 
-    const url = `${SEARCHBOX_RETRIEVE}/${encodeURIComponent(mapboxId)}?${params.toString()}`;
-
+    const url = `${GOOGLE_GEOCODE}?${params.toString()}`;
     const response = await fetch(url);
-    if (!response.ok) {
-      console.error('[GeocodingService] Search Box retrieve failed:', response.status);
-      return null;
-    }
+    if (!response.ok) return null;
 
-    const data = (await response.json()) as SearchBoxRetrieveResponse;
-    const feature = data.features?.[0];
-    if (!feature) return null;
-
-    const [lng, lat] = feature.geometry.coordinates;
+    const data = (await response.json()) as GoogleGeocodingResponse;
+    const result = data.results?.[0];
+    if (!result) return null;
 
     return {
-      id: feature.properties.mapbox_id,
-      name: feature.properties.name,
-      fullAddress:
-        feature.properties.full_address ??
-        `${feature.properties.name}, ${feature.properties.place_formatted ?? ''}`.trim(),
-      latitude: lat,
-      longitude: lng,
-      placeType: feature.properties.feature_type ?? 'unknown',
-      plusCode: formatPlusCode(lat, lng),
+      id: placeId,
+      name: result.address_components?.[0]?.long_name ?? result.formatted_address.split(',')[0] ?? '',
+      fullAddress: result.formatted_address,
+      latitude: result.geometry.location.lat,
+      longitude: result.geometry.location.lng,
+      placeType: result.types?.[0] ?? 'unknown',
+      plusCode: formatPlusCode(result.geometry.location.lat, result.geometry.location.lng),
     };
   }
 
-  // For other Mapbox IDs, try forward lookup by ID
-  const params = new URLSearchParams({
-    q: mapboxId,
-    access_token: token,
-    limit: '1',
-    language: 'en',
-  });
+  return null;
+}
 
-  const url = `${GEOCODE_FORWARD}?${params.toString()}`;
-  const response = await fetch(url);
-  if (!response.ok) return null;
+// ── Google Geocoding API response types ───────────────────
 
-  const data = (await response.json()) as GeocodingV6Response;
-  const feature = data.features?.[0];
-  if (!feature) return null;
-
-  return {
-    id: feature.properties.mapbox_id ?? feature.id,
-    name: feature.properties.name,
-    fullAddress:
-      feature.properties.full_address ??
-      `${feature.properties.name}, ${feature.properties.place_formatted ?? ''}`.trim(),
-    latitude: feature.properties.coordinates.latitude,
-    longitude: feature.properties.coordinates.longitude,
-    placeType: feature.properties.feature_type ?? 'unknown',
-    plusCode: formatPlusCode(feature.properties.coordinates.latitude, feature.properties.coordinates.longitude),
+interface GoogleGeocodingResult {
+  place_id: string;
+  formatted_address: string;
+  geometry: {
+    location: { lat: number; lng: number };
+    location_type: string;
+    viewport: { northeast: { lat: number; lng: number }; southwest: { lat: number; lng: number } };
   };
+  address_components?: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+  types: string[];
 }
 
-// ── Mapbox Geocoding v6 response types ────────────────────
-
-interface GeocodingV6Feature {
-  type: string;
-  id: string;
-  geometry: { type: string; coordinates: [number, number] };
-  properties: {
-    mapbox_id: string;
-    feature_type: string;
-    name: string;
-    name_preferred?: string;
-    place_formatted?: string;
-    full_address?: string;
-    coordinates: { longitude: number; latitude: number; accuracy?: string };
-    context?: Record<string, unknown>;
-    match_code?: { confidence: string };
-  };
-}
-
-interface GeocodingV6Response {
-  type: string;
-  features: GeocodingV6Feature[];
-  attribution?: string;
-}
-
-// ── Mapbox Search Box v1 response types (kept for retrieve) ──
-
-interface SearchBoxRetrieveFeature {
-  type: string;
-  geometry: { type: string; coordinates: [number, number] };
-  properties: {
-    mapbox_id: string;
-    feature_type: string;
-    name: string;
-    name_preferred?: string;
-    place_formatted?: string;
-    full_address?: string;
-    coordinates: { longitude: number; latitude: number };
-    context?: Record<string, unknown>;
-    metadata?: Record<string, unknown>;
-    poi_category?: string[];
-  };
-}
-
-interface SearchBoxRetrieveResponse {
-  type: string;
-  features: SearchBoxRetrieveFeature[];
-  attribution?: string;
+interface GoogleGeocodingResponse {
+  status: string;
+  results: GoogleGeocodingResult[];
+  error_message?: string;
 }
 
 // ── Nominatim response types ──────────────────────────────

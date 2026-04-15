@@ -378,20 +378,20 @@
   }
 }
 
-/* ── Mapbox overrides ────────────────────────────────── */
-.mapboxgl-ctrl-attrib {
+/* ── Google Maps overrides ────────────────────────────── */
+.gm-style .gm-style-cc {
   font-size: 9px !important;
   opacity: 0.6;
 }
-.mapboxgl-ctrl-attrib a {
+.gm-style .gm-style-cc a {
   color: var(--text-secondary, #888) !important;
 }
 
-.mapboxgl-canvas {
+.gm-style canvas {
   outline: none;
 }
 
-.mapboxgl-popup-content {
+.gm-style-iw {
   background: var(--popup-bg) !important;
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);

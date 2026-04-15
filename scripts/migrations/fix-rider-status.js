@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
-const p = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } });
+const p = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
 
 async function main() {
   const result = await p.riderProfile.updateMany({

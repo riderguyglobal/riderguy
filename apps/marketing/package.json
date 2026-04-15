@@ -10,10 +10,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@riderguy/config": "*",
     "@riderguy/types": "*",
     "@riderguy/ui": "*",
     "@riderguy/utils": "*",
-    "@riderguy/config": "*",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

@@ -60,7 +60,7 @@ export async function getEstimate(input: {
   promoCode?: string;
   clientId?: string;
 }) {
-  // Try to get actual route distance from Mapbox
+  // Try to get actual route distance from Google Routes
   let routeDistanceKm: number | undefined;
   const routeData = await fetchRouteDistance(
     input.pickupLatitude,
@@ -171,7 +171,7 @@ export async function createOrder(
 ) {
   const additionalStops = input.stops ? Math.max(0, input.stops.length - 1) : 0;
 
-  // Try to get actual route distance from Mapbox
+  // Try to get actual route distance from Google Routes
   let routeDistanceKm: number | undefined;
   const routeData = await fetchRouteDistance(
     input.pickupLatitude,
