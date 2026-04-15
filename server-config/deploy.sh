@@ -38,7 +38,8 @@ else
 fi
 
 # Check Redis
-if redis-cli -a "$(grep -oP 'redis://:[^@]+' .env | head -1 | sed 's/redis://://')" ping 2>/dev/null | grep -q PONG; then
+REDIS_PASS=$(grep -oP '(?<=redis://:)[^@]+' .env | head -1)
+if [ -n "$REDIS_PASS" ] && redis-cli -a "$REDIS_PASS" ping 2>/dev/null | grep -q PONG; then
   log "Redis is running"
 else
   warn "Redis may not be running (not critical for deploy)"
