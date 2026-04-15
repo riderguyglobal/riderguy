@@ -90,7 +90,7 @@ log "API built"
 # ── Step 7: Build shared packages ──
 echo -e "\n${BOLD}▸ Step 7: Building shared packages...${NC}"
 cd /var/www/riderguy/source
-npx turbo run build --filter='@riderguy/utils' --filter='@riderguy/config' --filter='@riderguy/types' --filter='@riderguy/validators' --filter='@riderguy/auth' --filter='@riderguy/ui' 2>&1 | tail -10
+npx turbo run build --filter='@riderguy/utils' --filter='@riderguy/config' --filter='@riderguy/types' --filter='@riderguy/validators' --filter='@riderguy/auth' --filter='@riderguy/ui' --filter='@riderguy/database' 2>&1 | tail -10
 log "Shared packages built"
 
 # ── Step 8: Build frontend apps ──
