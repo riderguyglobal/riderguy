@@ -8,6 +8,8 @@ import { startWorkers, stopWorkers } from './jobs/workers';
 import { startPresenceManager, stopPresenceManager } from './services/presence.service';
 import { recoverStuckDispatches } from './services/auto-dispatch.service';
 import { expireStaleUnpaidOrders, escalateStaleDeliveries, cleanupOldBreadcrumbs } from './services/order.service';
+import { reassignGpsDarkRiders, reassignOfflineRiders, resolveExpiredCancelRequests } from './services/order-reassign.service';
+import { processExpiredRequests } from './services/cancellation-request.service';
 import { closeRedis } from './lib/redis';
 
 // ============================================================
@@ -28,6 +30,8 @@ startPresenceManager();
 let staleOrderTimer: ReturnType<typeof setInterval> | undefined;
 let slaTimer: ReturnType<typeof setInterval> | undefined;
 let breadcrumbCleanupTimer: ReturnType<typeof setInterval> | undefined;
+let reassignSweepTimer: ReturnType<typeof setInterval> | undefined;
+let cancelRequestTimer: ReturnType<typeof setInterval> | undefined;
 
 const server = httpServer.listen(config.port, () => {
   logger.info(
@@ -65,6 +69,26 @@ const server = httpServer.listen(config.port, () => {
   breadcrumbCleanupTimer = setInterval(() => {
     cleanupOldBreadcrumbs().catch((err) => logger.error({ err }, 'Breadcrumb cleanup failed'));
   }, 24 * 60 * 60 * 1000);
+
+  // D-05: Reassign orders from GPS-dark or offline riders every 2 minutes
+  reassignSweepTimer = setInterval(() => {
+    reassignGpsDarkRiders()
+      .then((n) => n > 0 && logger.warn({ count: n }, 'Reassigned orders from GPS-dark riders'))
+      .catch((err) => logger.error({ err }, 'GPS-dark reassign sweep failed'));
+    reassignOfflineRiders()
+      .then((n) => n > 0 && logger.warn({ count: n }, 'Reassigned orders from offline riders'))
+      .catch((err) => logger.error({ err }, 'Offline reassign sweep failed'));
+  }, 2 * 60 * 1000);
+
+  // D-06: Process expired cancel requests and resolve stuck orders every 5 minutes
+  cancelRequestTimer = setInterval(() => {
+    processExpiredRequests()
+      .then((n) => n > 0 && logger.warn({ count: n }, 'Processed expired cancel requests'))
+      .catch((err) => logger.error({ err }, 'Expired cancel request processing failed'));
+    resolveExpiredCancelRequests()
+      .then((n) => n > 0 && logger.warn({ count: n }, 'Resolved expired cancel request orders'))
+      .catch((err) => logger.error({ err }, 'Expired cancel request resolution failed'));
+  }, 5 * 60 * 1000);
 });
 
 // ---------- Graceful shutdown ----------
@@ -79,6 +103,8 @@ for (const signal of signals) {
       if (staleOrderTimer) clearInterval(staleOrderTimer);
       if (slaTimer) clearInterval(slaTimer);
       if (breadcrumbCleanupTimer) clearInterval(breadcrumbCleanupTimer);
+      if (reassignSweepTimer) clearInterval(reassignSweepTimer);
+      if (cancelRequestTimer) clearInterval(cancelRequestTimer);
       await stopPresenceManager();
       logger.info('Presence manager stopped');
       await stopWorkers();

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { paystackService, PaystackService } from '../../services/paystack.service';
 import { logger } from '../../lib/logger';
 import { enqueuePayoutJob } from '../../jobs/queues';
+import { handlePaymentFailureAfterAssignment } from '../../services/order-reassign.service';
 
 const router = Router();
 
@@ -232,6 +233,11 @@ router.get(
           where: { id: order.id },
           data: { paymentStatus: 'FAILED' },
         });
+
+        // If a rider was already assigned, release them and cancel the order
+        handlePaymentFailureAfterAssignment(order.id).catch((err) =>
+          logger.error({ err, orderId: order.id }, 'Failed to handle payment failure after assignment'),
+        );
 
         res.status(StatusCodes.OK).json({
           success: true,

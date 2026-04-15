@@ -1936,11 +1936,16 @@ enum CancellationCategory {
   VEHICLE_BREAKDOWN
   PERSONAL_EMERGENCY
   UNSAFE_CONDITIONS
-  PACKAGE_ISSUE        // Too large, too heavy, prohibited item
+  PACKAGE_ISSUE            // Too large, too heavy, prohibited item
   CANNOT_FIND_LOCATION
   CLIENT_UNREACHABLE
+  RECIPIENT_UNREACHABLE    // Post-pickup: recipient won't answer / refuses
   PAYMENT_DISPUTE
   EXCESSIVE_WAIT
+  DISTANCE_DISCREPANCY     // Actual distance much further than shown
+  ACCIDENTAL_ACCEPT        // Rider accepted by mistake
+  ADDRESS_INVALID          // Dropoff address doesn't exist / inaccessible
+  UNDISCLOSED_REQUIREMENTS // Client added extra stops / requirements not in order
   OTHER
 }
 

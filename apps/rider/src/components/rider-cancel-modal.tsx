@@ -28,6 +28,9 @@ const PRE_PICKUP_REASONS: CancelReason[] = [
   { label: 'Prohibited / suspicious items', consequence: 'No penalty. Will be investigated.', severity: 'medium' },
   { label: 'Sender not available', consequence: 'No penalty if client confirmed unreachable.', severity: 'low' },
   { label: 'Waited too long at pickup', consequence: 'Warning recorded. Excessive wait logged.', severity: 'medium' },
+  { label: 'Pickup too far / distance incorrect', consequence: 'Warning recorded. Route distance reviewed.', severity: 'low' },
+  { label: 'Accepted by mistake', consequence: 'Warning recorded. Avoid repeated accidental accepts.', severity: 'low' },
+  { label: 'Client added extra requirements', consequence: 'Warning recorded. May require details.', severity: 'low' },
   { label: 'Other', consequence: 'Reviewed by admin. Penalty depends on frequency.', severity: 'medium' },
 ];
 
@@ -38,6 +41,8 @@ const POST_PICKUP_REASONS: CancelReason[] = [
   { label: 'Road inaccessible', consequence: 'Penalty: GHS 15 + suspension. Location reviewed.', severity: 'critical' },
   { label: 'Extreme weather conditions', consequence: 'Investigation required. Package must be returned.', severity: 'critical' },
   { label: 'Prohibited contents discovered', consequence: 'Investigation required. Report to authorities if dangerous.', severity: 'critical' },
+  { label: 'Recipient unreachable / refuses delivery', consequence: 'Penalty: GHS 15 + investigation. Package must be returned.', severity: 'critical' },
+  { label: 'Wrong address / address does not exist', consequence: 'Penalty: GHS 15 + investigation. Location reviewed.', severity: 'critical' },
   { label: 'Other', consequence: 'Penalty: GHS 15 + 24hr suspension + admin investigation.', severity: 'critical' },
 ];
 

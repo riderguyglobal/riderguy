@@ -18,14 +18,35 @@ import { createOrderNotification } from './notification.service';
 
 const REASON_CATEGORY_MAP: Record<string, CancellationCategory> = {
   'Vehicle broke down': 'VEHICLE_BREAKDOWN',
+  'Vehicle breakdown': 'VEHICLE_BREAKDOWN',
   'Personal emergency': 'PERSONAL_EMERGENCY',
   'Unsafe area or conditions': 'UNSAFE_CONDITIONS',
+  'Unsafe pickup': 'UNSAFE_CONDITIONS',
   'Package too large or heavy': 'PACKAGE_ISSUE',
+  'Package not as described': 'PACKAGE_ISSUE',
+  'Package damaged': 'PACKAGE_ISSUE',
   'Prohibited or dangerous item': 'PACKAGE_ISSUE',
+  'Prohibited / suspicious': 'PACKAGE_ISSUE',
+  'Prohibited contents': 'PACKAGE_ISSUE',
   'Cannot find pickup location': 'CANNOT_FIND_LOCATION',
   'Client is unreachable': 'CLIENT_UNREACHABLE',
+  'Sender not available': 'CLIENT_UNREACHABLE',
+  'Recipient unreachable': 'RECIPIENT_UNREACHABLE',
+  'refuses delivery': 'RECIPIENT_UNREACHABLE',
   'Payment or pricing dispute': 'PAYMENT_DISPUTE',
   'Waited too long at pickup': 'EXCESSIVE_WAIT',
+  'Waited too long': 'EXCESSIVE_WAIT',
+  'Pickup too far': 'DISTANCE_DISCREPANCY',
+  'distance incorrect': 'DISTANCE_DISCREPANCY',
+  'Accepted by mistake': 'ACCIDENTAL_ACCEPT',
+  'Wrong address': 'ADDRESS_INVALID',
+  'address does not exist': 'ADDRESS_INVALID',
+  'address doesn\'t exist': 'ADDRESS_INVALID',
+  'Road inaccessible': 'ADDRESS_INVALID',
+  'Client added extra': 'UNDISCLOSED_REQUIREMENTS',
+  'extra requirements': 'UNDISCLOSED_REQUIREMENTS',
+  'additional stops not in order': 'UNDISCLOSED_REQUIREMENTS',
+  'Extreme weather': 'UNSAFE_CONDITIONS',
 };
 
 export function categoriseReason(reason: string): CancellationCategory {
@@ -50,6 +71,11 @@ const LOW_BLAME_CATEGORIES: CancellationCategory[] = [
   'PERSONAL_EMERGENCY',
   'UNSAFE_CONDITIONS',
   'CLIENT_UNREACHABLE',
+  'RECIPIENT_UNREACHABLE',
+  'DISTANCE_DISCREPANCY',
+  'ACCIDENTAL_ACCEPT',
+  'ADDRESS_INVALID',
+  'UNDISCLOSED_REQUIREMENTS',
 ];
 
 /** Order stages where cancellation is critical (package already with rider) */

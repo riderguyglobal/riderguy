@@ -5,6 +5,7 @@ import { prisma } from '@riderguy/database';
 import { UserRole } from '@riderguy/types';
 import { StatusCodes } from 'http-status-codes';
 import { logger } from '../../lib/logger';
+import { handleRiderSuspended } from '../../services/order-reassign.service';
 
 const router = Router();
 
@@ -301,6 +302,16 @@ router.patch(
     });
 
     logger.info({ userId, newStatus: status, reason, adminId: req.user!.userId }, 'User status updated by admin');
+
+    // If a rider is being suspended, reassign/escalate their active orders
+    if ((status === 'SUSPENDED' || status === 'BANNED') && user.role === 'RIDER') {
+      const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
+      if (riderProfile) {
+        handleRiderSuspended(riderProfile.id).catch((err) =>
+          logger.error({ err, riderId: riderProfile.id }, 'Failed to handle suspended rider orders'),
+        );
+      }
+    }
 
     res.status(StatusCodes.OK).json({ success: true, data: updated });
   }),
