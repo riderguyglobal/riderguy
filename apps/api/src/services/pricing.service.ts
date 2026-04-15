@@ -27,7 +27,7 @@ import {
 } from '@riderguy/utils';
 import { haversineDistance, estimateDuration, toRoadDistance } from '@riderguy/utils';
 import { isPointInPolygon } from '@riderguy/utils';
-import type { PackageType, PaymentMethod } from '@prisma/client';
+import type { PackageType, PaymentMethod, Zone } from '@prisma/client';
 import { correctEta } from './eta-learning.service';
 
 // ============================================================
@@ -114,8 +114,10 @@ export interface PriceBreakdown {
   isExpress: boolean;
 
   scheduleDiscount: number;
+  scheduleDiscountBlockedBySurge: boolean;
   businessDiscount: number;
   promoDiscount: number;
+  promoError: string | null;
   waitTimeCharge: number;
 
   subtotal: number;
@@ -129,12 +131,26 @@ export interface PriceBreakdown {
   riderEarnings: number;
   platformCommission: number;
   commissionRate: number;
+
+  expressIgnored: boolean;
 }
 
-// ── Zone lookup ─────────────────────────────────────────────
+// ── Zone lookup (cached) ────────────────────────────────
 
-async function findZoneForPoint(lat: number, lng: number) {
+let zoneCache: Zone[] | null = null;
+let zoneCacheExpiry = 0;
+const ZONE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getActiveZones(): Promise<Zone[]> {
+  if (zoneCache && Date.now() < zoneCacheExpiry) return zoneCache;
   const zones = await prisma.zone.findMany({ where: { status: 'ACTIVE' } });
+  zoneCache = zones;
+  zoneCacheExpiry = Date.now() + ZONE_CACHE_TTL_MS;
+  return zoneCache;
+}
+
+async function findZoneForPoint(lat: number, lng: number): Promise<Zone | null> {
+  const zones = await getActiveZones();
   for (const zone of zones) {
     const polygon = zone.polygon as number[][][];
     if (isPointInPolygon(lat, lng, polygon)) return zone;
@@ -222,8 +238,8 @@ export async function calculatePrice(
   const baseFare = pickupZone?.baseFare ?? PLATFORM_DEFAULTS.baseFare;
   const perKmRate = pickupZone?.perKmRate ?? PLATFORM_DEFAULTS.perKmRate;
   const minimumFare = pickupZone?.minimumFare ?? PLATFORM_DEFAULTS.minimumFare;
-  const roadFactor = (pickupZone as Record<string, unknown> | null)?.roadFactor as number ?? PLATFORM_DEFAULTS.roadFactor;
-  const avgSpeed = (pickupZone as Record<string, unknown> | null)?.avgSpeedKmh as number ?? PLATFORM_DEFAULTS.avgSpeedKmh;
+  const roadFactor = pickupZone?.roadFactor ?? PLATFORM_DEFAULTS.roadFactor;
+  const avgSpeed = pickupZone?.avgSpeedKmh ?? PLATFORM_DEFAULTS.avgSpeedKmh;
   const currency = pickupZone?.currency ?? PLATFORM_DEFAULTS.currency;
   const commissionRate = pickupZone?.commissionRate != null
     ? normalizeCommissionRate(pickupZone.commissionRate)
@@ -243,7 +259,7 @@ export async function calculatePrice(
   // ── 4. Dynamic Surge ─────────────────────────────────────
   let surgeResult: { multiplier: number; level: string };
   if (pickupZone) {
-    const pendingOrders = (pickupZone as Record<string, unknown>).pendingOrders as number ?? 0;
+    const pendingOrders = pickupZone.pendingOrders ?? 0;
     const activeRiders = pickupZone.activeRiders ?? 0;
     surgeResult = calculateDynamicSurge(pendingOrders, activeRiders);
     // Admin-set static surge takes precedence if higher
@@ -261,7 +277,14 @@ export async function calculatePrice(
   const surgeLevel = surgeResult.level;
 
   // ── 5. Time-of-day ───────────────────────────────────────
-  const currentHour = new Date().getHours();
+  // Use Ghana timezone (GMT+0) explicitly so pricing is correct
+  // regardless of which timezone the server runs in.
+  const ghanaHour = new Date().toLocaleString('en-US', {
+    timeZone: 'Africa/Accra',
+    hour: 'numeric',
+    hour12: false,
+  });
+  const currentHour = parseInt(ghanaHour, 10);
   const timeOfDayMultiplier = getTimeOfDayMultiplier(currentHour);
   const timeOfDayPeriod = getTimeOfDayPeriod(currentHour);
 
@@ -325,38 +348,13 @@ export async function calculatePrice(
   }
 
   // ── 13. Promo code discount ──────────────────────────────
+  // NOTE: We need the pre-promo subtotal to check minOrderAmount,
+  // so we compute the raw subtotal first, then validate the promo.
   let promoDiscount = 0;
   let promoIsPct = false;
   let promoValue = 0;
   let promoMaxDiscount: number | null = null;
-
-  if (promoCode) {
-    try {
-      const promo = await prisma.promoCode.findUnique({ where: { code: promoCode } });
-      if (promo && promo.isActive) {
-        const now = new Date();
-        const withinValidity = (!promo.validUntil || promo.validUntil > now) && promo.validFrom <= now;
-        const withinUsageLimit = promo.maxUses == null || promo.usedCount < promo.maxUses;
-        let withinUserLimit = true;
-        if (clientId) {
-          const userUsages = await prisma.promoCodeUsage.count({
-            where: { promoCodeId: promo.id, userId: clientId },
-          });
-          withinUserLimit = userUsages < promo.maxUsesPerUser;
-        }
-        const zoneOk = !promo.zoneId || (pickupZone && promo.zoneId === pickupZone.id);
-        const packageOk = promo.packageTypes.length === 0 || promo.packageTypes.includes(packageType);
-
-        if (withinValidity && withinUsageLimit && withinUserLimit && zoneOk && packageOk) {
-          promoIsPct = promo.discountType === 'PERCENTAGE';
-          promoValue = Number(promo.discountValue);
-          promoMaxDiscount = promo.maxDiscountGhs ? Number(promo.maxDiscountGhs) : null;
-        }
-      }
-    } catch {
-      // Don't block pricing if promo lookup fails
-    }
-  }
+  let promoError: string | null = null;
 
   // ── 14. Calculate ────────────────────────────────────────
   const distanceCharge = roundGhs(distanceKm * perKmRate);
@@ -377,6 +375,44 @@ export async function calculatePrice(
   // Apply business discount
   if (businessDiscount > 0) {
     subtotal = roundGhs(Math.max(minimumFare, subtotal * (1 - businessDiscount)));
+  }
+
+  // Now validate promo code against the pre-promo subtotal
+  if (promoCode) {
+    try {
+      const promo = await prisma.promoCode.findUnique({ where: { code: promoCode } });
+      if (!promo || !promo.isActive) {
+        promoError = 'Promo code not found or inactive';
+      } else {
+        const now = new Date();
+        const withinValidity = (!promo.validUntil || promo.validUntil > now) && promo.validFrom <= now;
+        const withinUsageLimit = promo.maxUses == null || promo.usedCount < promo.maxUses;
+        let withinUserLimit = true;
+        if (clientId) {
+          const userUsages = await prisma.promoCodeUsage.count({
+            where: { promoCodeId: promo.id, userId: clientId },
+          });
+          withinUserLimit = userUsages < promo.maxUsesPerUser;
+        }
+        const zoneOk = !promo.zoneId || (pickupZone && promo.zoneId === pickupZone.id);
+        const packageOk = promo.packageTypes.length === 0 || promo.packageTypes.includes(packageType);
+        const meetsMinOrder = !promo.minOrderAmount || subtotal >= Number(promo.minOrderAmount);
+
+        if (!withinValidity) promoError = 'Promo code has expired';
+        else if (!withinUsageLimit) promoError = 'Promo code usage limit reached';
+        else if (!withinUserLimit) promoError = 'You have already used this promo code';
+        else if (!zoneOk) promoError = 'Promo code is not valid for your zone';
+        else if (!packageOk) promoError = 'Promo code is not valid for this package type';
+        else if (!meetsMinOrder) promoError = `Minimum order of GHS ${Number(promo.minOrderAmount).toFixed(2)} required`;
+        else {
+          promoIsPct = promo.discountType === 'PERCENTAGE';
+          promoValue = Number(promo.discountValue);
+          promoMaxDiscount = promo.maxDiscountGhs ? Number(promo.maxDiscountGhs) : null;
+        }
+      }
+    } catch {
+      // Don't block pricing if promo lookup fails
+    }
   }
 
   // Apply promo discount
@@ -421,9 +457,12 @@ export async function calculatePrice(
     crossZoneMultiplier,
     expressMultiplier,
     isExpress: isExpress && expressMultiplier > 1,
+    expressIgnored: isExpress && expressMultiplier <= 1,
     scheduleDiscount,
+    scheduleDiscountBlockedBySurge: !!scheduleType && surgeMultiplier > 1.0,
     businessDiscount,
     promoDiscount,
+    promoError,
     waitTimeCharge: 0, // Adjusted post-delivery via calculateWaitTimeCharge()
     subtotal,
     serviceFee,
@@ -505,9 +544,13 @@ export async function fetchRouteDistance(
         'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error(`[Pricing] Google Routes API ${response.status}`);
+      return null;
+    }
 
     const data = (await response.json()) as {
       routes?: Array<{ distanceMeters: number; duration: string }>;

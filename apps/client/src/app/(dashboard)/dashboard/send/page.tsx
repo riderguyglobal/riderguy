@@ -4,11 +4,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
-import { formatCurrency } from '@riderguy/utils';
+import { formatCurrency, haversineDistance } from '@riderguy/utils';
 import { PACKAGE_TYPES, SCHEDULE_TYPES } from '@/lib/constants';
 import { LocationInput, type LocationValue } from '@/components/location-input';
 import { PriceBreakdown, type PriceEstimate } from '@/components/price-breakdown';
 import { OrderConfirmation } from '@/components/order-confirmation';
+import { useNearbyRiders } from '@/hooks/use-nearby-riders';
 import {
   ArrowLeft,
   X,
@@ -29,18 +30,12 @@ import {
   Clock,
   Wallet,
   WifiOff,
+  Users,
 } from 'lucide-react';
 
 /** Haversine distance (km) between two [lng, lat] coordinate pairs */
 function haversineKm(a: [number, number], b: [number, number]): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b[1] - a[1]);
-  const dLng = toRad(b[0] - a[0]);
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h = sinLat * sinLat + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * sinLng * sinLng;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return haversineDistance(a[1], a[0], b[1], b[0]);
 }
 
 const MAX_SERVICE_DISTANCE_KM = 50;
@@ -125,6 +120,14 @@ export default function SendPackagePage() {
   const [showAllPackages, setShowAllPackages] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
 
+  // ── Nearby riders — shows availability before booking ──
+  const { riders: nearbyRiders, count: nearbyRiderCount } = useNearbyRiders({
+    coordinates: pickup.location.coordinates,
+    radiusKm: 5,
+    intervalMs: 15_000,
+    enabled: !!pickup.location.coordinates,
+  });
+
   // ── Detect iOS virtual keyboard via visualViewport ──
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -143,6 +146,7 @@ export default function SendPackagePage() {
 
   // ── Submission state ──
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false); // Synchronous guard against double-tap
   const [error, setError] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
 
@@ -386,7 +390,8 @@ export default function SendPackagePage() {
   // ── Submit handler ──
 
   const handleConfirm = useCallback(async (): Promise<string | null> => {
-    if (!api || !canSubmit || submitting) return null;
+    if (!api || !canSubmit || submittingRef.current) return null;
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
 
@@ -455,10 +460,11 @@ export default function SendPackagePage() {
       setError(message);
       return null;
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, canSubmit, submitting, pickup, dropoff, packageType, paymentMethod, additionalStops, scheduleType, scheduledTime, estimate, packagePhotos, isExpress, packageWeightKg, promoCode]);
+  }, [api, canSubmit, pickup, dropoff, packageType, paymentMethod, additionalStops, scheduleType, scheduledTime, estimate, packagePhotos, isExpress, packageWeightKg, promoCode]);
 
   // ── Render ──
 
@@ -564,11 +570,30 @@ export default function SendPackagePage() {
 
         {/* ── Route Preview Map ── */}
         {(pickup.location.coordinates || dropoff.location.coordinates) && (
-          <RoutePreviewMap
-            pickupCoords={pickup.location.coordinates as [number, number] | null}
-            dropoffCoords={dropoff.location.coordinates as [number, number] | null}
-            className="h-[180px]"
-          />
+          <div className="space-y-2">
+            <RoutePreviewMap
+              pickupCoords={pickup.location.coordinates as [number, number] | null}
+              dropoffCoords={dropoff.location.coordinates as [number, number] | null}
+              nearbyRiders={nearbyRiders}
+              className="h-[180px]"
+            />
+
+            {/* Nearby riders availability indicator */}
+            {pickup.location.coordinates && (
+              <div className="flex items-center gap-2 px-1">
+                <Users className="h-3.5 w-3.5 text-surface-400" />
+                {nearbyRiderCount > 0 ? (
+                  <p className="text-xs text-surface-500">
+                    <span className="font-semibold text-brand-600">{nearbyRiderCount}</span> rider{nearbyRiderCount !== 1 ? 's' : ''} nearby
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600">
+                    No riders nearby right now. Your order will be queued.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Distance warning */}
@@ -645,22 +670,34 @@ export default function SendPackagePage() {
 
           {/* Time picker — shown for SAME_DAY, NEXT_DAY, RECURRING */}
           {scheduleType !== 'NOW' && (
-            <div className="flex items-center gap-3 mt-3 px-4 py-2.5 bg-surface-50 rounded-xl animate-slide-up">
-              <Clock className="h-4 w-4 text-surface-400 shrink-0" />
-              <div className="flex-1">
-                <p className="text-xs font-medium text-surface-500">
-                  {scheduleType === 'SAME_DAY' ? 'Pickup time today' :
-                   scheduleType === 'NEXT_DAY' ? 'Pickup time tomorrow' :
-                   'First pickup time'}
-                </p>
+            <>
+              <div className="flex items-center gap-3 mt-3 px-4 py-2.5 bg-surface-50 rounded-xl animate-slide-up">
+                <Clock className="h-4 w-4 text-surface-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-surface-500">
+                    {scheduleType === 'SAME_DAY' ? 'Pickup time today' :
+                     scheduleType === 'NEXT_DAY' ? 'Pickup time tomorrow' :
+                     'First pickup time'}
+                  </p>
+                </div>
+                <input
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="bg-transparent text-sm font-semibold text-surface-800 outline-none"
+                />
               </div>
-              <input
-                type="time"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-surface-800 outline-none"
-              />
-            </div>
+              {scheduleType === 'SAME_DAY' && (() => {
+                const [h, m] = scheduledTime.split(':').map(Number);
+                const selected = new Date();
+                selected.setHours(h ?? 9, m ?? 0, 0, 0);
+                return selected.getTime() <= Date.now();
+              })() && (
+                <p className="text-[11px] text-amber-600 px-1 -mt-0.5">
+                  Selected time has passed. Delivery will be scheduled ~30 min from now.
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -723,6 +760,11 @@ export default function SendPackagePage() {
               <div className="h-5 w-5 rounded-full bg-white shadow-sm mx-0.5" />
             </div>
           </button>
+          {isExpress && estimate?.expressIgnored && (
+            <p className="text-[11px] text-amber-600 px-1 -mt-1">
+              Express not available for distances over 15 km. Standard delivery applies.
+            </p>
+          )}
 
           {/* Weight input */}
           <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-xl">
@@ -736,19 +778,29 @@ export default function SendPackagePage() {
                 value={packageWeightKg ?? ''}
                 onChange={(e) => {
                   const v = e.target.value ? parseFloat(e.target.value) : undefined;
-                  if (v !== undefined && v > 200) return; // Max 200kg
+                  if (v !== undefined && v > 30) return; // Max 30kg (motorcycle limit)
                   setPackageWeightKg(v && v > 0 ? v : undefined);
                 }}
                 placeholder="Optional"
                 className="w-full bg-transparent text-sm text-surface-800 font-medium outline-none placeholder:text-surface-300 mt-0.5"
               />
             </div>
-            {packageWeightKg && packageWeightKg > 5 && (
+            {packageWeightKg && packageWeightKg > 20 && (
+              <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                Heavy
+              </span>
+            )}
+            {packageWeightKg && packageWeightKg > 5 && packageWeightKg <= 20 && (
               <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                 +surcharge
               </span>
             )}
           </div>
+          {packageWeightKg && packageWeightKg > 20 && (
+            <p className="text-[11px] text-red-600 px-1 -mt-1">
+              Packages over 20 kg may require special handling. Max 30 kg for motorcycle delivery.
+            </p>
+          )}
 
           {/* Promo code input */}
           <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-xl">
@@ -763,12 +815,15 @@ export default function SendPackagePage() {
               autoCapitalize="characters"
               className="flex-1 bg-transparent text-sm text-surface-800 font-semibold outline-none placeholder:text-surface-300 uppercase tracking-wider"
             />
-            {promoCode && estimate?.promoDiscount && estimate.promoDiscount > 0 && (
+            {promoCode && estimate?.promoDiscount && estimate.promoDiscount > 0 && !estimate.promoError && (
               <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                 Applied!
               </span>
             )}
           </div>
+          {promoCode && estimate?.promoError && (
+            <p className="text-[11px] text-red-500 px-5 -mt-1">{estimate.promoError}</p>
+          )}
         </div>
 
         {/* ═══════════════════════════════════════════

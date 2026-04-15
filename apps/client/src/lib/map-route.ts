@@ -117,6 +117,13 @@ export function drawRoute(
   }));
 
   // Layer 4: Main line with direction arrows
+  // Scale arrow repeat interval based on route length to avoid
+  // cluttering short routes or starving long ones
+  const arrowRepeat = path.length < 20 ? '80px'
+    : path.length < 100 ? '120px'
+    : path.length < 300 ? '160px'
+    : '220px';
+
   routePolylines.push(new google.maps.Polyline({
     map,
     path,
@@ -134,7 +141,7 @@ export function drawRoute(
         fillOpacity: 0.92,
       },
       offset: '0',
-      repeat: '100px',
+      repeat: arrowRepeat,
     }],
   }));
 

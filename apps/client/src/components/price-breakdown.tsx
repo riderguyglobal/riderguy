@@ -46,9 +46,12 @@ export interface PriceEstimate {
   crossZoneMultiplier?: number;
   expressMultiplier?: number;
   isExpress?: boolean;
+  expressIgnored?: boolean;
   scheduleDiscount: number;
+  scheduleDiscountBlockedBySurge?: boolean;
   businessDiscount?: number;
   promoDiscount?: number;
+  promoError?: string | null;
   subtotal: number;
   serviceFee: number;
   serviceFeeRate?: number;
@@ -212,6 +215,15 @@ function ExpandedBreakdown({ estimate }: { estimate: PriceEstimate }) {
     });
   }
 
+  if (estimate.expressIgnored) {
+    items.push({
+      icon: <Zap className="h-3.5 w-3.5" />,
+      label: 'Express not available for this distance',
+      value: 'n/a',
+      muted: true,
+    });
+  }
+
   if (estimate.scheduleDiscount < 1) {
     const pct = Math.round((1 - estimate.scheduleDiscount) * 100);
     items.push({
@@ -219,6 +231,15 @@ function ExpandedBreakdown({ estimate }: { estimate: PriceEstimate }) {
       label: `Schedule discount (${pct}%)`,
       value: `−${pct}%`,
       discount: true,
+    });
+  }
+
+  if (estimate.scheduleDiscountBlockedBySurge) {
+    items.push({
+      icon: <Calendar className="h-3.5 w-3.5" />,
+      label: 'Schedule discount unavailable during high demand',
+      value: 'n/a',
+      muted: true,
     });
   }
 

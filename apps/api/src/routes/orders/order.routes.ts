@@ -78,6 +78,26 @@ import fs from 'node:fs/promises';
 // Multer config for package photo & proof-of-delivery uploads
 // ============================================================
 
+// Magic byte signatures for allowed file types
+const MAGIC_BYTES: Record<string, { offset: number; bytes: number[] }[]> = {
+  'image/jpeg': [{ offset: 0, bytes: [0xFF, 0xD8, 0xFF] }],
+  'image/png': [{ offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47] }],
+  'image/webp': [{ offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] }], // after RIFF header
+  'video/mp4': [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] }], // ftyp box
+  'video/quicktime': [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] }],
+  'video/webm': [{ offset: 0, bytes: [0x1A, 0x45, 0xDF, 0xA3] }], // EBML header
+};
+
+/** Verify file content matches declared MIME type via magic bytes */
+function verifyMagicBytes(buffer: Buffer, declaredMime: string): boolean {
+  const signatures = MAGIC_BYTES[declaredMime];
+  if (!signatures) return false;
+  return signatures.some((sig) => {
+    if (buffer.length < sig.offset + sig.bytes.length) return false;
+    return sig.bytes.every((b, i) => buffer[sig.offset + i] === b);
+  });
+}
+
 const tempStorage = multer.diskStorage({
   destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) =>
     cb(null, os.tmpdir()),
@@ -120,11 +140,25 @@ router.use(authenticate);
 /** POST /orders/upload-photo — Upload a package photo/video (multipart) */
 router.post(
   '/upload-photo',
+  sensitiveRateLimit,
   requireRole(UserRole.CLIENT, UserRole.BUSINESS_CLIENT),
   packagePhotoUpload.single('file'),
   asyncHandler(async (req, res) => {
     const file = req.file;
     if (!file) throw ApiError.badRequest('No file uploaded');
+
+    // Verify magic bytes match declared MIME type (prevents spoofed extensions)
+    const header = Buffer.alloc(16);
+    const fd = fsSync.openSync(file.path, 'r');
+    try {
+      fsSync.readSync(fd, header, 0, 16, 0);
+    } finally {
+      fsSync.closeSync(fd);
+    }
+    if (!verifyMagicBytes(header, file.mimetype)) {
+      await fs.unlink(file.path).catch(() => {});
+      throw ApiError.badRequest('File content does not match declared type');
+    }
 
     // Upload via StorageService (S3/R2 in production, local disk in dev)
     const result = await StorageService.uploadFromPath(
@@ -133,9 +167,6 @@ router.post(
       file.mimetype,
       'packages',
     );
-
-    // Clean up temp file after upload
-    fs.unlink(file.path).catch(() => {});
 
     res.status(StatusCodes.OK).json({ success: true, data: { url: result.url } });
   }),
@@ -376,6 +407,16 @@ router.get(
     });
     if (pairs.length < 2) throw ApiError.badRequest('At least 2 coordinate pairs required');
 
+    // Validate coordinate bounds
+    for (const p of pairs) {
+      if (p.latitude == null || p.longitude == null ||
+          isNaN(p.latitude) || isNaN(p.longitude) ||
+          p.latitude < -90 || p.latitude > 90 ||
+          p.longitude < -180 || p.longitude > 180) {
+        throw ApiError.badRequest('Invalid coordinates: each pair must be valid lng,lat values');
+      }
+    }
+
     const travelMode = driveProfile === 'cycling' ? 'BICYCLE' : driveProfile === 'walking' ? 'WALK' : 'DRIVE';
 
     // Build intermediates (waypoints between origin and destination)
@@ -407,10 +448,12 @@ router.get(
         'Referer': 'https://api.myriderguy.com/',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
       const errBody = await response.text().catch(() => '');
+      console.error(`[Directions] Google Routes API ${response.status}: ${errBody.slice(0, 500)}`);
       throw ApiError.internal(`Routes service unavailable: ${response.status} ${errBody.slice(0, 200)}`);
     }
 

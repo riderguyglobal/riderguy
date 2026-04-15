@@ -200,6 +200,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
     // D-04: Batch breadcrumb buffer — flush every 30s instead of per-update
     const BREADCRUMB_FLUSH_INTERVAL_MS = 30_000;
+    const MAX_BREADCRUMB_BUFFER_SIZE = 500; // Cap to prevent OOM on persistent DB failures
     let breadcrumbBuffer: Array<{
       riderId: string; orderId: string;
       latitude: number; longitude: number;
@@ -285,6 +286,12 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
                 heading: heading ?? null,
                 speed: speed ?? null,
               });
+            }
+            // Cap buffer to prevent OOM if DB writes consistently fail
+            if (breadcrumbBuffer.length > MAX_BREADCRUMB_BUFFER_SIZE) {
+              const overflow = breadcrumbBuffer.length - MAX_BREADCRUMB_BUFFER_SIZE;
+              breadcrumbBuffer.splice(0, overflow);
+              logger.warn({ dropped: overflow }, '[Breadcrumb] Buffer overflow — dropping oldest entries');
             }
           }
 

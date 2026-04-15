@@ -306,6 +306,38 @@ export function removeMarkers(markers: google.maps.marker.AdvancedMarkerElement[
   }
 }
 
+export function createSavedAddressMarker(
+  map: google.maps.Map,
+  lngLat: [number, number],
+  options: { label?: string; popup?: string } = {},
+): google.maps.marker.AdvancedMarkerElement {
+  const color = MARKER_COLORS.brand;
+  const el = document.createElement('div');
+  el.className = 'rg-marker rg-marker-saved';
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', `Saved address: ${options.label ?? 'location'}`);
+  el.innerHTML = `
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,.2));cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:12px;background:white;border:2px solid ${color};white-space:nowrap;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="${color}" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        ${options.label ? `<span style="font-size:11px;font-weight:600;color:#374151;max-width:80px;overflow:hidden;text-overflow:ellipsis;">${options.label}</span>` : ''}
+      </div>
+      <div style="width:2px;height:6px;background:${color};border-radius:0 0 1px 1px;"></div>
+    </div>`;
+
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: toLatLng(lngLat),
+    content: el,
+  });
+
+  if (options.popup) {
+    attachInfoWindow(map, marker, `<div class="px-3 py-2 text-sm font-medium">${options.popup}</div>`);
+  }
+
+  return marker;
+}
+
 // ── Internal ────────────────────────────────────────────
 
 function getStatusColors(status: 'offline' | 'online' | 'on-route') {

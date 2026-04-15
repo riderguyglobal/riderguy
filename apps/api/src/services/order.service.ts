@@ -22,7 +22,7 @@ import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
 
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['SEARCHING_RIDER', 'ASSIGNED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_ADMIN'],
-  SEARCHING_RIDER: ['ASSIGNED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_ADMIN'],
+  SEARCHING_RIDER: ['PENDING', 'ASSIGNED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_ADMIN'],
   ASSIGNED: ['PICKUP_EN_ROUTE', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
   PICKUP_EN_ROUTE: ['AT_PICKUP', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
   AT_PICKUP: ['PICKED_UP', 'FAILED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_ADMIN'],
@@ -115,6 +115,7 @@ export async function getEstimate(input: {
     scheduleDiscount: price.scheduleDiscount,
     businessDiscount: price.businessDiscount,
     promoDiscount: price.promoDiscount,
+    promoError: price.promoError,
     subtotal: price.subtotal,
     serviceFee: price.serviceFee,
     serviceFeeRate: price.serviceFeeRate,
@@ -169,7 +170,9 @@ export async function createOrder(
     }>;
   },
 ) {
-  const additionalStops = input.stops ? Math.max(0, input.stops.length - 1) : 0;
+  // Client sends only *extra* stops (primary pickup/dropoff are separate fields),
+  // so stops.length IS the additional stop count — no subtraction needed.
+  const additionalStops = input.stops ? input.stops.length : 0;
 
   // Try to get actual route distance from Google Routes
   let routeDistanceKm: number | undefined;
@@ -218,26 +221,32 @@ export async function createOrder(
     const code = input.promoCode.toUpperCase().trim();
     const now = new Date();
 
-    // Atomic: increment usedCount only if still valid and within limits
-    const claimed: number = await prisma.$executeRaw`
-      UPDATE "PromoCode"
-      SET "usedCount" = "usedCount" + 1
-      WHERE "code" = ${code}
-        AND "isActive" = true
-        AND "validFrom" <= ${now}
-        AND ("validUntil" IS NULL OR "validUntil" > ${now})
-        AND ("maxUses" IS NULL OR "usedCount" < "maxUses")
-    `;
+    // Wrap in a transaction: claim globally AND enforce per-user limit atomically
+    promoCodeId = await prisma.$transaction(async (tx) => {
+      const promo = await tx.promoCode.findUnique({
+        where: { code },
+        select: { id: true, maxUsesPerUser: true, maxUses: true, usedCount: true, isActive: true, validFrom: true, validUntil: true },
+      });
+      if (!promo || !promo.isActive) throw ApiError.conflict('Promo code is no longer available');
+      if (promo.validUntil && promo.validUntil <= now) throw ApiError.conflict('Promo code has expired');
+      if (promo.maxUses != null && promo.usedCount >= promo.maxUses) throw ApiError.conflict('Promo code usage limit reached');
 
-    if (claimed === 0) {
-      throw ApiError.conflict('Promo code is no longer available');
-    }
+      // Per-user limit check inside transaction
+      const userUsages = await tx.promoCodeUsage.count({
+        where: { promoCodeId: promo.id, userId: clientId },
+      });
+      if (userUsages >= promo.maxUsesPerUser) {
+        throw ApiError.conflict('You have already used this promo code');
+      }
 
-    const promo = await prisma.promoCode.findUnique({
-      where: { code },
-      select: { id: true },
+      // Atomic global claim
+      await tx.promoCode.update({
+        where: { id: promo.id },
+        data: { usedCount: { increment: 1 } },
+      });
+
+      return promo.id;
     });
-    promoCodeId = promo?.id;
   }
 
   const order = await prisma.order.create({

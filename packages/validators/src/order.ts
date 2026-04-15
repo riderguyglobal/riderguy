@@ -51,7 +51,7 @@ export const createOrderSchema = z.object({
   packageType: packageTypeEnum,
   packageDescription: z.string().max(500).optional(),
   packagePhotoUrl: z.string().max(1000).optional(),
-  packageWeightKg: z.number().min(0).max(200).optional(),
+  packageWeightKg: z.number().min(0).max(30).optional(),
 
   // Payment
   paymentMethod: paymentMethodEnum,
@@ -85,6 +85,15 @@ export const createOrderSchema = z.object({
   { message: 'Scheduled orders must include a scheduledAt date', path: ['scheduledAt'] }
 ).refine(
   (data) => {
+    // scheduledAt must be in the future (allow 60s grace for clock skew)
+    if (data.isScheduled && data.scheduledAt) {
+      return data.scheduledAt.getTime() > Date.now() - 60_000;
+    }
+    return true;
+  },
+  { message: 'Scheduled time must be in the future', path: ['scheduledAt'] }
+).refine(
+  (data) => {
     // Multi-stop: extra stops are valid as long as they exist
     // Primary pickup/dropoff fields already guarantee at least 1 of each
     if (data.stops && data.stops.length > 0) {
@@ -108,7 +117,7 @@ export const priceEstimateSchema = z.object({
   // Express delivery option
   isExpress: z.boolean().optional(),
   // Package weight in kg (for weight surcharge)
-  packageWeightKg: z.number().min(0).max(200).optional(),
+  packageWeightKg: z.number().min(0).max(30).optional(),
   // Payment method (affects service fee rate)
   paymentMethod: paymentMethodEnum.optional(),
   // Promo code (for discount)

@@ -46,10 +46,12 @@ const WEIGHTS = {
 
 interface DispatchState {
   orderId: string;
+  clientId: string; // For targeted no-riders notifications
   rankedRiders: ScoredRider[];
   currentIndex: number;
   timeoutHandle: ReturnType<typeof setTimeout> | null;
   resolved: boolean;
+  processing: boolean; // Synchronous mutex for concurrent handleOfferResponse calls
   offerSentAt: number; // Date.now() when current offer was emitted
   currentTierIndex: number; // which SEARCH_RADIUS_TIERS_KM tier we're on
   allScored: ScoredRider[]; // all scored riders from outer radius query
@@ -74,10 +76,28 @@ const activeDispatches = new Map<string, DispatchState>();
 
 const REDIS_DISPATCH_PREFIX = 'dispatch:';
 const REDIS_DISPATCH_TTL = 300; // 5 min — more than enough for a full dispatch cycle
+const REDIS_LOCK_PREFIX = 'dispatch-lock:';
+const REDIS_LOCK_TTL = 300; // 5 min — matches dispatch lifecycle
+
+/** Acquire a distributed lock for dispatch. Returns true if acquired. */
+async function acquireDispatchLock(orderId: string): Promise<boolean> {
+  const redis = getRedisClient();
+  if (!redis) return true; // No Redis = single instance, allow local-only guard
+  const result = await redis.set(`${REDIS_LOCK_PREFIX}${orderId}`, '1', 'EX', REDIS_LOCK_TTL, 'NX').catch(() => null);
+  return result === 'OK';
+}
+
+/** Release the distributed dispatch lock */
+async function releaseDispatchLock(orderId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  await redis.del(`${REDIS_LOCK_PREFIX}${orderId}`).catch(() => {});
+}
 
 /** Serializable subset of DispatchState for Redis persistence */
 interface PersistedDispatchState {
   orderId: string;
+  clientId?: string;
   declinedRiderIds: string[];
   currentIndex: number;
   currentTierIndex: number;
@@ -89,6 +109,7 @@ async function persistDispatchToRedis(state: DispatchState): Promise<void> {
   if (!redis) return;
   const data: PersistedDispatchState = {
     orderId: state.orderId,
+    clientId: state.clientId,
     declinedRiderIds: [...state.declinedRiderIds],
     currentIndex: state.currentIndex,
     currentTierIndex: state.currentTierIndex,
@@ -150,7 +171,9 @@ export function proximityScore(distanceKm: number): number {
   if (distanceKm <= 3)   return 75;
   if (distanceKm <= 5)   return 60;
   if (distanceKm <= 8)   return 30;
-  return 0; // > 8 km — too far, excluded
+  if (distanceKm <= 10)  return 15;
+  if (distanceKm <= 12)  return 5;
+  return 0;
 }
 
 export function ratingScore(avgRating: number | null): number {
@@ -220,9 +243,14 @@ export function computeOverallScore(
  * the sequential offer process.
  */
 export async function autoDispatch(orderId: string): Promise<void> {
-  // Prevent duplicate dispatches
+  // Prevent duplicate dispatches (local in-memory + distributed Redis lock)
   if (activeDispatches.has(orderId)) {
     logger.warn({ orderId }, '[AutoDispatch] Already dispatching for this order');
+    return;
+  }
+  const lockAcquired = await acquireDispatchLock(orderId);
+  if (!lockAcquired) {
+    logger.warn({ orderId }, '[AutoDispatch] Another instance is already dispatching this order');
     return;
   }
 
@@ -230,6 +258,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
     where: { id: orderId },
     select: {
       id: true,
+      clientId: true,
       orderNumber: true,
       status: true,
       paymentMethod: true,
@@ -273,12 +302,16 @@ export async function autoDispatch(orderId: string): Promise<void> {
     return;
   }
 
-  // Transition to SEARCHING_RIDER
+  // Transition to SEARCHING_RIDER (atomic — only succeeds if still PENDING)
   if (order.status === 'PENDING') {
-    await prisma.order.update({
-      where: { id: orderId },
+    const claimed = await prisma.order.updateMany({
+      where: { id: orderId, status: 'PENDING' },
       data: { status: 'SEARCHING_RIDER' },
     });
+    if (claimed.count === 0) {
+      logger.info({ orderId }, '[AutoDispatch] Order status changed before dispatch could start');
+      return;
+    }
     await prisma.orderStatusHistory.create({
       data: {
         orderId,
@@ -291,6 +324,11 @@ export async function autoDispatch(orderId: string): Promise<void> {
 
   // ── Find and score riders ──
 
+  // Bounding box pre-filter: ~12km ≈ 0.11° at Ghana's latitude (reduces DB load)
+  const degDelta = MAX_SEARCH_RADIUS_KM / 111; // rough km-to-degree conversion
+  const pickupLat = order.pickupLatitude as number;
+  const pickupLng = order.pickupLongitude as number;
+
   const riders = await prisma.riderProfile.findMany({
     where: {
       availability: 'ONLINE',
@@ -298,8 +336,11 @@ export async function autoDispatch(orderId: string): Promise<void> {
       ...(process.env.BYPASS_ONBOARDING_CHECK !== 'true' ? { onboardingStatus: 'ACTIVATED' } : {}),
       // Exclude suspended riders
       OR: [{ suspendedUntil: null }, { suspendedUntil: { lt: new Date() } }],
-      currentLatitude: { not: null },
-      currentLongitude: { not: null },
+      // Bounding box: only fetch riders roughly within max radius
+      currentLatitude: { gte: pickupLat - degDelta, lte: pickupLat + degDelta },
+      currentLongitude: { gte: pickupLng - degDelta, lte: pickupLng + degDelta },
+      // GPS freshness: skip riders with stale GPS at the DB level
+      lastLocationUpdate: { gte: new Date(Date.now() - MIN_GPS_FRESHNESS_MS) },
     },
     select: {
       id: true,
@@ -319,25 +360,31 @@ export async function autoDispatch(orderId: string): Promise<void> {
 
   if (riders.length === 0) {
     logger.info({ orderId }, '[AutoDispatch] No online riders available');
+    await releaseDispatchLock(orderId);
     // Revert to PENDING — riders will see it in the job feed when they come online
     await prisma.order.update({
       where: { id: orderId },
       data: { status: 'PENDING' },
     });
-    // Notify the client that no riders are currently available
+    await prisma.orderStatusHistory.create({
+      data: { orderId, status: 'PENDING', actor: 'system', note: 'No online riders available — returned to queue' },
+    }).catch(() => {});
+    // Notify client and admins that no riders are currently available
     try {
       const io = getIO();
-      io.to(`order:${orderId}`).emit('order:no-riders', {
+      const noRidersPayload = {
         orderId,
         reason: 'No riders are currently online in your area',
         timestamp: new Date().toISOString(),
-      });
+      };
+      io.to(`order:${orderId}`).to(`user:${order.clientId}`).emit('order:no-riders', noRidersPayload);
+      io.to('role:ADMIN').emit('order:no-riders', noRidersPayload);
     } catch {}
     return;
   }
 
   logger.info(
-    { orderId, riderCount: riders.length, riders: riders.map(r => ({ id: r.userId, lat: r.currentLatitude, lng: r.currentLongitude })) },
+    { orderId, riderCount: riders.length },
     '[AutoDispatch] Found online riders with GPS',
   );
 
@@ -348,11 +395,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
     const riderLat = rider.currentLatitude as number;
     const riderLng = rider.currentLongitude as number;
 
-    // Skip riders with stale GPS
-    if (rider.lastLocationUpdate) {
-      const ageMs = Date.now() - rider.lastLocationUpdate.getTime();
-      if (ageMs > MIN_GPS_FRESHNESS_MS) continue;
-    }
+    // GPS freshness already filtered at DB level
 
     const distance = haversineDistance(
       riderLat,
@@ -386,7 +429,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
       lastName: rider.user.lastName,
       phone: rider.user.phone,
       distance: Math.round(distance * 100) / 100,
-      score: Math.min(score, 100),
+      score: Math.min(score, 103), // Allow zone bonus (3pts) to break ties above 100
     });
   }
 
@@ -412,18 +455,24 @@ export async function autoDispatch(orderId: string): Promise<void> {
 
   if (candidates.length === 0) {
     logger.info({ orderId }, '[AutoDispatch] No riders within search radius');
+    await releaseDispatchLock(orderId);
     await prisma.order.update({
       where: { id: orderId },
       data: { status: 'PENDING' },
     });
-    // Notify the client that no riders are nearby
+    await prisma.orderStatusHistory.create({
+      data: { orderId, status: 'PENDING', actor: 'system', note: 'No riders within search radius — returned to queue' },
+    }).catch(() => {});
+    // Notify client and admins that no riders are nearby
     try {
       const io = getIO();
-      io.to(`order:${orderId}`).emit('order:no-riders', {
+      const noRidersPayload = {
         orderId,
         reason: 'No riders are available near your pickup location right now',
         timestamp: new Date().toISOString(),
-      });
+      };
+      io.to(`order:${orderId}`).to(`user:${order.clientId}`).emit('order:no-riders', noRidersPayload);
+      io.to('role:ADMIN').emit('order:no-riders', noRidersPayload);
     } catch {}
     return;
   }
@@ -441,22 +490,27 @@ export async function autoDispatch(orderId: string): Promise<void> {
     candidates = candidates.filter((r) => !priorDeclined.has(r.userId));
     if (candidates.length === 0) {
       logger.info({ orderId, declinedCount: priorDeclined.size }, '[AutoDispatch] All candidates previously declined');
+      await releaseDispatchLock(orderId);
       await prisma.order.update({ where: { id: orderId }, data: { status: 'PENDING' } });
+      await prisma.orderStatusHistory.create({
+        data: { orderId, status: 'PENDING', actor: 'system', note: 'All candidates previously declined — returned to queue' },
+      }).catch(() => {});
       return;
     }
   }
 
   const state: DispatchState = {
     orderId,
+    clientId: order.clientId,
     rankedRiders: candidates,
     currentIndex: 0,
     timeoutHandle: null,
     resolved: false,
+    processing: false,
     offerSentAt: Date.now(),
     currentTierIndex: usedTierIndex,
     allScored: scored,
     declinedRiderIds: priorDeclined,
-
   };
   activeDispatches.set(orderId, state);
   await persistDispatchToRedis(state);
@@ -523,18 +577,26 @@ function sendOfferToNextRider(
     state.resolved = true;
     activeDispatches.delete(state.orderId);
     removeDispatchFromRedis(state.orderId);
+    releaseDispatchLock(state.orderId);
     // Revert order to PENDING for manual pickup from the job feed
     prisma.order
       .update({ where: { id: state.orderId }, data: { status: 'PENDING' } })
+      .then(() =>
+        prisma.orderStatusHistory.create({
+          data: { orderId: state.orderId, status: 'PENDING', actor: 'system', note: 'All nearby riders busy — returned to queue' },
+        }).catch(() => {})
+      )
       .catch(() => {});
-    // Notify the client that all nearby riders were tried
+    // Notify client and admins that all nearby riders were tried
     try {
       const io = getIO();
-      io.to(`order:${state.orderId}`).emit('order:no-riders', {
+      const noRidersPayload = {
         orderId: state.orderId,
         reason: 'All nearby riders are currently busy. Your order is still in the queue.',
         timestamp: new Date().toISOString(),
-      });
+      };
+      io.to(`order:${state.orderId}`).to(`user:${state.clientId}`).emit('order:no-riders', noRidersPayload);
+      io.to('role:ADMIN').emit('order:no-riders', noRidersPayload);
     } catch {}
     return;
   }
@@ -642,9 +704,16 @@ export async function handleOfferResponse(
     return { success: false, error: 'No active offer for this order' };
   }
 
+  // Synchronous mutex: prevent concurrent handleOfferResponse calls
+  if (state.processing) {
+    return { success: false, error: 'Response already being processed' };
+  }
+  state.processing = true;
+
   const currentRider = state.rankedRiders[state.currentIndex];
 
   if (!currentRider || currentRider.userId !== userId) {
+    state.processing = false;
     return { success: false, error: 'This offer is not for you' };
   }
 
@@ -657,10 +726,12 @@ export async function handleOfferResponse(
   if (response === 'accept') {
     state.resolved = true;
     activeDispatches.delete(orderId);
-    await removeDispatchFromRedis(orderId);
 
     try {
       await assignRider(orderId, currentRider.riderProfileId, userId);
+
+      // Only clean up Redis/lock AFTER successful assignment
+      await removeDispatchFromRedis(orderId);
 
       logger.info(
         {
@@ -673,17 +744,19 @@ export async function handleOfferResponse(
         '[AutoDispatch] Rider accepted — assigned successfully',
       );
 
-      // Notify other riders that this job is taken
+      // Notify other riders that this job is taken (scoped to riders only)
       try {
         const io = getIO();
-        io.emit('job:offer:taken', { orderId });
+        io.to('role:RIDER').emit('job:offer:taken', { orderId });
       } catch {}
 
+      releaseDispatchLock(orderId);
       return { success: true };
     } catch (err: any) {
       logger.error({ err, orderId, userId }, '[AutoDispatch] Assignment failed after acceptance');
       // Try next rider since assignment failed
       state.resolved = false;
+      state.processing = false;
       activeDispatches.set(orderId, state);
       state.currentIndex++;
 
@@ -715,6 +788,7 @@ export async function handleOfferResponse(
   state.declinedRiderIds.add(userId);
   await recordDeclinedRider(orderId, userId);
   state.currentIndex++;
+  state.processing = false;
   await persistDispatchToRedis(state);
 
   // Re-fetch order data for next attempt
@@ -749,6 +823,10 @@ export function cancelDispatch(orderId: string): void {
   state.resolved = true;
   activeDispatches.delete(orderId);
   removeDispatchFromRedis(orderId);
+  releaseDispatchLock(orderId);
+  // Clear the declined riders set so re-dispatch gets a fresh pool
+  const redis = getRedisClient();
+  if (redis) redis.del(`${REDIS_DECLINED_PREFIX}${orderId}`).catch(() => {});
 
   logger.info({ orderId }, '[AutoDispatch] Dispatch cancelled');
 }

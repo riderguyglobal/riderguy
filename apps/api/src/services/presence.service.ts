@@ -100,7 +100,15 @@ async function getOnlineRidersFromRedis(): Promise<RiderPresence[]> {
   const redis = getRedisClient();
   if (!redis) return [];
   try {
-    const keys = await redis.keys(`${REDIS_PRESENCE_PREFIX}*`);
+    // Use SCAN instead of KEYS to avoid blocking Redis on large keyspaces
+    const keys: string[] = [];
+    let cursor = '0';
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', `${REDIS_PRESENCE_PREFIX}*`, 'COUNT', 100);
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
+
     if (keys.length === 0) return [];
     const pipeline = redis.pipeline();
     for (const key of keys) pipeline.get(key);

@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Loader2, Check, Crosshair, Search, MapPin } from 'lucide-react';
+import { X, Loader2, Check, Crosshair, Search, MapPin, Star } from 'lucide-react';
 import { initMapCore, type MapCoreInstance } from '@/lib/map-core';
+import { createSavedAddressMarker, removeMarkers } from '@/lib/map-markers';
 import { GOOGLE_MAPS_API_KEY, DEFAULT_CENTER } from '@/lib/constants';
 import { reverseGeocode } from '@/hooks/use-autocomplete';
+import { useAuth } from '@riderguy/auth';
 import type { LocationValue } from './location-input';
+
+interface SavedAddressItem {
+  id: string;
+  label: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
 
 interface MapPickerModalProps {
   open: boolean;
@@ -33,6 +43,9 @@ export function MapPickerModal({
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string; lat: number; lng: number }>>([]);
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const { api } = useAuth();
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddressItem[]>([]);
+  const savedMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
 
   // Android back button trap
   useEffect(() => {
@@ -137,6 +150,8 @@ export function MapPickerModal({
     return () => {
       destroyed = true;
       clearTimeout(reverseTimer.current);
+      removeMarkers(savedMarkersRef.current);
+      savedMarkersRef.current = [];
       if (coreRef.current) {
         coreRef.current.destroy();
         coreRef.current = null;
@@ -147,8 +162,52 @@ export function MapPickerModal({
       setCenter(null);
       setSearchQuery('');
       setSearchResults([]);
+      setSavedAddresses([]);
     };
   }, [open, handleReverseGeocode]);
+
+  // ── Fetch saved addresses when modal opens ──
+  useEffect(() => {
+    if (!open || !api) return;
+    let cancelled = false;
+    api.get('/saved-addresses').then((res) => {
+      if (!cancelled) {
+        setSavedAddresses((res.data.data ?? []) as SavedAddressItem[]);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [open, api]);
+
+  // ── Render saved address markers on map ──
+  useEffect(() => {
+    if (!mapReady || !coreRef.current) return;
+    const { map } = coreRef.current;
+
+    // Clear old markers
+    removeMarkers(savedMarkersRef.current);
+    savedMarkersRef.current = [];
+
+    for (const addr of savedAddresses) {
+      const marker = createSavedAddressMarker(
+        map,
+        [addr.longitude, addr.latitude],
+        { label: addr.label, popup: addr.address },
+      );
+
+      // Clicking a saved address marker flies to it and sets the address
+      marker.addListener('gmp-click', () => {
+        map.panTo({ lat: addr.latitude, lng: addr.longitude });
+        map.setZoom(17);
+      });
+
+      savedMarkersRef.current.push(marker);
+    }
+
+    return () => {
+      removeMarkers(savedMarkersRef.current);
+      savedMarkersRef.current = [];
+    };
+  }, [mapReady, savedAddresses]);
 
   // Use current GPS location
   const handleGeolocate = () => {
@@ -163,7 +222,7 @@ export function MapPickerModal({
     );
   };
 
-  // Simple search using Google Places Autocomplete (new API)
+  // Search using Google Places + Ghana gazetteer in parallel
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
     clearTimeout(searchTimer.current);
@@ -175,41 +234,76 @@ export function MapPickerModal({
         const lat = center?.lat() ?? DEFAULT_CENTER[1];
         const lng = center?.lng() ?? DEFAULT_CENTER[0];
 
-        const { suggestions } = await google.maps.places.AutocompleteSuggestion
-          .fetchAutocompleteSuggestions({
-            input: q,
-            includedRegionCodes: ['GH'],
-            locationBias: { center: { lat, lng }, radius: 50000 },
-          });
-
-        // Fetch coordinates for top 5 suggestions
-        const items: Array<{ id: string; name: string; lat: number; lng: number }> = [];
-        const top5 = suggestions.filter(s => s.placePrediction).slice(0, 5);
-
-        await Promise.all(top5.map(async (s) => {
-          try {
-            const pred = s.placePrediction!;
-            const place = pred.toPlace();
-            const { place: result } = await place.fetchFields({ fields: ['location', 'formattedAddress'] });
-            if (result.location) {
-              items.push({
-                id: pred.placeId,
-                name: result.formattedAddress ?? pred.text.text,
-                lat: result.location.lat(),
-                lng: result.location.lng(),
+        // Run Google Places + backend gazetteer in parallel
+        const [googleRes, gazetteerRes] = await Promise.allSettled([
+          // ── Google Places Autocomplete ──
+          (async () => {
+            const { suggestions } = await google.maps.places.AutocompleteSuggestion
+              .fetchAutocompleteSuggestions({
+                input: q,
+                includedRegionCodes: ['GH'],
+                locationBias: { center: { lat, lng }, radius: 50000 },
               });
-            }
-          } catch { /* skip failed predictions */ }
-        }));
 
-        setSearchResults(items);
+            const items: Array<{ id: string; name: string; lat: number; lng: number }> = [];
+            const top5 = suggestions.filter(s => s.placePrediction).slice(0, 5);
+
+            await Promise.all(top5.map(async (s) => {
+              try {
+                const pred = s.placePrediction!;
+                const place = pred.toPlace();
+                const { place: result } = await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+                if (result.location) {
+                  items.push({
+                    id: pred.placeId,
+                    name: result.formattedAddress ?? pred.text.text,
+                    lat: result.location.lat(),
+                    lng: result.location.lng(),
+                  });
+                }
+              } catch { /* skip failed predictions */ }
+            }));
+            return items;
+          })(),
+
+          // ── Backend gazetteer (42K+ Ghana locations) ──
+          (async () => {
+            if (!api) return [];
+            const { data: json } = await api.get('/orders/autocomplete', {
+              params: { q, lat, lng },
+            });
+            return ((json.data ?? []) as Array<Record<string, unknown>>)
+              .filter((s) => s.source !== 'google' && s.latitude && s.longitude)
+              .slice(0, 3)
+              .map((s) => ({
+                id: s.id as string,
+                name: (s.placeName ?? s.place_name ?? s.text) as string,
+                lat: s.latitude as number,
+                lng: s.longitude as number,
+              }));
+          })(),
+        ]);
+
+        const google_ = googleRes.status === 'fulfilled' ? googleRes.value : [];
+        const gazetteer_ = gazetteerRes.status === 'fulfilled' ? gazetteerRes.value : [];
+
+        // Merge: Google first, then gazetteer (deduplicated by proximity)
+        const merged = [...google_];
+        for (const g of gazetteer_) {
+          const isDupe = merged.some(
+            (m) => Math.abs(m.lat - g.lat) < 0.001 && Math.abs(m.lng - g.lng) < 0.001,
+          );
+          if (!isDupe) merged.push(g);
+        }
+
+        setSearchResults(merged.slice(0, 8));
         setSearching(false);
       } catch {
         setSearchResults([]);
         setSearching(false);
       }
     }, 300);
-  }, []);
+  }, [api]);
 
   const handleSelectSearchResult = (result: { lat: number; lng: number }) => {
     setSearchResults([]);

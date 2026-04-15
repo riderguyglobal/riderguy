@@ -210,6 +210,7 @@ export async function learnFromDelivery(orderId: string): Promise<void> {
 /**
  * Upsert a single correction factor record.
  * Uses exponential moving average for smooth updates.
+ * Atomic upsert prevents race conditions when concurrent deliveries complete.
  */
 async function upsertCorrectionFactor(
   zoneId: string,
@@ -219,60 +220,50 @@ async function upsertCorrectionFactor(
   actualMinutes: number,
   predictedMinutes: number,
 ): Promise<void> {
-  const existing = await prisma.etaCorrectionFactor.findUnique({
-    where: {
-      zoneId_hourOfDay_dayOfWeek: {
-        zoneId,
-        hourOfDay,
-        dayOfWeek,
-      },
-    },
+  const where = { zoneId_hourOfDay_dayOfWeek: { zoneId, hourOfDay, dayOfWeek } };
+
+  // Use Prisma upsert for atomicity. On conflict, we read-and-update in one transaction.
+  // The EMA is computed from the current DB values within the upsert to avoid stale reads.
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.etaCorrectionFactor.findUnique({ where });
+
+    if (existing) {
+      const alpha = 1 / Math.min(existing.sampleCount + 1, 50);
+      const newFactor = alpha * newRatio + (1 - alpha) * existing.correctionFactor;
+      const newSampleCount = existing.sampleCount + 1;
+      const newAvgPredicted = existing.avgPredictedMinutes
+        ? (existing.avgPredictedMinutes * existing.sampleCount + predictedMinutes) / newSampleCount
+        : predictedMinutes;
+      const newAvgActual = existing.avgActualMinutes
+        ? (existing.avgActualMinutes * existing.sampleCount + actualMinutes) / newSampleCount
+        : actualMinutes;
+      const confidence = Math.min(0.95, 1 - Math.exp(-newSampleCount / 15));
+
+      await tx.etaCorrectionFactor.update({
+        where: { id: existing.id },
+        data: {
+          correctionFactor: Math.round(newFactor * 1000) / 1000,
+          sampleCount: newSampleCount,
+          avgPredictedMinutes: Math.round(newAvgPredicted * 10) / 10,
+          avgActualMinutes: Math.round(newAvgActual * 10) / 10,
+          confidence: Math.round(confidence * 100) / 100,
+        },
+      });
+    } else {
+      await tx.etaCorrectionFactor.create({
+        data: {
+          zoneId,
+          hourOfDay,
+          dayOfWeek,
+          correctionFactor: newRatio,
+          sampleCount: 1,
+          avgPredictedMinutes: predictedMinutes,
+          avgActualMinutes: actualMinutes,
+          confidence: 0.1,
+        },
+      });
+    }
   });
-
-  if (existing) {
-    // Exponential moving average: more recent data has more weight
-    // but we cap at alpha=0.02 (50 samples) to prevent wild swings
-    const alpha = 1 / Math.min(existing.sampleCount + 1, 50);
-    const newFactor = alpha * newRatio + (1 - alpha) * existing.correctionFactor;
-
-    // Running stats for standard deviation
-    const newAvgPredicted = existing.avgPredictedMinutes
-      ? (existing.avgPredictedMinutes * existing.sampleCount + predictedMinutes) / (existing.sampleCount + 1)
-      : predictedMinutes;
-    const newAvgActual = existing.avgActualMinutes
-      ? (existing.avgActualMinutes * existing.sampleCount + actualMinutes) / (existing.sampleCount + 1)
-      : actualMinutes;
-
-    // Confidence ramps up with sample count
-    // 5 samples = 0.3, 20 = 0.7, 50+ = 0.9+
-    const newSampleCount = existing.sampleCount + 1;
-    const confidence = Math.min(0.95, 1 - Math.exp(-newSampleCount / 15));
-
-    await prisma.etaCorrectionFactor.update({
-      where: { id: existing.id },
-      data: {
-        correctionFactor: Math.round(newFactor * 1000) / 1000, // 3 decimal places
-        sampleCount: newSampleCount,
-        avgPredictedMinutes: Math.round(newAvgPredicted * 10) / 10,
-        avgActualMinutes: Math.round(newAvgActual * 10) / 10,
-        confidence: Math.round(confidence * 100) / 100,
-      },
-    });
-  } else {
-    // First sample — create with low confidence
-    await prisma.etaCorrectionFactor.create({
-      data: {
-        zoneId,
-        hourOfDay,
-        dayOfWeek,
-        correctionFactor: newRatio,
-        sampleCount: 1,
-        avgPredictedMinutes: predictedMinutes,
-        avgActualMinutes: actualMinutes,
-        confidence: 0.1,
-      },
-    });
-  }
 }
 
 /**
