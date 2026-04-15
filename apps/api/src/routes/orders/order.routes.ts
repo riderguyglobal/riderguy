@@ -404,6 +404,7 @@ router.get(
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': googleApiKey,
         'X-Goog-FieldMask': fieldMask,
+        'Referer': 'https://api.myriderguy.com/',
       },
       body: JSON.stringify(body),
     });

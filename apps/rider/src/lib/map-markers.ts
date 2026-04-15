@@ -51,7 +51,7 @@ function attachInfoWindow(
   marker: google.maps.marker.AdvancedMarkerElement,
   html: string,
 ): void {
-  marker.addListener('click', () => {
+  marker.addListener('gmp-click', () => {
     if (!sharedInfoWindow) {
       sharedInfoWindow = new google.maps.InfoWindow();
     }
