@@ -8,6 +8,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
+        CORS_ORIGINS: 'https://myriderguy.com,https://rider.myriderguy.com,https://client.myriderguy.com,https://admin.myriderguy.com',
       },
       instances: 2,
       exec_mode: 'cluster',

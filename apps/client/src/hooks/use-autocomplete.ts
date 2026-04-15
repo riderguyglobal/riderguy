@@ -65,23 +65,18 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController>();
   const userLocationRef = useRef<[number, number] | null>(null);
-  // Google Places AutocompleteService + PlacesService
-  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
-  // Google session token groups autocomplete + getDetails for billing
+  // Google session token groups autocomplete + fetchFields for billing
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   // Track the last search query for recording selections
   const lastSearchQueryRef = useRef<string>('');
+  // Cache PlacePrediction objects so retrieve can call toPlace() (preserves session token)
+  const predictionsRef = useRef<Map<string, google.maps.places.PlacePrediction>>(new Map());
 
-  // Initialize Google Places services
+  // Pre-load Google Maps and init session token
   useEffect(() => {
     let cancelled = false;
     loadGoogleMaps().then(() => {
       if (cancelled) return;
-      autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-      placesServiceRef.current = new google.maps.places.PlacesService(
-        document.createElement('div'),
-      );
       sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -114,43 +109,48 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
     setLoading(true);
 
     const prox = userLocationRef.current || DEFAULT_CENTER;
-    const location = new google.maps.LatLng(prox[1], prox[0]);
 
     // Run Google Places Autocomplete + backend gazetteer in parallel
     const [googleResults, gazetteerResults] = await Promise.allSettled([
-      // ── Google Places Autocomplete (client-side) ──
-      new Promise<SearchSuggestion[]>((resolve) => {
-        if (!autocompleteServiceRef.current) { resolve([]); return; }
-        autocompleteServiceRef.current.getPlacePredictions(
-          {
-            input: q,
-            sessionToken: sessionTokenRef.current!,
-            componentRestrictions: { country: 'gh' },
-            location,
-            radius: 50000,
-            types: ['establishment', 'geocode'],
-          },
-          (predictions, status) => {
-            if (
-              ctrl.signal.aborted ||
-              status !== google.maps.places.PlacesServiceStatus.OK ||
-              !predictions
-            ) {
-              resolve([]);
-              return;
-            }
-            resolve(
-              predictions.map((p) => ({
-                id: p.place_id,
-                text: p.structured_formatting.main_text,
-                placeName: p.description,
-                placeType: p.types?.[0] ?? 'place',
-                source: 'google' as const,
-              })),
-            );
-          },
-        );
-      }),
+      // ── Google Places Autocomplete (new API) ──
+      (async (): Promise<SearchSuggestion[]> => {
+        try {
+          await loadGoogleMaps();
+          if (ctrl.signal.aborted) return [];
+          if (!sessionTokenRef.current) {
+            sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+          }
+
+          const { suggestions } = await google.maps.places.AutocompleteSuggestion
+            .fetchAutocompleteSuggestions({
+              input: q,
+              sessionToken: sessionTokenRef.current,
+              includedRegionCodes: ['GH'],
+              locationBias: { center: { lat: prox[1], lng: prox[0] }, radius: 50000 },
+            });
+
+          if (ctrl.signal.aborted) return [];
+
+          // Cache predictions for session-aware retrieval
+          predictionsRef.current.clear();
+          const mapped: SearchSuggestion[] = [];
+          for (const s of suggestions) {
+            const pred = s.placePrediction;
+            if (!pred) continue;
+            predictionsRef.current.set(pred.placeId, pred);
+            mapped.push({
+              id: pred.placeId,
+              text: pred.mainText?.text ?? pred.text.text,
+              placeName: pred.text.text,
+              placeType: pred.types?.[0] ?? 'place',
+              source: 'google' as const,
+            });
+          }
+          return mapped;
+        } catch {
+          return [];
+        }
+      })(),
 
       // ── Backend gazetteer (42K+ Ghana locations) ──
       (async (): Promise<SearchSuggestion[]> => {
@@ -209,75 +209,55 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
 
   /** Retrieve full place details for a selected suggestion */
   const retrieve = useCallback(async (suggestion: SearchSuggestion): Promise<RetrievedPlace | null> => {
-    // ── Google Places: use Place Details API for full info ──
-    if (suggestion.source === 'google' && placesServiceRef.current) {
+    // ── Google Places: use new Place API for full info ──
+    if (suggestion.source === 'google') {
       setRetrieving(true);
       try {
-        const place = await new Promise<RetrievedPlace | null>((resolve) => {
-          placesServiceRef.current!.getDetails(
-            {
-              placeId: suggestion.id,
-              sessionToken: sessionTokenRef.current!,
-              fields: [
-                'formatted_address',
-                'geometry',
-                'name',
-                'place_id',
-                'types',
-                'address_components',
-                'plus_code',
-              ],
-            },
-            (result, status) => {
-              if (
-                status !== google.maps.places.PlacesServiceStatus.OK ||
-                !result?.geometry?.location
-              ) {
-                resolve(null);
-                return;
-              }
+        await loadGoogleMaps();
 
-              const lat = result.geometry.location.lat();
-              const lng = result.geometry.location.lng();
+        // Use cached prediction's toPlace() to preserve session token for billing
+        const cachedPrediction = predictionsRef.current.get(suggestion.id);
+        const placeObj = cachedPrediction
+          ? cachedPrediction.toPlace()
+          : new google.maps.places.Place({ id: suggestion.id });
 
-              // Extract Plus Code
-              let plusCode: RetrievedPlace['plusCode'] | undefined;
-              if (result.plus_code) {
-                const globalCode = result.plus_code.global_code ?? '';
-                const compoundCode = result.plus_code.compound_code ?? '';
-                const shortCode = compoundCode
-                  ? compoundCode.split(' ')[0] ?? globalCode.slice(4)
-                  : globalCode.slice(4);
-                const city = compoundCode
-                  ? compoundCode.replace(/^\S+\s*/, '')
-                  : '';
-
-                plusCode = {
-                  full: globalCode,
-                  short: shortCode,
-                  display: shortCode,
-                  city,
-                };
-              }
-
-              resolve({
-                id: result.place_id ?? suggestion.id,
-                name: result.name ?? suggestion.text,
-                fullAddress: result.formatted_address ?? suggestion.placeName,
-                latitude: lat,
-                longitude: lng,
-                placeType: result.types?.[0] ?? 'place',
-                plusCode,
-              });
-            },
-          );
+        const { place: result } = await placeObj.fetchFields({
+          fields: ['displayName', 'formattedAddress', 'location', 'types', 'addressComponents', 'plusCode', 'id'],
         });
+
+        const lat = result.location?.lat();
+        const lng = result.location?.lng();
+        if (lat == null || lng == null) return null;
+
+        // Extract Plus Code
+        let plusCode: RetrievedPlace['plusCode'] | undefined;
+        if (result.plusCode) {
+          const globalCode = result.plusCode.globalCode ?? '';
+          const compoundCode = result.plusCode.compoundCode ?? '';
+          const shortCode = compoundCode
+            ? compoundCode.split(' ')[0] ?? globalCode.slice(4)
+            : globalCode.slice(4);
+          const city = compoundCode
+            ? compoundCode.replace(/^\S+\s*/, '')
+            : '';
+          plusCode = { full: globalCode, short: shortCode, display: shortCode, city };
+        }
+
+        const place: RetrievedPlace = {
+          id: result.id ?? suggestion.id,
+          name: result.displayName ?? suggestion.text,
+          fullAddress: result.formattedAddress ?? suggestion.placeName,
+          latitude: lat,
+          longitude: lng,
+          placeType: result.types?.[0] ?? 'place',
+          plusCode,
+        };
 
         // New session token for next search (billing: session complete)
         sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
 
         // Record selection for usage-based learning
-        if (api && lastSearchQueryRef.current && place) {
+        if (api && lastSearchQueryRef.current) {
           api.post('/orders/record-selection', {
             query: lastSearchQueryRef.current,
             suggestion: {
@@ -292,6 +272,8 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
         }
 
         return place;
+      } catch {
+        return null;
       } finally {
         setRetrieving(false);
       }
@@ -359,7 +341,10 @@ export function useAutocomplete(options: UseAutocompleteOptions = {}) {
     setResults([]);
     setOpen(false);
     abortRef.current?.abort();
-    sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    predictionsRef.current.clear();
+    if (typeof google !== 'undefined' && google.maps?.places) {
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    }
   }, []);
 
   useEffect(() => {

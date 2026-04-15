@@ -11,7 +11,6 @@
 
 import {
   MAP_ZOOM,
-  DARK_MAP_STYLES,
   ACCRA_CENTER,
 } from '@riderguy/utils';
 
@@ -58,8 +57,6 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
 
   await loader.load();
 
-  const isDark = options.style?.includes('dark') || options.style?.includes('night');
-
   const center = options.center ?? ACCRA_CENTER;
 
   const map = new google.maps.Map(options.container, {
@@ -76,7 +73,6 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
     gestureHandling: options.cooperativeGestures ? 'cooperative' : 'greedy',
     maxZoom: options.maxZoom ?? MAP_ZOOM.max,
     minZoom: options.minZoom,
-    styles: isDark ? DARK_MAP_STYLES as google.maps.MapTypeStyle[] : [],
   });
 
   // ResizeObserver
@@ -109,14 +105,11 @@ export async function initMapCore(options: MapCoreOptions): Promise<MapCoreInsta
 // ── Style Switching ─────────────────────────────────────
 
 export function switchMapStyle(
-  map: google.maps.Map,
-  newStyle: string,
+  _map: google.maps.Map,
+  _newStyle: string,
   callbacks?: { onStyleLoad?: () => void },
 ): void {
-  const isDark = newStyle.includes('dark') || newStyle.includes('night');
-  map.setOptions({
-    styles: isDark ? DARK_MAP_STYLES as google.maps.MapTypeStyle[] : [],
-  });
+  // Programmatic styles are not supported with mapId. Use Cloud-based Map Styling.
   callbacks?.onStyleLoad?.();
 }
 

@@ -44,25 +44,6 @@ export async function getGeocoder(): Promise<google.maps.Geocoder> {
 }
 
 /**
- * Get a Google Maps Places AutocompleteService instance.
- * Loads the API if not already loaded.
- */
-export async function getAutocompleteService(): Promise<google.maps.places.AutocompleteService> {
-  await loadGoogleMaps();
-  return new google.maps.places.AutocompleteService();
-}
-
-/**
- * Get a Google Maps PlacesService instance.
- * Requires a dummy div for the service (Google requirement).
- */
-export async function getPlacesService(): Promise<google.maps.places.PlacesService> {
-  await loadGoogleMaps();
-  const div = document.createElement('div');
-  return new google.maps.places.PlacesService(div);
-}
-
-/**
  * Reverse geocode coordinates to a human-readable street address
  * using the Google Maps Geocoder (client-side).
  *

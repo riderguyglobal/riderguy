@@ -163,7 +163,7 @@ export function MapPickerModal({
     );
   };
 
-  // Simple search using Google Places Autocomplete
+  // Simple search using Google Places Autocomplete (new API)
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
     clearTimeout(searchTimer.current);
@@ -171,61 +171,39 @@ export function MapPickerModal({
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
       try {
-        // Use Google Places AutocompleteService (already loaded with the map)
-        const service = new google.maps.places.AutocompleteService();
-        const prox = coreRef.current
-          ? (() => { const c = coreRef.current!.map.getCenter(); return c ? new google.maps.LatLng(c.lat(), c.lng()) : new google.maps.LatLng(DEFAULT_CENTER[1], DEFAULT_CENTER[0]); })()
-          : new google.maps.LatLng(DEFAULT_CENTER[1], DEFAULT_CENTER[0]);
+        const center = coreRef.current?.map.getCenter();
+        const lat = center?.lat() ?? DEFAULT_CENTER[1];
+        const lng = center?.lng() ?? DEFAULT_CENTER[0];
 
-        service.getPlacePredictions(
-          {
+        const { suggestions } = await google.maps.places.AutocompleteSuggestion
+          .fetchAutocompleteSuggestions({
             input: q,
-            componentRestrictions: { country: 'gh' },
-            location: prox,
-            radius: 50000,
-          },
-          (predictions, status) => {
-            if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
-              setSearchResults([]);
-              setSearching(false);
-              return;
+            includedRegionCodes: ['GH'],
+            locationBias: { center: { lat, lng }, radius: 50000 },
+          });
+
+        // Fetch coordinates for top 5 suggestions
+        const items: Array<{ id: string; name: string; lat: number; lng: number }> = [];
+        const top5 = suggestions.filter(s => s.placePrediction).slice(0, 5);
+
+        await Promise.all(top5.map(async (s) => {
+          try {
+            const pred = s.placePrediction!;
+            const place = pred.toPlace();
+            const { place: result } = await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+            if (result.location) {
+              items.push({
+                id: pred.placeId,
+                name: result.formattedAddress ?? pred.text.text,
+                lat: result.location.lat(),
+                lng: result.location.lng(),
+              });
             }
+          } catch { /* skip failed predictions */ }
+        }));
 
-            // Get coordinates for each prediction via PlacesService
-            const placesService = new google.maps.places.PlacesService(
-              coreRef.current?.map ?? document.createElement('div'),
-            );
-
-            const items: Array<{ id: string; name: string; lat: number; lng: number }> = [];
-            let pending = Math.min(predictions.length, 5);
-
-            predictions.slice(0, 5).forEach((prediction) => {
-              placesService.getDetails(
-                { placeId: prediction.place_id, fields: ['geometry', 'name', 'formatted_address'] },
-                (place, detailStatus) => {
-                  if (detailStatus === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
-                    items.push({
-                      id: prediction.place_id,
-                      name: place.formatted_address ?? prediction.description,
-                      lat: place.geometry.location.lat(),
-                      lng: place.geometry.location.lng(),
-                    });
-                  }
-                  pending--;
-                  if (pending <= 0) {
-                    setSearchResults(items);
-                    setSearching(false);
-                  }
-                },
-              );
-            });
-
-            if (predictions.length === 0) {
-              setSearchResults([]);
-              setSearching(false);
-            }
-          },
-        );
+        setSearchResults(items);
+        setSearching(false);
       } catch {
         setSearchResults([]);
         setSearching(false);
