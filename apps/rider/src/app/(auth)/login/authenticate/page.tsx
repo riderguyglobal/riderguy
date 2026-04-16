@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth, useAuthStore } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
 import {
@@ -122,7 +122,6 @@ function InlinePinEntry({
 /* ───────── Main Authenticate Page ───────── */
 export default function AuthenticatePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const {
     loginWithOtp,
     loginWithPin,
@@ -142,7 +141,7 @@ export default function AuthenticatePage() {
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const [error, setError] = useState('');
-  const [roleError, setRoleError] = useState(searchParams.get('error') === 'role');
+  const [roleError, setRoleError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pinError, setPinError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -154,6 +153,14 @@ export default function AuthenticatePage() {
   useEffect(() => {
     if (isAuthenticated && !skipRedirectRef.current) router.replace('/dashboard');
   }, [isAuthenticated, router]);
+
+  // Check for role mismatch redirect from ProtectedRoute
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error') === 'role') setRoleError(true);
+    }
+  }, []);
 
   // Cooldown timer for OTP resend
   useEffect(() => {
