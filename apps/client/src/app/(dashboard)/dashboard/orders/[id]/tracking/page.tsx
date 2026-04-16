@@ -396,6 +396,19 @@ export default function TrackingPage() {
     [order?.dropoffLongitude, order?.dropoffLatitude]
   );
 
+  const rider = (order as Record<string, unknown> | undefined)?.rider as Record<string, unknown> | undefined;
+
+  // Set initial rider coords from order data when available
+  useEffect(() => {
+    if (rider && !riderCoords) {
+      const lat = Number(rider.currentLatitude);
+      const lng = Number(rider.currentLongitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+        setRiderCoords([lng, lat]);
+      }
+    }
+  }, [rider, riderCoords]);
+
   if (isLoading || !order) {
     return (
       <div className="min-h-[100dvh] bg-surface-50 p-5 space-y-4">
@@ -413,19 +426,7 @@ export default function TrackingPage() {
   const isCancelled = order.status.startsWith('CANCELLED') || order.status === 'FAILED';
   const hasRider = !!(order as Record<string, unknown>).rider;
 
-  const rider = (order as Record<string, unknown>).rider as Record<string, unknown> | undefined;
   const deliveryPin = order.deliveryPinCode;
-
-  // Set initial rider coords from order data when available
-  useEffect(() => {
-    if (rider && !riderCoords) {
-      const lat = Number(rider.currentLatitude);
-      const lng = Number(rider.currentLongitude);
-      if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
-        setRiderCoords([lng, lat]);
-      }
-    }
-  }, [rider, riderCoords]);
 
   return (
     <div className="h-[100dvh] flex flex-col bg-surface-50">
