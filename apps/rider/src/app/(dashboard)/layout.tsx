@@ -33,7 +33,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     pathname.startsWith('/dashboard/community/profile');
 
   return (
-    <ProtectedRoute allowedRoles={[UserRole.RIDER]}>
+    <ProtectedRoute
+      allowedRoles={[UserRole.RIDER]}
+      onUnauthorised={() => {
+        window.location.replace('/login/authenticate?error=role');
+      }}
+    >
       <div className="min-h-[100dvh] bg-page flex flex-col">
         {/* Main content */}
         <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))]">

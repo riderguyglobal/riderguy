@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@riderguy/auth';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth, useAuthStore } from '@riderguy/auth';
+import { UserRole } from '@riderguy/types';
 import {
   Phone, Mail, CreditCard, ArrowLeft, Lock, Eye, EyeOff,
-  AlertCircle, Check,
+  AlertCircle, Check, ShieldAlert,
 } from 'lucide-react';
 
 type LoginMethod = 'phone' | 'email' | 'ghanacard';
@@ -121,6 +122,7 @@ function InlinePinEntry({
 /* ───────── Main Authenticate Page ───────── */
 export default function AuthenticatePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     loginWithOtp,
     loginWithPin,
@@ -129,6 +131,7 @@ export default function AuthenticatePage() {
     requestOtp,
     checkAuthMethods,
     isAuthenticated,
+    logout,
   } = useAuth();
 
   const [method, setMethod] = useState<LoginMethod>('phone');
@@ -139,15 +142,17 @@ export default function AuthenticatePage() {
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const [error, setError] = useState('');
+  const [roleError, setRoleError] = useState(searchParams.get('error') === 'role');
   const [loading, setLoading] = useState(false);
   const [pinError, setPinError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cooldownEndRef = useRef(0);
+  const skipRedirectRef = useRef(false);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/dashboard');
+    if (isAuthenticated && !skipRedirectRef.current) router.replace('/dashboard');
   }, [isAuthenticated, router]);
 
   // Cooldown timer for OTP resend
@@ -160,6 +165,23 @@ export default function AuthenticatePage() {
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [cooldown > 0]);
+
+  /** Check if the logged-in user has the RIDER role. If not, logout immediately. */
+  async function assertRiderRole(): Promise<boolean> {
+    const currentUser = useAuthStore.getState().user;
+    if (
+      currentUser &&
+      !currentUser.roles?.includes(UserRole.RIDER) &&
+      currentUser.role !== UserRole.RIDER
+    ) {
+      skipRedirectRef.current = true;
+      await logout();
+      setRoleError(true);
+      setError('');
+      return false;
+    }
+    return true;
+  }
 
   function formatPhone(raw: string): string {
     const cleaned = raw.replace(/\s/g, '');
@@ -199,8 +221,10 @@ export default function AuthenticatePage() {
   async function handleOtpComplete(code: string) {
     setLoading(true);
     setError('');
+    setRoleError(false);
     try {
       await loginWithOtp(formatPhone(phone), code);
+      if (!(await assertRiderRole())) return;
       router.replace('/dashboard');
     } catch (err: any) {
       setError(err?.response?.data?.error?.message || 'Invalid OTP. Try again.');
@@ -222,11 +246,13 @@ export default function AuthenticatePage() {
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setRoleError(false);
     if (!email.includes('@')) { setError('Enter a valid email address'); return; }
     if (!password) { setError('Enter your password'); return; }
     setLoading(true);
     try {
       await loginWithPassword(email, password);
+      if (!(await assertRiderRole())) return;
       router.replace('/dashboard');
     } catch (err: any) {
       setError(err?.response?.data?.error?.message || 'Invalid email or password.');
@@ -237,6 +263,7 @@ export default function AuthenticatePage() {
   async function handleGhanaCardSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setRoleError(false);
     if (ghanaCard.length < 10) { setError('Enter a valid Ghana Card number'); return; }
     if (!password) { setError('Enter your password'); return; }
     setLoading(true);
@@ -245,6 +272,7 @@ export default function AuthenticatePage() {
       if (result?.requiresPin) {
         setStep('pin');
       } else {
+        if (!(await assertRiderRole())) return;
         router.replace('/dashboard');
       }
     } catch (err: any) {
@@ -255,12 +283,14 @@ export default function AuthenticatePage() {
   // ---- PIN Verify ----
   async function handlePinComplete(pin: string) {
     setPinError('');
+    setRoleError(false);
     try {
       const identifier =
         method === 'phone' ? formatPhone(phone)
         : method === 'email' ? email
         : ghanaCard;
       await loginWithPin(identifier, pin);
+      if (!(await assertRiderRole())) return;
       router.replace('/dashboard');
     } catch (err: any) {
       setPinError(err?.response?.data?.error?.message || 'Invalid PIN. Try again.');
@@ -414,6 +444,21 @@ export default function AuthenticatePage() {
       {/* Header */}
       <h1 className="text-3xl font-bold text-primary tracking-tight mb-1">Welcome back, Rider</h1>
       <p className="text-muted mb-8">Log in to your account</p>
+
+      {/* Role mismatch error banner */}
+      {roleError && (
+        <div className="mb-6 p-4 rounded-2xl bg-danger-500/10 border border-danger-500/20 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-danger-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-danger-400 text-sm font-semibold mb-1">Not a rider account</p>
+              <p className="text-danger-400/80 text-xs leading-relaxed">
+                This account is registered as a customer, not a rider. Please use the customer app, or register a new rider account.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Method selector cards */}
       <div className="grid grid-cols-3 gap-2.5 mb-8">
