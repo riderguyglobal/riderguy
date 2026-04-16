@@ -86,7 +86,7 @@ export default function RecoveryPage() {
     setError('');
     try {
       const result = await verifyRecoveryOtp(formatPhone(phone), code);
-      setRecoveryToken(result.token);
+      setRecoveryToken(result.recoveryToken ?? result.token);
       setStep('reset-pin');
     } catch (err: any) {
       setError(err?.response?.data?.error?.message || 'Invalid OTP.');
@@ -140,7 +140,7 @@ export default function RecoveryPage() {
     setLoading(true);
     try {
       const result = await verifySecurityAnswer(ghanaCard, securityAnswer.trim());
-      setRecoveryToken(result.token);
+      setRecoveryToken(result.recoveryToken ?? result.token);
       setStep('reset-pin');
     } catch (err: any) {
       setError(err?.response?.data?.error?.message || 'Incorrect answer.');

@@ -38,7 +38,7 @@ export const loginWithOtpSchema = z.object({
 });
 
 export const loginWithPinSchema = z.object({
-  phone: phoneSchema,
+  identifier: z.string().min(1, 'Phone, email, or Ghana Card is required'),
   pin: pinSchema,
 });
 

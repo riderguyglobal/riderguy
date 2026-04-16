@@ -206,14 +206,14 @@ export class AuthController {
 
   /** POST /auth/login/pin */
   static async loginWithPin(req: Request, res: Response) {
-    const { phone, pin } = req.body;
+    const { identifier, pin } = req.body;
     const deviceInfo = req.headers['user-agent'] ?? undefined;
     const ipAddress =
       (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
       req.socket.remoteAddress ??
       undefined;
 
-    const result = await AuthService.loginWithPin(phone, pin, deviceInfo, ipAddress);
+    const result = await AuthService.loginWithPin(identifier, pin, deviceInfo, ipAddress);
     res.status(StatusCodes.OK).json({
       success: true,
       data: result,

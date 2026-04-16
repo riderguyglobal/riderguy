@@ -1253,10 +1253,18 @@ export class AuthService {
 
   // ---- Login with PIN ----
 
-  static async loginWithPin(phone: string, pin: string, deviceInfo?: string, ipAddress?: string) {
-    const user = await prisma.user.findUnique({ where: { phone } });
+  static async loginWithPin(identifier: string, pin: string, deviceInfo?: string, ipAddress?: string) {
+    // Resolve user by phone, email, or Ghana Card number
+    let user;
+    if (identifier.includes('@')) {
+      user = await prisma.user.findUnique({ where: { email: identifier } });
+    } else if (identifier.startsWith('GHA-')) {
+      user = await prisma.user.findUnique({ where: { ghanaCardNumber: identifier } });
+    } else {
+      user = await prisma.user.findUnique({ where: { phone: identifier } });
+    }
     if (!user || !user.pinHash) {
-      throw ApiError.unauthorized('Invalid phone number or PIN');
+      throw ApiError.unauthorized('Invalid credentials or PIN');
     }
 
     if (user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
@@ -1269,7 +1277,7 @@ export class AuthService {
     const isValid = await this.comparePassword(pin, user.pinHash);
     if (!isValid) {
       await this.recordFailedLogin(user.id);
-      throw ApiError.unauthorized('Invalid phone number or PIN');
+      throw ApiError.unauthorized('Invalid credentials or PIN');
     }
 
     // Clear failed attempts on success

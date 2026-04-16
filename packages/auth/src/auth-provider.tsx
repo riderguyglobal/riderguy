@@ -111,11 +111,11 @@ interface AuthContextValue {
   /** Request account recovery by method (phone/email/ghanacard) */
   requestRecovery: (method: string, identifier: string) => Promise<{ securityQuestion?: string }>;
   /** Verify security answer for Ghana Card recovery */
-  verifySecurityAnswer: (ghanaCard: string, answer: string) => Promise<{ token: string }>;
+  verifySecurityAnswer: (ghanaCard: string, answer: string) => Promise<{ token: string; recoveryToken: string }>;
   /** Reset PIN with recovery token */
   resetPinWithToken: (newPin: string, token: string) => Promise<void>;
   /** Verify recovery OTP (phone-based recovery) */
-  verifyRecoveryOtp: (phone: string, otp: string) => Promise<{ token: string }>;
+  verifyRecoveryOtp: (phone: string, otp: string) => Promise<{ token: string; recoveryToken: string }>;
   /** Get security question for a Ghana Card */
   getSecurityQuestion: (ghanaCard: string) => Promise<{ question: string }>;
   /** Set PIN for first-time setup (authenticated) */
@@ -229,7 +229,7 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await api.post('/auth/login/pin', { phone, pin });
+        const { data } = await api.post('/auth/login/pin', { identifier: phone, pin });
         storeLogin(
           { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
           data.data.user
@@ -493,7 +493,7 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
   );
 
   const verifySecurityAnswerAction = useCallback(
-    async (ghanaCard: string, answer: string): Promise<{ token: string }> => {
+    async (ghanaCard: string, answer: string): Promise<{ token: string; recoveryToken: string }> => {
       const { data } = await api.post('/auth/recovery/verify-security', { ghanaCard, answer });
       return data.data;
     },
@@ -508,7 +508,7 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
   );
 
   const verifyRecoveryOtpAction = useCallback(
-    async (phone: string, otp: string): Promise<{ token: string }> => {
+    async (phone: string, otp: string): Promise<{ token: string; recoveryToken: string }> => {
       const { data } = await api.post('/auth/recovery/verify-otp', { phone, otp });
       return data.data;
     },
