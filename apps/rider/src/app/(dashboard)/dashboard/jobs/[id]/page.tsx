@@ -46,7 +46,8 @@ export default function JobDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [riderPos, setRiderPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [riderPos, setRiderPos] = useState<{ lat: number; lng: number; heading: number | null; speed: number | null } | null>(null);
+  const [navEta, setNavEta] = useState<{ duration: number; distance: number } | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showFailDialog, setShowFailDialog] = useState(false);
   const [failReason, setFailReason] = useState('');
@@ -112,8 +113,8 @@ export default function JobDetailPage() {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        setRiderPos({ lat, lng });
+        const { latitude: lat, longitude: lng, heading, speed } = pos.coords;
+        setRiderPos({ lat, lng, heading: heading ?? null, speed: speed ?? null });
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 3000 }
@@ -318,7 +319,14 @@ export default function JobDetailPage() {
             <p className="text-sm font-semibold text-primary truncate">
               {pkg.icon} {pkg.label} Delivery
             </p>
-            <p className={`text-xs font-medium ${sc.color}`}>{sc.label}</p>
+            <div className="flex items-center gap-2">
+              <p className={`text-xs font-medium ${sc.color}`}>{sc.label}</p>
+              {navEta && navEta.duration > 0 && (
+                <span className="text-[10px] text-muted font-medium">
+                  ETA {navEta.duration < 60 ? '< 1 min' : `${Math.round(navEta.duration / 60)} min`}
+                </span>
+              )}
+            </div>
           </div>
           <button
             onClick={openExternalNav}
@@ -331,7 +339,7 @@ export default function JobDetailPage() {
 
       {/* Map */}
       {!isComplete && (
-        <div className="relative h-[35dvh] min-h-[200px] px-4 pt-3">
+        <div className="relative h-[45dvh] min-h-[240px]">
           <NavigationMap
             pickupLat={order.pickupLatitude}
             pickupLng={order.pickupLongitude}
@@ -339,10 +347,12 @@ export default function JobDetailPage() {
             dropoffLng={order.dropoffLongitude}
             riderLat={riderPos?.lat}
             riderLng={riderPos?.lng}
+            riderHeading={riderPos?.heading}
+            riderSpeed={riderPos?.speed}
             status={order.status}
             className="w-full h-full"
+            onEtaUpdate={setNavEta}
           />
-          <div className="absolute bottom-0 inset-x-4 h-12 bg-gradient-to-t from-page to-transparent pointer-events-none rounded-b-2xl" />
         </div>
       )}
 
