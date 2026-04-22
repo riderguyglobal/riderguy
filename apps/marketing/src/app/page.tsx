@@ -201,6 +201,68 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+
+          {/* ========================================================
+              03.5 — BRAND STORY RIBBON
+              A four-panel editorial strip using the A-series system
+              brand art. Each panel is an argument; together they
+              make the full case for RiderGuy.
+              Images are rendered full-bleed with `object-cover` on
+              a dark mat so the baked-in typography reads cleanly.
+              ======================================================== */}
+          <div className="reveal mt-20 sm:mt-24">
+            <div className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="section-marker">01 . 5 / 07 · BRAND STORY</p>
+                <h3 className="mt-3 text-2xl font-black leading-tight text-surface-900 sm:text-3xl">
+                  Four panels.{' '}
+                  <span className="accent">One promise.</span>
+                </h3>
+              </div>
+              <p className="max-w-sm text-sm text-surface-500">
+                Ghana’s delivery economy, told in four frames. Tap any
+                panel to jump to the section that tells its story.
+              </p>
+            </div>
+
+            <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+              {[
+                { src: '/images/system/A1.png', href: 'https://app.myriderguy.com/register', tag: 'Send', title: 'A smarter way to deliver.' },
+                { src: '/images/system/A2.png', href: '#how-it-works', tag: 'Trust', title: 'Your package, delivered right.' },
+                { src: '/images/system/A5.png', href: 'https://app.myriderguy.com/register', tag: 'Simple', title: 'Delivery made easy.' },
+                { src: '/images/system/A8.png', href: '#delivery-film', tag: 'Platform', title: 'Riders. Businesses. Customers.' },
+              ].map((p) => (
+                <Link
+                  key={p.src}
+                  href={p.href}
+                  className="theme-poster group relative block aspect-[4/5] overflow-hidden rounded-2xl bg-surface-950 ring-1 ring-surface-200 transition-all hover:ring-brand-500"
+                >
+                  <Image
+                    src={p.src}
+                    alt={p.title}
+                    fill
+                    sizes="(min-width: 1024px) 22vw, (min-width: 640px) 45vw, 90vw"
+                    className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                  />
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-300">
+                      {p.tag}
+                    </p>
+                    <p className="mt-1 text-sm font-bold leading-tight text-white">
+                      {p.title}
+                    </p>
+                  </div>
+                  <div className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-surface-900 opacity-0 shadow-md transition-opacity duration-300 group-hover:opacity-100">
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -274,8 +336,8 @@ export default function HomePage() {
             <div className="reveal-right lg:col-span-5">
               <div className="photo-frame aspect-[4/5]">
                 <Image
-                  src="/images/general/Confident delivery riders at RiderGuy hub.png"
-                  alt="Confident RiderGuy dispatch riders"
+                  src="/images/system/A4.png"
+                  alt="Start and grow your RiderGuy career — Ghana’s nation-on-the-move"
                   fill
                   className="object-cover"
                   sizes="(min-width: 1024px) 40vw, 100vw"
@@ -432,8 +494,8 @@ export default function HomePage() {
             <div className="relative">
               <div className="photo-frame aspect-[4/5]">
                 <Image
-                  src="/images/general/RiderGuy at dawn on open road.png"
-                  alt="RiderGuy at dawn"
+                  src="/images/system/A7.png"
+                  alt="Careers that move forward — Rookie to Legend across 7 levels"
                   fill
                   className="object-cover"
                   sizes="(min-width: 1024px) 40vw, 100vw"
@@ -566,8 +628,8 @@ export default function HomePage() {
             <div className="relative">
               <div className="photo-frame aspect-[4/5]">
                 <Image
-                  src="/images/general/Package handover in Osu's boutique.png"
-                  alt="Package handover at Osu boutique"
+                  src="/images/system/A6.png"
+                  alt="Grow smarter with RiderGuy — business logistics without the overhead"
                   fill
                   className="object-cover"
                   sizes="(min-width: 1024px) 40vw, 100vw"
