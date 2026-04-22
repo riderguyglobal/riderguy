@@ -298,6 +298,298 @@
   overflow: hidden;
 }
 
+/* ============================================================
+   THEME INFOGRAPHIC SYSTEM
+   Editorial / report-style design language for marketing site.
+   Inspired by brand theme boards (light + dark variants).
+   ============================================================ */
+
+/* --- Eyebrow category tag with separator --- */
+/*   e.g. "MARKET OPPORTUNITY | GHANA"                */
+.theme-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #15803d; /* brand-700 */
+}
+.theme-eyebrow.on-dark { color: #4ade80; }
+.theme-eyebrow::before {
+  content: '';
+  width: 28px;
+  height: 2px;
+  background: #22c55e;
+  border-radius: 2px;
+}
+.theme-eyebrow .sep {
+  width: 1px;
+  height: 11px;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+/* --- Bold display headline w/ accent line (theme hallmark) --- */
+.theme-display {
+  font-size: clamp(2rem, 4.5vw, 3.75rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  color: #0a0a0a;
+}
+.theme-display .accent { color: #15803d; }
+.theme-display.on-dark { color: #fff; }
+.theme-display.on-dark .accent { color: #4ade80; }
+
+/* --- Sub-headline with green inline emphasis --- */
+.theme-lede {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #525252;
+}
+.theme-lede em {
+  font-style: normal;
+  font-weight: 600;
+  color: #15803d;
+}
+.theme-lede.on-dark { color: #a3a3a3; }
+.theme-lede.on-dark em { color: #4ade80; }
+
+/* --- Thin-border card (editorial report card) --- */
+.theme-card {
+  position: relative;
+  background: #fff;
+  border: 1px solid #dcfce7; /* brand-100 */
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+.theme-card:hover {
+  border-color: #86efac; /* brand-300 */
+  box-shadow: 0 8px 30px rgba(34, 197, 94, 0.08);
+  transform: translateY(-3px);
+}
+.theme-card.on-dark {
+  background: #0f1410;
+  border-color: rgba(74, 222, 128, 0.18);
+}
+.theme-card.on-dark:hover {
+  border-color: rgba(74, 222, 128, 0.45);
+  box-shadow: 0 8px 30px rgba(34, 197, 94, 0.15);
+}
+
+/* --- Circular green icon badge --- */
+.theme-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  background: #15803d;
+  color: #fff;
+  flex-shrink: 0;
+}
+.theme-icon-badge.outline {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1.5px solid #22c55e;
+}
+.theme-icon-badge.lg { width: 3.75rem; height: 3.75rem; }
+.theme-icon-badge.on-dark {
+  background: #4ade80;
+  color: #052e16;
+}
+.theme-icon-badge.on-dark.outline {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+/* --- Large brand-green stat number --- */
+.theme-stat {
+  font-size: clamp(2.25rem, 4vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #15803d;
+  line-height: 1;
+}
+.theme-stat.on-dark { color: #4ade80; }
+
+.theme-stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #737373;
+  margin-top: 0.5rem;
+}
+.theme-stat-label.on-dark { color: #a3a3a3; }
+
+/* --- Country / flag horizontal stripe (Ghana) --- */
+.flag-stripe {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #171717;
+  text-transform: uppercase;
+}
+.flag-stripe::before {
+  content: '';
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  background:
+    linear-gradient(
+      to bottom,
+      #ce1126 0 33%,
+      #fcd116 33% 66%,
+      #006b3f 66% 100%
+    );
+  position: relative;
+}
+
+/* --- Bar-chart infographic (two-column comparison) --- */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  height: 140px;
+}
+.bar-chart .bar {
+  flex: 1;
+  border-radius: 0.5rem 0.5rem 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 0.5rem;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  position: relative;
+}
+.bar-chart .bar.sm { background: #bbf7d0; color: #14532d; }
+.bar-chart .bar.md { background: #4ade80; }
+.bar-chart .bar.lg { background: #15803d; }
+.bar-chart .bar-label {
+  position: absolute;
+  bottom: -1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: #737373;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --- Dark-green CTA banner strip --- */
+.theme-cta-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.theme-cta-banner::before {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%);
+  pointer-events: none;
+}
+
+/* --- Photo frame with floating data badge --- */
+.photo-frame {
+  position: relative;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+.photo-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.35) 100%);
+  pointer-events: none;
+}
+.photo-badge {
+  position: absolute;
+  z-index: 2;
+  padding: 0.75rem 1rem;
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.photo-badge .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34,197,94,0.2);
+}
+
+/* --- Section number marker (theme uses tiny "01 / 07" markers) --- */
+.section-marker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.22em;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+/* --- Subtle grid background (for editorial sections) --- */
+.grid-bg {
+  background-image:
+    linear-gradient(#f5f5f5 1px, transparent 1px),
+    linear-gradient(90deg, #f5f5f5 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-position: -1px -1px;
+}
+.grid-bg.on-dark {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+}
+
+/* --- Divider with centered dot --- */
+.dot-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #a3a3a3;
+}
+.dot-divider::before,
+.dot-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  max-width: 80px;
+  background: currentColor;
+  opacity: 0.3;
+}
+
 .img-reveal img {
   transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -419,4 +711,481 @@
   .marquee-track {
     animation: none;
   }
+
+  .hero-kenburns,
+  .hero-node {
+    animation: none !important;
+  }
 }
+
+/* ============================================================
+   HERO SLIDER — Ken-burns + pulsing network nodes
+   ============================================================ */
+
+.hero-kenburns {
+  animation: heroKenburns 12s ease-out forwards;
+  transform-origin: center;
+}
+
+@keyframes heroKenburns {
+  0% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1.08);
+  }
+}
+
+.hero-node {
+  position: absolute;
+  border-radius: 9999px;
+  background: #22c55e;
+  box-shadow:
+    0 0 0 0 rgba(34, 197, 94, 0.55),
+    0 0 14px 2px rgba(34, 197, 94, 0.55);
+  animation: heroNodePulse 2.4s ease-out infinite;
+  transform: translate(-50%, -50%);
+}
+
+.hero-node-sm {
+  width: 8px;
+  height: 8px;
+}
+
+.hero-node-md {
+  width: 11px;
+  height: 11px;
+}
+
+.hero-node-lg {
+  width: 14px;
+  height: 14px;
+  background: #16a34a;
+}
+
+@keyframes heroNodePulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(34, 197, 94, 0.7),
+      0 0 12px 2px rgba(34, 197, 94, 0.65);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  70% {
+    box-shadow:
+      0 0 0 18px rgba(34, 197, 94, 0),
+      0 0 18px 4px rgba(34, 197, 94, 0.45);
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(34, 197, 94, 0),
+      0 0 12px 2px rgba(34, 197, 94, 0.5);
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ============================================================
+   ROUTE FRAME — Decorative map-route border on the hero.
+   CSS-only positioning keeps lines pixel-aligned with the image
+   regardless of viewport size. A bike rides the three-sided route.
+   ============================================================ */
+
+.route-dash-h {
+  background-image: linear-gradient(
+    to right,
+    #22c55e 50%,
+    transparent 50%
+  );
+  background-size: 12px 2px;
+  background-repeat: repeat-x;
+  animation: routeDashMoveX 5s linear infinite;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.35);
+}
+
+.route-dash-v {
+  background-image: linear-gradient(
+    to bottom,
+    #22c55e 50%,
+    transparent 50%
+  );
+  background-size: 2px 12px;
+  background-repeat: repeat-y;
+  animation: routeDashMoveY 5s linear infinite;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.35);
+}
+
+@keyframes routeDashMoveX {
+  to {
+    background-position: 120px 0;
+  }
+}
+
+@keyframes routeDashMoveY {
+  to {
+    background-position: 0 120px;
+  }
+}
+
+/* Pulsing checkpoint along the top rail */
+.route-checkpoint {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 2px #22c55e,
+    0 0 0 5px rgba(34, 197, 94, 0.25),
+    0 2px 6px rgba(34, 197, 94, 0.35);
+  animation: checkpointPulse 2.4s ease-out infinite;
+  z-index: 2;
+}
+
+@keyframes checkpointPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px #22c55e,
+      0 0 0 5px rgba(34, 197, 94, 0.25),
+      0 0 0 9px rgba(34, 197, 94, 0);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px #22c55e,
+      0 0 0 12px rgba(34, 197, 94, 0);
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+/* Destination pin sparkles when the convoy arrives (every 12s loop) */
+.route-dest {
+  animation: destSparkle 12s ease-in-out infinite;
+}
+
+@keyframes destSparkle {
+  0%,
+  80%,
+  100% {
+    box-shadow: 0 4px 14px rgba(34, 197, 94, 0.55);
+    transform: translate(50%, -50%) scale(1);
+  }
+  85% {
+    box-shadow:
+      0 4px 14px rgba(34, 197, 94, 0.55),
+      0 0 0 12px rgba(34, 197, 94, 0.25),
+      0 0 30px rgba(34, 197, 94, 0.6);
+    transform: translate(50%, -50%) scale(1.2);
+  }
+  90% {
+    box-shadow:
+      0 4px 14px rgba(34, 197, 94, 0.55),
+      0 0 0 20px rgba(34, 197, 94, 0);
+    transform: translate(50%, -50%) scale(1.05);
+  }
+}
+
+/* Traveling convoy — removed; replaced with the walker/rider scene below. */
+
+/* ================================================================
+   STORY SCENE — Walkers on the side rails + riders on the top
+   ================================================================ */
+
+/* Courier walking UP the LEFT rail (bottom → top) carrying a parcel */
+.story-walker--left {
+  top: 100%;
+  transform: translate(-50%, -100%);
+  animation: walkerLeftUp 9s ease-in-out infinite;
+}
+
+@keyframes walkerLeftUp {
+  0% {
+    top: 100%;
+    opacity: 0;
+    transform: translate(-50%, -100%);
+  }
+  6% {
+    opacity: 1;
+  }
+  40% {
+    top: 20%;
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+  /* hand-off pause at the top */
+  50% {
+    top: 12px;
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+  /* head back down (now empty-handed, faded) */
+  60% {
+    top: 12px;
+    opacity: 0.8;
+    transform: translate(-50%, -100%) scaleX(-1);
+  }
+  95% {
+    top: 100%;
+    opacity: 0;
+    transform: translate(-50%, -100%) scaleX(-1);
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+    transform: translate(-50%, -100%);
+  }
+}
+
+/* Customer walking DOWN the RIGHT rail (top → middle) to receive parcel */
+.story-walker--right {
+  top: 12px;
+  transform: translate(50%, -50%);
+  animation: walkerRightDown 11s ease-in-out infinite;
+  animation-delay: 2.5s;
+}
+
+@keyframes walkerRightDown {
+  0% {
+    top: 12px;
+    opacity: 0;
+    transform: translate(50%, -50%);
+  }
+  8% {
+    opacity: 1;
+  }
+  50% {
+    top: 45%;
+    opacity: 1;
+    transform: translate(50%, -50%);
+  }
+  /* pause to receive */
+  60% {
+    top: 50%;
+    opacity: 1;
+    transform: translate(50%, -50%) scale(1.1);
+  }
+  75% {
+    top: 45%;
+    opacity: 1;
+    transform: translate(50%, -50%);
+  }
+  100% {
+    top: 12px;
+    opacity: 0;
+    transform: translate(50%, -50%);
+  }
+}
+
+/* Top-rail rider — green, carrying parcel, LEFT → RIGHT */
+.story-bike--right {
+  left: 18px;
+  transform: translate(-50%, -50%);
+  animation: bikeLR 11s cubic-bezier(0.55, 0.05, 0.35, 1) infinite;
+  animation-delay: 4.5s;
+}
+
+@keyframes bikeLR {
+  0% {
+    left: 18px;
+    opacity: 0;
+    transform: translate(-50%, -50%);
+  }
+  8% {
+    opacity: 1;
+  }
+  /* subtle road bob */
+  20% {
+    transform: translate(-50%, -58%);
+  }
+  40% {
+    transform: translate(-50%, -42%);
+  }
+  60% {
+    transform: translate(-50%, -58%);
+  }
+  80% {
+    transform: translate(-50%, -50%);
+  }
+  92% {
+    opacity: 1;
+    left: calc(100% - 18px);
+  }
+  100% {
+    opacity: 0;
+    left: calc(100% - 18px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Top-rail rider — amber, empty bike returning, RIGHT → LEFT */
+.story-bike--left {
+  left: calc(100% - 18px);
+  transform: translate(-50%, -50%);
+  animation: bikeRL 14s cubic-bezier(0.55, 0.05, 0.35, 1) infinite;
+  animation-delay: 1s;
+}
+
+@keyframes bikeRL {
+  0% {
+    left: calc(100% - 18px);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-50%, -56%);
+  }
+  50% {
+    transform: translate(-50%, -44%);
+  }
+  75% {
+    transform: translate(-50%, -56%);
+  }
+  92% {
+    opacity: 1;
+    left: 18px;
+  }
+  100% {
+    opacity: 0;
+    left: 18px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Stickman leg swing — walking */
+.stickman-leg-a {
+  animation: legSwingA 0.45s ease-in-out infinite alternate;
+}
+.stickman-leg-b {
+  animation: legSwingB 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes legSwingA {
+  from {
+    transform: rotate(-18deg);
+  }
+  to {
+    transform: rotate(18deg);
+  }
+}
+
+@keyframes legSwingB {
+  from {
+    transform: rotate(18deg);
+  }
+  to {
+    transform: rotate(-18deg);
+  }
+}
+
+/* Stickman arms — one swings while the other holds the parcel */
+.stickman-arm-a {
+  animation: armSwingA 0.45s ease-in-out infinite alternate;
+}
+.stickman-arm-b {
+  animation: armSwingB 0.45s ease-in-out infinite alternate;
+}
+.stickman-arm-wave {
+  animation: armWave 0.9s ease-in-out infinite;
+  transform-origin: left;
+}
+
+@keyframes armSwingA {
+  from {
+    transform: rotate(15deg);
+  }
+  to {
+    transform: rotate(-25deg);
+  }
+}
+@keyframes armSwingB {
+  from {
+    transform: rotate(-25deg);
+  }
+  to {
+    transform: rotate(15deg);
+  }
+}
+@keyframes armWave {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(25deg);
+  }
+}
+
+/* Bike wheels rotate while the rider is moving */
+.rider-wheel {
+  animation: wheelSpin 0.35s linear infinite;
+}
+@keyframes wheelSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Rider leg pumping */
+.rider-leg {
+  animation: riderPedal 0.4s ease-in-out infinite alternate;
+}
+@keyframes riderPedal {
+  from {
+    transform: rotate(-12deg);
+  }
+  to {
+    transform: rotate(18deg);
+  }
+}
+
+/* Sparkle burst at the home destination every ~11s */
+.story-sparkle {
+  opacity: 0;
+  transform: translate(50%, -50%) scale(0.6);
+  animation: sparkleBurst 11s ease-in-out infinite;
+  animation-delay: 8.5s;
+}
+
+@keyframes sparkleBurst {
+  0%,
+  88%,
+  100% {
+    opacity: 0;
+    transform: translate(50%, -50%) scale(0.6);
+  }
+  90% {
+    opacity: 1;
+    transform: translate(50%, -50%) scale(1.3);
+  }
+  94% {
+    opacity: 0.8;
+    transform: translate(50%, -50%) scale(1.1);
+  }
+  98% {
+    opacity: 0;
+    transform: translate(50%, -50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-dash-h,
+  .route-dash-v,
+  .route-checkpoint,
+  .route-dest,
+  .story-walker--left,
+  .story-walker--right,
+  .story-bike--left,
+  .story-bike--right,
+  .story-sparkle,
+  .stickman-leg-a,
+  .stickman-leg-b,
+  .stickman-arm-a,
+  .stickman-arm-b,
+  .stickman-arm-wave,
+  .rider-wheel,
+  .rider-leg {
+    animation: none !important;
+  }
+}
+

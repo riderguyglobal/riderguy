@@ -70,25 +70,40 @@ export default function ContactPage() {
 
   return (
     <ScrollRevealProvider>
-      <section className="px-5 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
-        <div className="mx-auto max-w-5xl">
-          <div className="reveal flex flex-col items-center gap-8 lg:flex-row lg:items-start lg:gap-16">
+      <section className="relative overflow-hidden px-5 pb-16 pt-28 sm:px-8 sm:pb-20 sm:pt-36">
+        <div className="grid-bg pointer-events-none absolute inset-0 opacity-60" />
+        <div className="orb orb-green absolute -top-32 right-0 h-[400px] w-[400px] opacity-60" />
+
+        <div className="relative mx-auto max-w-5xl">
+          <div className="reveal flex flex-col items-center gap-10 lg:flex-row lg:items-start lg:gap-16">
             {/* Left — Info */}
-            <div className="flex flex-col items-center gap-5 lg:w-2/5 lg:items-start">
-              <Image
-                src="/images/homepage/Image 3.jpeg"
-                alt="Contact RiderGuy"
-                width={400}
-                height={300}
-                className="h-40 w-full rounded-2xl object-cover shadow-lg sm:h-56 sm:w-auto lg:h-64"
-              />
+            <div className="flex flex-col items-center gap-6 lg:w-2/5 lg:items-start">
+              <div className="photo-frame aspect-[4/3] w-full max-w-sm">
+                <Image
+                  src="/images/homepage/Image 3.jpeg"
+                  alt="Contact RiderGuy"
+                  fill
+                  sizes="(min-width: 1024px) 40vw, 100vw"
+                  className="object-cover"
+                />
+                <div className="photo-badge bottom-4 left-4">
+                  <span className="flag-stripe !border-0 !bg-transparent !p-0 text-brand-700">
+                    Accra, Ghana
+                  </span>
+                </div>
+              </div>
               <div className="text-center lg:text-left">
-                <h1 className="text-2xl font-bold tracking-tight text-surface-900 sm:text-3xl lg:text-4xl">
-                  Get in <span className="text-gradient">Touch</span>
+                <span className="theme-eyebrow">
+                  Contact
+                  <span className="sep" />
+                  24h Response
+                </span>
+                <h1 className="theme-display mt-4">
+                  Get in <span className="accent">touch.</span>
                 </h1>
-                <p className="mt-3 text-[0.95rem] leading-relaxed text-surface-500 sm:mt-4 sm:text-base">
+                <p className="theme-lede mt-4">
                   Have a question, partnership proposal, or just want to say hello?
-                  Fill out the form and we&apos;ll get back to you within 24 hours.
+                  Fill out the form and we&apos;ll <em>get back within 24 hours</em>.
                 </p>
               </div>
             </div>

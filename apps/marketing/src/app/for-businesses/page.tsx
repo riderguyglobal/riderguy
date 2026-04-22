@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -8,15 +8,15 @@ import {
   Truck,
   ShieldCheck,
   Headphones,
-  Package,
   ChevronRight,
   CheckCircle2,
-  Zap,
   Globe,
-  FileSpreadsheet,
-  Users,
-  Clock,
   ArrowRight,
+  Target,
+  Utensils,
+  ShoppingCart,
+  Pill,
+  Store,
 } from 'lucide-react';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
 import { Counter } from '@/components/counter';
@@ -30,275 +30,407 @@ export const metadata: Metadata = {
 const FEATURES = [
   { icon: Truck, title: 'On-Demand Fleet', desc: 'Access hundreds of verified riders without owning a single vehicle. Scale up or down instantly.' },
   { icon: BarChart3, title: 'Analytics Dashboard', desc: 'Track delivery volume, average times, costs, and rider performance in real-time.' },
-  { icon: Code2, title: 'API Integration', desc: 'Plug RiderGuy into your existing systems with our REST API. Automate order dispatch, tracking, and webhooks.' },
-  { icon: Globe, title: 'Multi-City Coverage', desc: 'Deliver across Accra, Kumasi, Tamale, Cape Coast, Takoradi, and Tema, with more cities launching.' },
+  { icon: Code2, title: 'API Integration', desc: 'Plug RiderGuy into your systems with our REST API. Automate dispatch, tracking, and webhooks.' },
+  { icon: Globe, title: 'Multi-City Coverage', desc: 'Deliver across Accra, Kumasi, Tamale, Cape Coast, Takoradi, and Tema — with more launching.' },
   { icon: ShieldCheck, title: 'Insured Deliveries', desc: 'Every delivery is backed by our rider insurance and package protection policy.' },
   { icon: Headphones, title: 'Dedicated Support', desc: 'Get a dedicated account manager and priority support line for your business.' },
 ];
 
 const INDUSTRIES = [
-  { title: 'Restaurants & Food', desc: 'Hot food delivered fast. Integration with your POS for seamless order-to-delivery flow.' },
-  { title: 'E-Commerce', desc: 'Same-day delivery for online orders. Automated dispatch from your Shopify, WooCommerce, or custom store.' },
-  { title: 'Pharmacies', desc: 'Urgent medication delivery with care. Riders trained for sensitive package handling.' },
-  { title: 'Retail & Grocery', desc: 'From boutique to supermarket. Give your customers the delivery speed they expect.' },
+  { icon: Utensils, title: 'Restaurants & Food', desc: 'Hot food delivered fast. Integration with your POS for seamless order-to-delivery flow.' },
+  { icon: ShoppingCart, title: 'E-Commerce', desc: 'Same-day delivery for online orders. Works with Shopify, WooCommerce, or custom stores.' },
+  { icon: Pill, title: 'Pharmacies', desc: 'Urgent medication delivery with care. Riders trained for sensitive package handling.' },
+  { icon: Store, title: 'Retail & Grocery', desc: 'From boutique to supermarket. Give customers the delivery speed they expect.' },
 ];
 
 const STEPS = [
-  { num: '01', title: 'Contact Us', desc: 'Reach out through our contact form or call us. We will understand your delivery needs.' },
-  { num: '02', title: 'Onboard', desc: 'We set up your business account, configure pricing, and integrate with your systems.' },
+  { num: '01', title: 'Contact Us', desc: 'Reach out through our contact form or call us. We understand your delivery needs.' },
+  { num: '02', title: 'Onboard', desc: 'We set up your account, configure pricing, and integrate with your systems.' },
   { num: '03', title: 'Start Dispatching', desc: 'Place delivery requests via dashboard or API. We handle the rest.' },
-  { num: '04', title: 'Scale', desc: 'As your business grows, we grow with you. Volume pricing, analytics, and dedicated support.' },
+  { num: '04', title: 'Scale', desc: 'As your business grows, we grow with you. Volume pricing, analytics, dedicated support.' },
+];
+
+const BUSINESS_STATS = [
+  { value: 15, suffix: 'min', label: 'Avg pickup time' },
+  { value: 99, suffix: '%', label: 'Delivery success' },
+  { value: 0, suffix: '', label: 'Fleet overhead' },
+  { value: 24, suffix: '/7', label: 'Dispatch live' },
 ];
 
 export default function ForBusinessesPage() {
   return (
     <ScrollRevealProvider>
-      {/* ================================================================
-          HERO
-          ================================================================ */}
-      <section className="relative min-h-[70dvh] overflow-hidden bg-surface-950 sm:min-h-[85vh]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(34,197,94,0.1),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_80%,rgba(34,197,94,0.08),transparent_60%)]" />
-        <div className="noise absolute inset-0" />
+      {/* ============================================================
+          HERO — Editorial theme
+          ============================================================ */}
+      <section className="relative overflow-hidden bg-white pb-16 pt-28 sm:pb-24 sm:pt-32 lg:pt-40">
+        <div className="grid-bg pointer-events-none absolute inset-0 opacity-60" />
+        <div className="orb orb-green absolute -top-32 right-0 h-[500px] w-[500px] opacity-70" />
 
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-10 px-5 pb-16 pt-28 sm:gap-14 sm:px-8 sm:pb-20 sm:pt-36 lg:flex-row lg:gap-20 lg:px-10 lg:pb-24 lg:pt-44">
-          <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="hero-badge-in mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400 sm:mb-7 sm:text-sm">
-              <Building2 className="h-4 w-4" />
-              Built for business delivery
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-12 lg:gap-16 lg:px-10">
+          <div className="lg:col-span-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flag-stripe">Ghana</span>
+              <span className="theme-eyebrow">
+                For Businesses
+                <span className="sep" />
+                B2B Delivery
+              </span>
             </div>
 
-            <h1 className="hero-text-in text-hero text-white">
-              Delivery{' '}
-              <span className="text-gradient-light">infrastructure</span>{' '}
-              for your business
+            <h1 className="theme-display mt-6">
+              Delivery infrastructure,{' '}
+              <span className="accent">on demand.</span>
             </h1>
 
-            <p className="hero-text-in-d1 mt-5 max-w-lg text-base leading-relaxed text-surface-400 sm:mt-7 sm:text-lg">
-              Whether you run a restaurant, an online store, a pharmacy, or a retail shop,
-              RiderGuy gives you fast, reliable delivery your customers will love. No fleet required.
+            <p className="theme-lede mt-6 max-w-xl">
+              Whether you run a restaurant, an online store, a pharmacy, or a
+              retail chain — RiderGuy gives you <em>fast, reliable delivery</em>{' '}
+              your customers will love. <em>No fleet required.</em>
             </p>
 
-            <div className="hero-text-in-d2 mt-7 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 href="/contact"
-                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-7 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600 sm:px-9"
+                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-700 px-7 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-700/25 transition-all hover:bg-brand-800"
               >
                 Contact Sales
                 <ChevronRight className="h-4 w-4" />
               </Link>
               <Link
                 href="#features"
-                className="inline-flex h-12 items-center rounded-full border border-surface-700 px-7 text-[0.9rem] font-semibold text-surface-300 transition-colors hover:bg-surface-800 hover:text-white sm:px-9"
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-surface-300 bg-white px-7 text-[0.9rem] font-semibold text-surface-900 transition-all hover:border-brand-500 hover:text-brand-700"
               >
                 See Features
               </Link>
             </div>
 
-            {/* Quick stats */}
-            <div className="hero-text-in-d3 mt-8 flex flex-wrap items-center gap-4 text-sm sm:mt-12 sm:flex-nowrap sm:gap-8">
-              <div className="text-center lg:text-left">
-                <p className="text-lg font-bold text-white sm:text-2xl">Reliable</p>
-                <p className="text-xs text-surface-500">On-time delivery</p>
+            <div className="mt-10 grid grid-cols-3 gap-6 border-t border-surface-200 pt-7">
+              <div>
+                <p className="theme-stat">API</p>
+                <p className="theme-stat-label">Ready</p>
               </div>
-              <div className="hidden h-8 w-px bg-surface-800 sm:block" />
-              <div className="text-center lg:text-left">
-                <p className="text-lg font-bold text-white sm:text-2xl">Same-day</p>
-                <p className="text-xs text-surface-500">Delivery available</p>
+              <div>
+                <p className="theme-stat">0</p>
+                <p className="theme-stat-label">Fleet overhead</p>
               </div>
-              <div className="hidden h-8 w-px bg-surface-800 sm:block" />
-              <div className="hidden text-center sm:block lg:text-left">
-                <p className="text-lg font-bold text-white sm:text-2xl">Growing</p>
-                <p className="text-xs text-surface-500">Cities across Ghana</p>
+              <div>
+                <p className="theme-stat">Same-day</p>
+                <p className="theme-stat-label">Guaranteed</p>
               </div>
             </div>
           </div>
 
-          {/* Right — Image */}
-          <div className="hero-text-in-d1 relative flex-1">
-            <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
-              <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 blur-3xl" />
-              <Image
-                src="/images/general/Package handover in Osu's boutique.png"
-                alt="Business delivery handover"
-                width={600}
-                height={450}
-                className="relative z-10 w-full rounded-3xl object-cover shadow-2xl"
-                priority
-              />
+          <div className="lg:col-span-6">
+            <div className="relative">
+              <div className="photo-frame aspect-[4/5]">
+                <Image
+                  src="/images/general/Package handover in Osu's boutique.png"
+                  alt="Business delivery handover"
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  className="object-cover"
+                />
+                <div className="photo-badge left-4 top-4 sm:left-5 sm:top-5">
+                  <Building2 className="h-3.5 w-3.5 text-brand-600" />
+                  <span className="text-xs font-semibold text-surface-900">
+                    Business ready
+                  </span>
+                </div>
+                <div className="photo-badge bottom-4 right-4 !rounded-2xl !px-5 !py-3 sm:bottom-5 sm:right-5">
+                  <div>
+                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
+                      Integrations
+                    </p>
+                    <p className="text-lg font-extrabold leading-none text-brand-700">
+                      API · Webhooks
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="absolute -bottom-6 -left-4 hidden w-60 rounded-2xl border border-surface-200 bg-white p-4 shadow-xl sm:block lg:-left-8">
+                <div className="flex items-center gap-3">
+                  <div className="theme-icon-badge !h-10 !w-10">
+                    <BarChart3 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-widest text-surface-500">
+                      This week
+                    </p>
+                    <p className="text-base font-bold text-surface-900">+24% orders</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-end gap-1.5">
+                  {[40, 55, 35, 70, 65, 85, 95].map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 rounded-sm bg-brand-500"
+                      style={{ height: `${h * 0.3}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================================================================
+      {/* ============================================================
+          BUSINESS STATS STRIP
+          ============================================================ */}
+      <section className="border-y border-surface-200 bg-surface-50 py-10 sm:py-14">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-5 sm:px-8 lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-surface-200 lg:px-10">
+          {BUSINESS_STATS.map((s) => (
+            <div key={s.label} className="text-center lg:px-8">
+              <p className="theme-stat">
+                <Counter target={s.value} suffix={s.suffix} />
+              </p>
+              <p className="theme-stat-label">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ============================================================
           HOW IT WORKS
-          ================================================================ */}
-      <section className="bg-white py-20 sm:py-28 lg:py-36">
+          ============================================================ */}
+      <section className="bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-          <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
-              How It Works
-            </span>
-            <h2 className="text-section mt-4 text-surface-900">
-              Get started in 4 steps
-            </h2>
+          <div className="reveal flex flex-col items-start gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="section-marker">01 / 05 · HOW IT WORKS</p>
+              <h2 className="theme-display mt-3">
+                Get started in{' '}
+                <span className="accent">four steps.</span>
+              </h2>
+            </div>
+            <p className="theme-lede max-w-sm">
+              From first call to first delivery — typically <em>under a week</em>.
+            </p>
           </div>
 
-          <div className="stagger mt-14 grid gap-8 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="stagger mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step) => (
-              <div key={step.num} className="group relative">
-                <div className="text-[3.5rem] font-bold leading-none text-brand-100 transition-colors group-hover:text-brand-200 sm:text-[5.5rem]">
-                  {step.num}
+              <div key={step.num} className="theme-card !p-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-brand-700">
+                    Step {step.num}
+                  </span>
+                  <div className="theme-icon-badge !h-9 !w-9 text-xs">
+                    {step.num}
+                  </div>
                 </div>
-                <h3 className="mt-1 text-lg font-bold text-surface-900 sm:mt-2 sm:text-xl">{step.title}</h3>
-                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{step.desc}</p>
+                <h3 className="mt-6 text-base font-bold text-surface-900">{step.title}</h3>
+                <p className="mt-2 text-[0.85rem] leading-relaxed text-surface-500">
+                  {step.desc}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================================================================
+      {/* ============================================================
           FEATURES
-          ================================================================ */}
-      <section id="features" className="bg-surface-50 py-20 sm:py-28 lg:py-36">
+          ============================================================ */}
+      <section id="features" className="bg-surface-50 py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-          <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+          <div className="reveal mx-auto max-w-3xl text-center">
+            <span className="theme-eyebrow justify-center">
               Features
+              <span className="sep" />
+              Everything Included
             </span>
-            <h2 className="text-section mt-4 text-surface-900">
-              Everything your business needs
+            <h2 className="theme-display mt-4">
+              Everything your business{' '}
+              <span className="accent">needs.</span>
             </h2>
-            <p className="mt-4 text-base text-surface-500 sm:text-[1.05rem]">
-              From a single delivery to thousands a day. We scale with you.
+            <p className="theme-lede mt-5">
+              From a single delivery to thousands a day — <em>we scale with you</em>.
             </p>
           </div>
 
-          <div className="stagger mt-14 grid gap-6 sm:mt-16 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="card-lift rounded-2xl border border-surface-100 bg-white p-5 sm:p-8"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
-                  <f.icon className="h-6 w-6 text-brand-600" />
+              <div key={f.title} className="theme-card !p-7">
+                <div className="theme-icon-badge outline !h-11 !w-11">
+                  <f.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-5 text-lg font-bold text-surface-900">{f.title}</h3>
-                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{f.desc}</p>
+                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">
+                  {f.desc}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================================================================
-          WHY RIDERGUY FOR BUSINESS
-          ================================================================ */}
-      <section className="relative overflow-hidden bg-white py-20 sm:py-28 lg:py-36">
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-14 px-5 sm:px-8 lg:flex-row lg:gap-20 lg:px-10">
-          <div className="reveal-left flex-1 text-center lg:text-left">
-            <span className="inline-block rounded-full bg-surface-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-surface-600">
-              Why RiderGuy
-            </span>
-            <h2 className="text-section mt-4 text-surface-900">
+      {/* ============================================================
+          WHY RIDERGUY (split + checklist)
+          ============================================================ */}
+      <section className="bg-white py-20 sm:py-28">
+        <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-12 lg:gap-16 lg:px-10">
+          <div className="reveal-left lg:col-span-6">
+            <p className="section-marker">02 / 05 · WHY RIDERGUY</p>
+            <h2 className="theme-display mt-3">
               Focus on your business.{' '}
-              <span className="text-gradient">We handle delivery.</span>
+              <span className="accent">We handle delivery.</span>
             </h2>
-            <p className="mt-6 text-base leading-relaxed text-surface-500 sm:text-[1.05rem]">
-              Stop worrying about late deliveries, missing packages, and unreliable riders.
-              RiderGuy gives you the delivery infrastructure of a logistics company, without
-              the overhead.
+            <p className="theme-lede mt-5 max-w-xl">
+              Stop worrying about late deliveries, missing packages, and unreliable
+              riders. RiderGuy gives you the <em>logistics of a dedicated delivery
+              company</em>, without the overhead.
             </p>
-            <ul className="mt-6 flex flex-col gap-3 text-left">
+
+            <ul className="mt-8 grid gap-3 sm:grid-cols-2">
               {[
-                'No fleet costs: pay per delivery only',
-                'API integration for seamless order flow',
+                'No fleet costs — pay per delivery',
+                'API integration for order flow',
                 'Real-time fleet tracking dashboard',
-                'Volume pricing from your first delivery',
+                'Volume pricing from day one',
                 'Dedicated account manager',
-                'Insured deliveries for peace of mind',
+                'Insured deliveries',
               ].map((item) => (
-                <li key={item} className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-500" />
-                  <span className="text-[0.9rem] text-surface-600">{item}</span>
+                <li
+                  key={item}
+                  className="flex items-start gap-3 rounded-xl border border-surface-100 bg-surface-50/50 p-4"
+                >
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-600" />
+                  <span className="text-[0.85rem] text-surface-700">{item}</span>
                 </li>
               ))}
             </ul>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+
+            <div className="mt-8">
               <Link
                 href="/contact"
-                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-surface-950 px-8 text-[0.9rem] font-semibold text-white transition-all hover:bg-surface-800"
+                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-surface-950 px-7 text-[0.9rem] font-semibold text-white transition-all hover:bg-surface-800"
               >
-                Talk to Sales
-                <ArrowRight className="h-4 w-4" />
+                Talk to Sales <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
 
-          <div className="reveal-right flex-1">
-            <div className="img-reveal relative overflow-hidden rounded-[2rem]">
-              <Image
-                src="/images/homepage/Image 2.jpeg"
-                alt="RiderGuy business delivery in action"
-                width={640}
-                height={480}
-                className="w-full object-cover shadow-2xl"
-              />
+          <div className="reveal-right lg:col-span-6">
+            <div className="relative">
+              <div className="photo-frame aspect-[4/5]">
+                <Image
+                  src="/images/homepage/Image 2.jpeg"
+                  alt="RiderGuy business delivery in action"
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 40vw, 100vw"
+                />
+                <div className="photo-badge bottom-4 left-4 !rounded-2xl !px-4 !py-3 sm:bottom-5 sm:left-5">
+                  <div>
+                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
+                      Coverage
+                    </p>
+                    <p className="text-base font-extrabold leading-none text-brand-700">
+                      6+ Cities · Growing
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================================================================
-          INDUSTRY SOLUTIONS
-          ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-36">
-        <div className="noise absolute inset-0" />
+      {/* ============================================================
+          INDUSTRIES (dark theme cards)
+          ============================================================ */}
+      <section className="relative overflow-hidden bg-surface-950 py-20 text-white sm:py-28">
+        <div className="grid-bg on-dark absolute inset-0 opacity-60" />
         <div className="orb orb-green left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 opacity-40" />
 
         <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-          <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="inline-block rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-400">
-              Industries
-            </span>
-            <h2 className="text-section mt-4 text-white">
-              Built for your industry
-            </h2>
-            <p className="mt-4 text-base text-surface-400 sm:text-[1.05rem]">
-              Whatever you sell, we deliver.
+          <div className="reveal flex flex-col items-start gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="section-marker">03 / 05 · INDUSTRIES</p>
+              <h2 className="theme-display on-dark mt-3">
+                Built for{' '}
+                <span className="accent">your industry.</span>
+              </h2>
+            </div>
+            <p className="theme-lede on-dark max-w-sm">
+              Whatever you sell, <em>we deliver</em>.
             </p>
           </div>
 
-          <div className="stagger mt-14 grid gap-5 sm:mt-16 sm:grid-cols-2">
+          <div className="stagger mt-14 grid gap-5 sm:grid-cols-2">
             {INDUSTRIES.map((ind) => (
-              <div
-                key={ind.title}
-                className="group rounded-2xl border border-surface-800 bg-surface-900/50 p-5 backdrop-blur-sm transition-all hover:border-brand-500/30 hover:bg-surface-900/80 sm:p-8"
-              >
-                <h3 className="text-lg font-bold text-white">{ind.title}</h3>
-                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-400">{ind.desc}</p>
+              <div key={ind.title} className="theme-card on-dark !p-7">
+                <div className="flex items-start gap-5">
+                  <div className="theme-icon-badge on-dark outline !h-12 !w-12 flex-shrink-0">
+                    <ind.icon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{ind.title}</h3>
+                    <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-400">
+                      {ind.desc}
+                    </p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================================================================
+      {/* ============================================================
           API HIGHLIGHT
-          ================================================================ */}
-      <section className="bg-white py-20 sm:py-28 lg:py-36">
+          ============================================================ */}
+      <section className="bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-          <div className="reveal mx-auto flex max-w-4xl flex-col items-center gap-10 lg:flex-row lg:gap-16">
-            {/* Code preview */}
-            <div className="flex-1">
-              <div className="overflow-hidden rounded-2xl bg-surface-950 shadow-2xl">
+          <div className="reveal grid gap-10 lg:grid-cols-12 lg:gap-16">
+            <div className="lg:col-span-6 lg:order-2">
+              <p className="section-marker">04 / 05 · DEVELOPER API</p>
+              <h2 className="theme-display mt-3">
+                Integrate in minutes,{' '}
+                <span className="accent">not weeks.</span>
+              </h2>
+              <p className="theme-lede mt-5 max-w-xl">
+                Our REST API lets you create deliveries, track riders in real-time,
+                receive webhook notifications, and manage your delivery fleet —{' '}
+                <em>all programmatically</em>.
+              </p>
+
+              <ul className="mt-6 flex flex-col gap-2.5">
+                {[
+                  'RESTful endpoints with webhooks',
+                  'SDKs for Node.js, Python, PHP',
+                  'Sandbox mode for testing',
+                  'Comprehensive docs & support',
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2.5 text-sm text-surface-700">
+                    <div className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8">
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
+                >
+                  Request API access
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="lg:col-span-6 lg:order-1">
+              <div className="overflow-hidden rounded-2xl border border-surface-200 bg-surface-950 shadow-xl">
                 <div className="flex items-center gap-2 border-b border-surface-800 px-5 py-3">
                   <span className="h-3 w-3 rounded-full bg-red-400" />
                   <span className="h-3 w-3 rounded-full bg-amber-400" />
                   <span className="h-3 w-3 rounded-full bg-green-400" />
-                  <span className="ml-3 text-xs text-surface-500">api-example.ts</span>
+                  <span className="ml-3 text-xs text-surface-400">create-delivery.ts</span>
                 </div>
                 <pre className="overflow-x-auto p-5 text-[0.8rem] leading-relaxed sm:text-sm">
                   <code className="text-surface-300">
@@ -325,62 +457,33 @@ delivery.on("status_update", (event) => {
                 </pre>
               </div>
             </div>
-
-            {/* Copy */}
-            <div className="flex-1 text-center lg:text-left">
-              <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
-                Developer API
-              </span>
-              <h2 className="text-subsection mt-4 text-surface-900">
-                Integrate in minutes, not weeks
-              </h2>
-              <p className="mt-4 text-[0.9rem] leading-relaxed text-surface-500 sm:text-base">
-                Our REST API lets you create deliveries, track riders in real-time, receive
-                webhook notifications, and manage your delivery fleet, all programmatically.
-              </p>
-              <div className="mt-6">
-                <Link
-                  href="/contact"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700"
-                >
-                  Request API Access
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* ================================================================
-          FINAL CTA
-          ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-32">
-        <div className="noise absolute inset-0" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,197,94,0.08),transparent_70%)]" />
-
-        <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
-          <div className="reveal">
-            <h2 className="text-section text-white">
-              Ready to upgrade your delivery?
-            </h2>
-            <p className="mt-5 text-base text-surface-400 sm:text-lg">
-              Businesses across Accra already trust RiderGuy for their last-mile delivery.
-              Get started today: no setup fees, no contracts.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+      {/* ============================================================
+          FINAL CTA BANNER
+          ============================================================ */}
+      <section className="bg-surface-50 py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:px-10">
+          <div className="theme-cta-banner !p-8 !flex-col !items-start sm:!flex-row sm:!items-center">
+            <div className="flex items-center gap-4">
+              <Target className="h-10 w-10 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-brand-100">
+                  Ready to start
+                </p>
+                <p className="text-lg font-bold sm:text-xl">
+                  Upgrade your delivery to RiderGuy — no setup fees, no contracts.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 gap-3">
               <Link
                 href="/contact"
-                className="btn-glow inline-flex h-13 items-center gap-2 rounded-full bg-brand-500 px-9 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[0.85rem] font-semibold text-brand-700 transition-all hover:bg-brand-50"
               >
-                Contact Sales
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="https://app.myriderguy.com/register"
-                className="inline-flex h-13 items-center rounded-full border border-surface-700 px-9 text-[0.9rem] font-semibold text-surface-300 transition-colors hover:border-surface-600 hover:text-white"
-              >
-                Create Business Account
+                Contact Sales <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>

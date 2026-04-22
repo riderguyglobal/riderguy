@@ -66,31 +66,35 @@ export default async function CareersPage() {
       {/* ================================================================
           HERO
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 pb-16 pt-28 sm:pb-20 sm:pt-36 lg:pb-24 lg:pt-44">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,197,94,0.1),transparent_60%)]" />
-        <div className="noise absolute inset-0" />
+      <section className="relative overflow-hidden bg-surface-950 pb-20 pt-28 text-white sm:pt-36 lg:pt-44">
+        <div className="grid-bg on-dark absolute inset-0 opacity-50" />
+        <div className="orb orb-green absolute right-0 top-0 h-[500px] w-[500px] opacity-40" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
-          <div className="hero-badge-in mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400 sm:mb-7 sm:text-sm">
-            <Briefcase className="h-4 w-4" />
-            We&apos;re hiring
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="flag-stripe">Ghana</span>
+            <span className="theme-eyebrow on-dark">
+              Careers
+              <span className="sep" />
+              We&apos;re Hiring
+            </span>
           </div>
 
-          <h1 className="hero-text-in text-hero text-white">
+          <h1 className="theme-display on-dark mt-6">
             Build the future of{' '}
-            <span className="text-gradient-light">delivery</span>
+            <span className="accent">delivery.</span>
           </h1>
 
-          <p className="hero-text-in-d1 mt-5 text-base leading-relaxed text-surface-400 sm:mt-7 sm:text-lg">
-            RiderGuy is building the operating system for the rider economy.
-            Join a small, driven team solving real problems for
-            millions of people across West Africa.
+          <p className="theme-lede on-dark mt-6">
+            RiderGuy is building the <em>operating system for the rider economy</em>.
+            Join a small, driven team solving real problems for millions across
+            West Africa.
           </p>
 
-          <div className="hero-text-in-d2 mt-7 sm:mt-10">
+          <div className="mt-9">
             <Link
               href="#openings"
-              className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-8 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-600"
+              className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-8 text-[0.9rem] font-semibold text-surface-950 shadow-lg shadow-brand-500/30 transition-all hover:bg-brand-400"
             >
               View Open Roles
               <ArrowRight className="h-4 w-4" />
@@ -102,26 +106,27 @@ export default async function CareersPage() {
       {/* ================================================================
           WHY JOIN US
           ================================================================ */}
-      <section className="bg-white py-20 sm:py-28 lg:py-36">
+      <section className="bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
+            <span className="theme-eyebrow justify-center">
               Why Join Us
+              <span className="sep" />
+              Mission-Driven
             </span>
-            <h2 className="text-section mt-4 text-surface-900">Work that matters</h2>
+            <h2 className="theme-display mt-4">
+              Work that <span className="accent">matters.</span>
+            </h2>
           </div>
 
-          <div className="stagger mt-14 grid gap-6 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="stagger mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {PERKS.map((p) => (
-              <div
-                key={p.title}
-                className="card-lift rounded-2xl border border-surface-100 bg-white p-5 sm:p-8"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
-                  <p.icon className="h-6 w-6 text-brand-600" />
+              <div key={p.title} className="theme-card !p-6">
+                <div className="theme-icon-badge outline !h-11 !w-11">
+                  <p.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-5 text-lg font-bold text-surface-900">{p.title}</h3>
-                <p className="mt-2 text-[0.9rem] leading-relaxed text-surface-500">{p.desc}</p>
+                <h3 className="mt-5 text-base font-bold text-surface-900">{p.title}</h3>
+                <p className="mt-2 text-[0.85rem] leading-relaxed text-surface-500">{p.desc}</p>
               </div>
             ))}
           </div>
@@ -131,13 +136,13 @@ export default async function CareersPage() {
       {/* ================================================================
           OPEN ROLES
           ================================================================ */}
-      <section id="openings" className="bg-surface-50 py-20 sm:py-28 lg:py-36">
+      <section id="openings" className="bg-surface-50 py-20 sm:py-28">
         <div className="mx-auto max-w-4xl px-5 sm:px-8 lg:px-10">
           <div className="reveal text-center">
-            <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600">
-              Open Positions
-            </span>
-            <h2 className="text-section mt-4 text-surface-900">Current openings</h2>
+            <p className="section-marker">OPEN POSITIONS</p>
+            <h2 className="theme-display mt-3">
+              Current <span className="accent">openings.</span>
+            </h2>
           </div>
 
           <div className="stagger mt-12 flex flex-col gap-4 sm:mt-14">
@@ -157,7 +162,7 @@ export default async function CareersPage() {
               jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="card-lift rounded-2xl border border-surface-100 bg-white p-6 sm:p-7"
+                  className="theme-card !p-6 sm:!p-7"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -200,16 +205,16 @@ export default async function CareersPage() {
       {/* ================================================================
           CTA
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 py-20 sm:py-28 lg:py-32">
-        <div className="noise absolute inset-0" />
+      <section className="relative overflow-hidden bg-surface-950 py-20 text-white sm:py-28">
+        <div className="grid-bg on-dark absolute inset-0 opacity-50" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,197,94,0.08),transparent_70%)]" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
           <div className="reveal">
-            <h2 className="text-section text-white">
-              Don&apos;t see your role?
+            <h2 className="theme-display on-dark">
+              Don&apos;t see your <span className="accent">role?</span>
             </h2>
-            <p className="mt-5 text-base text-surface-400 sm:text-lg">
+            <p className="theme-lede on-dark mt-5">
               We are always looking for talented people. Send your CV and a short note about
               what excites you to{' '}
               <a href="mailto:careers@myriderguy.com" className="text-brand-400 hover:text-brand-300">

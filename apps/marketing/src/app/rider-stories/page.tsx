@@ -54,17 +54,25 @@ export default async function RiderStoriesPage() {
   return (
     <ScrollRevealProvider>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-surface-950 pb-16 pt-28 sm:pb-20 sm:pt-36 lg:pb-24 lg:pt-44">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,197,94,0.1),transparent_60%)]" />
-        <div className="noise absolute inset-0" />
+      <section className="relative overflow-hidden bg-surface-950 pb-20 pt-28 text-white sm:pt-36 lg:pt-44">
+        <div className="grid-bg on-dark absolute inset-0 opacity-50" />
+        <div className="orb orb-green absolute right-0 top-0 h-[500px] w-[500px] opacity-40" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
-          <h1 className="hero-text-in text-hero text-white">
-            Rider <span className="text-gradient-light">Spotlight</span>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="flag-stripe">Ghana</span>
+            <span className="theme-eyebrow on-dark">
+              Rider Spotlight
+              <span className="sep" />
+              Real Stories
+            </span>
+          </div>
+          <h1 className="theme-display on-dark mt-6">
+            The riders <span className="accent">behind every delivery.</span>
           </h1>
-          <p className="hero-text-in-d1 mt-5 text-base text-surface-400 sm:text-lg">
-            Every month we celebrate an outstanding rider who goes above and beyond.
-            Read their stories and get inspired.
+          <p className="theme-lede on-dark mt-5">
+            Every month we celebrate an <em>outstanding rider</em> who goes above
+            and beyond. Read their stories and <em>get inspired</em>.
           </p>
         </div>
       </section>
@@ -83,7 +91,7 @@ export default async function RiderStoriesPage() {
               {spotlights.map((s) => (
                 <article
                   key={s.id}
-                  className="card-lift rounded-2xl border border-surface-100 bg-white p-6 sm:p-7"
+                  className="theme-card !p-6 sm:!p-7"
                 >
                   <div className="mb-4 flex flex-wrap items-center gap-4">
                     <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-brand-100">

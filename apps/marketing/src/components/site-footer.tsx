@@ -113,9 +113,10 @@ export function SiteFooter() {
           <p className="text-[0.8rem] text-surface-500">
             &copy; {new Date().getFullYear()} RiderGuy. All rights reserved.
           </p>
-          <p className="text-[0.8rem] text-surface-500">
-            Made in Ghana with purpose.
-          </p>
+          <div className="flex items-center gap-3">
+            <span className="flag-stripe">Made in Ghana</span>
+            <p className="text-[0.8rem] text-surface-500">With purpose.</p>
+          </div>
         </div>
       </div>
     </footer>
