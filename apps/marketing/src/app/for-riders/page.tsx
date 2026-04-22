@@ -71,7 +71,7 @@ export default function ForRidersPage() {
       {/* ============================================================
           HERO — Full-bleed B1 concept image
           ============================================================ */}
-      <section className="relative overflow-hidden bg-white pt-20 sm:pt-24">
+      <section className="relative overflow-hidden bg-white pt-16 sm:pt-24">
         <RouteHero>
           <Image
             src="/images/theme/B1.png"
@@ -85,8 +85,8 @@ export default function ForRidersPage() {
 
         {/* CTA strip under the hero */}
         <div className="relative bg-white">
-          <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-10 lg:px-10">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:py-10 lg:px-10">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="flag-stripe">Ghana</span>
               <span className="theme-eyebrow">
                 For Riders
@@ -95,17 +95,17 @@ export default function ForRidersPage() {
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               <Link
                 href="https://rider.myriderguy.com/register"
-                className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-700 px-7 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-700/25 transition-all hover:bg-brand-800"
+                className="btn-glow inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-700 px-5 text-[0.875rem] font-semibold text-white shadow-lg shadow-brand-700/25 transition-all hover:bg-brand-800 sm:h-12 sm:w-auto sm:px-7 sm:text-[0.9rem]"
               >
                 Apply Now, It&apos;s Free
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="#benefits"
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-surface-300 bg-white px-7 text-[0.9rem] font-semibold text-surface-900 transition-all hover:border-brand-500 hover:text-brand-700"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-surface-300 bg-white px-5 text-[0.875rem] font-semibold text-surface-900 transition-all hover:border-brand-500 hover:text-brand-700 sm:h-12 sm:w-auto sm:px-7 sm:text-[0.9rem]"
               >
                 See Benefits
               </Link>
@@ -115,18 +115,18 @@ export default function ForRidersPage() {
 
         {/* Inline stat strip */}
         <div className="border-b border-surface-200 bg-surface-50">
-          <div className="mx-auto grid max-w-7xl grid-cols-3 gap-6 px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
+          <div className="mx-auto grid max-w-7xl grid-cols-3 gap-3 px-4 py-5 sm:gap-6 sm:px-8 sm:py-10 lg:px-10">
             <div>
               <p className="theme-stat">85%</p>
-              <p className="theme-stat-label">Earnings Share</p>
+              <p className="theme-stat-label">Earnings</p>
             </div>
             <div>
               <p className="theme-stat">7</p>
-              <p className="theme-stat-label">Career Levels</p>
+              <p className="theme-stat-label">Levels</p>
             </div>
             <div>
               <p className="theme-stat">Free</p>
-              <p className="theme-stat-label">Training + Insurance</p>
+              <p className="theme-stat-label">Training</p>
             </div>
           </div>
         </div>
@@ -190,27 +190,27 @@ export default function ForRidersPage() {
 
           {/* Progression visual */}
           <div className="mt-14">
-            <div className="theme-card !p-8">
-              <div className="flex items-end justify-between gap-2 sm:gap-4">
+            <div className="theme-card !p-4 sm:!p-8">
+              <div className="flex items-end justify-between gap-1 sm:gap-4">
                 {LEVELS.map((lvl) => (
                   <div key={lvl.level} className="flex flex-1 flex-col items-center">
                     <div
-                      className={`w-full rounded-t-xl ${lvl.color}`}
-                      style={{ height: `${40 + lvl.level * 16}px` }}
+                      className={`w-full rounded-t-lg sm:rounded-t-xl ${lvl.color}`}
+                      style={{ height: `${32 + lvl.level * 12}px` }}
                     />
-                    <div className="mt-3 text-center">
-                      <p className="text-[0.65rem] font-mono font-semibold uppercase tracking-[0.15em] text-surface-400">
+                    <div className="mt-2 text-center sm:mt-3">
+                      <p className="text-[0.55rem] font-mono font-semibold uppercase tracking-[0.1em] text-surface-400 sm:text-[0.65rem] sm:tracking-[0.15em]">
                         Lv {lvl.level}
                       </p>
-                      <p className="mt-1 text-xs font-bold text-surface-900 sm:text-sm">
+                      <p className="mt-0.5 text-[0.65rem] font-bold leading-tight text-surface-900 sm:mt-1 sm:text-sm">
                         {lvl.name}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="dot-divider mt-8 text-xs font-semibold uppercase tracking-[0.15em]">
-                Promotions based on deliveries, ratings, and training
+              <div className="dot-divider mt-6 text-[0.6rem] font-semibold uppercase tracking-[0.1em] sm:mt-8 sm:text-xs sm:tracking-[0.15em]">
+                <span className="px-1 text-center">Deliveries · Ratings · Training</span>
               </div>
             </div>
           </div>

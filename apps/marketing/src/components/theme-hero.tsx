@@ -38,7 +38,7 @@ export function ThemeHero() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden bg-white pt-20 sm:pt-24">
+    <section className="relative overflow-hidden bg-white pt-16 sm:pt-24">
       <RouteHero>
         {HERO_SLIDES.map((slide, i) => (
           <div
@@ -79,8 +79,8 @@ export function ThemeHero() {
 
       {/* CTA strip under the slider — sits flush with bottom blend */}
       <div className="relative bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-5 pb-10 pt-2 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pb-12 lg:px-10">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-4 pb-8 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:pb-12 sm:pt-2 lg:px-10">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className="flag-stripe">Ghana</span>
             <span className="theme-eyebrow">
               The Rider Economy
@@ -89,17 +89,17 @@ export function ThemeHero() {
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <Link
               href="https://app.myriderguy.com/register"
-              className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-700 px-7 text-[0.9rem] font-semibold text-white shadow-lg shadow-brand-700/25 transition-all hover:bg-brand-800"
+              className="btn-glow inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-700 px-5 text-[0.875rem] font-semibold text-white shadow-lg shadow-brand-700/25 transition-all hover:bg-brand-800 sm:h-12 sm:w-auto sm:px-7 sm:text-[0.9rem]"
             >
               Send a Package
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/for-riders"
-              className="inline-flex h-12 items-center gap-2 rounded-full border border-surface-300 bg-white px-7 text-[0.9rem] font-semibold text-surface-900 transition-all hover:border-brand-500 hover:text-brand-700"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-surface-300 bg-white px-5 text-[0.875rem] font-semibold text-surface-900 transition-all hover:border-brand-500 hover:text-brand-700 sm:h-12 sm:w-auto sm:px-7 sm:text-[0.9rem]"
             >
               Become a Rider
             </Link>
@@ -122,13 +122,13 @@ export function RouteHero({ children }: { children: React.ReactNode }) {
 
       {/* Image stage — black backdrop so letterbox (from object-contain)
           is invisible against the image's own dark background.
-          3:2 aspect matches the source images exactly. */}
+          Mobile uses 4:3 so the image doesn't dominate the viewport; 3:2 on sm+. */}
       <div
         className="
           relative mx-auto w-full overflow-hidden rounded-xl sm:rounded-2xl
           bg-[#0a0a0a] ring-1 ring-brand-500/30
           shadow-[0_20px_60px_-25px_rgba(34,197,94,0.45)]
-          aspect-[3/2] max-h-[calc(100vh-7rem)] min-h-[300px]
+          aspect-[4/3] sm:aspect-[3/2] max-h-[calc(100vh-7rem)] min-h-[220px] sm:min-h-[300px]
         "
       >
         {children}

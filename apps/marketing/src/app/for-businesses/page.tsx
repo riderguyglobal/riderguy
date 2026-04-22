@@ -63,7 +63,7 @@ export default function ForBusinessesPage() {
       {/* ============================================================
           HERO — Editorial theme
           ============================================================ */}
-      <section className="relative overflow-hidden bg-white pb-16 pt-28 sm:pb-24 sm:pt-32 lg:pt-40">
+      <section className="relative overflow-hidden bg-white pb-10 pt-24 sm:pb-24 sm:pt-32 lg:pt-40">
         <div className="grid-bg pointer-events-none absolute inset-0 opacity-60" />
         <div className="orb orb-green absolute -top-32 right-0 h-[500px] w-[500px] opacity-70" />
 
@@ -105,18 +105,18 @@ export default function ForBusinessesPage() {
               </Link>
             </div>
 
-            <div className="mt-10 grid grid-cols-3 gap-6 border-t border-surface-200 pt-7">
+            <div className="mt-8 grid grid-cols-3 gap-3 border-t border-surface-200 pt-6 sm:mt-10 sm:gap-6 sm:pt-7">
               <div>
                 <p className="theme-stat">API</p>
                 <p className="theme-stat-label">Ready</p>
               </div>
               <div>
                 <p className="theme-stat">0</p>
-                <p className="theme-stat-label">Fleet overhead</p>
+                <p className="theme-stat-label">Fleet</p>
               </div>
               <div>
-                <p className="theme-stat">Same-day</p>
-                <p className="theme-stat-label">Guaranteed</p>
+                <p className="theme-stat">24/7</p>
+                <p className="theme-stat-label">Dispatch</p>
               </div>
             </div>
           </div>

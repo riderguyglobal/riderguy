@@ -54,7 +54,7 @@ export default async function RiderStoriesPage() {
   return (
     <ScrollRevealProvider>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-surface-950 pb-20 pt-28 text-white sm:pt-36 lg:pt-44">
+      <section className="relative overflow-hidden bg-surface-950 pb-14 pt-24 text-white sm:pb-20 sm:pt-36 lg:pt-44">
         <div className="grid-bg on-dark absolute inset-0 opacity-50" />
         <div className="orb orb-green absolute right-0 top-0 h-[500px] w-[500px] opacity-40" />
 

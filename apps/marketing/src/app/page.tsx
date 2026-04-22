@@ -166,9 +166,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="stagger mt-14 grid gap-5 sm:mt-16 lg:grid-cols-3">
+          <div className="stagger mt-14 grid gap-4 sm:mt-16 sm:gap-5 lg:grid-cols-3">
             {MISSION_CARDS.map((c) => (
-              <div key={c.label} className="theme-card flex flex-col gap-5 p-7">
+              <div key={c.label} className="theme-card flex flex-col gap-4 !p-5 sm:gap-5 sm:!p-7">
                 <div className="flex items-center justify-between">
                   <div className="theme-icon-badge">
                     <c.icon className="h-5 w-5" />

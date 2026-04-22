@@ -54,7 +54,7 @@ export default function AboutPage() {
       {/* ============================================================
           HERO
           ============================================================ */}
-      <section className="relative overflow-hidden bg-white pb-16 pt-28 sm:pb-24 sm:pt-32 lg:pt-40">
+      <section className="relative overflow-hidden bg-white pb-10 pt-24 sm:pb-24 sm:pt-32 lg:pt-40">
         <div className="grid-bg pointer-events-none absolute inset-0 opacity-60" />
         <div className="orb orb-green absolute -top-32 right-0 h-[500px] w-[500px] opacity-70" />
 
@@ -80,7 +80,7 @@ export default function AboutPage() {
               connecting them with the businesses and customers who depend on them.
             </p>
 
-            <div className="mt-10 grid grid-cols-3 gap-6 border-t border-surface-200 pt-7">
+            <div className="mt-8 grid grid-cols-3 gap-3 border-t border-surface-200 pt-6 sm:mt-10 sm:gap-6 sm:pt-7">
               <div>
                 <p className="theme-stat">
                   <Counter target={2024} suffix="" />

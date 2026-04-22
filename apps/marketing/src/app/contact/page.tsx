@@ -70,7 +70,7 @@ export default function ContactPage() {
 
   return (
     <ScrollRevealProvider>
-      <section className="relative overflow-hidden px-5 pb-16 pt-28 sm:px-8 sm:pb-20 sm:pt-36">
+      <section className="relative overflow-hidden px-4 pb-12 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
         <div className="grid-bg pointer-events-none absolute inset-0 opacity-60" />
         <div className="orb orb-green absolute -top-32 right-0 h-[400px] w-[400px] opacity-60" />
 
