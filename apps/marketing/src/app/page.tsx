@@ -24,6 +24,7 @@ import {
 import { ThemeHero } from '@/components/theme-hero';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
 import { Counter } from '@/components/counter';
+import { DeliveryFilm, DeliveryFilmMobile } from '@/components/delivery-film';
 
 /* ================================================================
    HOMEPAGE — Editorial / Infographic Theme
@@ -321,9 +322,16 @@ export default function HomePage() {
       </section>
 
       {/* ============================================================
-          04 — HOW IT WORKS (4 editorial steps)
+          04 — HOW IT WORKS
+          Desktop: cinematic 7-act delivery film.
+          Mobile:  clean 7-step vertical stack (no animation).
+          Spec: docs/architecture/GAMIFICATION_STORY_PLAN.md
           ============================================================ */}
-      <section id="how-it-works" className="bg-white py-20 sm:py-28">
+      <DeliveryFilm />
+      <DeliveryFilmMobile />
+
+      {/* Legacy 4-step grid (kept for reference, currently hidden) */}
+      <section id="how-it-works" className="hidden bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal flex flex-col items-start gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">

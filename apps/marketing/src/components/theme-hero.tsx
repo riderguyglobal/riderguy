@@ -79,17 +79,17 @@ export function ThemeHero() {
 
       {/* CTA strip under the slider — sits flush with bottom blend */}
       <div className="relative bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-4 pb-8 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:pb-12 sm:pt-2 lg:px-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-start gap-3 px-4 pb-6 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:pb-12 sm:pt-2 lg:px-10">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className="flag-stripe">Ghana</span>
-            <span className="theme-eyebrow">
+            <span className="theme-eyebrow hidden sm:inline-flex">
               The Rider Economy
               <span className="sep" />
               Since 2024
             </span>
           </div>
 
-          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <Link
               href="https://app.myriderguy.com/register"
               className="btn-glow inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-700 px-5 text-[0.875rem] font-semibold text-white shadow-lg shadow-brand-700/25 transition-all hover:bg-brand-800 sm:h-12 sm:w-auto sm:px-7 sm:text-[0.9rem]"
@@ -117,7 +117,7 @@ export function ThemeHero() {
    ================================================================ */
 export function RouteHero({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative px-2 pt-2 sm:px-3 sm:pt-3 md:px-4 md:pt-4">
+    <div className="relative px-1.5 pt-1.5 sm:px-3 sm:pt-3 md:px-4 md:pt-4">
       <RouteFrame />
 
       {/* Image stage — black backdrop so letterbox (from object-contain)
@@ -125,10 +125,10 @@ export function RouteHero({ children }: { children: React.ReactNode }) {
           Mobile uses 4:3 so the image doesn't dominate the viewport; 3:2 on sm+. */}
       <div
         className="
-          relative mx-auto w-full overflow-hidden rounded-xl sm:rounded-2xl
+          relative mx-auto w-full overflow-hidden rounded-lg sm:rounded-2xl
           bg-[#0a0a0a] ring-1 ring-brand-500/30
           shadow-[0_20px_60px_-25px_rgba(34,197,94,0.45)]
-          aspect-[4/3] sm:aspect-[3/2] max-h-[calc(100vh-7rem)] min-h-[220px] sm:min-h-[300px]
+          aspect-[4/3] sm:aspect-[3/2] max-h-[calc(100vh-7rem)] min-h-[180px] sm:min-h-[300px]
         "
       >
         {children}
@@ -151,8 +151,13 @@ export function RouteHero({ children }: { children: React.ReactNode }) {
    never repeats in lockstep — it feels like real life.
    ================================================================ */
 export function RouteFrame() {
+  // Entire gamification layer is desktop-only. On mobile the hero stays clean
+  // and uncluttered — no stickmen, bikes, rails, or checkpoints.
   return (
-    <>
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 hidden md:block"
+    >
       {/* Dashed rails */}
       <span
         aria-hidden
@@ -203,13 +208,13 @@ export function RouteFrame() {
         <Home className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />
       </span>
 
-      {/* Extra pickup pin halfway down left rail */}
+      {/* Extra pickup pin halfway down left rail — neutral waypoint (black) */}
       <span
         aria-hidden
-        className="absolute -translate-x-1/2 rounded-full bg-white p-1 ring-2 ring-amber-500 shadow-[0_3px_10px_rgba(245,158,11,0.4)]"
+        className="absolute -translate-x-1/2 rounded-full bg-white p-1 ring-2 ring-surface-900 shadow-[0_3px_10px_rgba(0,0,0,0.35)]"
         style={{ top: '55%', left: 12, zIndex: 6 }}
       >
-        <MapPin className="h-3 w-3 text-amber-600" strokeWidth={2.5} />
+        <MapPin className="h-3 w-3 text-surface-900" strokeWidth={2.5} />
       </span>
 
       {/* Extra delivery pin on right rail */}
@@ -253,7 +258,7 @@ export function RouteFrame() {
         className="story-bike story-bike--left absolute"
         style={{ top: 12, zIndex: 5 }}
       >
-        <RiderEmpty color="amber" flipped />
+        <RiderEmpty color="night" flipped />
       </span>
 
       {/* ==========================================================
@@ -265,7 +270,7 @@ export function RouteFrame() {
         className="story-walker story-walker--right absolute"
         style={{ right: 12, zIndex: 5 }}
       >
-        <Walker receiving color="amber" />
+        <Walker receiving color="brand" />
       </span>
 
       {/* Sparkle burst near home when a delivery completes */}
@@ -276,7 +281,7 @@ export function RouteFrame() {
       >
         <Sparkles className="h-4 w-4 text-brand-400" />
       </span>
-    </>
+    </div>
   );
 }
 
@@ -323,10 +328,10 @@ function Walker({
 }: {
   carrying?: boolean;
   receiving?: boolean;
-  color?: 'brand' | 'amber';
+  color?: 'brand' | 'night';
 }) {
-  const stroke = color === 'brand' ? '#15803d' : '#b45309';
-  const fill = color === 'brand' ? '#22c55e' : '#f59e0b';
+  const stroke = color === 'brand' ? '#15803d' : '#0a0a0a';
+  const fill = color === 'brand' ? '#22c55e' : '#1f2937';
 
   return (
     <span className="relative inline-flex h-10 w-8 items-center justify-center">
@@ -363,11 +368,13 @@ function Walker({
               y="11"
               width="5"
               height="4"
-              fill="#fbbf24"
-              stroke="#b45309"
+              fill="#ffffff"
+              stroke="#0a0a0a"
               strokeWidth="1"
               rx="0.5"
             />
+            {/* green tape band */}
+            <line x1="15" y1="13" x2="20" y2="13" stroke="#22c55e" strokeWidth="1.2" />
           </g>
         ) : receiving ? (
           <line
@@ -415,9 +422,9 @@ function Walker({
    RIDER — Stickman on a bike carrying (or not carrying) a parcel.
    Wheels spin, a small bob simulates road movement.
    ================================================================ */
-function RiderWithParcel({ color = 'brand' }: { color?: 'brand' | 'amber' }) {
-  const frame = color === 'brand' ? '#15803d' : '#b45309';
-  const body = color === 'brand' ? '#22c55e' : '#f59e0b';
+function RiderWithParcel({ color = 'brand' }: { color?: 'brand' | 'night' }) {
+  const frame = color === 'brand' ? '#15803d' : '#0a0a0a';
+  const body = color === 'brand' ? '#22c55e' : '#1f2937';
 
   return (
     <span className="relative inline-flex h-10 w-12 items-center justify-center">
@@ -432,10 +439,10 @@ function RiderWithParcel({ color = 'brand' }: { color?: 'brand' | 'amber' }) {
         strokeLinejoin="round"
         className="drop-shadow-[0_3px_6px_rgba(34,197,94,0.35)]"
       >
-        {/* parcel on back */}
-        <rect x="8" y="6" width="9" height="7" rx="1" fill="#fbbf24" stroke="#b45309" />
-        <line x1="8" y1="9.5" x2="17" y2="9.5" stroke="#b45309" />
-        <line x1="12.5" y1="6" x2="12.5" y2="13" stroke="#b45309" />
+        {/* parcel on back — white with green tape */}
+        <rect x="8" y="6" width="9" height="7" rx="1" fill="#ffffff" stroke="#0a0a0a" />
+        <line x1="8" y1="9.5" x2="17" y2="9.5" stroke="#22c55e" strokeWidth="1.2" />
+        <line x1="12.5" y1="6" x2="12.5" y2="13" stroke="#22c55e" strokeWidth="1.2" />
 
         {/* rider head */}
         <circle cx="22" cy="8" r="3" fill={body} stroke={frame} />
@@ -462,14 +469,14 @@ function RiderWithParcel({ color = 'brand' }: { color?: 'brand' | 'amber' }) {
 }
 
 function RiderEmpty({
-  color = 'amber',
+  color = 'night',
   flipped = false,
 }: {
-  color?: 'brand' | 'amber';
+  color?: 'brand' | 'night';
   flipped?: boolean;
 }) {
-  const frame = color === 'brand' ? '#15803d' : '#b45309';
-  const body = color === 'brand' ? '#22c55e' : '#f59e0b';
+  const frame = color === 'brand' ? '#15803d' : '#0a0a0a';
+  const body = color === 'brand' ? '#22c55e' : '#1f2937';
 
   return (
     <span
@@ -485,7 +492,7 @@ function RiderEmpty({
         strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="drop-shadow-[0_3px_6px_rgba(245,158,11,0.35)]"
+        className="drop-shadow-[0_3px_6px_rgba(0,0,0,0.35)]"
       >
         <circle cx="20" cy="8" r="3" fill={body} stroke={frame} />
         <line x1="20" y1="11" x2="24" y2="18" />
