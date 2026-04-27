@@ -231,7 +231,18 @@ export async function createOrder(
       if (promo.validUntil && promo.validUntil <= now) throw ApiError.conflict('Promo code has expired');
       if (promo.maxUses != null && promo.usedCount >= promo.maxUses) throw ApiError.conflict('Promo code usage limit reached');
 
-      // Per-user limit check inside transaction
+      // Serialize concurrent same-user same-promo claims via a Postgres
+      // transaction-scoped advisory lock keyed on (promoId, userId). Without this,
+      // two parallel order-creation requests both observe `userUsages = 0` and
+      // both succeed, breaking `maxUsesPerUser`. The lock is auto-released at
+      // transaction end.
+      await tx.$executeRawUnsafe(
+        `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+        promo.id,
+        clientId,
+      );
+
+      // Per-user limit check inside transaction (now serialized)
       const userUsages = await tx.promoCodeUsage.count({
         where: { promoCodeId: promo.id, userId: clientId },
       });

@@ -5,6 +5,7 @@ import { prisma } from '@riderguy/database';
 import { paystackService } from '../services/paystack.service';
 import { EmailService } from '../services/email.service';
 import { redisEnabled } from './queues';
+import { notifyAdminJobFailure } from './admin-alerts';
 import type { PayoutJobData, ReceiptJobData, CommissionJobData, PushJobData } from './queues';
 
 // ============================================================
@@ -92,17 +93,30 @@ export async function startWorkers(): Promise<void> {
           return { status: 'completed', dev: true };
         }
 
-        const recipient = await paystackService.createTransferRecipient({
-          type: method === 'MOBILE_MONEY' ? 'mobile_money' : 'nuban',
-          name: destinationName,
-          accountNumber: destination,
-          bankCode: bankCode ?? '',
-        });
+        // Reuse a previously-created Paystack recipient code when present.
+        // Without this, every retry creates a fresh recipient on Paystack's side,
+        // resulting in orphaned recipient records and unnecessary API calls.
+        let recipientCode = withdrawal.paystackRecipientCode ?? null;
+        if (!recipientCode) {
+          const recipient = await paystackService.createTransferRecipient({
+            type: method === 'MOBILE_MONEY' ? 'mobile_money' : 'nuban',
+            name: destinationName,
+            accountNumber: destination,
+            bankCode: bankCode ?? '',
+          });
+          recipientCode = recipient.recipientCode;
+          await prisma.withdrawal.update({
+            where: { id: withdrawalId },
+            data: { paystackRecipientCode: recipientCode },
+          });
+        } else {
+          logger.info({ withdrawalId, recipientCode }, 'Reusing persisted Paystack recipient');
+        }
 
         const reference = `WD_${withdrawalId}_${Date.now()}`;
         const transfer = await paystackService.initiateTransfer({
           amount: Math.round(amount * 100),
-          recipientCode: recipient.recipientCode,
+          recipientCode,
           reason: `RiderGuy withdrawal #${withdrawalId.slice(0, 8)}`,
           reference,
         });
@@ -167,6 +181,15 @@ export async function startWorkers(): Promise<void> {
 
   payoutWorker.on('failed', (job: Job | undefined, err: Error) => {
     logger.error({ jobId: job?.id, err: err.message }, 'Payout job failed');
+    void notifyAdminJobFailure({
+      queueName: 'payouts',
+      jobId: job?.id,
+      jobName: job?.name,
+      jobData: job?.data,
+      attemptsMade: job?.attemptsMade,
+      maxAttempts: job?.opts?.attempts,
+      error: err,
+    });
   });
 
   // ── Receipt Worker ──
@@ -259,6 +282,15 @@ export async function startWorkers(): Promise<void> {
 
   receiptWorker.on('failed', (job: Job | undefined, err: Error) => {
     logger.error({ jobId: job?.id, err: err.message }, 'Receipt job failed');
+    void notifyAdminJobFailure({
+      queueName: 'receipts',
+      jobId: job?.id,
+      jobName: job?.name,
+      jobData: job?.data,
+      attemptsMade: job?.attemptsMade,
+      maxAttempts: job?.opts?.attempts,
+      error: err,
+    });
   });
 
   // ── Commission Tracking Worker ──
@@ -324,6 +356,15 @@ export async function startWorkers(): Promise<void> {
 
   commissionWorker.on('failed', (job: Job | undefined, err: Error) => {
     logger.error({ jobId: job?.id, err: err.message }, 'Commission job failed');
+    void notifyAdminJobFailure({
+      queueName: 'commissions',
+      jobId: job?.id,
+      jobName: job?.name,
+      jobData: job?.data,
+      attemptsMade: job?.attemptsMade,
+      maxAttempts: job?.opts?.attempts,
+      error: err,
+    });
   });
 
   // ── Push Notification Worker ──
@@ -356,6 +397,15 @@ export async function startWorkers(): Promise<void> {
 
   pushWorker.on('failed', (job: Job | undefined, err: Error) => {
     logger.error({ jobId: job?.id, err: err.message }, 'Push notification job failed');
+    void notifyAdminJobFailure({
+      queueName: 'push-notifications',
+      jobId: job?.id,
+      jobName: job?.name,
+      jobData: job?.data,
+      attemptsMade: job?.attemptsMade,
+      maxAttempts: job?.opts?.attempts,
+      error: err,
+    });
   });
 
   // ── Data Cleanup Worker — purges old LocationHistory records ──
@@ -391,6 +441,15 @@ export async function startWorkers(): Promise<void> {
 
   cleanupWorker.on('failed', (job: Job | undefined, err: Error) => {
     logger.error({ jobId: job?.id, err: err.message }, 'Data cleanup job failed');
+    void notifyAdminJobFailure({
+      queueName: 'data-cleanup',
+      jobId: job?.id,
+      jobName: job?.name,
+      jobData: job?.data,
+      attemptsMade: job?.attemptsMade,
+      maxAttempts: job?.opts?.attempts,
+      error: err,
+    });
   });
 
   logger.info('BullMQ workers started: payouts, receipts, commissions, push-notifications, data-cleanup');

@@ -217,6 +217,12 @@ enum NotificationType {
   PROMOTION
 }
 
+enum WebhookEventStatus {
+  PROCESSED
+  FAILED
+  SKIPPED
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -941,6 +947,9 @@ model Withdrawal {
   processedAt      DateTime?
   failureReason    String?
   paymentReference String?
+  // Persisted Paystack transfer recipient code — reused on retry to prevent
+  // duplicate recipient creation when a payout job re-runs after partial failure.
+  paystackRecipientCode String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -1130,6 +1139,27 @@ model PushToken {
   @@unique([userId, token])
   @@index([userId, isActive])
   @@map("push_tokens")
+}
+
+// ============================================================
+// WEBHOOK EVENTS — idempotency log for inbound 3rd-party webhooks
+// (Paystack, etc.). Prevents replay processing of the same event.
+// ============================================================
+
+model WebhookEvent {
+  id          String             @id @default(cuid())
+  provider    String             // 'paystack', 'mnotify', etc.
+  eventId     String             // Provider's unique event identifier
+  eventType   String             // e.g. 'charge.success', 'transfer.failed'
+  status      WebhookEventStatus @default(PROCESSED)
+  payload     Json?              // Snapshot of relevant event data (no secrets)
+  error       String?            // Failure detail when status = FAILED
+  processedAt DateTime           @default(now())
+
+  @@unique([provider, eventId])
+  @@index([provider, eventType])
+  @@index([processedAt])
+  @@map("webhook_events")
 }
 
 // ============================================================

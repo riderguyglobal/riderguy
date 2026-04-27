@@ -280,6 +280,47 @@ router.post(
     const event = req.body;
     logger.info({ event: event.event }, 'Paystack webhook received');
 
+    // ── Idempotency: dedupe via webhook_events table ──
+    // Paystack guarantees `data.id` is unique per event; fall back to
+    // `${event}:${reference}` when missing so we never silently process twice.
+    const providerEventId =
+      (event?.data?.id != null ? String(event.data.id) : undefined) ??
+      (event?.data?.reference ? `${event.event}:${event.data.reference}` : undefined);
+
+    if (!providerEventId) {
+      logger.warn({ eventType: event?.event }, 'Webhook missing event id — accepting without idempotency');
+      res.status(StatusCodes.OK).json({ success: true });
+      return;
+    }
+
+    let webhookEventRow;
+    try {
+      webhookEventRow = await prisma.webhookEvent.create({
+        data: {
+          provider: 'paystack',
+          eventId: providerEventId,
+          eventType: String(event.event ?? 'unknown'),
+          status: 'PROCESSED',
+          payload: {
+            reference: event?.data?.reference ?? null,
+            amount: event?.data?.amount ?? null,
+            status: event?.data?.status ?? null,
+          },
+        },
+        select: { id: true },
+      });
+    } catch (err: unknown) {
+      // Unique violation = duplicate delivery — Paystack retries can hit us multiple times.
+      const code = (err as { code?: string })?.code;
+      if (code === 'P2002') {
+        logger.info({ eventId: providerEventId, eventType: event.event }, 'Duplicate webhook ignored');
+        res.status(StatusCodes.OK).json({ success: true, deduped: true });
+        return;
+      }
+      throw err;
+    }
+
+    try {
     switch (event.event) {
       // ── Charge events (order payments) ──
       case 'charge.success': {
@@ -382,6 +423,26 @@ router.post(
 
       default:
         logger.info({ event: event.event }, 'Unhandled Paystack webhook event');
+    }
+    } catch (processingErr: unknown) {
+      // Mark the webhook event row as FAILED so ops can audit / replay manually.
+      const message = processingErr instanceof Error ? processingErr.message : String(processingErr);
+      logger.error({ err: processingErr, eventId: providerEventId, eventType: event.event }, 'Webhook processing failed');
+      await prisma.webhookEvent
+        .update({
+          where: { id: webhookEventRow.id },
+          data: { status: 'FAILED', error: message.slice(0, 1000) },
+        })
+        .catch((updateErr) =>
+          logger.error({ err: updateErr }, 'Failed to mark webhook event as FAILED'),
+        );
+      // Respond 500 so Paystack retries; the unique constraint on (provider, eventId)
+      // means a duplicate row creation will fail next time, so we delete-on-fail to allow retry.
+      await prisma.webhookEvent
+        .delete({ where: { id: webhookEventRow.id } })
+        .catch(() => undefined);
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false });
+      return;
     }
 
     // Always respond 200 to Paystack

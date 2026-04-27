@@ -396,4 +396,50 @@ export class EmailService {
     );
     return sendMail({ to, subject: 'Reset your password — RiderGuy', html });
   }
+
+  // ---- Admin alert: BullMQ job failure ----
+  static async sendJobFailureAlert(
+    to: string | string[],
+    data: {
+      queueName: string;
+      jobId: string;
+      jobName: string | null;
+      attemptsMade: number;
+      maxAttempts: number;
+      errorMessage: string;
+      errorStack: string | null;
+      jobData: unknown;
+    },
+  ) {
+    const stackHtml = data.errorStack
+      ? `<pre style="font-size:11px; background:#fafafa; padding:12px; border-radius:6px; overflow:auto; white-space:pre-wrap;">${escapeHtml(data.errorStack.slice(0, 4000))}</pre>`
+      : '';
+    const dataHtml = `<pre style="font-size:11px; background:#fafafa; padding:12px; border-radius:6px; overflow:auto; white-space:pre-wrap;">${escapeHtml(JSON.stringify(data.jobData ?? null, null, 2).slice(0, 4000))}</pre>`;
+
+    const html = baseLayout(
+      'Background Job Failure',
+      `
+      <h2 style="color:#dc2626;">⚠️ Background Job Failure</h2>
+      <p>A BullMQ job has exhausted all retries on the production server.</p>
+      <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+        <tr><td style="padding:6px 0; color:#71717a;">Queue</td><td style="padding:6px 0; text-align:right; font-weight:600;">${escapeHtml(data.queueName)}</td></tr>
+        ${data.jobName ? `<tr style="border-top:1px solid #f4f4f5;"><td style="padding:6px 0; color:#71717a;">Job</td><td style="padding:6px 0; text-align:right; font-weight:600;">${escapeHtml(data.jobName)}</td></tr>` : ''}
+        <tr style="border-top:1px solid #f4f4f5;"><td style="padding:6px 0; color:#71717a;">Job ID</td><td style="padding:6px 0; text-align:right; font-family:monospace;">${escapeHtml(data.jobId)}</td></tr>
+        <tr style="border-top:1px solid #f4f4f5;"><td style="padding:6px 0; color:#71717a;">Attempts</td><td style="padding:6px 0; text-align:right; font-weight:600;">${data.attemptsMade} / ${data.maxAttempts}</td></tr>
+      </table>
+      <h3 style="margin-top:24px;">Error</h3>
+      <p style="color:#dc2626; font-weight:600;">${escapeHtml(data.errorMessage)}</p>
+      ${stackHtml}
+      <h3 style="margin-top:24px;">Job Payload</h3>
+      ${dataHtml}
+      <p style="font-size:12px; color:#71717a; margin-top:16px;">This alert is automated. Investigate via PM2 logs and the BullMQ dashboard.</p>
+    `,
+    );
+
+    return sendMail({
+      to: Array.isArray(to) ? to.join(', ') : to,
+      subject: `[RiderGuy] Job failed: ${data.queueName}${data.jobName ? `:${data.jobName}` : ''}`,
+      html,
+    });
+  }
 }
