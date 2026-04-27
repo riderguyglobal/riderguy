@@ -198,7 +198,7 @@ export async function startWorkers(): Promise<void> {
     async (job: Job<ReceiptJobData>) => {
       const { orderId, orderNumber, totalPrice, currency } = job.data;
 
-      logger.info({ orderId, orderNumber }, 'Generating delivery receipt');
+      logger.info({ orderId, orderNumber, correlationId: (job.data as any).correlationId }, 'Generating delivery receipt');
 
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -213,6 +213,13 @@ export async function startWorkers(): Promise<void> {
       if (!order) {
         logger.warn({ orderId }, 'Receipt: order not found');
         return { skipped: true };
+      }
+
+      // PAY-07: Idempotency — skip if already sent. Worker retries should not
+      //         duplicate emails to the client.
+      if (order.receiptEmailSentAt) {
+        logger.info({ orderId, sentAt: order.receiptEmailSentAt }, 'Receipt already sent — skipping');
+        return { skipped: true, reason: 'already_sent' };
       }
 
       const receiptData = {
@@ -266,6 +273,11 @@ export async function startWorkers(): Promise<void> {
           tipAmount: Number(order.tipAmount),
           currency,
         });
+        // PAY-07: Mark sent only after successful email dispatch.
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { receiptEmailSentAt: new Date() },
+        });
       }
 
       return { receiptNumber: receiptData.receiptNumber };
@@ -273,6 +285,8 @@ export async function startWorkers(): Promise<void> {
     {
       connection: redisConnection,
       concurrency: 5,
+      // JOB-02: Throttle email throughput to avoid SMTP provider rate-limits.
+      limiter: { max: 30, duration: 60_000 },
     },
   );
 
@@ -347,6 +361,8 @@ export async function startWorkers(): Promise<void> {
     {
       connection: redisConnection,
       concurrency: 5,
+      // JOB-02: Cap DB write throughput on commission inserts.
+      limiter: { max: 60, duration: 60_000 },
     },
   );
 
@@ -388,6 +404,8 @@ export async function startWorkers(): Promise<void> {
     {
       connection: redisConnection,
       concurrency: 10,
+      // JOB-02: FCM has its own rate-limits; throttle here to stay well under.
+      limiter: { max: 200, duration: 60_000 },
     },
   );
 

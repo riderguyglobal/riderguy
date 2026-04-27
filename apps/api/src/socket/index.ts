@@ -3,7 +3,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { verify } from 'jsonwebtoken';
 import { config } from '../config';
 import { logger } from '../lib/logger';
-import { getRedisPubSub } from '../lib/redis';
+import { getRedisPubSub, getRedisClient } from '../lib/redis';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -72,10 +72,31 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         userId: string;
         role: string;
         roles?: string[];
+        jti?: string;
       };
       (socket.data as any).userId = payload.userId;
       (socket.data as any).role = payload.role;
       (socket.data as any).roles = payload.roles || [payload.role];
+      (socket.data as any).jti = payload.jti;
+      // AUTH-04: Check Redis revocation list. Tokens added via
+      //          AuthService.revokeAccessToken(jti, ttlSec) are blocked here
+      //          so a stolen token can be killed before its 15-min expiry.
+      const redis = getRedisClient();
+      if (redis && payload.jti) {
+        redis.get(`auth:revoked:${payload.jti}`).then((revoked) => {
+          if (revoked) {
+            logger.warn({ userId: payload.userId, jti: payload.jti }, '[Socket] Auth rejected — token revoked');
+            socket.disconnect(true);
+          }
+        }).catch(() => { /* Redis hiccup — fall through (fail-open for availability) */ });
+      } else if (redis && !payload.jti) {
+        // Backward-compat: legacy tokens without jti — allow but log once per minute.
+        const now = Date.now();
+        if (!(globalThis as any).__lastLegacyJtiWarn || now - (globalThis as any).__lastLegacyJtiWarn > 60_000) {
+          (globalThis as any).__lastLegacyJtiWarn = now;
+          logger.warn({ userId: payload.userId }, '[Socket] Token has no jti — revocation list bypass possible');
+        }
+      }
       next();
     } catch {
       next(new Error('Invalid or expired token'));
@@ -83,35 +104,73 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
   });
 
   // ── Per-socket event rate limiter ──
-  // Prevents any single connection from flooding with events
-  const SOCKET_RATE_LIMIT = 60; // max events per window
+  // ORD-05: Per-event-type buckets so a chatty event (e.g. rider:updateLocation)
+  //         can't starve other event types. Each event has its own budget.
   const SOCKET_RATE_WINDOW_MS = 10_000; // 10 second window
 
+  // Per-event-type budgets within a single 10s window.
+  // Generous defaults; tighten per-event as we learn real-world traffic shapes.
+  const PER_EVENT_LIMITS: Record<string, number> = {
+    'rider:updateLocation': 60,    // 6/s sustained
+    'rider:heartbeat': 12,         // ~once per second cap
+    'order:subscribe': 30,
+    'order:unsubscribe': 30,
+    'message:send': 30,
+    'message:typing': 60,
+    'job:offer:respond': 6,        // user can't spam accept/reject
+    'admin:rider-location:subscribe': 20,
+  };
+  const DEFAULT_EVENT_LIMIT = 30;
+  const GLOBAL_FALLBACK_LIMIT = 240; // hard ceiling across all events / 10s
+
   io.use((socket, next) => {
-    let eventCount = 0;
-    let windowStart = Date.now();
+    const counters = new Map<string, { count: number; windowStart: number }>();
+    let globalCount = 0;
+    let globalWindowStart = Date.now();
 
     const originalOnEvent = (socket as any).onevent;
     (socket as any).onevent = function (packet: any) {
       const now = Date.now();
-      if (now - windowStart > SOCKET_RATE_WINDOW_MS) {
-        // Reset window
-        eventCount = 0;
-        windowStart = now;
+      const eventName: string = (packet?.data && packet.data[0]) || 'unknown';
+
+      // Global ceiling — protects against entirely new (uncatalogued) event spam
+      if (now - globalWindowStart > SOCKET_RATE_WINDOW_MS) {
+        globalCount = 0;
+        globalWindowStart = now;
       }
-      eventCount++;
-      if (eventCount > SOCKET_RATE_LIMIT) {
+      globalCount++;
+      if (globalCount > GLOBAL_FALLBACK_LIMIT) {
         logger.warn(
-          { socketId: socket.id, userId: (socket.data as any)?.userId },
-          '[Socket] Rate limited — too many events',
+          { socketId: socket.id, userId: (socket.data as any)?.userId, eventName, scope: 'global' },
+          '[Socket] Rate limited — global ceiling',
         );
-        // Send error ack if the packet has an acknowledgement callback
         const args = packet.data || [];
         const lastArg = args[args.length - 1];
         if (typeof lastArg === 'function') {
           lastArg({ success: false, error: 'RATE_LIMITED' });
         }
-        return; // Drop the event
+        return;
+      }
+
+      // Per-event bucket
+      const limit = PER_EVENT_LIMITS[eventName] ?? DEFAULT_EVENT_LIMIT;
+      let bucket = counters.get(eventName);
+      if (!bucket || now - bucket.windowStart > SOCKET_RATE_WINDOW_MS) {
+        bucket = { count: 0, windowStart: now };
+        counters.set(eventName, bucket);
+      }
+      bucket.count++;
+      if (bucket.count > limit) {
+        logger.warn(
+          { socketId: socket.id, userId: (socket.data as any)?.userId, eventName, count: bucket.count, limit },
+          '[Socket] Rate limited — event-type budget',
+        );
+        const args = packet.data || [];
+        const lastArg = args[args.length - 1];
+        if (typeof lastArg === 'function') {
+          lastArg({ success: false, error: 'RATE_LIMITED', event: eventName });
+        }
+        return;
       }
       return originalOnEvent.call(this, packet);
     };
@@ -143,19 +202,65 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
       // This handles the case where the rider's PWA was backgrounded and the socket dropped
       const pendingOffer = getPendingOfferForRider(userId);
       if (pendingOffer) {
-        logger.info({ userId, orderId: pendingOffer.orderId }, '[Socket] Re-emitting pending offer on reconnect');
-        // Fetch the order data again to build the offer payload
-        const pendingOrder = await prisma.order.findUnique({
-          where: { id: pendingOffer.orderId },
-          select: {
-            id: true, orderNumber: true, pickupAddress: true, dropoffAddress: true,
-            pickupLatitude: true, pickupLongitude: true, dropoffLatitude: true, dropoffLongitude: true,
-            distanceKm: true, estimatedDurationMinutes: true, totalPrice: true,
-            serviceFee: true, riderEarnings: true, packageType: true,
-            packageDescription: true, currency: true, isMultiStop: true,
-          },
-        });
-        if (pendingOrder) {
+        // ── ORD-01: Re-validate rider + order state before re-emitting.
+        //    Otherwise, a rider whose status changed mid-offer (suspended, taken
+        //    offline, onboarding revoked) or an order that was already
+        //    accepted/cancelled by another rider can receive a stale offer.
+        const [riderProfile, pendingOrder] = await Promise.all([
+          prisma.riderProfile.findUnique({
+            where: { userId },
+            select: {
+              id: true,
+              availability: true,
+              suspendedUntil: true,
+              onboardingStatus: true,
+            },
+          }),
+          prisma.order.findUnique({
+            where: { id: pendingOffer.orderId },
+            select: {
+              id: true, orderNumber: true, status: true, riderId: true,
+              pickupAddress: true, dropoffAddress: true,
+              pickupLatitude: true, pickupLongitude: true,
+              dropoffLatitude: true, dropoffLongitude: true,
+              distanceKm: true, estimatedDurationMinutes: true,
+              totalPrice: true, serviceFee: true, riderEarnings: true,
+              packageType: true, packageDescription: true,
+              currency: true, isMultiStop: true,
+            },
+          }),
+        ]);
+
+        const now = new Date();
+        const riderEligible =
+          !!riderProfile &&
+          riderProfile.availability === 'ONLINE' &&
+          riderProfile.onboardingStatus === 'ACTIVATED' &&
+          (!riderProfile.suspendedUntil || riderProfile.suspendedUntil <= now);
+
+        // Order must still be unassigned and in a dispatchable state
+        const orderEligible =
+          !!pendingOrder &&
+          pendingOrder.riderId == null &&
+          (pendingOrder.status === 'PENDING' || pendingOrder.status === 'SEARCHING_RIDER');
+
+        if (!riderEligible || !orderEligible) {
+          logger.info(
+            {
+              userId,
+              orderId: pendingOffer.orderId,
+              riderEligible,
+              orderEligible,
+              riderAvailability: riderProfile?.availability,
+              suspendedUntil: riderProfile?.suspendedUntil,
+              onboardingStatus: riderProfile?.onboardingStatus,
+              orderStatus: pendingOrder?.status,
+              orderRiderId: pendingOrder?.riderId,
+            },
+            '[Socket] Skipping pending-offer re-emit — rider or order no longer eligible',
+          );
+        } else {
+          logger.info({ userId, orderId: pendingOffer.orderId }, '[Socket] Re-emitting pending offer on reconnect');
           const totalPrice = typeof pendingOrder.totalPrice === 'number' ? pendingOrder.totalPrice : Number(pendingOrder.totalPrice);
           const serviceFee = typeof pendingOrder.serviceFee === 'number' ? pendingOrder.serviceFee : Number(pendingOrder.serviceFee);
           const riderEarnings = pendingOrder.riderEarnings != null
@@ -287,11 +392,29 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
                 speed: speed ?? null,
               });
             }
-            // Cap buffer to prevent OOM if DB writes consistently fail
+            // Cap buffer to prevent OOM if DB writes consistently fail.
+            // ORD-09: also notify the rider's own client (so the PWA can surface
+            //         a connectivity-degraded toast) and broadcast to admin
+            //         room so support can correlate complaints with infra.
             if (breadcrumbBuffer.length > MAX_BREADCRUMB_BUFFER_SIZE) {
               const overflow = breadcrumbBuffer.length - MAX_BREADCRUMB_BUFFER_SIZE;
               breadcrumbBuffer.splice(0, overflow);
-              logger.warn({ dropped: overflow }, '[Breadcrumb] Buffer overflow — dropping oldest entries');
+              logger.warn({ dropped: overflow, riderId: riderProfile.id }, '[Breadcrumb] Buffer overflow — dropping oldest entries');
+              try {
+                socket.emit('rider:breadcrumb-overflow', {
+                  dropped: overflow,
+                  retained: breadcrumbBuffer.length,
+                  at: new Date().toISOString(),
+                });
+                io.to('admin:rider-locations').emit('admin:breadcrumb-overflow', {
+                  riderId: riderProfile.id,
+                  dropped: overflow,
+                  retained: breadcrumbBuffer.length,
+                  at: new Date().toISOString(),
+                });
+              } catch (emitErr) {
+                logger.debug({ err: emitErr }, '[Breadcrumb] overflow emit failed (non-fatal)');
+              }
             }
           }
 
@@ -334,7 +457,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     });
 
     // ── Subscribe to order updates (with access control) ──
-    socket.on('order:subscribe', async ({ orderId }) => {
+    socket.on('order:subscribe', async ({ orderId, since }, ack) => {
       try {
         // Verify the user is part of this order (client, assigned rider, or admin)
         const order = await prisma.order.findUnique({
@@ -345,7 +468,10 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
           },
         });
 
-        if (!order) return;
+        if (!order) {
+          ack?.({ success: false });
+          return;
+        }
 
         const isClient = order.clientId === userId;
         const isRider = order.rider?.userId === userId;
@@ -353,13 +479,93 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
         if (!isClient && !isRider && !isAdmin) {
           logger.warn({ socketId: socket.id, userId, orderId }, 'Unauthorized order:subscribe attempt');
+          ack?.({ success: false });
           return;
         }
 
         socket.join(`order:${orderId}`);
         logger.debug({ socketId: socket.id, orderId }, 'Subscribed to order room');
+
+        // ── ORD-04: Replay missed events to handle reconnect after disconnect.
+        //    Bounded replay window: caller passes `since` (ISO), we cap at 10 minutes back
+        //    and at most 50 status events + 50 messages to keep payload sane.
+        let replayed = { statuses: 0, messages: 0 };
+        if (since) {
+          const sinceDate = new Date(since);
+          if (!isNaN(sinceDate.getTime())) {
+            const REPLAY_MAX_WINDOW_MS = 10 * 60_000;
+            const earliest = new Date(Math.max(sinceDate.getTime(), Date.now() - REPLAY_MAX_WINDOW_MS));
+            try {
+              const [statuses, messages] = await Promise.all([
+                prisma.orderStatusHistory.findMany({
+                  where: { orderId, createdAt: { gt: earliest } },
+                  orderBy: { createdAt: 'asc' },
+                  take: 50,
+                  select: { status: true, createdAt: true, note: true, actor: true },
+                }),
+                prisma.orderMessage.findMany({
+                  where: { orderId, createdAt: { gt: earliest } },
+                  orderBy: { createdAt: 'asc' },
+                  take: 50,
+                  select: { id: true, senderId: true, content: true, createdAt: true },
+                }),
+              ]);
+
+              const orderMeta = await prisma.order.findUnique({
+                where: { id: orderId },
+                select: { orderNumber: true, status: true },
+              });
+
+              for (const s of statuses) {
+                socket.emit('order:status', {
+                  orderId,
+                  orderNumber: orderMeta?.orderNumber ?? '',
+                  status: s.status,
+                  previousStatus: '',
+                  note: s.note ?? undefined,
+                  timestamp: s.createdAt.toISOString(),
+                  replayed: true,
+                } as any);
+              }
+
+              if (messages.length > 0) {
+                // Resolve sender names in bulk
+                const senderIds = Array.from(new Set(messages.map((m) => m.senderId)));
+                const users = await prisma.user.findMany({
+                  where: { id: { in: senderIds } },
+                  select: { id: true, firstName: true, lastName: true },
+                });
+                const nameById = new Map(users.map((u) => [u.id, `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim()]));
+                for (const m of messages) {
+                  socket.emit('message:new', {
+                    id: m.id,
+                    orderId,
+                    senderId: m.senderId,
+                    senderName: nameById.get(m.senderId) ?? '',
+                    senderRole: m.senderId === userId
+                      ? (isRider ? 'rider' : 'client')
+                      : (isRider ? 'client' : 'rider'),
+                    content: m.content,
+                    timestamp: m.createdAt.toISOString(),
+                    replayed: true,
+                  } as any);
+                }
+              }
+
+              replayed = { statuses: statuses.length, messages: messages.length };
+              if (replayed.statuses + replayed.messages > 0) {
+                logger.info({ userId, orderId, replayed }, '[Socket] Replayed missed events on reconnect');
+              }
+            } catch (replayErr) {
+              logger.error({ err: replayErr, userId, orderId }, '[Socket] Failed to replay missed events');
+            }
+          }
+        }
+
+        ack?.({ success: true, replayed });
       } catch (err) {
         logger.error({ err, userId, orderId }, 'Failed to authorize order:subscribe');
+        ack?.({ success: false });
       }
     });
 

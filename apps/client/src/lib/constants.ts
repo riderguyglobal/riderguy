@@ -3,11 +3,29 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
+// CLI-11: Explicit WebSocket URL constant. Previously consumers stripped
+// '/api/v1' from API_BASE_URL inline (`use-socket.ts`), which broke when
+// the API was hosted under a different prefix. Keep a single source of
+// truth and let `NEXT_PUBLIC_API_WS_URL` override for cross-origin setups.
+export const API_WS_URL =
+  process.env.NEXT_PUBLIC_API_WS_URL ||
+  API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+
 export const GOOGLE_MAPS_API_KEY: string =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export const PAYSTACK_PUBLIC_KEY: string =
   process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
+
+// CLI-09: Maximum service distance for client-side validation. Sourced
+// from env so ops can widen/narrow the catchment without redeploying
+// the bundle. Falls back to 50 km (current Accra radius).
+export const MAX_SERVICE_DISTANCE_KM: number = (() => {
+  const raw = process.env.NEXT_PUBLIC_MAX_SERVICE_DISTANCE_KM;
+  if (!raw) return 50;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 50;
+})();
 
 /** Accra default center */
 export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];

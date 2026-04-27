@@ -128,12 +128,13 @@ router.get(
       throw ApiError.notFound('Document not found');
     }
 
-    // Riders can only view their own documents
+    // AUTH-06 (IDOR): only the owning user OR an admin / super-admin may view a
+    // document. Previously only RIDER role was checked, leaving CLIENT (and any
+    // future role) able to fetch documents by id.
     const role = req.user!.role;
-    if (
-      role === UserRole.RIDER &&
-      document.userId !== req.user!.userId
-    ) {
+    const isAdmin = role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN;
+    const isOwner = document.userId === req.user!.userId;
+    if (!isAdmin && !isOwner) {
       throw ApiError.forbidden('You can only view your own documents');
     }
 

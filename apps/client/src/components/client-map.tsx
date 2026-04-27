@@ -33,7 +33,14 @@ interface NearbyRider {
 
 // ── Component ───────────────────────────────────────────
 
-export default function ClientMap() {
+// CLI-04: Allow callers to gate rider-polling. The send page enables it,
+// tracking and other dashboard pages can disable it to save bandwidth/battery
+// when the map is mounted but not the focus of the screen.
+export interface ClientMapProps {
+  pollEnabled?: boolean;
+}
+
+export default function ClientMap({ pollEnabled = true }: ClientMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<MapCoreInstance | null>(null);
   const riderMarkersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
@@ -127,11 +134,13 @@ export default function ClientMap() {
           // Initial nearby riders fetch
           fetchNearbyRiders(map, userPos ?? DEFAULT_CENTER);
 
-          // Poll nearby riders
-          pollTimerRef.current = setInterval(() => {
-            const center = map.getCenter();
-            if (center) fetchNearbyRiders(map, [center.lng(), center.lat()]);
-          }, LOCATION_INTERVALS.nearbyPoll);
+          // CLI-04: Poll nearby riders only when the parent says so.
+          if (pollEnabled) {
+            pollTimerRef.current = setInterval(() => {
+              const center = map.getCenter();
+              if (center) fetchNearbyRiders(map, [center.lng(), center.lat()]);
+            }, LOCATION_INTERVALS.nearbyPoll);
+          }
 
           setMapReady(true);
         },
@@ -153,7 +162,24 @@ export default function ClientMap() {
       coreRef.current?.destroy();
       coreRef.current = null;
     };
-  }, [getUserPosition, fetchNearbyRiders]);
+  }, [getUserPosition, fetchNearbyRiders, pollEnabled]);
+
+  // CLI-04: React to runtime changes in pollEnabled so toggling on/off
+  // (e.g. on visibility change) starts/stops the polling timer correctly.
+  useEffect(() => {
+    const map = coreRef.current?.map;
+    if (!map || !mapReady) return;
+    if (pollEnabled && !pollTimerRef.current) {
+      pollTimerRef.current = setInterval(() => {
+        const center = map.getCenter();
+        if (center) fetchNearbyRiders(map, [center.lng(), center.lat()]);
+      }, LOCATION_INTERVALS.nearbyPoll);
+    }
+    if (!pollEnabled && pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, [pollEnabled, mapReady, fetchNearbyRiders]);
 
   // ── WebSocket for live rider locations ────────────────
   useEffect(() => {

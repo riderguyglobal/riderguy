@@ -126,6 +126,17 @@ export const tokenStorage = {
     } catch { /* iOS private browsing — QuotaExceededError */ }
     // Backup to IndexedDB (fire-and-forget)
     idbWrite(accessToken, refreshToken);
+    // CLI-01 / RID-03: Broadcast the new access token to the service worker
+    // so background syncs (location push, order-status check) use the fresh
+    // token rather than a snapshot taken at registration time.
+    try {
+      if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'TOKEN_REFRESHED',
+          token: accessToken,
+        });
+      }
+    } catch { /* ignore — SW not yet active or browser blocks postMessage */ }
   },
 
   clear(): void {

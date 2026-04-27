@@ -13,13 +13,36 @@ import { logger } from '../lib/logger';
 
 let firebaseApp: import('firebase-admin').app.App | null = null;
 let messaging: import('firebase-admin').messaging.Messaging | null = null;
+// Cache a permanently-disabled state so we don't spam logs / retry init
+// on every push attempt when the env var is a placeholder or malformed.
+let firebaseDisabled = false;
+
+function isValidPrivateKey(key: string): boolean {
+  // Accept only real PEM-encoded service-account keys. Rejects placeholders
+  // like "YOUR_FIREBASE_PRIVATE_KEY" and accidentally-empty values.
+  return (
+    typeof key === 'string' &&
+    key.includes('-----BEGIN PRIVATE KEY-----') &&
+    key.includes('-----END PRIVATE KEY-----')
+  );
+}
 
 async function getMessaging(): Promise<import('firebase-admin').messaging.Messaging | null> {
   if (messaging) return messaging;
+  if (firebaseDisabled) return null;
 
   const { projectId, clientEmail, privateKey } = config.firebase;
   if (!projectId || !clientEmail || !privateKey) {
+    firebaseDisabled = true;
     logger.warn('Firebase config incomplete — push notifications disabled');
+    return null;
+  }
+  if (!isValidPrivateKey(privateKey)) {
+    firebaseDisabled = true;
+    logger.warn(
+      { hasBegin: privateKey.includes('-----BEGIN'), keyLength: privateKey.length },
+      'FIREBASE_PRIVATE_KEY is not a valid PEM (placeholder or malformed) — push notifications disabled',
+    );
     return null;
   }
 
@@ -43,7 +66,9 @@ async function getMessaging(): Promise<import('firebase-admin').messaging.Messag
     logger.info('Firebase Admin initialised for push notifications');
     return messaging;
   } catch (err) {
-    logger.error({ err }, 'Failed to initialise firebase-admin');
+    // Permanent failure — don't retry on every send.
+    firebaseDisabled = true;
+    logger.error({ err }, 'Failed to initialise firebase-admin — push notifications disabled');
     return null;
   }
 }

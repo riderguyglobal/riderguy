@@ -554,14 +554,20 @@ model ApiKey {
   id                String          @id @default(cuid())
   businessAccountId String
   businessAccount   BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
-  key               String          @unique
+  // AUTH-01: Store SHA-256 hash of the key, not the raw key.
+  // The plaintext key is shown to the user once at creation, then discarded.
+  keyHash           String          @unique
+  // First 8 chars of the raw key (e.g. "rg_live_") for UI display + faster
+  // lookup narrowing without leaking the secret.
+  keyPrefix         String
   name              String
   isActive          Boolean         @default(true)
   lastUsedAt        DateTime?
   expiresAt         DateTime?
   createdAt         DateTime        @default(now())
 
-  @@index([key])
+  @@index([keyHash])
+  @@index([keyPrefix])
   @@map("api_keys")
 }
 
@@ -702,6 +708,9 @@ model Order {
   pickedUpAt            DateTime?
   deliveredAt           DateTime?
   cancelledAt           DateTime?
+  // PAY-07: Track when the delivery receipt email was sent so the receipt
+  //         worker is idempotent on retry (no duplicate emails to clients).
+  receiptEmailSentAt    DateTime?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   deletedAt             DateTime?
@@ -892,6 +901,11 @@ model Wallet {
   id             String        @id @default(cuid())
   userId         String        @unique
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // PAY-06: DB-level CHECK (balance >= 0) constraint added via migration
+  // 20260427150000_wallet_balance_check. Prisma schema cannot express
+  // raw CHECK constraints, so the invariant is documented here and
+  // enforced by Postgres directly. Application code MUST still use the
+  // optimistic `gte: amount` guard for idempotency / race protection.
   balance        Decimal       @default(0) @db.Decimal(12, 2)
   currency       String        @default("GHS")
   totalEarned    Decimal       @default(0) @db.Decimal(12, 2)

@@ -8,7 +8,7 @@ import { startWorkers, stopWorkers } from './jobs/workers';
 import { startPresenceManager, stopPresenceManager } from './services/presence.service';
 import { recoverStuckDispatches } from './services/auto-dispatch.service';
 import { expireStaleUnpaidOrders, escalateStaleDeliveries, cleanupOldBreadcrumbs } from './services/order.service';
-import { reassignGpsDarkRiders, reassignOfflineRiders, resolveExpiredCancelRequests } from './services/order-reassign.service';
+import { reassignGpsDarkRiders, reassignOfflineRiders, resolveExpiredCancelRequests, failStuckPostPickupOrders } from './services/order-reassign.service';
 import { processExpiredRequests } from './services/cancellation-request.service';
 import { closeRedis } from './lib/redis';
 
@@ -78,6 +78,10 @@ const server = httpServer.listen(config.port, () => {
     reassignOfflineRiders()
       .then((n) => n > 0 && logger.warn({ count: n }, 'Reassigned orders from offline riders'))
       .catch((err) => logger.error({ err }, 'Offline reassign sweep failed'));
+    // Backstop: post-pickup orders stuck >24h with GPS-dark rider get auto-failed
+    failStuckPostPickupOrders()
+      .then((n) => n > 0 && logger.warn({ count: n }, 'Auto-failed stuck post-pickup orders'))
+      .catch((err) => logger.error({ err }, 'Stuck-order auto-fail sweep failed'));
   }, 2 * 60 * 1000);
 
   // D-06: Process expired cancel requests and resolve stuck orders every 5 minutes

@@ -37,15 +37,7 @@ router.get(
       onlineRiders,
       totalClients,
       pendingApplications,
-      ordersToday,
-      ordersThisWeek,
-      ordersThisMonth,
-      totalOrders,
-      activeDeliveries,
-      deliveredToday,
-      revenueToday,
-      revenueThisMonth,
-      totalRevenue,
+      orderStats,
       pendingWithdrawals,
       totalZones,
     ] = await Promise.all([
@@ -56,29 +48,50 @@ router.get(
       prisma.riderProfile.count({
         where: { onboardingStatus: { in: ['DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW'] } },
       }),
-      prisma.order.count({ where: { createdAt: { gte: startOfToday } } }),
-      prisma.order.count({ where: { createdAt: { gte: startOfWeek } } }),
-      prisma.order.count({ where: { createdAt: { gte: startOfMonth } } }),
-      prisma.order.count(),
-      prisma.order.count({
-        where: { status: { in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT'] } },
-      }),
-      prisma.order.count({ where: { status: 'DELIVERED', deliveredAt: { gte: startOfToday } } }),
-      prisma.order.aggregate({
-        _sum: { totalPrice: true },
-        where: { status: 'DELIVERED', deliveredAt: { gte: startOfToday } },
-      }),
-      prisma.order.aggregate({
-        _sum: { totalPrice: true },
-        where: { status: 'DELIVERED', deliveredAt: { gte: startOfMonth } },
-      }),
-      prisma.order.aggregate({
-        _sum: { totalPrice: true },
-        where: { status: 'DELIVERED' },
-      }),
+      // ORD-08: collapse 9 separate order count + aggregate round-trips into a
+      //          single SQL pass with conditional aggregates. Cuts dashboard
+      //          load latency from O(N round-trips) to O(1).
+      prisma.$queryRaw<Array<{
+        orders_today: bigint;
+        orders_week: bigint;
+        orders_month: bigint;
+        orders_total: bigint;
+        active_deliveries: bigint;
+        delivered_today: bigint;
+        revenue_today: string | null;
+        revenue_month: string | null;
+        revenue_total: string | null;
+      }>>`
+        SELECT
+          COUNT(*) FILTER (WHERE "createdAt" >= ${startOfToday}) AS orders_today,
+          COUNT(*) FILTER (WHERE "createdAt" >= ${startOfWeek})  AS orders_week,
+          COUNT(*) FILTER (WHERE "createdAt" >= ${startOfMonth}) AS orders_month,
+          COUNT(*)                                                AS orders_total,
+          COUNT(*) FILTER (WHERE status IN ('ASSIGNED','PICKUP_EN_ROUTE','AT_PICKUP','PICKED_UP','IN_TRANSIT')) AS active_deliveries,
+          COUNT(*) FILTER (WHERE status = 'DELIVERED' AND "deliveredAt" >= ${startOfToday}) AS delivered_today,
+          COALESCE(SUM("totalPrice") FILTER (WHERE status = 'DELIVERED' AND "deliveredAt" >= ${startOfToday}), 0)::text AS revenue_today,
+          COALESCE(SUM("totalPrice") FILTER (WHERE status = 'DELIVERED' AND "deliveredAt" >= ${startOfMonth}), 0)::text AS revenue_month,
+          COALESCE(SUM("totalPrice") FILTER (WHERE status = 'DELIVERED'), 0)::text                              AS revenue_total
+        FROM "orders"
+      `,
       prisma.withdrawal.count({ where: { status: 'PENDING' } }),
       prisma.zone.count({ where: { status: 'ACTIVE' } }),
     ]);
+
+    const stat = orderStats[0] ?? {
+      orders_today: 0n, orders_week: 0n, orders_month: 0n, orders_total: 0n,
+      active_deliveries: 0n, delivered_today: 0n,
+      revenue_today: '0', revenue_month: '0', revenue_total: '0',
+    };
+    const ordersToday = Number(stat.orders_today);
+    const ordersThisWeek = Number(stat.orders_week);
+    const ordersThisMonth = Number(stat.orders_month);
+    const totalOrders = Number(stat.orders_total);
+    const activeDeliveries = Number(stat.active_deliveries);
+    const deliveredToday = Number(stat.delivered_today);
+    const revenueToday = Number(stat.revenue_today ?? 0);
+    const revenueThisMonth = Number(stat.revenue_month ?? 0);
+    const totalRevenue = Number(stat.revenue_total ?? 0);
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -101,9 +114,9 @@ router.get(
           deliveredToday,
         },
         revenue: {
-          today: revenueToday._sum.totalPrice ?? 0,
-          thisMonth: revenueThisMonth._sum.totalPrice ?? 0,
-          total: totalRevenue._sum.totalPrice ?? 0,
+          today: revenueToday,
+          thisMonth: revenueThisMonth,
+          total: totalRevenue,
         },
         pendingWithdrawals,
         activeZones: totalZones,

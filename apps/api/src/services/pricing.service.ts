@@ -28,7 +28,40 @@ import {
 import { haversineDistance, estimateDuration, toRoadDistance } from '@riderguy/utils';
 import { isPointInPolygon } from '@riderguy/utils';
 import type { PackageType, PaymentMethod, Zone } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { correctEta } from './eta-learning.service';
+
+// ── PAY-03 / PAY-09: Decimal helpers ────────────────────────
+// Use Prisma.Decimal for the multiplicative chain so we don't
+// accumulate IEEE-754 rounding errors across surge × ToD × weather
+// × cross-zone × express × schedule discounts. Round to 2dp
+// (nearest pesewa) ONLY at boundary outputs (subtotal, serviceFee,
+// totalPrice, platformCommission, riderEarnings).
+//
+// PAY-09 — ROUNDING MODE CONTRACT:
+//   * Every monetary boundary value uses ROUND_HALF_EVEN (banker's
+//     rounding) at 2 decimal places (pesewa precision).
+//   * Banker's rounding is chosen to avoid the long-run upward bias
+//     of ROUND_HALF_UP across many small commission slices.
+//   * `platformCommission = ROUND(totalPrice × commissionRate, 2, HALF_EVEN)`
+//     `riderEarnings      = ROUND(totalPrice − rawCommission, 2, HALF_EVEN)`
+//     The split is computed BEFORE rounding so the two rounded outputs
+//     always satisfy `platformCommission + riderEarnings == totalPrice`
+//     to within ≤1 pesewa. Reconciliation reports should treat any
+//     larger drift as a bug.
+//   * Reconciliation: sum(orders.platformCommission) for a window
+//     should equal sum(transactions.amount where type='COMMISSION')
+//     for the same window, after FX/refunds.
+
+export const COMMISSION_ROUNDING_MODE = 'HALF_EVEN' as const;
+export const COMMISSION_DECIMAL_PLACES = 2 as const;
+
+const D = (v: number | string | Prisma.Decimal) => new Prisma.Decimal(v);
+
+/** Round a Decimal to 2dp (nearest pesewa, banker's rounding) and return as number. */
+function decimalToGhs(d: Prisma.Decimal): number {
+  return d.toDecimalPlaces(COMMISSION_DECIMAL_PLACES, Prisma.Decimal.ROUND_HALF_EVEN).toNumber();
+}
 
 // ============================================================
 // Pricing Engine v2 — Comprehensive zone-aware pricing.
@@ -357,25 +390,37 @@ export async function calculatePrice(
   let promoError: string | null = null;
 
   // ── 14. Calculate ────────────────────────────────────────
-  const distanceCharge = roundGhs(distanceKm * perKmRate);
-  const stopSurcharges = roundGhs(additionalStops * STOP_SURCHARGE_GHS);
+  // PAY-03: Use Prisma.Decimal for the multiplicative chain.
+  // Components are NOT pre-rounded; we round once at each boundary output.
+  const distanceChargeD = D(distanceKm).mul(D(perKmRate));
+  const stopSurchargesD = D(additionalStops).mul(D(STOP_SURCHARGE_GHS));
+  const weightSurchargeD = D(weightSurcharge);
 
-  const rawSubtotal =
-    (baseFare + distanceCharge + stopSurcharges + weightSurcharge) *
-    packageMultiplier *
-    surgeMultiplier *
-    timeOfDayMultiplier *
-    weatherMultiplier *
-    crossZoneMultiplier *
-    expressMultiplier *
-    scheduleDiscount;
+  // Boundary-rounded views for the breakdown (display only)
+  const distanceCharge = decimalToGhs(distanceChargeD);
+  const stopSurcharges = decimalToGhs(stopSurchargesD);
 
-  let subtotal = roundGhs(Math.max(minimumFare, rawSubtotal));
+  const baseSumD = D(baseFare).add(distanceChargeD).add(stopSurchargesD).add(weightSurchargeD);
+  const multipliersD = D(packageMultiplier)
+    .mul(D(surgeMultiplier))
+    .mul(D(timeOfDayMultiplier))
+    .mul(D(weatherMultiplier))
+    .mul(D(crossZoneMultiplier))
+    .mul(D(expressMultiplier))
+    .mul(D(scheduleDiscount));
 
-  // Apply business discount
+  const rawSubtotalD = baseSumD.mul(multipliersD);
+  const minimumD = D(minimumFare);
+
+  // Apply minimum-fare floor on the raw (un-rounded) value
+  let subtotalD = Prisma.Decimal.max(minimumD, rawSubtotalD);
+
+  // Apply business discount (multiplicative)
   if (businessDiscount > 0) {
-    subtotal = roundGhs(Math.max(minimumFare, subtotal * (1 - businessDiscount)));
+    subtotalD = Prisma.Decimal.max(minimumD, subtotalD.mul(D(1).sub(D(businessDiscount))));
   }
+
+  let subtotal = decimalToGhs(subtotalD);
 
   // Now validate promo code against the pre-promo subtotal
   if (promoCode) {
@@ -415,25 +460,31 @@ export async function calculatePrice(
     }
   }
 
-  // Apply promo discount
+  // Apply promo discount (PAY-03: keep Decimal precision)
   if (promoIsPct && promoValue > 0) {
-    let pctDiscount = roundGhs(subtotal * (promoValue / 100));
-    if (promoMaxDiscount && pctDiscount > promoMaxDiscount) {
-      pctDiscount = promoMaxDiscount;
+    let pctDiscountD = subtotalD.mul(D(promoValue)).div(100);
+    if (promoMaxDiscount && pctDiscountD.greaterThan(promoMaxDiscount)) {
+      pctDiscountD = D(promoMaxDiscount);
     }
-    promoDiscount = pctDiscount;
-    subtotal = roundGhs(Math.max(minimumFare, subtotal - promoDiscount));
+    promoDiscount = decimalToGhs(pctDiscountD);
+    subtotalD = Prisma.Decimal.max(minimumD, subtotalD.sub(pctDiscountD));
+    subtotal = decimalToGhs(subtotalD);
   } else if (promoValue > 0) {
-    promoDiscount = roundGhs(promoValue);
-    subtotal = roundGhs(Math.max(minimumFare, subtotal - promoDiscount));
+    promoDiscount = decimalToGhs(D(promoValue));
+    subtotalD = Prisma.Decimal.max(minimumD, subtotalD.sub(D(promoValue)));
+    subtotal = decimalToGhs(subtotalD);
   }
 
-  const serviceFee = roundGhs(subtotal * serviceFeeRate);
-  const totalPrice = roundGhs(subtotal + serviceFee);
+  const serviceFeeD = subtotalD.mul(D(serviceFeeRate));
+  const totalPriceD = subtotalD.add(serviceFeeD);
+  const serviceFee = decimalToGhs(serviceFeeD);
+  const totalPrice = decimalToGhs(totalPriceD);
 
   // ── 15. Earnings split ───────────────────────────────────
-  const platformCommission = roundGhs(totalPrice * commissionRate);
-  const riderEarnings = roundGhs(totalPrice - platformCommission);
+  const platformCommissionD = totalPriceD.mul(D(commissionRate));
+  const riderEarningsD = totalPriceD.sub(platformCommissionD);
+  const platformCommission = decimalToGhs(platformCommissionD);
+  const riderEarnings = decimalToGhs(riderEarningsD);
 
   return {
     haversineDistanceKm: roundGhs(haversineKm),

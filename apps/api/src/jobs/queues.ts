@@ -99,9 +99,19 @@ if (redisEnabled) {
     },
   });
 
-  // Schedule daily location history cleanup at 3 AM
-  cleanupQueue.add('purge-location-history', { retentionDays: 90 }, {
-    repeat: { pattern: '0 3 * * *' }, // Daily at 03:00
+  // JOB-04 / JOB-05: Schedule daily location history cleanup.
+  //   * tz pinned to Africa/Accra so the 03:00 wall-clock is stable
+    //     even if the host clock or container moves to a different region.
+  //   * retentionDays read from env (LOCATION_RETENTION_DAYS) with a
+  //     90-day default — lets ops tune storage without redeploying.
+  const locationRetentionDays = (() => {
+    const raw = process.env.LOCATION_RETENTION_DAYS;
+    if (!raw) return 90;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : 90;
+  })();
+  cleanupQueue.add('purge-location-history', { retentionDays: locationRetentionDays }, {
+    repeat: { pattern: '0 3 * * *', tz: 'Africa/Accra' }, // Daily at 03:00 Accra
     jobId: 'daily-location-cleanup',
   }).catch(() => {
     logger.warn('Failed to schedule location history cleanup job');
@@ -116,6 +126,8 @@ export { payoutQueue, receiptQueue, commissionQueue, pushQueue, cleanupQueue };
 
 // ── Job data interfaces ──
 
+// JOB-03: Every job carries an optional correlationId so logs can be linked
+//         from inbound HTTP request → enqueued job → retries → final outcome.
 export interface PayoutJobData {
   withdrawalId: string;
   userId: string;
@@ -124,6 +136,7 @@ export interface PayoutJobData {
   destination: string;
   destinationName: string;
   bankCode?: string;
+  correlationId?: string;
 }
 
 export interface ReceiptJobData {
@@ -132,6 +145,7 @@ export interface ReceiptJobData {
   orderNumber: string;
   totalPrice: number;
   currency: string;
+  correlationId?: string;
 }
 
 export interface CommissionJobData {
@@ -141,6 +155,7 @@ export interface CommissionJobData {
   orderAmount: number;
   commissionRate: number;
   platformCommission: number;
+  correlationId?: string;
 }
 
 export interface PushJobData {
@@ -148,6 +163,7 @@ export interface PushJobData {
   title: string;
   body: string;
   data?: Record<string, string>;
+  correlationId?: string;
 }
 
 // ── Queue helpers — safe no-ops when Redis is not configured ──
@@ -160,7 +176,7 @@ export async function enqueuePayoutJob(data: PayoutJobData): Promise<void> {
   await payoutQueue.add('process-payout', data, {
     jobId: `payout-${data.withdrawalId}`,
   });
-  logger.info({ withdrawalId: data.withdrawalId }, 'Payout job enqueued');
+  logger.info({ withdrawalId: data.withdrawalId, correlationId: data.correlationId }, 'Payout job enqueued');
 }
 
 export async function enqueueReceiptJob(data: ReceiptJobData): Promise<void> {
@@ -171,7 +187,7 @@ export async function enqueueReceiptJob(data: ReceiptJobData): Promise<void> {
   await receiptQueue.add('generate-receipt', data, {
     jobId: `receipt-${data.orderId}`,
   });
-  logger.info({ orderId: data.orderId }, 'Receipt generation job enqueued');
+  logger.info({ orderId: data.orderId, correlationId: data.correlationId }, 'Receipt generation job enqueued');
 }
 
 export async function enqueueCommissionJob(data: CommissionJobData): Promise<void> {
@@ -182,7 +198,7 @@ export async function enqueueCommissionJob(data: CommissionJobData): Promise<voi
   await commissionQueue.add('credit-commission', data, {
     jobId: `commission-${data.orderId}`,
   });
-  logger.info({ orderId: data.orderId }, 'Commission tracking job enqueued');
+  logger.info({ orderId: data.orderId, correlationId: data.correlationId }, 'Commission tracking job enqueued');
 }
 
 export async function enqueuePushJob(data: PushJobData): Promise<void> {
@@ -195,7 +211,7 @@ export async function enqueuePushJob(data: PushJobData): Promise<void> {
     return;
   }
   await pushQueue.add('send-push', data);
-  logger.info({ userId: data.userId, title: data.title }, 'Push notification job enqueued');
+  logger.info({ userId: data.userId, title: data.title, correlationId: data.correlationId }, 'Push notification job enqueued');
 }
 
 // ── Get queue stats for admin dashboard ──

@@ -35,44 +35,58 @@ export function useAudioKeepAlive(enabled: boolean) {
     }
 
     // Create Web Audio API context and silent oscillator
+    let ctx: AudioContext | null = null;
     try {
       const AudioContextClass = window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
 
       if (!AudioContextClass) return;
 
-      const ctx = new AudioContextClass();
-      ctxRef.current = ctx;
+      const localCtx: AudioContext = new AudioContextClass();
+      ctx = localCtx;
+      ctxRef.current = localCtx;
 
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
+      // RID-11: Wrap node creation/start so any failure (e.g. iOS
+      //         autoplay restriction throwing on .start()) closes the
+      //         AudioContext we just opened instead of leaking it.
+      let oscillator: OscillatorNode;
+      let gain: GainNode;
+      try {
+        oscillator = localCtx.createOscillator();
+        gain = localCtx.createGain();
 
-      // Set gain to near-zero — inaudible but keeps the audio thread alive
-      gain.gain.value = 0.001;
+        // Set gain to near-zero — inaudible but keeps the audio thread alive
+        gain.gain.value = 0.001;
 
-      // Use a low frequency to minimize any chance of audible artifacts
-      oscillator.frequency.value = 20; // Below human hearing threshold
-      oscillator.type = 'sine';
+        // Use a low frequency to minimize any chance of audible artifacts
+        oscillator.frequency.value = 20; // Below human hearing threshold
+        oscillator.type = 'sine';
 
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      oscillator.start();
+        oscillator.connect(gain);
+        gain.connect(localCtx.destination);
+        oscillator.start();
+      } catch (innerErr) {
+        // Close ctx so the audio thread isn't held open by a half-built graph
+        if (localCtx.state !== 'closed') localCtx.close().catch(() => {});
+        ctxRef.current = null;
+        throw innerErr;
+      }
 
       oscRef.current = oscillator;
       gainRef.current = gain;
 
       // Resume audio context on user interaction (required by autoplay policies)
       const resumeOnInteraction = () => {
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
+        if (localCtx.state === 'suspended') {
+          localCtx.resume().catch(() => {});
         }
       };
       document.addEventListener('touchstart', resumeOnInteraction);
       document.addEventListener('click', resumeOnInteraction);
 
       // Re-register resume when AudioContext auto-suspends after a background cycle
-      ctx.onstatechange = () => {
-        if (ctx.state === 'suspended') {
+      localCtx.onstatechange = () => {
+        if (localCtx.state === 'suspended') {
           document.addEventListener('touchstart', resumeOnInteraction, { once: true });
           document.addEventListener('click', resumeOnInteraction, { once: true });
         }
@@ -80,8 +94,8 @@ export function useAudioKeepAlive(enabled: boolean) {
 
       // Also resume when returning from background
       const handleVisibility = () => {
-        if (document.visibilityState === 'visible' && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
+        if (document.visibilityState === 'visible' && localCtx.state === 'suspended') {
+          localCtx.resume().catch(() => {});
         }
       };
       document.addEventListener('visibilitychange', handleVisibility);
@@ -92,15 +106,17 @@ export function useAudioKeepAlive(enabled: boolean) {
         document.removeEventListener('click', resumeOnInteraction);
 
         try { oscillator.stop(); } catch { /* already stopped */ }
-        if (ctx.state !== 'closed') {
-          ctx.close().catch(() => {});
+        if (localCtx.state !== 'closed') {
+          localCtx.close().catch(() => {});
         }
         oscRef.current = null;
         ctxRef.current = null;
         gainRef.current = null;
       };
     } catch {
-      // Web Audio API not available
+      // Web Audio API not available — RID-11: ensure no half-open ctx remains
+      if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+      ctxRef.current = null;
       console.warn('[AudioKeepAlive] Web Audio API not available');
     }
   }, [enabled]);

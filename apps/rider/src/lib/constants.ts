@@ -24,14 +24,30 @@ export const MAP_STYLE_DARK = 'dark';
 /** Default map center: Accra, Ghana */
 export const DEFAULT_CENTER: [number, number] = [-0.187, 5.603];
 
-/** Rider location update interval in ms */
-export const LOCATION_INTERVAL = 5_000;
+/** Rider location update interval in ms (override via NEXT_PUBLIC_RIDER_LOCATION_INTERVAL_MS) */
+export const LOCATION_INTERVAL = (() => {
+  const raw = process.env.NEXT_PUBLIC_RIDER_LOCATION_INTERVAL_MS;
+  const n = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n >= 1000 ? n : 5_000;
+})();
 
 /** Heartbeat interval for REST-based location updates (ms) */
-export const HEARTBEAT_INTERVAL = 30_000;
+export const HEARTBEAT_INTERVAL = (() => {
+  const raw = process.env.NEXT_PUBLIC_RIDER_HEARTBEAT_MS;
+  const n = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n >= 5000 ? n : 30_000;
+})();
 
-/** Job offer countdown seconds */
-export const OFFER_COUNTDOWN = 30;
+// RID-10: OFFER_COUNTDOWN is the FALLBACK when an offer payload doesn't
+// include `expiresAt`. The offer-card derives its real countdown from
+// `Math.max(0, new Date(offer.expiresAt).getTime() - Date.now()) / 1000`
+// so server-side changes to the dispatch window propagate without a
+// rider PWA redeploy. The env override exists for legacy clients only.
+export const OFFER_COUNTDOWN = (() => {
+  const raw = process.env.NEXT_PUBLIC_RIDER_OFFER_COUNTDOWN;
+  const n = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 30;
+})();
 
 /** Order status display configuration */
 export const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {

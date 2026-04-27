@@ -333,6 +333,52 @@ async function executeCancellation(
   clientId: string,
 ) {
   try {
+    // PAY-04: Defense-in-depth idempotency — verify the order is still cancellable
+    // before proceeding. This guards against double-execution when the function
+    // is invoked from multiple paths (authorizeCancelRequest('complete') and
+    // confirmReturn) or via duplicate webhooks/retries.
+    //
+    // We check both the order status and the cancellation-request status:
+    //  - If the order is already in a CANCELLED_* state, the cancellation has
+    //    already been executed by a prior call → no-op return.
+    //  - If the cancellation request has been advanced past its authorized
+    //    states (e.g. another caller flipped it to DENIED/EXPIRED), abort.
+    const [currentOrder, currentRequest] = await Promise.all([
+      prisma.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, status: true },
+      }),
+      prisma.cancellationRequest.findUnique({
+        where: { orderId },
+        select: { id: true, status: true },
+      }),
+    ]);
+
+    if (!currentOrder) {
+      logger.warn({ orderId }, '[Cancel] executeCancellation: order not found — bailing');
+      return null;
+    }
+
+    if (currentOrder.status.startsWith('CANCELLED_')) {
+      logger.info(
+        { orderId, currentStatus: currentOrder.status },
+        '[Cancel] executeCancellation: order already cancelled — idempotent skip',
+      );
+      return currentOrder;
+    }
+
+    if (
+      currentRequest &&
+      currentRequest.status !== 'AUTHORIZED_COMPLETE' &&
+      currentRequest.status !== 'RETURN_CONFIRMED'
+    ) {
+      logger.warn(
+        { orderId, requestStatus: currentRequest.status },
+        '[Cancel] executeCancellation: request not in executable state — aborting',
+      );
+      return null;
+    }
+
     const cancelNote = `Rider cancel (authorized): ${reason}`;
     const updated = await transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote);
 

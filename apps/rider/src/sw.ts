@@ -189,6 +189,22 @@ async function idbClear(): Promise<void> {
 self.addEventListener('message', (event) => {
   const { type, data } = event.data ?? {};
 
+  // RID-03: Refresh the stored auth token whenever the main thread rotates it.
+  // Without this, the SW's idbConfig holds whatever token was set on the last
+  // SYNC_LOCATION message — which may have been refreshed-out (401) by the
+  // time a delayed background sync flushes.
+  if (type === 'TOKEN_REFRESHED') {
+    const newToken = (event.data as { token?: string })?.token;
+    if (newToken) {
+      // Preserve the existing apiUrl by merging into idbConfig
+      idbGetConfig().then((cfg) => {
+        const apiUrl = cfg?.apiUrl ?? '';
+        if (apiUrl) idbSetConfig(newToken, apiUrl);
+      }).catch(() => {});
+    }
+    return;
+  }
+
   if (type === 'SYNC_LOCATION') {
     const item: QueuedLocation = {
       latitude: data.latitude,

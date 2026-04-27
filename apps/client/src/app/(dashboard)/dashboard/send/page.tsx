@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@riderguy/auth';
 import { formatCurrency, haversineDistance } from '@riderguy/utils';
-import { PACKAGE_TYPES, SCHEDULE_TYPES } from '@/lib/constants';
+import { PACKAGE_TYPES, SCHEDULE_TYPES, MAX_SERVICE_DISTANCE_KM } from '@/lib/constants';
 import { LocationInput, type LocationValue } from '@/components/location-input';
 import { PriceBreakdown, type PriceEstimate } from '@/components/price-breakdown';
 import { OrderConfirmation } from '@/components/order-confirmation';
@@ -38,7 +38,8 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   return haversineDistance(a[1], a[0], b[1], b[0]);
 }
 
-const MAX_SERVICE_DISTANCE_KM = 50;
+// CLI-09: MAX_SERVICE_DISTANCE_KM is now sourced from lib/constants
+// (env-driven via NEXT_PUBLIC_MAX_SERVICE_DISTANCE_KM).
 
 // Lazy-load route preview map (SSR-unsafe)
 const RoutePreviewMap = dynamic(() => import('@/components/route-preview-map'), { ssr: false });
@@ -352,25 +353,38 @@ export default function SendPackagePage() {
   const uploadPackagePhotos = async (): Promise<string[]> => {
     if (!api || packagePhotos.length === 0) return [];
     const urls: string[] = [];
-    let failedCount = 0;
+    const failedNames: string[] = [];
     for (const { file } of packagePhotos) {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await api.post('/orders/upload-photo', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (res.data?.data?.url) urls.push(res.data.data.url);
-        else failedCount++;
+        // CLI-05/CLI-08: 30s per-file timeout; cancel on slow networks instead of hanging.
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 30_000);
+        try {
+          const res = await api.post('/orders/upload-photo', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            signal: ac.signal,
+          });
+          if (res.data?.data?.url) urls.push(res.data.data.url);
+          else failedNames.push(file.name);
+        } finally {
+          clearTimeout(timer);
+        }
       } catch {
-        failedCount++;
+        failedNames.push(file.name);
       }
     }
-    if (failedCount > 0 && urls.length === 0) {
-      throw new Error(`All ${failedCount} photo upload(s) failed. Please try again.`);
+    if (failedNames.length > 0 && urls.length === 0) {
+      throw new Error(
+        `All ${failedNames.length} photo upload(s) failed: ${failedNames.join(', ')}. Please try again.`,
+      );
     }
-    if (failedCount > 0) {
-      setError(`${failedCount} photo(s) failed to upload — continuing with ${urls.length}.`);
+    if (failedNames.length > 0) {
+      // CLI-05: list the actual files that failed so the user can re-add them.
+      setError(
+        `${failedNames.length} photo(s) failed to upload (${failedNames.join(', ')}) — continuing with ${urls.length}.`,
+      );
     }
     return urls;
   };
@@ -395,8 +409,56 @@ export default function SendPackagePage() {
     setSubmitting(true);
     setError('');
 
+    // CLI-08: hard 60s ceiling on the whole submit so a hung network can't
+    //         lock the button forever.
+    const submitAbort = new AbortController();
+    const submitTimer = setTimeout(() => submitAbort.abort(), 60_000);
+
     try {
       const photoUrls = await uploadPackagePhotos();
+
+      // ORD-06: stale-estimate refresh — if it's been >120s since the last
+      //         estimate fetch, re-quote before submitting so surge / ToD
+      //         changes don't cause a server-side 15% price-drift rejection.
+      let confirmedEstimate = estimate;
+      const STALE_MS = 120_000;
+      if (estimatedAtRef.current && Date.now() - estimatedAtRef.current > STALE_MS) {
+        try {
+          const refreshBody: Record<string, unknown> = {
+            pickupLatitude: pickup.location.coordinates![1],
+            pickupLongitude: pickup.location.coordinates![0],
+            dropoffLatitude: dropoff.location.coordinates![1],
+            dropoffLongitude: dropoff.location.coordinates![0],
+            packageType,
+            paymentMethod,
+          };
+          const vs = additionalStops.filter((s) => s.coordinates);
+          if (vs.length > 0) {
+            refreshBody.additionalStops = vs.length;
+            refreshBody.stops = vs.map((s) => ({
+              type: 'DROPOFF',
+              latitude: s.coordinates![1],
+              longitude: s.coordinates![0],
+            }));
+          }
+          if (scheduleType !== 'NOW') refreshBody.scheduleType = scheduleType;
+          const at = computeScheduledAt(scheduleType, scheduledTime);
+          if (at) refreshBody.scheduledAt = at.toISOString();
+          if (isExpress) refreshBody.isExpress = true;
+          if (packageWeightKg && packageWeightKg > 0) refreshBody.packageWeightKg = packageWeightKg;
+          if (promoCode.trim()) refreshBody.promoCode = promoCode.trim().toUpperCase();
+
+          const res = await api.post('/orders/estimate', refreshBody, { signal: submitAbort.signal });
+          confirmedEstimate = res.data?.data ?? null;
+          if (confirmedEstimate) {
+            setEstimate(confirmedEstimate);
+            estimatedAtRef.current = Date.now();
+          }
+        } catch (refreshErr: any) {
+          // Non-fatal — proceed with stale estimate. Server still validates the
+          // estimate vs final price within ±15%, so worst case we get a clear error.
+        }
+      }
 
       const body: Record<string, unknown> = {
         pickupAddress: pickup.location.address,
@@ -408,7 +470,7 @@ export default function SendPackagePage() {
         packageType,
         paymentMethod,
         // Send confirmed estimate so server can reject if price drifted significantly
-        estimatedTotalPrice: estimate?.totalPrice,
+        estimatedTotalPrice: confirmedEstimate?.totalPrice,
       };
 
       if (isExpress) body.isExpress = true;
@@ -445,7 +507,7 @@ export default function SendPackagePage() {
         }
       }
 
-      const res = await api.post('/orders', body);
+      const res = await api.post('/orders', body, { signal: submitAbort.signal });
       const orderId = res.data.data?.id;
 
       // Always go to tracking — payment is collected post-delivery
@@ -453,13 +515,17 @@ export default function SendPackagePage() {
 
       return orderId ?? null;
     } catch (err: any) {
+      // CLI-08: clear error message on timeout
       const message =
-        err?.response?.data?.error?.message ||
-        err?.response?.data?.message ||
-        (err instanceof Error ? err.message : 'Failed to create order.');
+        err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED'
+          ? 'Request timed out. Please check your connection and try again.'
+          : err?.response?.data?.error?.message ||
+            err?.response?.data?.message ||
+            (err instanceof Error ? err.message : 'Failed to create order.');
       setError(message);
       return null;
     } finally {
+      clearTimeout(submitTimer);
       submittingRef.current = false;
       setSubmitting(false);
     }

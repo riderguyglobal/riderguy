@@ -93,7 +93,14 @@ export class AuthController {
   /** POST /auth/refresh */
   static async refresh(req: Request, res: Response) {
     const { refreshToken } = req.body;
-    const result = await AuthService.refreshTokens(refreshToken);
+    // AUTH-05: pass current request context so the service can audit-log
+    //         when the refresh source diverges from the original session.
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress ||
+      undefined;
+    const result = await AuthService.refreshTokens(refreshToken, { deviceInfo, ipAddress });
     res.status(StatusCodes.OK).json({
       success: true,
       data: result,
@@ -104,6 +111,12 @@ export class AuthController {
   static async logout(req: Request, res: Response) {
     if (req.user?.sessionId) {
       await AuthService.logout(req.user.sessionId);
+    }
+    // AUTH-04: Add the access-token jti to Redis revocation list so the
+    //          remaining few minutes of token life can't be reused (e.g. socket).
+    if (req.user?.jti && req.user.exp) {
+      const ttlSec = Math.max(60, req.user.exp - Math.floor(Date.now() / 1000));
+      await AuthService.revokeAccessToken(req.user.jti, ttlSec);
     }
     res.status(StatusCodes.OK).json({
       success: true,

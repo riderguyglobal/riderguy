@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { OtpInput, PhoneInput, Button } from '@riderguy/ui';
 import { phoneSchema } from '@riderguy/validators';
-import { API_BASE_URL } from '@/lib/constants';
+import { getApiClient } from '@riderguy/auth';
 import { ArrowLeft, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Phone } from 'lucide-react';
 
 type Stage = 'phone' | 'otp' | 'new-pin' | 'confirm-pin' | 'success';
@@ -68,18 +68,16 @@ function ForgotPinContent() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/otp/request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, purpose: 'PASSWORD_RESET' }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Failed to send OTP');
+      // RID-08: use shared auth-aware axios client
+      const api = getApiClient();
+      if (!api) throw new Error('API client not initialised');
+      const { data } = await api.post('/auth/otp/request', { phone, purpose: 'PASSWORD_RESET' });
+      if (data?.success === false) throw new Error(data?.error?.message ?? 'Failed to send OTP');
 
       startCooldown();
       setStage('otp');
     } catch (err: any) {
-      setError(err.message ?? 'Something went wrong');
+      setError(err?.response?.data?.error?.message ?? err?.message ?? 'Something went wrong');
     } finally {
       setSubmitting(false);
     }
@@ -111,18 +109,16 @@ function ForgotPinContent() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/reset-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp, newPin }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Failed to reset PIN');
+      const api = getApiClient();
+      if (!api) throw new Error('API client not initialised');
+      const { data } = await api.post('/auth/reset-pin', { phone, otp, newPin });
+      if (data?.success === false) throw new Error(data?.error?.message ?? 'Failed to reset PIN');
 
       setStage('success');
     } catch (err: any) {
-      setError(err.message ?? 'Something went wrong');
-      if (err.message?.includes('OTP') || err.message?.includes('expired')) {
+      const msg = err?.response?.data?.error?.message ?? err?.message ?? 'Something went wrong';
+      setError(msg);
+      if (msg?.includes('OTP') || msg?.includes('expired')) {
         // OTP expired — go back
         setStage('otp');
         otpRef.current?.clear();

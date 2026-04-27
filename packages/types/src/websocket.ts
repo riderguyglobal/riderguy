@@ -59,6 +59,14 @@ export interface ServerToClientEvents {
   'community:memberJoined': (data: { roomId: string; userId: string; firstName: string }) => void;
   'community:memberLeft': (data: { roomId: string; userId: string; firstName: string }) => void;
 
+  // ── Operational telemetry (ORD-09) ──
+  // Emitted to a rider's own socket when their server-side breadcrumb buffer
+  // overflows because DB writes have been failing for several flush cycles.
+  'rider:breadcrumb-overflow': (data: { dropped: number; retained: number; at: string }) => void;
+  // Mirrored to admin:rider-locations so support can correlate "missing
+  // tracking" complaints with a specific rider/time.
+  'admin:breadcrumb-overflow': (data: { riderId: string; dropped: number; retained: number; at: string }) => void;
+
   // ── Connection / errors ──
   'error': (data: { code: string; message: string }) => void;
 }
@@ -72,7 +80,12 @@ export interface ClientToServerEvents {
   ) => void;
 
   // ── Join/leave rooms for live updates ──
-  'order:subscribe': (data: { orderId: string }) => void;
+  // ORD-04: optional `since` ISO timestamp triggers replay of missed
+  //         status changes + messages while the client was disconnected.
+  'order:subscribe': (
+    data: { orderId: string; since?: string },
+    ack?: (response: { success: boolean; replayed?: { statuses: number; messages: number } }) => void,
+  ) => void;
   'order:unsubscribe': (data: { orderId: string }) => void;
 
   // ── Messaging ──

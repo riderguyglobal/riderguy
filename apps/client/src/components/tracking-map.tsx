@@ -29,6 +29,10 @@ interface TrackingMapProps {
   dropoffCoords: [number, number] | null;  // [lng, lat]
   riderCoords: [number, number] | null;    // [lng, lat]
   status: string;
+  // CLI-06: surface directions-fetch failures to the parent so the UI can show
+  // a non-blocking notice ("Route unavailable — markers shown") instead of a silent
+  // empty map.
+  onRouteError?: (err: Error | null) => void;
 }
 
 // ── Phase logic ─────────────────────────────────────────
@@ -43,7 +47,7 @@ function getRouteColor(status: string): string {
 
 // ── Component ───────────────────────────────────────────
 
-export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, status }: TrackingMapProps) {
+export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, status, onRouteError }: TrackingMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<MapCoreInstance | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -61,24 +65,33 @@ export default function TrackingMap({ pickupCoords, dropoffCoords, riderCoords, 
       from: [number, number],
       to: [number, number],
     ) => {
-      const routes = await fetchDirections([from, to]);
-      if (!routes?.[0]) return;
+      try {
+        const routes = await fetchDirections([from, to]);
+        if (!routes?.[0]) {
+          // CLI-06: empty result is itself a failure mode.
+          onRouteError?.(new Error('Routing service returned no route'));
+          return;
+        }
 
-      const route = routes[0];
-      drawRoute(map, {
-        geometry: route.geometry,
-        duration: route.duration,
-        distance: route.distance,
-        legs: route.legs,
-      }, {
-        color: getRouteColor(status),
-        showCongestion: true,
-        fitBounds: false,
-      });
+        const route = routes[0];
+        drawRoute(map, {
+          geometry: route.geometry,
+          duration: route.duration,
+          distance: route.distance,
+          legs: route.legs,
+        }, {
+          color: getRouteColor(status),
+          showCongestion: true,
+          fitBounds: false,
+        });
 
-      lastRouteRiderRef.current = from;
+        lastRouteRiderRef.current = from;
+        onRouteError?.(null);
+      } catch (err) {
+        onRouteError?.(err instanceof Error ? err : new Error('Failed to fetch route'));
+      }
     },
-    [fetchDirections, status],
+    [fetchDirections, status, onRouteError],
   );
 
   // ── Initialize map ────────────────────────────────────

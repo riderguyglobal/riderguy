@@ -23,6 +23,24 @@ import { emitOrderStatusUpdate } from '../socket';
 /** How long a rider can be GPS-dark while assigned before auto-reassign (ms) */
 const GPS_DARK_THRESHOLD_MS = 10 * 60_000; // 10 minutes
 
+/**
+ * Dedup window for repeat GPS_DARK escalations on the SAME order.
+ * Pre-pickup auto-reassign uses GPS_DARK_THRESHOLD_MS (10 min) so a
+ * still-stale order gets retried promptly. Post-pickup escalations go
+ * to a human and are noisy — once admin has been pinged, suppress
+ * follow-up pings for 6 hours so the alert channel doesn't get spammed
+ * for an order that's been stuck for days.
+ */
+const ESCALATION_DEDUP_MS = 6 * 60 * 60_000; // 6 hours
+
+/**
+ * Hard limit for how long a post-pickup order can sit with a GPS-dark
+ * rider before the system gives up and marks it FAILED. Without this,
+ * a single broken order produces escalation log entries forever and
+ * leaves a phantom assignment on a (likely abandoned) rider account.
+ */
+const STUCK_ORDER_FAIL_THRESHOLD_MS = 24 * 60 * 60_000; // 24 hours
+
 /** How long after rider goes offline before auto-reassign (ms) */
 const OFFLINE_REASSIGN_THRESHOLD_MS = 5 * 60_000; // 5 minutes
 
@@ -78,13 +96,17 @@ export async function reassignGpsDarkRiders(): Promise<number> {
     if (!order.rider) continue;
 
     try {
-      // Check if we already flagged this recently (avoid duplicate actions)
+      // Check if we already flagged this recently (avoid duplicate actions).
+      // Window depends on whether we'll auto-reassign (short) or escalate
+      // to a human (long) — see ESCALATION_DEDUP_MS rationale.
+      const isPostPickup = !PRE_PICKUP_STATUSES.includes(order.status as OrderStatus);
+      const dedupMs = isPostPickup ? ESCALATION_DEDUP_MS : GPS_DARK_THRESHOLD_MS;
       const recentFlag = await prisma.orderStatusHistory.findFirst({
         where: {
           orderId: order.id,
           actor: 'system',
           note: { startsWith: 'GPS_DARK' },
-          createdAt: { gt: new Date(Date.now() - GPS_DARK_THRESHOLD_MS) },
+          createdAt: { gt: new Date(Date.now() - dedupMs) },
         },
       });
       if (recentFlag) continue;
@@ -172,12 +194,14 @@ export async function reassignOfflineRiders(): Promise<number> {
     if (!order.rider) continue;
 
     try {
+      const isPostPickup = !PRE_PICKUP_STATUSES.includes(order.status as OrderStatus);
+      const dedupMs = isPostPickup ? ESCALATION_DEDUP_MS : OFFLINE_REASSIGN_THRESHOLD_MS;
       const recentFlag = await prisma.orderStatusHistory.findFirst({
         where: {
           orderId: order.id,
           actor: 'system',
           note: { startsWith: 'RIDER_OFFLINE' },
-          createdAt: { gt: new Date(Date.now() - OFFLINE_REASSIGN_THRESHOLD_MS) },
+          createdAt: { gt: new Date(Date.now() - dedupMs) },
         },
       });
       if (recentFlag) continue;
@@ -217,6 +241,160 @@ export async function reassignOfflineRiders(): Promise<number> {
   }
 
   return reassigned;
+}
+
+// ── 2b. Stuck post-pickup order auto-fail ──────────────────
+
+/**
+ * Mark a single stuck order as FAILED and notify the parties. Used both
+ * by the auto-fail sweep and by the one-off admin cleanup script.
+ *
+ * Safe to call on an order that is no longer in a post-pickup state —
+ * `transitionStatus` will reject the transition and we'll log+move on.
+ */
+export async function failOrderAsStuck(
+  orderId: string,
+  reason: string,
+  actor: 'system' | 'admin' = 'system',
+): Promise<boolean> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { rider: { select: { id: true, userId: true } } },
+  });
+  if (!order) {
+    logger.warn({ orderId }, '[Reassign] failOrderAsStuck: order not found');
+    return false;
+  }
+
+  // Only fail orders that are actually post-pickup (or AT_PICKUP).
+  // Pre-pickup orders should be reassigned, not failed.
+  const failableStatuses: OrderStatus[] = [
+    'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF',
+  ];
+  if (!failableStatuses.includes(order.status)) {
+    logger.warn(
+      { orderId, status: order.status },
+      '[Reassign] failOrderAsStuck: order not in failable status, skipping',
+    );
+    return false;
+  }
+
+  const previousStatus = order.status;
+
+  try {
+    await transitionStatus(orderId, 'FAILED', actor, reason);
+
+    emitOrderStatusUpdate({
+      orderId,
+      orderNumber: order.orderNumber,
+      status: 'FAILED',
+      previousStatus,
+      actor,
+      note: reason,
+    });
+
+    // Release the rider — they were stuck on this order. Don't force
+    // ONLINE because they're likely broken; just clear the assignment
+    // by flipping availability to OFFLINE so dispatch won't pick them.
+    if (order.rider) {
+      await prisma.riderProfile.update({
+        where: { id: order.rider.id },
+        data: { availability: 'OFFLINE' },
+      }).catch((err) => {
+        logger.error({ err, riderId: order.rider!.id }, '[Reassign] Failed to mark stuck rider OFFLINE');
+      });
+    }
+
+    // Notify client
+    await createOrderNotification(
+      order.clientId,
+      'Delivery Failed',
+      `We were unable to complete order ${order.orderNumber}. Our team will reach out about a refund or re-delivery. We're sorry for the inconvenience.`,
+      orderId,
+    ).catch(() => {});
+
+    // Notify rider (if any)
+    if (order.rider) {
+      await createOrderNotification(
+        order.rider.userId,
+        'Order Marked Failed',
+        `Order ${order.orderNumber} has been marked failed by the system after extended GPS loss. Please contact support.`,
+        orderId,
+      ).catch(() => {});
+    }
+
+    // Notify admins via socket
+    try {
+      const { getIO } = await import('../socket');
+      const io = getIO();
+      (io.to('admins') as any).emit('admin:order-stuck-failed', {
+        orderId,
+        orderNumber: order.orderNumber,
+        previousStatus,
+        reason,
+        timestamp: new Date().toISOString(),
+      });
+    } catch { /* socket might not be initialized in tests */ }
+
+    logger.warn(
+      { orderId, orderNumber: order.orderNumber, previousStatus, reason, actor },
+      '[Reassign] Stuck order auto-failed',
+    );
+    return true;
+  } catch (err) {
+    logger.error({ err, orderId }, '[Reassign] Failed to auto-fail stuck order');
+    return false;
+  }
+}
+
+/**
+ * Find post-pickup orders whose assigned rider's GPS has been dark for
+ * longer than STUCK_ORDER_FAIL_THRESHOLD_MS, and mark them FAILED.
+ *
+ * Backstop for the GPS_DARK escalation loop: if a human hasn't resolved
+ * the order within 24h, the system gives up so it doesn't sit forever.
+ *
+ * Called periodically from the server's interval timers.
+ */
+export async function failStuckPostPickupOrders(): Promise<number> {
+  const cutoff = new Date(Date.now() - STUCK_ORDER_FAIL_THRESHOLD_MS);
+
+  const stuckOrders = await prisma.order.findMany({
+    where: {
+      status: { in: ['AT_PICKUP', ...POST_PICKUP_STATUSES] },
+      riderId: { not: null },
+      rider: {
+        lastLocationUpdate: { lt: cutoff },
+      },
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      rider: { select: { lastLocationUpdate: true } },
+    },
+  });
+
+  if (stuckOrders.length === 0) return 0;
+
+  let failed = 0;
+  for (const order of stuckOrders) {
+    const minutesSinceGps = order.rider?.lastLocationUpdate
+      ? Math.round((Date.now() - order.rider.lastLocationUpdate.getTime()) / 60_000)
+      : 999;
+    const reason =
+      `STUCK_ORDER_FAILED: Rider GPS silent for ${minutesSinceGps}min ` +
+      `(>${STUCK_ORDER_FAIL_THRESHOLD_MS / 60_000}min) while package was with rider. ` +
+      `Auto-failed by system; manual support follow-up required.`;
+    const ok = await failOrderAsStuck(order.id, reason, 'system');
+    if (ok) failed++;
+  }
+
+  if (failed > 0) {
+    logger.warn({ failed, total: stuckOrders.length }, '[Reassign] Stuck-order auto-fail sweep completed');
+  }
+
+  return failed;
 }
 
 // ── 3. Payment failure after assignment ────────────────────

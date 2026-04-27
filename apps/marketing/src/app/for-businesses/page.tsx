@@ -17,6 +17,10 @@ import {
   ShoppingCart,
   Pill,
   Store,
+  GraduationCap,
+  Radio,
+  MapPin,
+  Sparkles,
 } from 'lucide-react';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
 import { Counter } from '@/components/counter';
@@ -37,10 +41,69 @@ const FEATURES = [
 ];
 
 const INDUSTRIES = [
-  { icon: Utensils, title: 'Restaurants & Food', desc: 'Hot food delivered fast. Integration with your POS for seamless order-to-delivery flow.' },
-  { icon: ShoppingCart, title: 'E-Commerce', desc: 'Same-day delivery for online orders. Works with Shopify, WooCommerce, or custom stores.' },
-  { icon: Pill, title: 'Pharmacies', desc: 'Urgent medication delivery with care. Riders trained for sensitive package handling.' },
-  { icon: Store, title: 'Retail & Grocery', desc: 'From boutique to supermarket. Give customers the delivery speed they expect.' },
+  {
+    icon: Utensils,
+    title: 'Restaurants & Food',
+    desc: 'Hot food delivered fast. Integration with your POS for seamless order-to-delivery flow.',
+    image: '/images/business/c1.png',
+    tag: 'Hot food · POS-ready',
+  },
+  {
+    icon: ShoppingCart,
+    title: 'E-Commerce',
+    desc: 'Same-day delivery for online orders. Works with Shopify, WooCommerce, or custom stores.',
+    image: '/images/business/c5.png',
+    tag: 'Same-day · Last-mile',
+  },
+  {
+    icon: Store,
+    title: 'Retail & Grocery',
+    desc: 'From boutique to supermarket. Give customers the delivery speed they expect.',
+    image: '/images/business/c2.png',
+    tag: 'Mall pickup · Same-day',
+  },
+  {
+    icon: Pill,
+    title: 'Parts, Pharmacies & More',
+    desc: 'Urgent medication, spare parts, and high-value goods — handled with care by trained riders.',
+    image: '/images/business/c8.png',
+    tag: 'Sensitive · Insured',
+  },
+];
+
+const INFRASTRUCTURE = [
+  {
+    image: '/images/business/c9.png',
+    icon: Building2,
+    eyebrow: 'Delivery hubs',
+    title: 'Branded rendezvous points across the city.',
+    desc: 'Riders rest, refuel, and collect packages from our delivery hubs — keeping your orders moving 24/7.',
+    span: 'lg:col-span-7 aspect-[16/10] lg:aspect-[16/9]',
+  },
+  {
+    image: '/images/business/c6.png',
+    icon: Radio,
+    eyebrow: 'Live dispatch',
+    title: 'Human dispatch + AI routing.',
+    desc: 'Every order is monitored by our dispatch desk to keep promises kept.',
+    span: 'lg:col-span-5 aspect-[4/3]',
+  },
+  {
+    image: '/images/business/c7.png',
+    icon: GraduationCap,
+    eyebrow: 'Rider Academy',
+    title: 'Trained, vetted, and uniformed.',
+    desc: 'Every RiderGuy completes safety, customer-care, and brand training before their first delivery.',
+    span: 'lg:col-span-5 aspect-[4/3]',
+  },
+  {
+    image: '/images/business/c4.png',
+    icon: ShieldCheck,
+    eyebrow: 'Trusted fleet',
+    title: 'Branded riders. Insured rides.',
+    desc: 'Customers know exactly who is at their door — every rider is uniformed, ID-verified, and fully insured.',
+    span: 'lg:col-span-7 aspect-[16/10] lg:aspect-[16/9]',
+  },
 ];
 
 const STEPS = [
@@ -123,10 +186,10 @@ export default function ForBusinessesPage() {
 
           <div className="lg:col-span-6">
             <div className="relative">
-              <div className="photo-frame aspect-[4/5]">
+              <div className="photo-frame aspect-[4/3] sm:aspect-[5/4] lg:aspect-[4/3]">
                 <Image
-                  src="/images/general/Package handover in Osu's boutique.png"
-                  alt="Business delivery handover"
+                  src="/images/business/c9.png"
+                  alt="RiderGuy delivery hub & rendezvous point"
                   fill
                   priority
                   sizes="(min-width: 1024px) 50vw, 100vw"
@@ -135,16 +198,16 @@ export default function ForBusinessesPage() {
                 <div className="photo-badge left-4 top-4 sm:left-5 sm:top-5">
                   <Building2 className="h-3.5 w-3.5 text-brand-600" />
                   <span className="text-xs font-semibold text-surface-900">
-                    Business ready
+                    Live delivery hub
                   </span>
                 </div>
                 <div className="photo-badge bottom-4 right-4 !rounded-2xl !px-5 !py-3 sm:bottom-5 sm:right-5">
                   <div>
                     <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Integrations
+                      Always on
                     </p>
                     <p className="text-lg font-extrabold leading-none text-brand-700">
-                      API · Webhooks
+                      Rest · Refuel · Ride
                     </p>
                   </div>
                 </div>
@@ -190,6 +253,61 @@ export default function ForBusinessesPage() {
               <p className="theme-stat-label">{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ============================================================
+          INFRASTRUCTURE BENTO — Real, in-market operations
+          ============================================================ */}
+      <section className="relative overflow-hidden bg-white py-20 sm:py-28">
+        <div className="orb orb-green absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 opacity-30" />
+
+        <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="reveal flex flex-col items-start gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="section-marker">SHOWCASE · BUILT IN GHANA</p>
+              <h2 className="theme-display mt-3">
+                Real infrastructure.{' '}
+                <span className="accent">Real riders.</span>
+              </h2>
+            </div>
+            <p className="theme-lede max-w-md">
+              Not a marketplace listing — a <em>living delivery network</em> with
+              hubs, dispatch, and trained riders on the ground.
+            </p>
+          </div>
+
+          <div className="stagger mt-14 grid gap-5 lg:grid-cols-12">
+            {INFRASTRUCTURE.map((item) => (
+              <div
+                key={item.title}
+                className={`group relative overflow-hidden rounded-3xl border border-surface-200 bg-surface-950 shadow-xl ${item.span}`}
+              >
+                <Image
+                  src={item.image}
+                  alt={item.title}
+                  fill
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-surface-950/95 via-surface-950/50 to-surface-950/10" />
+                <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md">
+                  <item.icon className="h-3.5 w-3.5 text-brand-300" />
+                  <span className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white">
+                    {item.eyebrow}
+                  </span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-7">
+                  <h3 className="text-xl font-extrabold leading-tight text-white sm:text-2xl">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 max-w-md text-[0.85rem] leading-relaxed text-surface-300">
+                    {item.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -318,8 +436,8 @@ export default function ForBusinessesPage() {
             <div className="relative">
               <div className="photo-frame aspect-[4/5]">
                 <Image
-                  src="/images/homepage/Image 2.jpeg"
-                  alt="RiderGuy business delivery in action"
+                  src="/images/business/c5.png"
+                  alt="RiderGuy delivering to a customer's door"
                   fill
                   className="object-cover"
                   sizes="(min-width: 1024px) 40vw, 100vw"
@@ -333,6 +451,12 @@ export default function ForBusinessesPage() {
                       6+ Cities · Growing
                     </p>
                   </div>
+                </div>
+                <div className="photo-badge right-4 top-4 sm:right-5 sm:top-5">
+                  <MapPin className="h-3.5 w-3.5 text-brand-600" />
+                  <span className="text-xs font-semibold text-surface-900">
+                    Door-to-door
+                  </span>
                 </div>
               </div>
             </div>
@@ -363,8 +487,25 @@ export default function ForBusinessesPage() {
 
           <div className="stagger mt-14 grid gap-5 sm:grid-cols-2">
             {INDUSTRIES.map((ind) => (
-              <div key={ind.title} className="theme-card on-dark !p-7">
-                <div className="flex items-start gap-5">
+              <article
+                key={ind.title}
+                className="group relative overflow-hidden rounded-3xl border border-white/10 bg-surface-900"
+              >
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <Image
+                    src={ind.image}
+                    alt={ind.title}
+                    fill
+                    sizes="(min-width: 640px) 50vw, 100vw"
+                    className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-surface-950 via-surface-950/30 to-transparent" />
+                  <span className="absolute left-5 top-5 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                    <Sparkles className="h-3 w-3 text-brand-300" />
+                    {ind.tag}
+                  </span>
+                </div>
+                <div className="relative flex items-start gap-5 p-6 sm:p-7">
                   <div className="theme-icon-badge on-dark outline !h-12 !w-12 flex-shrink-0">
                     <ind.icon className="h-6 w-6" />
                   </div>
@@ -375,8 +516,89 @@ export default function ForBusinessesPage() {
                     </p>
                   </div>
                 </div>
-              </div>
+              </article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================
+          TRUSTED FLEET — full-bleed editorial portrait
+          ============================================================ */}
+      <section className="relative overflow-hidden bg-surface-950 text-white">
+        <div className="grid lg:grid-cols-12 lg:items-stretch">
+          <div className="relative aspect-[4/5] sm:aspect-[5/4] lg:col-span-6 lg:aspect-auto lg:min-h-[640px]">
+            <Image
+              src="/images/business/c4.png"
+              alt="A trained, branded RiderGuy rider"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface-950/70 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-surface-950/40" />
+            <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-center gap-2 sm:bottom-8 sm:left-8">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                <ShieldCheck className="h-3 w-3 text-brand-300" /> ID-verified
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                <GraduationCap className="h-3 w-3 text-brand-300" /> Academy-trained
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                <Truck className="h-3 w-3 text-brand-300" /> Branded fleet
+              </span>
+            </div>
+          </div>
+
+          <div className="relative flex items-center lg:col-span-6">
+            <div className="grid-bg on-dark pointer-events-none absolute inset-0 opacity-50" />
+            <div className="relative w-full px-5 py-16 sm:px-10 sm:py-20 lg:px-16 lg:py-24">
+              <p className="section-marker on-dark">THE FACE OF YOUR DELIVERY</p>
+              <h2 className="theme-display on-dark mt-3">
+                Branded by RiderGuy.{' '}
+                <span className="accent">Trusted by you.</span>
+              </h2>
+              <p className="theme-lede on-dark mt-5 max-w-lg">
+                Every order arrives with a uniformed, ID-verified rider who has
+                completed our customer-care and safety training. Your customers
+                see the same level of care — <em>delivery after delivery</em>.
+              </p>
+
+              <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-8">
+                <div>
+                  <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-surface-400">
+                    Rider rating
+                  </dt>
+                  <dd className="mt-2 text-3xl font-extrabold text-white sm:text-4xl">
+                    4.9<span className="text-brand-400">/5</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-surface-400">
+                    Vetting steps
+                  </dt>
+                  <dd className="mt-2 text-3xl font-extrabold text-white sm:text-4xl">
+                    7
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-surface-400">
+                    Insured rides
+                  </dt>
+                  <dd className="mt-2 text-3xl font-extrabold text-white sm:text-4xl">
+                    100%
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-10">
+                <Link
+                  href="/contact"
+                  className="btn-glow inline-flex h-12 items-center gap-2 rounded-full bg-brand-500 px-7 text-[0.9rem] font-semibold text-surface-950 transition-all hover:bg-brand-400"
+                >
+                  Partner with our fleet <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>

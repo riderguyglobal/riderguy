@@ -101,7 +101,34 @@ export const createOrderSchema = z.object({
     }
     return true;
   },
-  { message: 'Invalid stop configuration' }
+  { message: 'Invalid stop configuration', path: ['stops'] }
+).refine(
+  // ORD-03: contiguous, zero-based, monotonically increasing sequence numbers
+  (data) => {
+    if (!data.stops || data.stops.length === 0) return true;
+    const sequences = data.stops.map(s => s.sequence).sort((a, b) => a - b);
+    for (let i = 0; i < sequences.length; i++) {
+      if (sequences[i] !== i) return false;
+    }
+    return true;
+  },
+  { message: 'Stop sequences must be contiguous starting from 0', path: ['stops'] }
+).refine(
+  // ORD-03: Total stops (primary pickup + primary dropoff + extras) must be ≤ 12
+  // and must include at least 1 pickup and 1 dropoff overall (primaries already
+  // guarantee this; this rule enforces the cap on extras + balanced shape).
+  (data) => {
+    const extras = data.stops ?? [];
+    const totalStops = 2 + extras.length; // primary pickup + primary dropoff + extras
+    if (totalStops > 12) return false;
+    // Total pickups (1 primary + extras of type PICKUP), total dropoffs likewise
+    const extraPickups = extras.filter(s => s.type === 'PICKUP').length;
+    const extraDropoffs = extras.filter(s => s.type === 'DROPOFF').length;
+    const totalPickups = 1 + extraPickups;
+    const totalDropoffs = 1 + extraDropoffs;
+    return totalPickups >= 1 && totalDropoffs >= 1;
+  },
+  { message: 'Order must have between 1 and 12 stops total with at least 1 pickup and 1 dropoff', path: ['stops'] }
 );
 
 export const priceEstimateSchema = z.object({

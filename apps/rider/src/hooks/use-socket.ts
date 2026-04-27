@@ -9,8 +9,34 @@ const API_WS_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').
 let sharedSocket: Socket | null = null;
 let listenerCount = 0;
 
-// Track active order subscriptions for re-subscribing after reconnect
-const subscribedOrders = new Set<string>();
+// RID-09: bounded LRU map of order subscriptions to prevent unbounded growth.
+//   Each entry is `orderId -> lastTouchedAt`. When we exceed MAX_SUBSCRIBED_ORDERS
+//   we evict the oldest entries first and emit `order:unsubscribe` for each.
+const SUBSCRIBED_ORDERS_MAX = 10;
+const subscribedOrders = new Map<string, number>();
+
+function touchSubscribedOrder(orderId: string): string[] {
+  // Refresh insertion order (Map preserves insertion order; delete+set moves to tail).
+  if (subscribedOrders.has(orderId)) subscribedOrders.delete(orderId);
+  subscribedOrders.set(orderId, Date.now());
+  const evicted: string[] = [];
+  while (subscribedOrders.size > SUBSCRIBED_ORDERS_MAX) {
+    const oldest = subscribedOrders.keys().next().value;
+    if (!oldest) break;
+    subscribedOrders.delete(oldest);
+    evicted.push(oldest);
+  }
+  return evicted;
+}
+
+// ── ORD-02: Client-side dedup for job:offer:respond ─────────
+// A double-tapped Accept/Decline button (slow render, fat-finger,
+// or user-triggered re-render) emits twice. The server may treat
+// the two messages as concurrent acceptances, briefly racing the
+// dispatch transaction. We block duplicate responses for the same
+// orderId until the first response is acknowledged or times out.
+const offerResponseInFlight = new Set<string>();
+const OFFER_RESPONSE_GUARD_MS = 12_000; // slightly above respondToOfferAsync timeout
 
 // ── D-02: Offline queue for critical socket emissions ──────────
 // When the socket is disconnected (e.g. GPRS drop), critical events
@@ -46,7 +72,20 @@ function getOfflineQueue(): QueuedEvent[] {
     if (!raw) return [];
     const items: QueuedEvent[] = JSON.parse(raw);
     const now = Date.now();
-    return items.filter((e) => now - e.queuedAt < QUEUE_MAX_AGE_MS);
+    const fresh = items.filter((e) => now - e.queuedAt < QUEUE_MAX_AGE_MS);
+    // RID-04: surface dropped events so the UI can warn the rider that a
+    //         critical action (e.g. job:offer:respond) was lost while offline.
+    const dropped = items.length - fresh.length;
+    if (dropped > 0 && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('riderguy:queue-dropped', {
+            detail: { count: dropped, events: items.filter((e) => now - e.queuedAt >= QUEUE_MAX_AGE_MS).map((e) => e.event) },
+          }),
+        );
+      } catch { /* noop */ }
+    }
+    return fresh;
   } catch {
     return [];
   }
@@ -156,7 +195,7 @@ export function useSocket() {
       // D-02: Flush queued events on connect/reconnect
       flushOfflineQueue(s);
       // Re-subscribe to all tracked order rooms after reconnect
-      for (const orderId of subscribedOrders) {
+      for (const orderId of subscribedOrders.keys()) {
         s.emit('order:subscribe', { orderId });
       }
     };
@@ -226,7 +265,12 @@ export function useSocket() {
   }, []);
 
   const subscribeToOrder = useCallback((orderId: string) => {
-    subscribedOrders.add(orderId);
+    const evicted = touchSubscribedOrder(orderId);
+    // RID-09: emit unsubscribe for any LRU-evicted orders so the server can
+    //         drop us from the room.
+    for (const ev of evicted) {
+      sharedSocket?.emit('order:unsubscribe', { orderId: ev });
+    }
     sharedSocket?.emit('order:subscribe', { orderId });
   }, []);
 
@@ -244,6 +288,14 @@ export function useSocket() {
   }, []);
 
   const respondToOffer = useCallback((orderId: string, accepted: boolean) => {
+    // ORD-02: Drop duplicate responses for the same offer
+    if (offerResponseInFlight.has(orderId)) {
+      console.warn('[Socket] Dropping duplicate job:offer:respond for', orderId);
+      return;
+    }
+    offerResponseInFlight.add(orderId);
+    setTimeout(() => offerResponseInFlight.delete(orderId), OFFER_RESPONSE_GUARD_MS);
+
     const response = accepted ? 'accept' : 'decline';
     // D-02: Use critical emit — queued if offline
     emitCritical('job:offer:respond', { orderId, response });
@@ -253,15 +305,29 @@ export function useSocket() {
   const respondToOfferAsync = useCallback(
     (orderId: string, accepted: boolean): Promise<{ success: boolean; error?: string }> => {
       return new Promise((resolve) => {
+        // ORD-02: Drop duplicate responses for the same offer
+        if (offerResponseInFlight.has(orderId)) {
+          console.warn('[Socket] Dropping duplicate job:offer:respond (async) for', orderId);
+          resolve({ success: false, error: 'Response already in progress' });
+          return;
+        }
+        offerResponseInFlight.add(orderId);
+
+        const release = () => offerResponseInFlight.delete(orderId);
+
         const response = accepted ? 'accept' : 'decline';
         if (!sharedSocket?.connected) {
           // D-02: Queue the response for replay on reconnect
           enqueueOffline('job:offer:respond', { orderId, response });
+          // Hold the in-flight guard briefly so the queued event isn't
+          // duplicated by another tap before flush.
+          setTimeout(release, OFFER_RESPONSE_GUARD_MS);
           resolve({ success: false, error: 'Queued — will send when reconnected' });
           return;
         }
         // Timeout handle — cleared when ACK arrives
         const timer = setTimeout(() => {
+          release();
           resolve({ success: false, error: 'Server response timed out' });
         }, 10_000);
         // Use Socket.IO acknowledgement callback
@@ -270,6 +336,7 @@ export function useSocket() {
           { orderId, response } as any,
           (ack: { success: boolean; error?: string }) => {
             clearTimeout(timer);
+            release();
             resolve(ack ?? { success: false, error: 'No response from server' });
           },
         );

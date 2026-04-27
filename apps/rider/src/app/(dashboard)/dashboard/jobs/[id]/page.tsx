@@ -55,6 +55,8 @@ export default function JobDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [actionError, setActionError] = useState('');
+  // RID-07: track POD upload progress so the rider sees the photo isn't lost on slow GPRS.
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const searchParams = useSearchParams();
   const autoNavTriggered = useRef(false);
   const { showNotification: showNavNotification, dismissNotification: dismissNavNotification } = useNavigationNotification(id);
@@ -180,6 +182,7 @@ export default function JobDetailPage() {
     if (!api || !id) return;
 
     setUpdating(true);
+    setUploadProgress(null);
     try {
       if (proof.type === 'PHOTO' && proof.file) {
         // Multipart upload for photo proofs
@@ -187,9 +190,25 @@ export default function JobDetailPage() {
         formData.append('file', proof.file);
         formData.append('proofType', proof.type);
         formData.append('completeDelivery', 'true');
-        await api.post(`/orders/${id}/proof`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        // RID-07: 60s ceiling + progress callback so the user sees activity
+        //         on slow GPRS instead of an apparently frozen button.
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 60_000);
+        try {
+          setUploadProgress(0);
+          await api.post(`/orders/${id}/proof`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            signal: ac.signal,
+            onUploadProgress: (e: { loaded: number; total?: number }) => {
+              if (e.total && e.total > 0) {
+                setUploadProgress(Math.round((e.loaded / e.total) * 100));
+              }
+            },
+          });
+          setUploadProgress(100);
+        } finally {
+          clearTimeout(timer);
+        }
       } else {
         // JSON for signature (base64) and PIN code
         await api.post(`/orders/${id}/proof`, {
@@ -202,10 +221,14 @@ export default function JobDetailPage() {
       setOrder((prev) => prev ? { ...prev, status: 'DELIVERED' as Order['status'] } : prev);
       setShowProof(false);
     } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to submit proof of delivery';
+      const msg =
+        err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError'
+          ? 'Upload timed out after 60 seconds. Please check your connection and retry.'
+          : err?.response?.data?.error?.message || err?.message || 'Failed to submit proof of delivery';
       setActionError(msg);
     } finally {
       setUpdating(false);
+      setUploadProgress(null);
     }
   };
 
@@ -465,13 +488,30 @@ export default function JobDetailPage() {
 
         {/* Proof of delivery */}
         {showProof && (
-          <ProofOfDelivery
-            deliveryPin={order.deliveryPinCode ?? undefined}
-            paymentMethod={order.paymentMethod ?? undefined}
-            riderPaymentConfirmed={paymentConfirmed}
-            onConfirmPayment={handleConfirmPayment}
-            onSubmit={handleProofSubmit}
-          />
+          <>
+            {uploadProgress != null && (
+              // RID-07: visible progress bar so the rider knows the upload is alive.
+              <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 mb-3">
+                <div className="flex items-center justify-between text-xs text-brand-700 font-medium mb-1">
+                  <span>Uploading proof of delivery…</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-brand-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-brand-500 transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <ProofOfDelivery
+              deliveryPin={order.deliveryPinCode ?? undefined}
+              paymentMethod={order.paymentMethod ?? undefined}
+              riderPaymentConfirmed={paymentConfirmed}
+              onConfirmPayment={handleConfirmPayment}
+              onSubmit={handleProofSubmit}
+            />
+          </>
         )}
 
         {/* Completed state */}

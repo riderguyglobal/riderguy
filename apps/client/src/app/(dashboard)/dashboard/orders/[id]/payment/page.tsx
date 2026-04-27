@@ -71,6 +71,11 @@ export default function PaymentPage() {
   const [error, setError] = useState('');
   const [reference, setReference] = useState('');
   const scriptLoaded = useRef(false);
+  // PAY-08: Guard against duplicate verify calls. Paystack inline can call
+  // onSuccess multiple times if the user navigates / closes / re-opens the
+  // iframe quickly. Without this, /payments/verify/:ref races, generating
+  // duplicate webhook handling and noisy logs.
+  const verifyInFlightRef = useRef<Set<string>>(new Set());
 
   // Load Paystack inline script
   useEffect(() => {
@@ -190,6 +195,9 @@ export default function PaymentPage() {
   // Verify payment after Paystack callback
   const verifyPayment = useCallback(async (ref: string) => {
     if (!api) return;
+    // PAY-08: dedupe — if we're already verifying this exact reference, skip.
+    if (verifyInFlightRef.current.has(ref)) return;
+    verifyInFlightRef.current.add(ref);
     setState('verifying');
 
     try {
@@ -207,6 +215,8 @@ export default function PaymentPage() {
     } catch {
       setError('Could not verify payment. Please check your order status.');
       setState('failed');
+    } finally {
+      verifyInFlightRef.current.delete(ref);
     }
   }, [api, id, router]);
 

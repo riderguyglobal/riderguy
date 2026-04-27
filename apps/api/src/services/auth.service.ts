@@ -69,10 +69,34 @@ export class AuthService {
     const tokenPayload = {
       ...payload,
       roles: payload.roles?.length ? payload.roles : [payload.role],
+      // AUTH-04: every token gets a unique jti so it can be added to the
+      //          Redis revocation list on logout / forced sign-out.
+      jti: crypto.randomUUID(),
     };
     return jwt.sign(tokenPayload, config.jwt.accessSecret, {
       expiresIn: config.jwt.accessExpiresIn,
     });
+  }
+
+  /**
+   * AUTH-04: Mark an access token's jti as revoked.
+   * Stored in Redis with TTL ≥ remaining token lifetime so it auto-expires.
+   * No-op (returns false) if Redis is unavailable.
+   */
+  static async revokeAccessToken(jti: string, ttlSec: number): Promise<boolean> {
+    if (!jti) return false;
+    try {
+      const { getRedisClient } = await import('../lib/redis');
+      const redis = getRedisClient();
+      if (!redis) return false;
+      // Cap TTL at access-token lifetime (default 15 min). Always at least 60s.
+      const ttl = Math.max(60, Math.min(ttlSec, 60 * 60));
+      await redis.set(`auth:revoked:${jti}`, '1', 'EX', ttl);
+      return true;
+    } catch (err) {
+      logger.warn({ err, jti }, '[AuthService] Failed to revoke token');
+      return false;
+    }
   }
 
   static generateRefreshToken(payload: { userId: string; sessionId: string }): string {
@@ -94,8 +118,18 @@ export class AuthService {
 
   // ---- OTP ----
 
-  static generateOtpCode(): string {
-    return crypto.randomInt(100000, 999999).toString();
+  /**
+   * Generate an OTP code with the requested digit length.
+   *
+   * AUTH-07: Default is 6 digits (sufficient with 5 min TTL + per-phone
+   * rate-limit). For high-value financial actions (withdrawals, large
+   * transfers) callers can request 8 digits to add ~2 orders of magnitude
+   * of brute-force resistance.
+   */
+  static generateOtpCode(digits: 6 | 8 = 6): string {
+    const min = Math.pow(10, digits - 1);
+    const max = Math.pow(10, digits);
+    return crypto.randomInt(min, max).toString();
   }
 
   static async createOtp(phone: string, purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET') {
@@ -1057,12 +1091,38 @@ export class AuthService {
 
   // ---- Refresh token ----
 
-  static async refreshTokens(token: string) {
+  static async refreshTokens(token: string, context?: { ipAddress?: string; deviceInfo?: string }) {
     const { userId, sessionId } = this.verifyRefreshToken(token);
 
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     if (!session || session.userId !== userId || new Date() > session.expiresAt) {
       throw ApiError.unauthorized('Session expired or invalid');
+    }
+
+    // AUTH-05: Validate session context. We do NOT block on mismatch (mobile
+    //         IPs change constantly on cell→Wi-Fi handoff and the User-Agent
+    //         can shift on app upgrade), but we DO emit a warn-level audit
+    //         log so SOC dashboards can flag suspicious refresh patterns.
+    //         Persisted Session.ipAddress / deviceInfo were previously
+    //         write-only — this restores their security value.
+    if (context && (context.ipAddress || context.deviceInfo)) {
+      const ipChanged = !!context.ipAddress && !!session.ipAddress && context.ipAddress !== session.ipAddress;
+      const deviceChanged = !!context.deviceInfo && !!session.deviceInfo && context.deviceInfo !== session.deviceInfo;
+      if (ipChanged || deviceChanged) {
+        logger.warn(
+          {
+            userId,
+            sessionId,
+            ipChanged,
+            deviceChanged,
+            previousIp: session.ipAddress,
+            currentIp: context.ipAddress,
+            previousDevice: session.deviceInfo,
+            currentDevice: context.deviceInfo,
+          },
+          'Session context drift on refresh — review for token theft',
+        );
+      }
     }
 
     // Refresh-token rotation: verify the presented token matches the stored hash
@@ -1093,6 +1153,8 @@ export class AuthService {
     });
 
     // Atomically extend session + store new hash (conditional on old hash to prevent race)
+    // AUTH-05: also refresh ipAddress/deviceInfo so subsequent drift detection
+    //         compares against the most recent successful rotation.
     const updated = await prisma.session.updateMany({
       where: {
         id: session.id,
@@ -1103,6 +1165,8 @@ export class AuthService {
         lastActiveAt: new Date(),
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
         refreshTokenHash: hashToken(refreshToken),
+        ...(context?.ipAddress ? { ipAddress: context.ipAddress } : {}),
+        ...(context?.deviceInfo ? { deviceInfo: context.deviceInfo } : {}),
       },
     });
 
@@ -1539,6 +1603,21 @@ export class AuthService {
 
     if (user.status === 'BANNED' || user.status === 'DEACTIVATED') {
       return { success: true }; // silent — don't reveal account status
+    }
+
+    // AUTH-03: Block password reset for unverified emails.
+    // Without verification, any actor can register with someone else's
+    // address, skip the verification step, then later trigger reset on
+    // that address — letting them seize the (real owner's) account if
+    // the real owner ever later registers and verifies. We require
+    // emailVerified=true before issuing reset tokens. We still return
+    // the generic 200 so unverified-state isn't enumerable.
+    if (!user.emailVerified) {
+      logger.warn(
+        { userId: user.id },
+        'Password reset blocked: email not verified',
+      );
+      return { success: true };
     }
 
     // Invalidate existing password reset tokens
