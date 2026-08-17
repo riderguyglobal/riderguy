@@ -19,11 +19,16 @@ chmod 700 "$BACKUP_ROOT"
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_file="$BACKUP_ROOT/riderguy-$timestamp.dump"
+partial_file="$backup_file.partial"
+pg_dump_url="${DATABASE_URL%%\?*}"
 
-pg_dump --dbname="$DATABASE_URL" --format=custom --compress=6 --no-owner --no-privileges \
-  --file="$backup_file"
-pg_restore --list "$backup_file" >/dev/null
-chmod 600 "$backup_file"
+trap 'rm -f "$partial_file"' EXIT
+pg_dump --dbname="$pg_dump_url" --format=custom --compress=6 --no-owner --no-privileges \
+  --file="$partial_file"
+pg_restore --list "$partial_file" >/dev/null
+chmod 600 "$partial_file"
+mv "$partial_file" "$backup_file"
+trap - EXIT
 
 find "$BACKUP_ROOT" -type f -name 'riderguy-*.dump' -mtime "+$RETENTION_DAYS" -delete
 echo "Verified database backup: $backup_file"

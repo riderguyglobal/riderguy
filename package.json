@@ -38,5 +38,9 @@
     "sharp": "^0.34.5",
     "turbo": "^2.3.0"
   },
+  "overrides": {
+    "protobufjs": "7.6.5",
+    "websocket-driver": "0.7.5"
+  },
   "packageManager": "npm@10.8.0"
 }

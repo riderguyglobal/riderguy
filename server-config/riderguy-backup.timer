@@ -1,0 +1,11 @@
+[Unit]
+Description=Run RiderGuy PostgreSQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 Africa/Accra
+RandomizedDelaySec=15m
+Persistent=true
+Unit=riderguy-backup.service
+
+[Install]
+WantedBy=timers.target

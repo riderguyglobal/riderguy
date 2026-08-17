@@ -44,11 +44,9 @@ import { correctEta } from './eta-learning.service';
 //   * Banker's rounding is chosen to avoid the long-run upward bias
 //     of ROUND_HALF_UP across many small commission slices.
 //   * `platformCommission = ROUND(totalPrice × commissionRate, 2, HALF_EVEN)`
-//     `riderEarnings      = ROUND(totalPrice − rawCommission, 2, HALF_EVEN)`
-//     The split is computed BEFORE rounding so the two rounded outputs
-//     always satisfy `platformCommission + riderEarnings == totalPrice`
-//     to within ≤1 pesewa. Reconciliation reports should treat any
-//     larger drift as a bug.
+//     `riderEarnings      = totalPrice − platformCommission`
+//     The split is computed from the displayed, 2dp total so the two
+//     settlement outputs always add back to the exact charged amount.
 //   * Reconciliation: sum(orders.platformCommission) for a window
 //     should equal sum(transactions.amount where type='COMMISSION')
 //     for the same window, after FX/refunds.
@@ -481,10 +479,13 @@ export async function calculatePrice(
   const totalPrice = decimalToGhs(totalPriceD);
 
   // ── 15. Earnings split ───────────────────────────────────
-  const platformCommissionD = totalPriceD.mul(D(commissionRate));
-  const riderEarningsD = totalPriceD.sub(platformCommissionD);
+  // Split the boundary-rounded customer charge. Computing both outputs from
+  // the unrounded total can leave a one-pesewa mismatch after independent
+  // HALF_EVEN rounding, which is unacceptable for wallet reconciliation.
+  const settledTotalD = D(totalPrice);
+  const platformCommissionD = settledTotalD.mul(D(commissionRate));
   const platformCommission = decimalToGhs(platformCommissionD);
-  const riderEarnings = decimalToGhs(riderEarningsD);
+  const riderEarnings = decimalToGhs(settledTotalD.sub(D(platformCommission)));
 
   return {
     haversineDistanceKm: roundGhs(haversineKm),

@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 SOURCE_DIR="${RIDERGUY_SOURCE_DIR:-/var/www/riderguy/source}"
 ENV_FILE="${RIDERGUY_ENV_FILE:-/var/www/riderguy/shared/.env.production}"
+ECOSYSTEM_FILE="${RIDERGUY_ECOSYSTEM_FILE:-/var/www/riderguy/shared/ecosystem.config.js}"
 LOCK_FILE="${RIDERGUY_DEPLOY_LOCK:-/tmp/riderguy-deploy.lock}"
 
 log() { printf '[deploy] %s\n' "$*"; }
@@ -18,6 +19,7 @@ done
 
 [ -d "$SOURCE_DIR/.git" ] || fail "repository not found at $SOURCE_DIR"
 [ -f "$ENV_FILE" ] || fail "production environment file not found at $ENV_FILE"
+[ -f "$ECOSYSTEM_FILE" ] || fail "PM2 ecosystem file not found at $ECOSYSTEM_FILE"
 
 cd "$SOURCE_DIR"
 
@@ -51,15 +53,46 @@ npx turbo run build \
   --filter=@riderguy/marketing-app \
   --filter=@riderguy/admin-app
 
+# npm workspaces symlink local packages into node_modules. Older checkouts may
+# still point their runtime entry at TypeScript source, which plain Node cannot
+# execute. Build isolated runtime copies so production always uses compiled JS.
+log 'preparing compiled shared packages for the API runtime'
+for package_name in types utils validators; do
+  package_dir="$SOURCE_DIR/packages/$package_name"
+  runtime_dir="$SOURCE_DIR/.runtime-packages/$package_name"
+  [ -f "$package_dir/dist/index.js" ] || fail "$package_name compiled output is missing"
+  rm -rf "$runtime_dir"
+  mkdir -p "$runtime_dir"
+  cp -a "$package_dir/dist" "$runtime_dir/"
+  cp "$package_dir/package.json" "$runtime_dir/package.json"
+  npm pkg set \
+    'main=./dist/index.js' \
+    'types=./dist/index.d.ts' \
+    --prefix "$runtime_dir" >/dev/null
+  rm -f "$SOURCE_DIR/node_modules/@riderguy/$package_name"
+  ln -s "../../.runtime-packages/$package_name" \
+    "$SOURCE_DIR/node_modules/@riderguy/$package_name"
+done
+
 for app_name in marketing admin; do
   app_dir="$SOURCE_DIR/apps/$app_name"
-  standalone_dir="$app_dir/.next/standalone/apps/$app_name"
+  standalone_dir="$app_dir/.next/standalone"
   [ -f "$standalone_dir/server.js" ] || fail "$app_name standalone build is missing"
   mkdir -p "$standalone_dir/.next"
   cp -a "$app_dir/.next/static" "$standalone_dir/.next/"
   if [ -d "$app_dir/public" ]; then
     cp -a "$app_dir/public" "$standalone_dir/"
   fi
+
+  # With this monorepo's outputFileTracingRoot, Next can leave a minimal traced
+  # package in the workspace node_modules directory. That partial package
+  # shadows the complete root installation and fails at runtime on internal
+  # modules such as node-polyfill-crypto. Link the workspace runtime to the
+  # complete locked package installed at the repository root.
+  [ -f "$SOURCE_DIR/node_modules/next/package.json" ] \
+    || fail 'root Next.js runtime package is missing'
+  rm -rf "$app_dir/node_modules/next"
+  ln -s '../../../node_modules/next' "$app_dir/node_modules/next"
 done
 
 log 'checking PostgreSQL and applying migrations'
@@ -67,7 +100,7 @@ pg_isready -q -h 127.0.0.1 -p 5432 || fail 'PostgreSQL is not ready'
 npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
 
 log 'starting or reloading API, marketing, and admin services'
-pm2 startOrReload server-config/ecosystem.config.js --update-env
+pm2 startOrReload "$ECOSYSTEM_FILE" --update-env
 pm2 save
 
 log 'checking local services'

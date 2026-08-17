@@ -1,0 +1,19 @@
+[Unit]
+Description=RiderGuy verified PostgreSQL backup
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+Environment=RIDERGUY_ENV_FILE=/var/www/riderguy/shared/.env.production
+Environment=RIDERGUY_BACKUP_DIR=/var/www/riderguy/backups/postgresql
+Environment=RIDERGUY_BACKUP_RETENTION_DAYS=14
+ExecStart=/var/www/riderguy/shared/backup-db.sh
+Nice=10
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/riderguy/backups/postgresql
