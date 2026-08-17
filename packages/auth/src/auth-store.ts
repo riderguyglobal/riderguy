@@ -75,3 +75,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: null, isAuthenticated: false, isLoading: false, error: null });
   },
 }));
+
+// AU-06: when another tab logs out, propagate to this tab so the UI stops
+// claiming the user is authenticated. We don't call tokenStorage.clear()
+// again here (it's already empty) — just reset the Zustand state.
+if (typeof window !== 'undefined') {
+  tokenStorage.onTokensCleared(() => {
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+    });
+  });
+}

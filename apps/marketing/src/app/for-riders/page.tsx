@@ -2,7 +2,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-  Bike,
   DollarSign,
   GraduationCap,
   ShieldCheck,
@@ -13,28 +12,29 @@ import {
   ArrowRight,
   CheckCircle2,
   Target,
-  Award,
-  MapPin,
+  Umbrella,
+  Wrench,
 } from 'lucide-react';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
+import { ParallaxBg } from '@/components/parallax-bg';
 import { Counter } from '@/components/counter';
-import { RouteHero } from '@/components/theme-hero';
 
 export const metadata: Metadata = {
   title: 'For Riders | RiderGuy',
   description:
-    'Join RiderGuy and turn delivery riding into a real career. Keep 85% of every delivery fee, get free training, insurance, and a clear path to grow.',
+    'Join RiderGuy and turn delivery riding into a real career. Earn the industry-leading rider share, get free training, insurance, and a clear path to grow.',
 };
 
 const BENEFITS = [
-  { icon: DollarSign, title: 'Keep 85%', desc: 'The highest rider earnings share in Ghana. Your work, your money.' },
-  { icon: GraduationCap, title: 'Free Training', desc: 'Professional road safety, customer service, and delivery best practices, all free.' },
-  { icon: ShieldCheck, title: 'Insurance Included', desc: 'Accident and liability coverage for every active rider. Ride with peace of mind.' },
-  { icon: Wallet, title: 'Instant Payouts', desc: 'Earnings go straight to your in-app wallet. Withdraw anytime to mobile money or bank.' },
-  { icon: TrendingUp, title: 'Career Growth', desc: 'Progress from Rookie to Legend across 7 levels. Higher levels unlock bonuses and priority jobs.' },
-  { icon: Clock, title: 'Flexible Hours', desc: 'Go online when you want, offline when you need to. You control your schedule.' },
-  { icon: HeartHandshake, title: 'Community', desc: 'Join a network of riders who look out for each other. Forums, events, and peer support.' },
-  { icon: Award, title: 'Recognition', desc: 'Rider of the Month spotlights, performance badges, and real bonuses for top riders.' },
+  { icon: DollarSign,    title: 'Top Earnings',    desc: 'The highest rider earnings share in the industry. Your work, your money.' },
+  { icon: GraduationCap, title: 'Free Training',   desc: 'Customer service, delivery best practices, and road safety training — all completely free.' },
+  { icon: ShieldCheck,   title: 'Safety First',    desc: 'Professional road safety standards and accident prevention on every ride.' },
+  { icon: Umbrella,      title: 'Insurance',       desc: 'Accident and liability coverage for every active rider. Ride with peace of mind.' },
+  { icon: Wrench,        title: 'Asset Support',   desc: 'Access our partner repair shops and maintenance support to keep you on the road.' },
+  { icon: Wallet,        title: 'Instant Payout',  desc: 'Earnings go straight to your in-app wallet. Withdraw anytime to mobile money or bank.' },
+  { icon: TrendingUp,    title: 'Career Growth',   desc: 'Progress from Rookie to Legend across 7 levels. Higher levels unlock bonuses and priority jobs.' },
+  { icon: Clock,         title: 'Flexible Hours',  desc: 'Go online when you want, offline when you need to. You control your schedule.' },
+  { icon: HeartHandshake, title: 'Community',      desc: 'Join a network of riders who look out for each other. Forums, events, and peer support.' },
 ];
 
 const LEVELS = [
@@ -57,9 +57,9 @@ const REQUIREMENTS = [
 ];
 
 const FAQS = [
-  { q: 'How much can I earn?', a: 'Earnings depend on your zone, hours, and delivery volume. You keep 85% of every delivery fee, plus 100% of tips. The more you ride, the more you earn.' },
+  { q: 'How much can I earn?', a: 'Earnings depend on your zone, hours, and delivery volume. You keep the industry-leading share of every delivery fee, plus 100% of tips. The more you ride, the more you earn.' },
   { q: 'Is there a joining fee?', a: 'No. Signing up and training are completely free. You will never pay to join RiderGuy.' },
-  { q: 'What areas do you cover?', a: 'We are live in Accra, Kumasi, Tamale, Cape Coast, Takoradi, and Tema, with more cities launching soon.' },
+  { q: 'What areas do you cover?', a: 'We are live across multiple cities, with new locations launching regularly. Check the app for coverage in your area.' },
   { q: 'How do I get paid?', a: 'Earnings land in your RiderGuy wallet after each delivery. Withdraw instantly to mobile money or bank transfer.' },
   { q: 'Do I need my own motorcycle?', a: 'Yes, riders must have their own vehicle. We support motorcycles, bicycles, cars, and vans.' },
   { q: 'What about insurance?', a: 'Every active rider is covered by our accident and third-party liability insurance at no cost.' },
@@ -69,27 +69,28 @@ export default function ForRidersPage() {
   return (
     <ScrollRevealProvider>
       {/* ============================================================
-          HERO — Full-bleed B1 concept image
+          HERO — Group Landscape photo
           ============================================================ */}
       <section className="relative overflow-hidden bg-white pt-16 sm:pt-24">
-        <RouteHero>
-          <Image
-            src="/images/theme/B1.png"
-            alt="RiderGuy — build a delivery career in Ghana"
-            fill
-            priority
+        <div className="relative mx-auto w-full overflow-hidden">
+          <ParallaxBg
+            src="/images/new/Group Landscape Foto.png"
+            alt="RiderGuy — build a delivery career"
             sizes="100vw"
-            className="object-contain object-center"
-          />
-        </RouteHero>
+            className="aspect-[16/7] w-full bg-surface-950"
+            strength={55}
+            priority
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+          </ParallaxBg>
+        </div>
 
         {/* CTA strip under the hero */}
         <div className="relative bg-white">
           <div className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:py-10 lg:px-10">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <span className="flag-stripe">Ghana</span>
               <span className="theme-eyebrow">
-                For Riders
+                Riders
                 <span className="sep" />
                 Build a Career
               </span>
@@ -115,9 +116,9 @@ export default function ForRidersPage() {
 
         {/* Inline stat strip */}
         <div className="border-b border-surface-200 bg-surface-50">
-          <div className="mx-auto grid max-w-7xl grid-cols-3 gap-3 px-4 py-5 sm:gap-6 sm:px-8 sm:py-10 lg:px-10">
+          <div className="mx-auto grid max-w-7xl grid-cols-4 gap-3 px-4 py-5 sm:gap-6 sm:px-8 sm:py-10 lg:px-10">
             <div>
-              <p className="theme-stat">85%</p>
+              <p className="theme-stat">Top</p>
               <p className="theme-stat-label">Earnings</p>
             </div>
             <div>
@@ -127,6 +128,10 @@ export default function ForRidersPage() {
             <div>
               <p className="theme-stat">Free</p>
               <p className="theme-stat-label">Training</p>
+            </div>
+            <div>
+              <p className="theme-stat">Safe</p>
+              <p className="theme-stat-label">Safety</p>
             </div>
           </div>
         </div>
@@ -146,23 +151,47 @@ export default function ForRidersPage() {
               </h2>
             </div>
             <p className="theme-lede max-w-sm">
-              We take care of our riders because <em>great riders deliver
-              great experiences</em>.
+              Your Safety &amp; Welfare is our Priority. We take care of our Riders because <em>Secure Riders deliver great experiences</em>.
             </p>
           </div>
 
-          <div className="stagger mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {BENEFITS.map((b) => (
-              <div key={b.title} className="theme-card !p-6">
-                <div className="theme-icon-badge outline !h-11 !w-11">
-                  <b.icon className="h-5 w-5" />
+          {/* Mobile: horizontal rows · sm+: 3-col card grid */}
+          <div className="stagger mt-10 sm:mt-14">
+
+            {/* ── Mobile list (< sm) ── */}
+            <div className="flex flex-col divide-y divide-surface-100 rounded-2xl border border-surface-200 bg-white shadow-sm sm:hidden">
+              {BENEFITS.map((b, i) => (
+                <div key={b.title} className="flex items-start gap-4 px-5 py-4">
+                  <div
+                    className="shrink-0 flex items-center justify-center rounded-xl bg-brand-50"
+                    style={{ width: 42, height: 42 }}
+                  >
+                    <b.icon className="h-5 w-5 text-brand-600" />
+                  </div>
+                  <div className="min-w-0 pt-0.5">
+                    <p className="text-[0.9rem] font-bold text-surface-900 leading-tight">{b.title}</p>
+                    <p className="mt-0.5 text-[0.78rem] leading-relaxed text-surface-500">{b.desc}</p>
+                  </div>
+                  <span className="shrink-0 ml-auto self-center text-[10px] font-bold text-surface-300 tabular-nums">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
                 </div>
-                <h3 className="mt-5 text-base font-bold text-surface-900">{b.title}</h3>
-                <p className="mt-2 text-[0.85rem] leading-relaxed text-surface-500">
-                  {b.desc}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {/* ── Tablet / Desktop grid (sm+) ── */}
+            <div className="hidden sm:grid gap-5 sm:grid-cols-3 lg:grid-cols-3">
+              {BENEFITS.map((b) => (
+                <div key={b.title} className="theme-card !p-6">
+                  <div className="theme-icon-badge outline !h-11 !w-11">
+                    <b.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-5 text-base font-bold text-surface-900">{b.title}</h3>
+                  <p className="mt-2 text-[0.85rem] leading-relaxed text-surface-500">{b.desc}</p>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
       </section>
@@ -238,24 +267,20 @@ export default function ForRidersPage() {
 
           <div className="stagger mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { img: '/images/riders/rider life 1.jpeg', tag: 'Gear up', caption: 'Go online and accept your first delivery of the day.' },
-              { img: '/images/riders/rider life 2.jpeg', tag: 'On the move', caption: 'Navigate Accra\'s streets with live GPS and smart routing.' },
-              { img: '/images/riders/rider life 3.jpeg', tag: 'Deliver', caption: 'Proof-of-delivery, rate the customer, get paid — repeat.' },
+              { img: '/images/new/Pickup.png', tag: 'Pick Up', caption: 'Go online, accept your job and head to the pickup point.' },
+              { img: '/images/new/On the move.png', tag: 'On the Move', caption: 'Navigate the city with live GPS and smart routing.' },
+              { img: '/images/new/Home Delivery.png', tag: 'Deliver', caption: 'Proof-of-delivery, get paid instantly — then do it again.' },
             ].map((photo) => (
               <div key={photo.caption} className="theme-card !overflow-hidden !p-0">
                 <div className="photo-frame aspect-[4/3] !rounded-none">
                   <Image
                     src={photo.img}
                     alt={photo.caption}
-                    width={500}
-                    height={375}
-                    className="h-full w-full object-cover"
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    quality={90}
+                    className="object-cover"
                   />
-                  <div className="photo-badge left-4 top-4">
-                    <span className="flag-stripe !border-0 !bg-transparent !p-0 text-brand-700">
-                      {photo.tag}
-                    </span>
-                  </div>
                 </div>
                 <div className="p-6">
                   <p className="text-sm leading-relaxed text-surface-700">

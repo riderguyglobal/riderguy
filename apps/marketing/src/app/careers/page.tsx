@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   MapPin,
   Clock,
-  Briefcase,
   Users,
   Heart,
   TrendingUp,
@@ -39,15 +39,21 @@ interface PublishedJob {
 }
 
 async function getPublishedJobs(): Promise<PublishedJob[]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+
   try {
     const res = await fetch(`${API_URL}/job-postings`, {
       next: { revalidate: 60 },
+      signal: controller.signal,
     });
     if (!res.ok) return [];
     const json = await res.json();
     return json.data ?? [];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -55,7 +61,7 @@ const PERKS = [
   { icon: Heart, title: 'Purpose-Driven Work', desc: 'Build technology that empowers thousands of riders and transforms communities.' },
   { icon: TrendingUp, title: 'Growth & Learning', desc: 'We invest in your development. Conferences, courses, and mentorship included.' },
   { icon: Users, title: 'Close-Knit Team', desc: 'Small team, big impact. You will work directly with founders and ship fast.' },
-  { icon: Building2, title: 'Flexible & Remote', desc: 'Work from anywhere in Ghana. We trust outcomes, not screen time.' },
+  { icon: Building2, title: 'Flexible & Remote', desc: 'Work from anywhere. We trust outcomes, not screen time.' },
 ];
 
 export default async function CareersPage() {
@@ -63,16 +69,27 @@ export default async function CareersPage() {
 
   return (
     <ScrollRevealProvider>
+      {/* White bar — sits behind the fixed transparent header so logo + nav are legible */}
+      <div className="h-16 sm:h-[4.5rem] bg-white" />
+
       {/* ================================================================
           HERO
           ================================================================ */}
-      <section className="relative overflow-hidden bg-surface-950 pb-14 pt-24 text-white sm:pb-20 sm:pt-36 lg:pt-44">
-        <div className="grid-bg on-dark absolute inset-0 opacity-50" />
-        <div className="orb orb-green absolute right-0 top-0 h-[500px] w-[500px] opacity-40" />
+      <section className="relative overflow-hidden bg-surface-950 pb-14 pt-12 text-white sm:pb-20 sm:pt-16 lg:pt-20">
+        <Image
+          src="/images/new/Great Place to work.png"
+          alt="RiderGuy — a great place to work"
+          fill
+          priority
+          sizes="100vw"
+          quality={90}
+          className="object-cover object-center opacity-55"
+        />
+        <div className="grid-bg on-dark absolute inset-0 opacity-20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-surface-950/80 via-surface-950/30 to-surface-950/10" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <span className="flag-stripe">Ghana</span>
             <span className="theme-eyebrow on-dark">
               Careers
               <span className="sep" />

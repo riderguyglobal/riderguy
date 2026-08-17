@@ -89,6 +89,8 @@ export interface RetrievedPlace {
 
 // ── Google Geocoding API endpoint ─────────────────────────
 const GOOGLE_GEOCODE = 'https://maps.googleapis.com/maps/api/geocode/json';
+const GOOGLE_PLACES_AUTOCOMPLETE = 'https://places.googleapis.com/v1/places:autocomplete';
+const GOOGLE_PLACES_DETAILS = 'https://places.googleapis.com/v1/places';
 
 // ── Nominatim (OpenStreetMap) endpoint ────────────────────
 const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
@@ -103,6 +105,17 @@ function warnMockFallback(method: string) {
   console.warn(
     `[GeocodingService] ${method}: GOOGLE_MAPS_API_KEY not set — using mock data. Set the key in .env for real geocoding.`
   );
+}
+
+function coordinateFallbackResult(latitude: number, longitude: number): GeocodingResult {
+  const plusCode = formatPlusCode(latitude, longitude);
+  return {
+    address: `${plusCode.display} (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`,
+    latitude,
+    longitude,
+    placeType: 'coordinate',
+    plusCode,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -375,7 +388,7 @@ function searchGazetteer(
       const isPlace = entry.t === 'place';
       // Scale: fuzzy score (0–1) → base (0–100/90 for places/POIs)
       const maxBase = isPlace ? 100 : 90;
-      let baseScore = hit.score * maxBase;
+      const baseScore = hit.score * maxBase;
 
       // Population bonus (same as before)
       const pop = entry.p ?? 0;
@@ -552,12 +565,7 @@ export async function reverseGeocode(
 
   if (!apiKey) {
     warnMockFallback('reverseGeocode');
-    return {
-      address: 'Address not available',
-      latitude,
-      longitude,
-      placeType: 'coordinate',
-    };
+    return coordinateFallbackResult(latitude, longitude);
   }
 
   const params = new URLSearchParams({
@@ -571,12 +579,18 @@ export async function reverseGeocode(
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw ApiError.internal('Reverse geocoding service unavailable');
+    console.warn(`[GeocodingService] reverseGeocode HTTP ${response.status}; using coordinate fallback.`);
+    return coordinateFallbackResult(latitude, longitude);
   }
 
   const data = (await response.json()) as GoogleGeocodingResponse;
+  if (data.status !== 'OK') {
+    console.warn(`[GeocodingService] reverseGeocode returned ${data.status}; using coordinate fallback.`);
+    return coordinateFallbackResult(latitude, longitude);
+  }
+
   const result = data.results?.[0];
-  if (!result) return null;
+  if (!result) return coordinateFallbackResult(latitude, longitude);
 
   return {
     address: result.formatted_address,
@@ -647,7 +661,11 @@ export async function autocomplete(
   const communityPromise = searchCommunityPlaces(searchQueries[0]!, 6, prox);
 
   // ── 4. Google Geocoding API ──
-  const googlePromise = googleGeocodeAutocomplete(query, { proximity: prox, limit });
+  const googlePromise = googlePlacesAutocomplete(query, {
+    proximity: prox,
+    limit,
+    sessionToken: options.sessionToken,
+  });
 
   // ── 5. Nominatim / OpenStreetMap (supplementary) ──
   const nominatimPromise = nominatimAutocomplete(query, { proximity: prox, limit: 5 });
@@ -667,7 +685,7 @@ export async function autocomplete(
     console.warn('[GeocodingService] Community places search failed:', communityResults.reason);
   }
   if (googleResults.status === 'rejected') {
-    console.warn('[GeocodingService] Google geocoding failed:', googleResults.reason);
+    console.warn('[GeocodingService] Google Places autocomplete failed:', googleResults.reason);
   }
   if (nominatimResults.status === 'rejected') {
     console.warn('[GeocodingService] Nominatim autocomplete failed:', nominatimResults.reason);
@@ -675,7 +693,7 @@ export async function autocomplete(
 
   // Merge: gazetteer first (instant + fuzzy), then community,
   // then Google (API), then Nominatim (supplementary)
-  const merged = deduplicateSuggestions([...gazetteerResults, ...community, ...google, ...nominatim]);
+  const merged = deduplicateSuggestions([...google, ...gazetteerResults, ...community, ...nominatim]);
 
   return merged.slice(0, limit);
 }
@@ -684,42 +702,63 @@ export async function autocomplete(
  * Google Geocoding API autocomplete.
  * Returns results WITH coordinates.
  */
-async function googleGeocodeAutocomplete(
+async function googlePlacesAutocomplete(
   query: string,
-  options: { proximity: { lat: number; lng: number }; limit: number },
+  options: { proximity: { lat: number; lng: number }; limit: number; sessionToken?: string },
 ): Promise<AutocompleteSuggestion[]> {
   const apiKey = config.google?.mapsApiKey;
   if (!apiKey) return [];
 
-  const params = new URLSearchParams({
-    address: query,
-    key: apiKey,
-    region: 'gh',
-    language: 'en',
-    bounds: `4.74,-3.26|11.17,1.19`,
+  const body: Record<string, unknown> = {
+    input: query,
+    languageCode: 'en',
+    includedRegionCodes: ['gh'],
+    locationBias: {
+      circle: {
+        center: {
+          latitude: options.proximity.lat,
+          longitude: options.proximity.lng,
+        },
+        radius: 50000,
+      },
+    },
+  };
+  if (options.sessionToken) body.sessionToken = options.sessionToken;
+
+  const response = await fetch(GOOGLE_PLACES_AUTOCOMPLETE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': [
+        'suggestions.placePrediction.placeId',
+        'suggestions.placePrediction.text',
+        'suggestions.placePrediction.structuredFormat',
+        'suggestions.placePrediction.types',
+      ].join(','),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(3000),
   });
-
-  const url = `${GOOGLE_GEOCODE}?${params.toString()}`;
-
-  const response = await fetch(url);
   if (!response.ok) return [];
 
-  const data = (await response.json()) as GoogleGeocodingResponse;
-  if (data.status !== 'OK' || !data.results?.length) return [];
-
-  return data.results.slice(0, options.limit).map((r) => {
-    // Extract a short display name from address components
-    const shortName = r.address_components?.[0]?.long_name ?? r.formatted_address.split(',')[0] ?? '';
-    return {
-      id: `google-${r.place_id}`,
-      text: shortName,
-      placeName: r.formatted_address,
-      latitude: r.geometry.location.lat,
-      longitude: r.geometry.location.lng,
-      placeType: r.types?.[0] ?? 'place',
-      source: 'google' as const,
-    };
-  });
+  const data = (await response.json()) as GooglePlacesAutocompleteResponse;
+  return (data.suggestions ?? [])
+    .map((suggestion) => suggestion.placePrediction)
+    .filter((prediction): prediction is GooglePlacePrediction => Boolean(prediction?.placeId))
+    .slice(0, options.limit)
+    .map((prediction) => {
+      const mainText = prediction.structuredFormat?.mainText?.text ?? prediction.text?.text ?? '';
+      const secondaryText = prediction.structuredFormat?.secondaryText?.text ?? '';
+      const placeName = secondaryText ? `${mainText}, ${secondaryText}` : prediction.text?.text ?? mainText;
+      return {
+        id: `googleplaces-${prediction.placeId}`,
+        text: mainText || placeName,
+        placeName,
+        placeType: prediction.types?.[0] ?? 'place',
+        source: 'google' as const,
+      };
+    });
 }
 
 /**
@@ -983,6 +1022,32 @@ export async function retrievePlace(
   }
 
   // Google place IDs — use Google Geocoding to retrieve by place_id
+  if (placeId.startsWith('googleplaces-')) {
+    const googlePlaceId = placeId.replace('googleplaces-', '');
+    const response = await fetch(`${GOOGLE_PLACES_DETAILS}/${encodeURIComponent(googlePlaceId)}`, {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'id,displayName,formattedAddress,location,types',
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) return null;
+
+    const place = (await response.json()) as GooglePlaceDetailsResponse;
+    if (!place.location) return null;
+
+    const name = place.displayName?.text ?? place.formattedAddress?.split(',')[0] ?? '';
+    return {
+      id: placeId,
+      name,
+      fullAddress: place.formattedAddress ?? name,
+      latitude: place.location.latitude,
+      longitude: place.location.longitude,
+      placeType: place.types?.[0] ?? 'place',
+      plusCode: formatPlusCode(place.location.latitude, place.location.longitude),
+    };
+  }
+
   if (placeId.startsWith('google-')) {
     const googlePlaceId = placeId.replace('google-', '');
     const params = new URLSearchParams({
@@ -1038,6 +1103,30 @@ interface GoogleGeocodingResponse {
 }
 
 // ── Nominatim response types ──────────────────────────────
+
+interface GooglePlacesAutocompleteResponse {
+  suggestions?: Array<{
+    placePrediction?: GooglePlacePrediction;
+  }>;
+}
+
+interface GooglePlacePrediction {
+  placeId: string;
+  text?: { text?: string };
+  structuredFormat?: {
+    mainText?: { text?: string };
+    secondaryText?: { text?: string };
+  };
+  types?: string[];
+}
+
+interface GooglePlaceDetailsResponse {
+  id?: string;
+  displayName?: { text?: string };
+  formattedAddress?: string;
+  location?: { latitude: number; longitude: number };
+  types?: string[];
+}
 
 interface NominatimResult {
   place_id: number;

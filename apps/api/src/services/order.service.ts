@@ -393,7 +393,7 @@ export async function listOrders(
   const limit = Math.min(options.limit ?? 20, 100);
   const skip = (page - 1) * limit;
 
-  let whereClause: any = {};
+  const whereClause: any = {};
 
   if (role === 'CLIENT' || role === 'BUSINESS_CLIENT') {
     whereClause.clientId = userId;
@@ -465,6 +465,21 @@ export async function transitionStatus(
     );
   }
 
+  if (newStatus === 'DELIVERED') {
+    if (!order.riderPaymentConfirmed) {
+      throw ApiError.badRequest(
+        'Payment must be confirmed before delivery can be completed',
+        'PAYMENT_NOT_CONFIRMED',
+      );
+    }
+    if (!order.proofOfDeliveryType || !order.proofOfDeliveryUrl) {
+      throw ApiError.badRequest(
+        'Proof of delivery is required before completion',
+        'PROOF_REQUIRED',
+      );
+    }
+  }
+
   // Determine timestamp fields to update
   const timestampUpdates: Record<string, Date> = {};
   if (newStatus === 'ASSIGNED') timestampUpdates.assignedAt = new Date();
@@ -501,8 +516,9 @@ export async function transitionStatus(
     },
   });
 
-  // If an order is cancelled (by rider OR client), set rider back to ONLINE
-  if (newStatus.startsWith('CANCELLED') && updated.riderId) {
+  // Terminal states release the rider from this delivery. Stuck-order recovery
+  // may subsequently mark the rider OFFLINE if the failure was connectivity-related.
+  if ((newStatus.startsWith('CANCELLED') || newStatus === 'FAILED') && updated.riderId) {
     await prisma.riderProfile.update({
       where: { id: updated.riderId },
       data: { availability: 'ONLINE' },
@@ -1017,6 +1033,11 @@ export async function getAvailableJobs(userId: string) {
     where: {
       status: { in: ['PENDING', 'SEARCHING_RIDER'] },
       riderId: null,
+      OR: [
+        { isScheduled: false },
+        { scheduledAt: null },
+        { scheduledAt: { lte: new Date() } },
+      ],
     },
     orderBy: { createdAt: 'desc' },
     take: 50,
@@ -1072,6 +1093,34 @@ export async function getAvailableJobs(userId: string) {
   }
 
   return filtered;
+}
+
+/**
+ * Start dispatch for scheduled orders whose release window has arrived.
+ */
+export async function releaseDueScheduledOrders(): Promise<number> {
+  const dueOrders = await prisma.order.findMany({
+    where: {
+      status: 'PENDING',
+      riderId: null,
+      isScheduled: true,
+      scheduledAt: { lte: new Date() },
+    },
+    select: { id: true, orderNumber: true },
+    take: 50,
+  });
+
+  if (dueOrders.length === 0) return 0;
+
+  const { autoDispatch } = await import('./auto-dispatch.service');
+  for (const order of dueOrders) {
+    logger.info({ orderId: order.id, orderNumber: order.orderNumber }, 'Releasing scheduled order for dispatch');
+    autoDispatch(order.id).catch((err) => {
+      logger.error({ err, orderId: order.id }, 'Scheduled order dispatch failed');
+    });
+  }
+
+  return dueOrders.length;
 }
 
 // ── Stale unpaid order cleanup ──────────────────────

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "type-check": "tsc --noEmit",
-    "lint": "eslint src/"
+    "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
     "@riderguy/types": "*",

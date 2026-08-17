@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { calculatePrice, type PriceBreakdown } from './pricing.service';
 import { prisma } from '@riderguy/database';
 
 vi.mock('@riderguy/database', () => ({
   prisma: {
     zone: { findMany: vi.fn() },
+    etaCorrectionFactor: { findMany: vi.fn() },
     order: { findUnique: vi.fn(), update: vi.fn() },
   },
 }));
@@ -37,12 +38,23 @@ const LONG_DROPOFF = { lat: 5.680, lng: -0.028 }; // Tema
 /** Round to 2 decimals for comparison */
 function r(n: number) { return Math.round(n * 100) / 100; }
 
+let fakeCacheNow = 1_700_000_000_000;
+
 // ── Test setup ──────────────────────────────────────────────
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.resetAllMocks();
+  fakeCacheNow += 10 * 60 * 1000;
+  vi.spyOn(Date, 'now').mockReturnValue(fakeCacheNow);
+
   // Default: no zones → platform defaults apply
   (prisma.zone.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  (prisma.etaCorrectionFactor.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 // ============================================================
@@ -79,7 +91,11 @@ describe('Pricing with platform defaults', () => {
     expect(price.distanceCharge).toBeGreaterThan(0);
     expect(price.subtotal).toBeGreaterThanOrEqual(8.0); // minimum fare
     expect(price.serviceFee).toBeCloseTo(price.subtotal * 0.1, 1);
-    expect(price.totalPrice).toBe(r(price.subtotal + price.serviceFee));
+    // totalPrice is rounded from the unrounded Decimal subtotal+fee boundary,
+    // so the display components can differ by one pesewa after rounding.
+    const totalPesewas = Math.round(price.totalPrice * 100);
+    const displayTotalPesewas = Math.round(r(price.subtotal + price.serviceFee) * 100);
+    expect(Math.abs(totalPesewas - displayTotalPesewas)).toBeLessThanOrEqual(1);
 
     // Rider / platform split
     expect(price.platformCommission).toBeCloseTo(price.totalPrice * 0.15, 1);

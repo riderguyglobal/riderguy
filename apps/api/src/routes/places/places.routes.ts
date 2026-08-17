@@ -65,6 +65,29 @@ const nearbySchema = z.object({
  * Google Maps URL containing coordinates. This endpoint follows the
  * redirect and parses the resulting URL.
  */
+/**
+ * GET /places/reverse-geocode - Convert coordinates to a usable label.
+ *
+ * Mirrors /orders/reverse-geocode for native clients that fall back to the
+ * community places namespace while resolving current-location addresses.
+ */
+router.get(
+  '/reverse-geocode',
+  asyncHandler(async (req, res) => {
+    const latitude = Number(req.query.latitude);
+    const longitude = Number(req.query.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      throw ApiError.badRequest('Valid latitude and longitude query parameters are required');
+    }
+
+    const result = await reverseGeocode(latitude, longitude);
+    res.status(StatusCodes.OK).json({ success: true, data: result });
+  }),
+);
+
+/**
+ * POST /places/resolve-link - Resolve a Google Maps short URL and extract coordinates.
+ */
 router.post(
   '/resolve-link',
   asyncHandler(async (req, res) => {

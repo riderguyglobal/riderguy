@@ -1,7 +1,58 @@
 /** @type {import('next').NextConfig} */
+const monorepoTraceIgnores = [
+  '**/.git/**',
+  '**/.turbo/**',
+  '**/.expo/**',
+  '**/.next/cache/**',
+  '**/.codex-temp/**',
+  '**/.claude/**',
+  '**/archive/**',
+  '**/assets/**',
+  '**/docs/**',
+  '**/HOT_data/**',
+  '**/scripts/**',
+  '**/server-config/**',
+  '**/svg files/**',
+  '**/artifacts-*',
+  '**/apps/api/**',
+  '**/apps/client-native/**',
+  '**/apps/marketing/**',
+  '**/apps/rider-native/**',
+];
+
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  experimental: {
+    outputFileTracingRoot: __dirname,
+    outputFileTracingIncludes: {
+      '/*': [
+        '../../packages/auth/**/*',
+        '../../packages/config/**/*',
+        '../../packages/types/**/*',
+        '../../packages/ui/**/*',
+        '../../packages/utils/**/*',
+        '../../packages/validators/**/*',
+      ],
+    },
+    outputFileTracingIgnores: monorepoTraceIgnores,
+    outputFileTracingExcludes: {
+      '*': [
+        '../../archive/**',
+        '../../assets/**',
+        '../../docs/**',
+        '../../HOT_data/**',
+        '../../scripts/**',
+        '../../server-config/**',
+        '../../svg files/**',
+        '../../artifacts-*',
+        '../api/**',
+        '../client-native/**',
+        '../marketing/**',
+        '../rider-native/**',
+      ],
+    },
+  },
   transpilePackages: [
     '@riderguy/ui',
     '@riderguy/types',

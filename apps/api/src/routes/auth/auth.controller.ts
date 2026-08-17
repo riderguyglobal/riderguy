@@ -162,14 +162,21 @@ export class AuthController {
 
   /** POST /auth/login/password */
   static async loginWithPassword(req: Request, res: Response) {
-    const { email, password } = req.body;
+    // AU-01: accept either `identifier` (phone/email/Ghana Card) or legacy
+    // `email`. The service resolves the user by shape.
+    const { identifier, email, password } = req.body;
     const deviceInfo = req.headers['user-agent'] ?? undefined;
     const ipAddress =
       (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
       req.socket.remoteAddress ??
       undefined;
 
-    const result = await AuthService.loginWithPassword(email, password, deviceInfo, ipAddress);
+    const result = await AuthService.loginWithPassword(
+      identifier ?? email,
+      password,
+      deviceInfo,
+      ipAddress,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       data: result,
@@ -412,6 +419,34 @@ export class AuthController {
     res.status(StatusCodes.OK).json({
       success: true,
       data: result,
+    });
+  }
+
+  // ---- Login email confirmation (AUTH-EMAIL-CONFIRM) ----
+
+  /** POST /auth/login/email-confirm */
+  static async loginEmailConfirm(req: Request, res: Response) {
+    const { userId, code } = req.body;
+    const deviceInfo = req.headers['user-agent'] ?? undefined;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+      req.socket.remoteAddress ??
+      undefined;
+
+    const result = await AuthService.verifyLoginEmailConfirmation(userId, code, deviceInfo, ipAddress);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  }
+
+  /** POST /auth/login/email-confirm/resend */
+  static async resendLoginEmailConfirm(req: Request, res: Response) {
+    const { userId } = req.body;
+    await AuthService.requestLoginEmailConfirmation(userId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { message: 'A new code has been sent to your email.' },
     });
   }
 

@@ -7,7 +7,7 @@ import { initSocketServer } from './socket';
 import { startWorkers, stopWorkers } from './jobs/workers';
 import { startPresenceManager, stopPresenceManager } from './services/presence.service';
 import { recoverStuckDispatches } from './services/auto-dispatch.service';
-import { expireStaleUnpaidOrders, escalateStaleDeliveries, cleanupOldBreadcrumbs } from './services/order.service';
+import { expireStaleUnpaidOrders, escalateStaleDeliveries, cleanupOldBreadcrumbs, releaseDueScheduledOrders } from './services/order.service';
 import { reassignGpsDarkRiders, reassignOfflineRiders, resolveExpiredCancelRequests, failStuckPostPickupOrders } from './services/order-reassign.service';
 import { processExpiredRequests } from './services/cancellation-request.service';
 import { closeRedis } from './lib/redis';
@@ -32,6 +32,7 @@ let slaTimer: ReturnType<typeof setInterval> | undefined;
 let breadcrumbCleanupTimer: ReturnType<typeof setInterval> | undefined;
 let reassignSweepTimer: ReturnType<typeof setInterval> | undefined;
 let cancelRequestTimer: ReturnType<typeof setInterval> | undefined;
+let scheduledReleaseTimer: ReturnType<typeof setInterval> | undefined;
 
 const server = httpServer.listen(config.port, () => {
   logger.info(
@@ -53,6 +54,15 @@ const server = httpServer.listen(config.port, () => {
       .then((n) => n > 0 && logger.info({ count: n }, 'Expired stale unpaid orders'))
       .catch((err) => logger.error({ err }, 'Stale order cleanup failed'));
   }, 5 * 60 * 1000);
+
+  releaseDueScheduledOrders()
+    .then((n) => n > 0 && logger.info({ count: n }, 'Released scheduled orders on startup'))
+    .catch((err) => logger.error({ err }, 'Scheduled order release failed on startup'));
+  scheduledReleaseTimer = setInterval(() => {
+    releaseDueScheduledOrders()
+      .then((n) => n > 0 && logger.info({ count: n }, 'Released scheduled orders'))
+      .catch((err) => logger.error({ err }, 'Scheduled order release failed'));
+  }, 60 * 1000);
 
   // D-03: Check for stale deliveries every 10 minutes
   escalateStaleDeliveries()
@@ -109,6 +119,7 @@ for (const signal of signals) {
       if (breadcrumbCleanupTimer) clearInterval(breadcrumbCleanupTimer);
       if (reassignSweepTimer) clearInterval(reassignSweepTimer);
       if (cancelRequestTimer) clearInterval(cancelRequestTimer);
+      if (scheduledReleaseTimer) clearInterval(scheduledReleaseTimer);
       await stopPresenceManager();
       logger.info('Presence manager stopped');
       await stopWorkers();

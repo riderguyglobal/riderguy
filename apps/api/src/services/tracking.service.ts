@@ -135,6 +135,10 @@ export async function getRiderLocationForOrder(orderId: string, requesterId: str
     return { location: null };
   }
 
+  if (order.rider.currentLatitude == null || order.rider.currentLongitude == null) {
+    return { location: null };
+  }
+
   // Only share location for active deliveries
   const activeStatuses = ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
   if (!activeStatuses.includes(order.status)) {

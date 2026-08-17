@@ -159,6 +159,14 @@ export class PushService {
         tokens,
         notification: { title, body },
         data: data ?? {},
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: data?.channelId ?? 'default',
+            sound: 'default',
+            defaultVibrateTimings: true,
+          },
+        },
         webpush: {
           fcmOptions: {
             link: '/',

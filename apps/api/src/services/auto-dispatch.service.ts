@@ -162,6 +162,26 @@ export async function getDeclinedRiderIds(orderId: string): Promise<Set<string>>
   return new Set(ids);
 }
 
+async function returnSearchingOrderToQueue(orderId: string, note: string): Promise<boolean> {
+  const updated = await prisma.order.updateMany({
+    where: { id: orderId, status: 'SEARCHING_RIDER', riderId: null },
+    data: { status: 'PENDING' },
+  });
+
+  if (updated.count === 0) {
+    logger.info(
+      { orderId, note },
+      '[AutoDispatch] Skipped queue return because order is no longer unassigned/searching',
+    );
+    return false;
+  }
+
+  await prisma.orderStatusHistory.create({
+    data: { orderId, status: 'PENDING', actor: 'system', note },
+  }).catch(() => {});
+  return true;
+}
+
 // ── Scoring Functions (exported for unit testing) ──
 
 export function proximityScore(distanceKm: number): number {
@@ -278,17 +298,30 @@ export async function autoDispatch(orderId: string): Promise<void> {
       packageDescription: true,
       currency: true,
       isMultiStop: true,
+      isScheduled: true,
+      scheduledAt: true,
       zoneId: true,
     },
   });
 
   if (!order) {
     logger.error({ orderId }, '[AutoDispatch] Order not found');
+    await releaseDispatchLock(orderId);
     return;
   }
 
   if (order.status !== 'PENDING' && order.status !== 'SEARCHING_RIDER') {
     logger.info({ orderId, status: order.status }, '[AutoDispatch] Order not in dispatchable status');
+    await releaseDispatchLock(orderId);
+    return;
+  }
+
+  if (order.isScheduled && order.scheduledAt && order.scheduledAt > new Date()) {
+    logger.info(
+      { orderId, scheduledAt: order.scheduledAt },
+      '[AutoDispatch] Skipping scheduled order until release window',
+    );
+    await releaseDispatchLock(orderId);
     return;
   }
 
@@ -299,6 +332,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
       { orderId, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
       '[AutoDispatch] Skipping — awaiting payment confirmation',
     );
+    await releaseDispatchLock(orderId);
     return;
   }
 
@@ -310,6 +344,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
     });
     if (claimed.count === 0) {
       logger.info({ orderId }, '[AutoDispatch] Order status changed before dispatch could start');
+      await releaseDispatchLock(orderId);
       return;
     }
     await prisma.orderStatusHistory.create({
@@ -362,13 +397,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
     logger.info({ orderId }, '[AutoDispatch] No online riders available');
     await releaseDispatchLock(orderId);
     // Revert to PENDING — riders will see it in the job feed when they come online
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'PENDING' },
-    });
-    await prisma.orderStatusHistory.create({
-      data: { orderId, status: 'PENDING', actor: 'system', note: 'No online riders available — returned to queue' },
-    }).catch(() => {});
+    await returnSearchingOrderToQueue(orderId, 'No online riders available - returned to queue');
     // Notify client and admins that no riders are currently available
     try {
       const io = getIO();
@@ -456,13 +485,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
   if (candidates.length === 0) {
     logger.info({ orderId }, '[AutoDispatch] No riders within search radius');
     await releaseDispatchLock(orderId);
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'PENDING' },
-    });
-    await prisma.orderStatusHistory.create({
-      data: { orderId, status: 'PENDING', actor: 'system', note: 'No riders within search radius — returned to queue' },
-    }).catch(() => {});
+    await returnSearchingOrderToQueue(orderId, 'No riders within search radius - returned to queue');
     // Notify client and admins that no riders are nearby
     try {
       const io = getIO();
@@ -491,10 +514,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
     if (candidates.length === 0) {
       logger.info({ orderId, declinedCount: priorDeclined.size }, '[AutoDispatch] All candidates previously declined');
       await releaseDispatchLock(orderId);
-      await prisma.order.update({ where: { id: orderId }, data: { status: 'PENDING' } });
-      await prisma.orderStatusHistory.create({
-        data: { orderId, status: 'PENDING', actor: 'system', note: 'All candidates previously declined — returned to queue' },
-      }).catch(() => {});
+      await returnSearchingOrderToQueue(orderId, 'All candidates previously declined - returned to queue');
       return;
     }
   }
@@ -578,15 +598,8 @@ function sendOfferToNextRider(
     activeDispatches.delete(state.orderId);
     removeDispatchFromRedis(state.orderId);
     releaseDispatchLock(state.orderId);
-    // Revert order to PENDING for manual pickup from the job feed
-    prisma.order
-      .update({ where: { id: state.orderId }, data: { status: 'PENDING' } })
-      .then(() =>
-        prisma.orderStatusHistory.create({
-          data: { orderId: state.orderId, status: 'PENDING', actor: 'system', note: 'All nearby riders busy — returned to queue' },
-        }).catch(() => {})
-      )
-      .catch(() => {});
+    // Revert only if this dispatch still owns an unassigned SEARCHING_RIDER order.
+    returnSearchingOrderToQueue(state.orderId, 'All nearby riders busy - returned to queue').catch(() => {});
     // Notify client and admins that all nearby riders were tried
     try {
       const io = getIO();
@@ -680,9 +693,10 @@ function sendOfferToNextRider(
       io.to(`user:${rider.userId}`).emit('job:offer:expired', { orderId: state.orderId });
     } catch {}
 
-    // D-06: Record timeout as implicit decline
+    // A timeout usually means the rider app missed the socket/push window.
+    // Keep explicitly declined jobs out of the feed, but let timed-out jobs
+    // return to /orders/available after dispatch falls back to the queue.
     state.declinedRiderIds.add(rider.userId);
-    recordDeclinedRider(state.orderId, rider.userId);
 
     // Move to next rider
     state.currentIndex++;

@@ -26,9 +26,14 @@ import {
   webauthnLoginVerifySchema,
   ghanaCardRegisterSchema,
   loginWithGhanaCardSchema,
+  loginEmailConfirmSchema,
+  resendLoginEmailConfirmSchema,
   recoveryRequestSchema,
   verifySecurityAnswerSchema,
   recoveryResetPinSchema,
+  // AU-02: new schemas plug the validation gaps on recovery routes.
+  verifyRecoveryOtpSchema,
+  getSecurityQuestionSchema,
 } from '@riderguy/validators';
 import { asyncHandler } from '../../lib/async-handler';
 
@@ -106,6 +111,22 @@ router.post(
   asyncHandler(AuthController.loginWithGhanaCard)
 );
 
+// AUTH-EMAIL-CONFIRM: final step for any login that didn't already prove
+// email ownership (phone+password, phone+PIN, Ghana Card, phone OTP).
+router.post(
+  '/login/email-confirm',
+  authRateLimit,
+  validate(loginEmailConfirmSchema),
+  asyncHandler(AuthController.loginEmailConfirm)
+);
+
+router.post(
+  '/login/email-confirm/resend',
+  authRateLimit,
+  validate(resendLoginEmailConfirmSchema),
+  asyncHandler(AuthController.resendLoginEmailConfirm)
+);
+
 // Recovery routes
 router.post(
   '/recovery/request',
@@ -117,6 +138,8 @@ router.post(
 router.post(
   '/recovery/verify-otp',
   authRateLimit,
+  // AU-02
+  validate(verifyRecoveryOtpSchema),
   asyncHandler(AuthController.verifyRecoveryOtp)
 );
 
@@ -137,6 +160,8 @@ router.post(
 router.get(
   '/recovery/security-question',
   authRateLimit,
+  // AU-02 — validate `ghanaCard` query param shape.
+  validate(getSecurityQuestionSchema, 'query'),
   asyncHandler(AuthController.getSecurityQuestion)
 );
 

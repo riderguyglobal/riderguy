@@ -2,6 +2,8 @@
 
 > A phased, sprint-by-sprint plan to take RiderGuy from zero to a fully operational 4-in-1 platform. Each phase builds on the last. Every sprint delivers working, testable software.
 
+> Native UI refresh plan: see `docs/architecture/NATIVE_UI_OVERHAUL_PLAN.md` for the Rider/client mobile redesign, brand token correction, app icon plan, map UX standard, and screen-by-screen implementation sequence.
+
 ---
 
 ## 📐 Build Philosophy

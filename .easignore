@@ -1,0 +1,79 @@
+# EAS evaluates this file from the monorepo root and uses it instead of
+# .gitignore. Keep native source and shared workspaces; exclude local output,
+# archived apps, web-only assets, and every credential that EAS does not need.
+
+# Dependencies and build caches
+node_modules/
+.pnp
+.pnp.js
+dist/
+.next/
+out/
+build/
+.turbo/
+.expo/
+.eas/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+*.apk
+*.aab
+*.jsbundle
+*.bundle
+**/.gradle/
+**/.cxx/
+**/android/build/
+**/android/app/build/
+**/ios/build/
+**/ios/Pods/
+
+# Environment and credentials
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+play-store-key.json
+android-release-signing.env
+google-services.json
+GoogleService-Info.plist
+
+# The checked-in native Android projects need their generated Firebase client
+# configuration. These files contain public client identifiers, not server keys.
+!apps/client-native/android/app/google-services.json
+!apps/rider-native/android/app/google-services.json
+
+# Local tooling and diagnostics
+.artifacts/
+.codex-temp/
+.claude/
+.vscode/
+.idea/
+logs/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime data
+packages/database/prisma/*.db
+uploads/
+
+# Content not required to compile the native apps
+/archive/
+/assets/
+/HOT_data/
+/docs/
+/*.docx
+/*.png
+/*.tar.gz
+apps/marketing/public/
+apps/admin/public/

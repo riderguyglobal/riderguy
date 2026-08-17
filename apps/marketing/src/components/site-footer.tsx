@@ -18,6 +18,12 @@ const COL_3 = [
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Terms of Service', href: '/terms' },
   { label: 'Cookie Policy', href: '/cookies' },
+  { label: 'Account Deletion', href: '/delete-account' },
+];
+
+const SOCIAL_LINKS: { name: 'Facebook' | 'LinkedIn'; href: string }[] = [
+  { name: 'Facebook', href: 'https://www.facebook.com/riderguy.org' },
+  { name: 'LinkedIn', href: 'https://www.linkedin.com/company/redmanov-company-limited/' },
 ];
 
 function FooterCol({ title, links }: { title: string; links: typeof COL_1 }) {
@@ -60,21 +66,22 @@ export function SiteFooter() {
               className="h-9 w-auto brightness-0 invert"
             />
             <p className="mt-4 text-[0.9rem] leading-relaxed text-surface-400">
-              Fast, reliable, and trackable last-mile delivery connecting
-              businesses and individuals with verified dispatch riders across Ghana.
+              The operating system for the rider economy — verified professionals, platform-grade reliability, and total client confidence on every delivery.
             </p>
           </div>
 
           {/* Social */}
           <div className="flex items-center gap-3">
-            {(['X', 'Instagram', 'LinkedIn'] as const).map((label) => (
+            {SOCIAL_LINKS.map(({ name, href }) => (
               <a
-                key={label}
-                href="#"
+                key={name}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-surface-800 text-surface-400 transition-all hover:border-brand-500/50 hover:text-brand-400"
-                aria-label={label}
+                aria-label={name}
               >
-                <SocialIcon name={label} />
+                <SocialIcon name={name} />
               </a>
             ))}
           </div>
@@ -114,8 +121,7 @@ export function SiteFooter() {
             &copy; {new Date().getFullYear()} RiderGuy. All rights reserved.
           </p>
           <div className="flex items-center gap-3">
-            <span className="flag-stripe">Made in Ghana</span>
-            <p className="text-[0.8rem] text-surface-500">With purpose.</p>
+            <p className="text-[0.8rem] text-surface-500">Made with purpose.</p>
           </div>
         </div>
       </div>
@@ -123,20 +129,12 @@ export function SiteFooter() {
   );
 }
 
-function SocialIcon({ name }: { name: 'X' | 'Instagram' | 'LinkedIn' }) {
+function SocialIcon({ name }: { name: 'Facebook' | 'LinkedIn' }) {
   switch (name) {
-    case 'X':
+    case 'Facebook':
       return (
         <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-        </svg>
-      );
-    case 'Instagram':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4">
-          <rect x="2" y="2" width="20" height="20" rx="5" />
-          <circle cx="12" cy="12" r="5" />
-          <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
+          <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.269h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z" />
         </svg>
       );
     case 'LinkedIn':

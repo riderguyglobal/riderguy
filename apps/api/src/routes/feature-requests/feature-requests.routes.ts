@@ -21,7 +21,7 @@ router.use(authenticate);
 /** GET /feature-requests — List feature requests */
 router.get(
   '/',
-  validate(listFeatureRequestsSchema),
+  validate(listFeatureRequestsSchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
     const { status, sort, page, limit } = req.query as any;
     const data = await FeatureRequestService.listFeatureRequests({

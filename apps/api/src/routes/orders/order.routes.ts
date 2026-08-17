@@ -17,7 +17,7 @@ import * as GeocodingService from '../../services/geocoding.service';
 import { formatPlusCode, decodePlusCode, isValidPlusCode, isFullPlusCode, recoverPlusCode } from '@riderguy/utils';
 import * as TrackingService from '../../services/tracking.service';
 import { notifyNearbyRiders, createOrderNotification } from '../../services/notification.service';
-import { autoDispatch } from '../../services/auto-dispatch.service';
+import { autoDispatch, cancelDispatch } from '../../services/auto-dispatch.service';
 import { emitOrderStatusUpdate } from '../../socket';
 import * as CancelRequestService from '../../services/cancellation-request.service';
 import { StorageService } from '../../services/storage.service';
@@ -566,24 +566,24 @@ router.post(
   validate(createOrderSchema),
   asyncHandler(async (req, res) => {
     const order = await OrderService.createOrder(req.user!.userId, req.body);
+    const scheduledForFuture = order.isScheduled && order.scheduledAt && order.scheduledAt > new Date();
 
-    // Dispatch immediately for ALL payment methods.
-    // Payment is collected AFTER delivery (final price may change due to
-    // wait time, pickup distance bonuses, etc.). For CARD/MOBILE_MONEY
-    // orders, the client is prompted to pay after the delivery is marked
-    // DELIVERED. For CASH, the rider collects in person.
-    autoDispatch(order.id).catch((err) => {
-      logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
-    });
+    if (!scheduledForFuture) {
+      // Dispatch immediate orders now. Future scheduled orders stay PENDING
+      // until their release worker/window explicitly starts dispatch.
+      autoDispatch(order.id).catch((err) => {
+        logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
+      });
 
-    notifyNearbyRiders(
-      order.id,
-      order.orderNumber,
-      order.zoneId,
-      order.pickupAddress,
-    ).catch((err) => {
-      logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
-    });
+      notifyNearbyRiders(
+        order.id,
+        order.orderNumber,
+        order.zoneId,
+        order.pickupAddress,
+      ).catch((err) => {
+        logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
+      });
+    }
 
     res.status(StatusCodes.CREATED).json({ success: true, data: order });
   }),
@@ -644,6 +644,7 @@ router.post(
   requireRole(UserRole.RIDER),
   asyncHandler(async (req, res) => {
     const order = await DispatchService.acceptJob(req.params.id as string, req.user!.userId);
+    cancelDispatch(req.params.id as string);
     res.status(StatusCodes.OK).json({ success: true, data: order });
   }),
 );
@@ -661,6 +662,7 @@ router.post(
       riderProfileId,
       req.user!.userId,
     );
+    cancelDispatch(req.params.id as string);
     res.status(StatusCodes.OK).json({ success: true, data: order });
   }),
 );
@@ -771,7 +773,7 @@ router.patch(
       const target = geofenceStatuses[status as string] ?? null;
       if (target) {
         // GPS is required for geofenced transitions — reject if missing
-        if (!riderProfile.currentLatitude || !riderProfile.currentLongitude) {
+        if (riderProfile.currentLatitude == null || riderProfile.currentLongitude == null) {
           throw ApiError.badRequest(
             'Your GPS location is required to confirm arrival. Please enable location services and try again.',
             'GPS_REQUIRED',
@@ -1187,7 +1189,7 @@ router.post(
     if (proofType === 'PIN_CODE') {
       // PIN code — validate against the order's actual delivery PIN
       const proofData = req.body.proofData as string;
-      if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
+      if (!proofData || !/^\d{6}$/.test(proofData)) throw ApiError.badRequest('Valid 6-digit PIN code required');
       if (!order.deliveryPinCode) {
         throw ApiError.badRequest('No delivery PIN was set for this order');
       }
@@ -1321,7 +1323,7 @@ router.post(
 
     if (proofType === 'PIN_CODE') {
       const proofData = req.body.proofData as string;
-      if (!proofData || proofData.length < 4) throw ApiError.badRequest('Valid PIN code required');
+      if (!proofData || !/^\d{6}$/.test(proofData)) throw ApiError.badRequest('Valid 6-digit PIN code required');
       if (!order.deliveryPinCode) {
         throw ApiError.badRequest('No delivery PIN was set for this order');
       }

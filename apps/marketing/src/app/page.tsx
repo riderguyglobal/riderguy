@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import Image from 'next/image';
 import {
   Package,
@@ -25,6 +25,7 @@ import { ThemeHero } from '@/components/theme-hero';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
 import { Counter } from '@/components/counter';
 import { DeliveryFilm, DeliveryFilmMobile } from '@/components/delivery-film';
+import { ParallaxImage } from '@/components/parallax-image';
 
 /* ================================================================
    HOMEPAGE — Editorial / Infographic Theme
@@ -37,8 +38,8 @@ const MISSION_CARDS = [
     icon: Bike,
     label: 'For Riders',
     title: 'Dignified careers, not dead-end gigs.',
-    desc: '85% earnings, free training, 7-level career path, insurance and instant payouts.',
-    stat: '85%',
+    desc: 'Top earnings share, free training, 7-level career path, insurance and instant payouts.',
+    stat: 'Top',
     statLabel: 'Earnings share',
     href: '/for-riders',
   },
@@ -53,9 +54,9 @@ const MISSION_CARDS = [
   },
   {
     icon: Package,
-    label: 'For Senders',
+    label: 'For Consumers',
     title: 'Fast, trackable, reliable.',
-    desc: 'Same-day pickup, real-time GPS tracking and proof-of-delivery on every order.',
+    desc: 'Verified Riders, Real-Time Tracking, Seamless Experience, Reliable Delivery Network.',
     stat: '<15',
     statLabel: 'Min avg pickup',
     href: 'https://app.myriderguy.com/register',
@@ -63,9 +64,9 @@ const MISSION_CARDS = [
 ];
 
 const MARKET_STATS = [
-  { value: 32, suffix: 'M', label: 'Population of Ghana' },
   { value: 6, suffix: '+', label: 'Cities covered' },
-  { value: 85, suffix: '%', label: 'Rider earnings share' },
+  { value: 100, suffix: '%', label: 'Free rider training' },
+  { value: 15, suffix: 'min', label: 'Avg pickup time' },
   { value: 24, suffix: '/7', label: 'Platform availability' },
 ];
 
@@ -101,8 +102,8 @@ const WHY_POINTS = [
   { icon: Zap, title: 'Lightning Fast', desc: 'Average pickup time under 15 minutes in our coverage zones.' },
   { icon: MapPin, title: 'Live Tracking', desc: 'Real-time GPS on every order, from pickup to doorstep.' },
   { icon: Clock, title: 'Same-Day Guaranteed', desc: 'If we accept it, it gets there the same day — no exceptions.' },
-  { icon: TrendingUp, title: '85% to Riders', desc: 'Industry-leading rider earnings. Fair pay builds a better platform.' },
-  { icon: Heart, title: 'Built for Ghana', desc: 'Local pricing, local knowledge, local support — made here.' },
+  { icon: TrendingUp, title: 'Fair Rider Pay', desc: 'Industry-leading earnings share. Fair pay builds a better platform.' },
+  { icon: Heart, title: 'Built for Trust', desc: 'Verified riders, insured deliveries, proof-of-delivery on every order — engineered so clients never have to wonder.' },
 ];
 
 const RIDER_PERKS = [
@@ -122,17 +123,17 @@ const TESTIMONIALS = [
   {
     quote: 'RiderGuy changed my life. I went from struggling to find consistent work to earning enough to support my family. The free training made me a safer, better rider.',
     name: 'Kwame A.',
-    role: 'RiderGuy Rider · Accra',
+    role: 'RiderGuy Rider · Elite Level',
     rating: 5,
   },
   {
     quote: 'We switched our entire delivery fleet to RiderGuy. Reliability is unmatched. Customers get orders faster and we spend less time managing logistics.',
     name: 'Abena M.',
-    role: 'Restaurant Owner · Kumasi',
+    role: 'Restaurant Owner · Business Partner',
     rating: 5,
   },
   {
-    quote: 'I needed to send documents across Accra urgently. The rider was at my door in 8 minutes. Tracked the whole delivery on my phone. This is how delivery should work.',
+    quote: 'I needed to send documents across the city urgently. The rider was at my door in 8 minutes. Tracked the whole delivery on my phone. This is how delivery should work.',
     name: 'Kofi T.',
     role: 'Sender · East Legon',
     rating: 5,
@@ -157,13 +158,12 @@ export default function HomePage() {
               <p className="section-marker">01 / 07 · THE PLATFORM</p>
               <h2 className="theme-display mt-3">
                 One platform.{' '}
-                <span className="accent">Three sides of delivery.</span>
+                <span className="accent">3 Service Points.</span>
               </h2>
             </div>
             <p className="theme-lede max-w-md">
-              Riders, businesses and senders all meet on RiderGuy — where every
-              delivery is a <em>career milestone, a reliable logistics event</em>,
-              and a promise kept.
+              RiderGuy is the operating system for the rider economy — trained, certified, and
+              verified professionals powering every delivery. <em>One platform. Total confidence.</em>
             </p>
           </div>
 
@@ -215,22 +215,21 @@ export default function HomePage() {
               <div>
                 <p className="section-marker">01 . 5 / 07 · BRAND STORY</p>
                 <h3 className="mt-3 text-2xl font-black leading-tight text-surface-900 sm:text-3xl">
-                  Four panels.{' '}
-                  <span className="accent">One promise.</span>
+                  RiderOS — <span className="accent">One System. 4 Main Blocks.</span>
                 </h3>
               </div>
               <p className="max-w-sm text-sm text-surface-500">
-                Ghana’s delivery economy, told in four frames. Tap any
+                The Story of our Delivery System told in four Frames. Tap any
                 panel to jump to the section that tells its story.
               </p>
             </div>
 
             <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
               {[
-                { src: '/images/system/A1.png', href: 'https://app.myriderguy.com/register', tag: 'Send', title: 'A smarter way to deliver.' },
-                { src: '/images/system/A2.png', href: '#how-it-works', tag: 'Trust', title: 'Your package, delivered right.' },
-                { src: '/images/system/A5.png', href: 'https://app.myriderguy.com/register', tag: 'Simple', title: 'Delivery made easy.' },
-                { src: '/images/system/A8.png', href: '#delivery-film', tag: 'Platform', title: 'Riders. Businesses. Customers.' },
+                { src: '/images/new/Rider Academy Practical.png', href: '/for-riders', tag: 'Rider Academy', title: 'Build the Supply.' },
+                { src: '/images/hero/rider-support.png', href: '/for-riders', tag: 'Rider Support', title: 'Sustain the Workforce.' },
+                { src: '/images/hero/earn.png', href: '/for-riders', tag: 'Earn', title: 'Unlock Opportunity.' },
+                { src: '/images/new/Home Cho API.png', href: '/for-businesses', tag: 'Platform', title: 'Control & Scale the Network.' },
               ].map((p) => (
                 <Link
                   key={p.src}
@@ -242,6 +241,7 @@ export default function HomePage() {
                     alt={p.title}
                     fill
                     sizes="(min-width: 1024px) 22vw, (min-width: 640px) 45vw, 90vw"
+                    quality={95}
                     className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                   />
                   <div
@@ -276,15 +276,15 @@ export default function HomePage() {
             <span className="theme-eyebrow justify-center">
               Market Opportunity
               <span className="sep" />
-              Ghana
+              Scale
             </span>
             <h2 className="theme-display mt-4">
-              A nation on the move.{' '}
-              <span className="accent">Delivery is just starting.</span>
+              Delivery at Scale.{' '}
+              <span className="accent">A Massive Market. Real Momentum. Endless Potential.</span>
             </h2>
             <p className="theme-lede mt-5">
-              Ghana has <em>one of the fastest-growing urban populations</em> in West Africa,
-              but last-mile logistics remain fragmented. RiderGuy is building the rails.
+              The Delivery Revolution is here. The Rider Economy is the Engine.{' '}
+              <em>Riderguy is building the Infrastructure to lead it.</em>
             </p>
           </div>
 
@@ -317,16 +317,16 @@ export default function HomePage() {
                   <span className="text-xs text-surface-400">% of fare</span>
                 </div>
                 <div className="bar-chart mt-8 pb-8">
-                  <div className="bar sm" style={{ height: '45%' }}>
-                    <span>50%</span>
+                  <div className="bar sm" style={{ height: '55%' }}>
+                    <span>70%</span>
                     <span className="bar-label">Industry avg</span>
                   </div>
-                  <div className="bar md" style={{ height: '65%' }}>
-                    <span>70%</span>
+                  <div className="bar md" style={{ height: '75%' }}>
+                    <span>80%</span>
                     <span className="bar-label">Top rival</span>
                   </div>
                   <div className="bar lg" style={{ height: '95%' }}>
-                    <span>85%</span>
+                    <span>Highest</span>
                     <span className="bar-label">RiderGuy</span>
                   </div>
                 </div>
@@ -334,28 +334,13 @@ export default function HomePage() {
             </div>
 
             <div className="reveal-right lg:col-span-5">
-              <div className="photo-frame aspect-[4/5]">
-                <Image
-                  src="/images/system/A4.png"
-                  alt="Start and grow your RiderGuy career — Ghana’s nation-on-the-move"
-                  fill
-                  className="object-cover"
-                  sizes="(min-width: 1024px) 40vw, 100vw"
-                />
-                <div className="photo-badge left-4 top-4 sm:left-5 sm:top-5">
-                  <span className="flag-stripe !border-0 !bg-transparent !p-0">Ghana</span>
-                </div>
-                <div className="photo-badge bottom-4 left-4 !rounded-2xl !px-4 !py-3 sm:bottom-5 sm:left-5">
-                  <div>
-                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Active riders
-                    </p>
-                    <p className="text-xl font-extrabold leading-none text-brand-700">
-                      Growing daily
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <ParallaxImage
+                src="/images/new/Riderguy Car Park.png"
+                alt="RiderGuy fleet at the delivery hub"
+                aspect="aspect-[4/3]"
+                objectPosition="object-left"
+                sizes="(min-width: 1024px) 40vw, 100vw"
+              />
             </div>
           </div>
 
@@ -368,7 +353,7 @@ export default function HomePage() {
                     Our target
                   </p>
                   <p className="text-base font-bold sm:text-lg">
-                    Make RiderGuy the default way Ghana moves packages.
+                    Make RiderGuy the default way Africa moves packages.
                   </p>
                 </div>
               </div>
@@ -459,13 +444,13 @@ export default function HomePage() {
             <div className="max-w-2xl">
               <p className="section-marker">03 / 07 · WHY RIDERGUY</p>
               <h2 className="theme-display on-dark mt-3">
-                Built different.{' '}
-                <span className="accent">Built for Ghana.</span>
+                The Rider OS.{' '}
+                <span className="accent">Built for trust.</span>
               </h2>
             </div>
             <p className="theme-lede on-dark max-w-sm">
-              Every feature answers one question: does it make life better for the
-              <em> rider, the sender, or the city?</em>
+              Every feature answers one question: does it make the rider more capable,
+              <em> the delivery more reliable, and the client more confident?</em>
             </p>
           </div>
 
@@ -491,33 +476,11 @@ export default function HomePage() {
       <section className="bg-white py-20 sm:py-28">
         <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-12 lg:gap-16 lg:px-10">
           <div className="reveal-left lg:col-span-5">
-            <div className="relative">
-              <div className="photo-frame aspect-[4/5]">
-                <Image
-                  src="/images/system/A7.png"
-                  alt="Careers that move forward — Rookie to Legend across 7 levels"
-                  fill
-                  className="object-cover"
-                  sizes="(min-width: 1024px) 40vw, 100vw"
-                />
-                <div className="photo-badge left-4 top-4 !rounded-2xl !px-4 !py-3 sm:left-5 sm:top-5">
-                  <div>
-                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Rider Share
-                    </p>
-                    <p className="text-2xl font-extrabold leading-none text-brand-700">
-                      85%
-                    </p>
-                  </div>
-                </div>
-                <div className="photo-badge bottom-4 right-4 sm:bottom-5 sm:right-5">
-                  <Bike className="h-3.5 w-3.5 text-brand-600" />
-                  <span className="text-xs font-semibold text-surface-900">
-                    7-level progression
-                  </span>
-                </div>
-              </div>
-            </div>
+            <ParallaxImage
+              src="/images/new/Smiling Rider with Phone.png"
+              alt="Careers that move forward — Rookie to Legend across 7 levels"
+              sizes="(min-width: 1024px) 40vw, 100vw"
+            />
           </div>
 
           <div className="reveal-right lg:col-span-7">
@@ -528,7 +491,7 @@ export default function HomePage() {
             </h2>
             <p className="theme-lede mt-5 max-w-xl">
               At RiderGuy, delivery riding is a <em>profession</em>. You keep
-              85% of every fee, get <em>free training and insurance</em>, and
+              an industry-leading share of every fee, get <em>free training and insurance</em>, and
               earn career progression across 7 levels.
             </p>
 
@@ -625,33 +588,11 @@ export default function HomePage() {
           </div>
 
           <div className="reveal-right order-1 lg:order-2 lg:col-span-5">
-            <div className="relative">
-              <div className="photo-frame aspect-[4/5]">
-                <Image
-                  src="/images/system/A6.png"
-                  alt="Grow smarter with RiderGuy — business logistics without the overhead"
-                  fill
-                  className="object-cover"
-                  sizes="(min-width: 1024px) 40vw, 100vw"
-                />
-                <div className="photo-badge left-4 top-4 sm:left-5 sm:top-5">
-                  <Building2 className="h-3.5 w-3.5 text-brand-600" />
-                  <span className="text-xs font-semibold text-surface-900">
-                    Retail &amp; F&amp;B ready
-                  </span>
-                </div>
-                <div className="photo-badge bottom-4 right-4 !rounded-2xl !px-4 !py-3 sm:bottom-5 sm:right-5">
-                  <div>
-                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Integrations
-                    </p>
-                    <p className="text-base font-extrabold leading-none text-brand-700">
-                      API · Webhooks
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ParallaxImage
+              src="/images/new/Rider to Client.png"
+              alt="Grow smarter with RiderGuy — business logistics without the overhead"
+              sizes="(min-width: 1024px) 40vw, 100vw"
+            />
           </div>
         </div>
       </section>
@@ -717,7 +658,7 @@ export default function HomePage() {
             </span>
             <h2 className="theme-display on-dark mt-5">
               Join the platform{' '}
-              <span className="accent">moving Ghana forward.</span>
+              <span className="accent">moving forward.</span>
             </h2>
             <p className="theme-lede on-dark mt-6">
               Whether you&apos;re sending a package across town, or building a
@@ -739,11 +680,6 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-10 flex items-center justify-center gap-3">
-              <span className="flag-stripe !border-surface-800 !bg-surface-900 !text-surface-300">
-                Made in Ghana
-              </span>
-            </div>
           </div>
         </div>
       </section>

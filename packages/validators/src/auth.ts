@@ -42,10 +42,20 @@ export const loginWithPinSchema = z.object({
   pin: pinSchema,
 });
 
-export const loginWithPasswordSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1, 'Password is required'),
-});
+// AU-01: Accept either `identifier` (phone/email/Ghana Card) or `email`
+// (legacy field — kept for back-compat with admin/rider login). One is required.
+// The service resolves the user by shape (phone / email / Ghana Card) the same
+// way `loginWithPin` does.
+export const loginWithPasswordSchema = z
+  .object({
+    identifier: z.string().min(1, 'Identifier is required').optional(),
+    email: z.string().min(1, 'Email is required').optional(),
+    password: z.string().min(1, 'Password is required'),
+  })
+  .refine((data) => !!(data.identifier || data.email), {
+    message: 'Identifier or email is required',
+    path: ['identifier'],
+  });
 
 export const requestOtpSchema = z.object({
   phone: phoneSchema,
@@ -98,7 +108,7 @@ const registrationResponseSchema = z.object({
     publicKey: z.string().optional(),
   }),
   authenticatorAttachment: z.string().optional(),
-  clientExtensionResults: z.record(z.unknown()),
+  clientExtensionResults: z.record(z.string(), z.unknown()),
   type: z.literal('public-key'),
 });
 
@@ -113,7 +123,7 @@ const authenticationResponseSchema = z.object({
     userHandle: z.string().optional(),
   }),
   authenticatorAttachment: z.string().optional(),
-  clientExtensionResults: z.record(z.unknown()),
+  clientExtensionResults: z.record(z.string(), z.unknown()),
   type: z.literal('public-key'),
 });
 
@@ -188,14 +198,37 @@ export const loginWithGhanaCardSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-export const recoveryRequestSchema = z.object({
-  method: z.enum(['phone', 'email', 'ghanacard']),
-  identifier: z.string().min(1, 'Identifier is required'),
+// ---- Login email confirmation (AUTH-EMAIL-CONFIRM) ----
+export const loginEmailConfirmSchema = z.object({
+  userId: z.string().min(1, 'userId is required'),
+  code: z.string().length(6, 'Code must be 6 digits').regex(/^\d{6}$/, 'Code must be numeric'),
 });
+
+export const resendLoginEmailConfirmSchema = z.object({
+  userId: z.string().min(1, 'userId is required'),
+});
+
+// AU-07: discriminated union — identifier is validated per-method.
+export const recoveryRequestSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('phone'), identifier: phoneSchema }),
+  z.object({ method: z.literal('email'), identifier: emailSchema }),
+  z.object({ method: z.literal('ghanacard'), identifier: ghanaCardSchema }),
+]);
 
 export const verifySecurityAnswerSchema = z.object({
   ghanaCard: ghanaCardSchema,
   answer: z.string().min(1, 'Answer is required'),
+});
+
+// AU-02: previously missing — now validates `/auth/recovery/verify-otp` body.
+export const verifyRecoveryOtpSchema = z.object({
+  phone: phoneSchema,
+  otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
+});
+
+// AU-02: previously missing — now validates `/auth/recovery/security-question` query.
+export const getSecurityQuestionSchema = z.object({
+  ghanaCard: ghanaCardSchema,
 });
 
 export const recoveryResetPinSchema = z.object({
@@ -206,6 +239,8 @@ export const recoveryResetPinSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type GhanaCardRegisterInput = z.infer<typeof ghanaCardRegisterSchema>;
 export type LoginWithGhanaCardInput = z.infer<typeof loginWithGhanaCardSchema>;
+export type LoginEmailConfirmInput = z.infer<typeof loginEmailConfirmSchema>;
+export type ResendLoginEmailConfirmInput = z.infer<typeof resendLoginEmailConfirmSchema>;
 export type LoginWithOtpInput = z.infer<typeof loginWithOtpSchema>;
 export type LoginWithPinInput = z.infer<typeof loginWithPinSchema>;
 export type LoginWithPasswordInput = z.infer<typeof loginWithPasswordSchema>;

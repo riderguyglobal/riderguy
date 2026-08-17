@@ -19,11 +19,12 @@ import {
   Store,
   GraduationCap,
   Radio,
-  MapPin,
   Sparkles,
 } from 'lucide-react';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
 import { Counter } from '@/components/counter';
+import { ParallaxImage } from '@/components/parallax-image';
+import { ParallaxBg } from '@/components/parallax-bg';
 
 export const metadata: Metadata = {
   title: 'For Businesses | RiderGuy',
@@ -35,7 +36,7 @@ const FEATURES = [
   { icon: Truck, title: 'On-Demand Fleet', desc: 'Access hundreds of verified riders without owning a single vehicle. Scale up or down instantly.' },
   { icon: BarChart3, title: 'Analytics Dashboard', desc: 'Track delivery volume, average times, costs, and rider performance in real-time.' },
   { icon: Code2, title: 'API Integration', desc: 'Plug RiderGuy into your systems with our REST API. Automate dispatch, tracking, and webhooks.' },
-  { icon: Globe, title: 'Multi-City Coverage', desc: 'Deliver across Accra, Kumasi, Tamale, Cape Coast, Takoradi, and Tema — with more launching.' },
+  { icon: Globe, title: 'Multi-City Coverage', desc: 'Deliver across major cities with more launching continuously — scale your reach as you grow.' },
   { icon: ShieldCheck, title: 'Insured Deliveries', desc: 'Every delivery is backed by our rider insurance and package protection policy.' },
   { icon: Headphones, title: 'Dedicated Support', desc: 'Get a dedicated account manager and priority support line for your business.' },
 ];
@@ -97,7 +98,7 @@ const INFRASTRUCTURE = [
     span: 'lg:col-span-5 aspect-[4/3]',
   },
   {
-    image: '/images/business/c4.png',
+    image: '/images/new/Display of Fleet.png',
     icon: ShieldCheck,
     eyebrow: 'Trusted fleet',
     title: 'Branded riders. Insured rides.',
@@ -133,7 +134,6 @@ export default function ForBusinessesPage() {
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-12 lg:gap-16 lg:px-10">
           <div className="lg:col-span-6">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="flag-stripe">Ghana</span>
               <span className="theme-eyebrow">
                 For Businesses
                 <span className="sep" />
@@ -185,57 +185,13 @@ export default function ForBusinessesPage() {
           </div>
 
           <div className="lg:col-span-6">
-            <div className="relative">
-              <div className="photo-frame aspect-[4/3] sm:aspect-[5/4] lg:aspect-[4/3]">
-                <Image
-                  src="/images/business/c9.png"
-                  alt="RiderGuy delivery hub & rendezvous point"
-                  fill
-                  priority
-                  sizes="(min-width: 1024px) 50vw, 100vw"
-                  className="object-cover"
-                />
-                <div className="photo-badge left-4 top-4 sm:left-5 sm:top-5">
-                  <Building2 className="h-3.5 w-3.5 text-brand-600" />
-                  <span className="text-xs font-semibold text-surface-900">
-                    Live delivery hub
-                  </span>
-                </div>
-                <div className="photo-badge bottom-4 right-4 !rounded-2xl !px-5 !py-3 sm:bottom-5 sm:right-5">
-                  <div>
-                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Always on
-                    </p>
-                    <p className="text-lg font-extrabold leading-none text-brand-700">
-                      Rest · Refuel · Ride
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute -bottom-6 -left-4 hidden w-60 rounded-2xl border border-surface-200 bg-white p-4 shadow-xl sm:block lg:-left-8">
-                <div className="flex items-center gap-3">
-                  <div className="theme-icon-badge !h-10 !w-10">
-                    <BarChart3 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-widest text-surface-500">
-                      This week
-                    </p>
-                    <p className="text-base font-bold text-surface-900">+24% orders</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-end gap-1.5">
-                  {[40, 55, 35, 70, 65, 85, 95].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-sm bg-brand-500"
-                      style={{ height: `${h * 0.3}px` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ParallaxImage
+              src="/images/new/Trusted Fleet.png"
+              alt="RiderGuy trusted fleet — certified, verified riders"
+              aspect="aspect-[4/3] sm:aspect-[5/4] lg:aspect-[4/3]"
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+            />
           </div>
         </div>
       </section>
@@ -265,7 +221,7 @@ export default function ForBusinessesPage() {
         <div className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="reveal flex flex-col items-start gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
-              <p className="section-marker">SHOWCASE · BUILT IN GHANA</p>
+              <p className="section-marker">SHOWCASE · BUILT TO SCALE</p>
               <h2 className="theme-display mt-3">
                 Real infrastructure.{' '}
                 <span className="accent">Real riders.</span>
@@ -279,24 +235,15 @@ export default function ForBusinessesPage() {
 
           <div className="stagger mt-14 grid gap-5 lg:grid-cols-12">
             {INFRASTRUCTURE.map((item) => (
-              <div
+              <ParallaxBg
                 key={item.title}
-                className={`group relative overflow-hidden rounded-3xl border border-surface-200 bg-surface-950 shadow-xl ${item.span}`}
+                src={item.image}
+                alt={item.title}
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className={`rounded-3xl border border-surface-200 bg-surface-950 shadow-xl ${item.span}`}
+                strength={40}
               >
-                <Image
-                  src={item.image}
-                  alt={item.title}
-                  fill
-                  sizes="(min-width: 1024px) 50vw, 100vw"
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
-                />
                 <div className="absolute inset-0 bg-gradient-to-t from-surface-950/95 via-surface-950/50 to-surface-950/10" />
-                <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md">
-                  <item.icon className="h-3.5 w-3.5 text-brand-300" />
-                  <span className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white">
-                    {item.eyebrow}
-                  </span>
-                </div>
                 <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-7">
                   <h3 className="text-xl font-extrabold leading-tight text-white sm:text-2xl">
                     {item.title}
@@ -305,7 +252,7 @@ export default function ForBusinessesPage() {
                     {item.desc}
                   </p>
                 </div>
-              </div>
+              </ParallaxBg>
             ))}
           </div>
         </div>
@@ -433,33 +380,11 @@ export default function ForBusinessesPage() {
           </div>
 
           <div className="reveal-right lg:col-span-6">
-            <div className="relative">
-              <div className="photo-frame aspect-[4/5]">
-                <Image
-                  src="/images/business/c5.png"
-                  alt="RiderGuy delivering to a customer's door"
-                  fill
-                  className="object-cover"
-                  sizes="(min-width: 1024px) 40vw, 100vw"
-                />
-                <div className="photo-badge bottom-4 left-4 !rounded-2xl !px-4 !py-3 sm:bottom-5 sm:left-5">
-                  <div>
-                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Coverage
-                    </p>
-                    <p className="text-base font-extrabold leading-none text-brand-700">
-                      6+ Cities · Growing
-                    </p>
-                  </div>
-                </div>
-                <div className="photo-badge right-4 top-4 sm:right-5 sm:top-5">
-                  <MapPin className="h-3.5 w-3.5 text-brand-600" />
-                  <span className="text-xs font-semibold text-surface-900">
-                    Door-to-door
-                  </span>
-                </div>
-              </div>
-            </div>
+            <ParallaxImage
+              src="/images/new/Satisfied Client.png"
+              alt="Satisfied RiderGuy client — reliable delivery for your business"
+              sizes="(min-width: 1024px) 40vw, 100vw"
+            />
           </div>
         </div>
       </section>
@@ -497,6 +422,7 @@ export default function ForBusinessesPage() {
                     alt={ind.title}
                     fill
                     sizes="(min-width: 640px) 50vw, 100vw"
+                    quality={90}
                     className="object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-surface-950 via-surface-950/30 to-transparent" />
@@ -529,11 +455,13 @@ export default function ForBusinessesPage() {
         <div className="grid lg:grid-cols-12 lg:items-stretch">
           <div className="relative aspect-[4/5] sm:aspect-[5/4] lg:col-span-6 lg:aspect-auto lg:min-h-[640px]">
             <Image
-              src="/images/business/c4.png"
-              alt="A trained, branded RiderGuy rider"
+              src="/images/hero/sunset-16-9.png"
+              alt="RiderGuy fleet — trusted, trained, branded riders"
               fill
               sizes="(min-width: 1024px) 50vw, 100vw"
+              quality={100}
               className="object-cover"
+              style={{ filter: 'contrast(1.06) saturate(1.08)' }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-surface-950/70 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-surface-950/40" />
             <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-center gap-2 sm:bottom-8 sm:left-8">
@@ -658,12 +586,12 @@ export default function ForBusinessesPage() {
                   <code className="text-surface-300">
 {`const delivery = await riderguy.deliveries.create({
   pickup: {
-    address: "15 Oxford St, Osu",
-    contact: "+233201234567"
+    address: "15 Oxford St, Downtown",
+    contact: "+1234567890"
   },
   dropoff: {
-    address: "23 Ring Rd, Accra",
-    contact: "+233209876543"
+    address: "23 Ring Rd, Uptown",
+    contact: "+0987654321"
   },
   package: {
     description: "Restaurant order",

@@ -23,6 +23,10 @@ vi.mock('@riderguy/database', () => ({
     order: {
       findUnique: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
     riderBadge: {
       findMany: vi.fn(),
       updateMany: vi.fn(),
@@ -78,6 +82,7 @@ import { prisma } from '@riderguy/database';
 describe('Tracking & Rider Location', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    asMock(prisma.user.findUnique).mockResolvedValue({ role: 'CLIENT' });
   });
 
   // ────────────────────────────────────────────────────────────
@@ -231,6 +236,26 @@ describe('Tracking & Rider Location', () => {
         riderId: null,
         status: 'PENDING',
         rider: null,
+      });
+
+      const result = await getRiderLocationForOrder('order-1', 'client-1');
+
+      expect(result.location).toBeNull();
+    });
+
+    it('should return null when assigned rider has not sent GPS yet', async () => {
+      asMock(prisma.order.findUnique).mockResolvedValue({
+        id: 'order-1',
+        clientId: 'client-1',
+        riderId: 'rider-1',
+        status: 'PICKUP_EN_ROUTE',
+        rider: {
+          userId: 'rider-user-1',
+          currentLatitude: null,
+          currentLongitude: null,
+          lastLocationUpdate: null,
+          user: { firstName: 'Kwame', lastName: 'Mensah' },
+        },
       });
 
       const result = await getRiderLocationForOrder('order-1', 'client-1');

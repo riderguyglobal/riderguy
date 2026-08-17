@@ -2,6 +2,22 @@
 
 > From **Request** to **Completion**: every state transition, safety check, financial settlement, and edge case.
 
+## Current Implementation Scope
+
+As of May 31, 2026, Riderguy's active mobile build target is the native app pair:
+
+- **Client native app:** `apps/client-native` (Expo / React Native, Android package `com.riderguy.client`)
+- **Rider native app:** `apps/rider-native` (Expo / React Native, Android package `com.riderguy.rider`)
+
+The legacy rider/client PWAs remain in the repository, but they are not the current lifecycle audit target. The live-device audit for this document should be run against the native apps connected through ADB or local Android builds, then later repeated through cloud/EAS builds once native configuration is complete.
+
+Maps, address parsing, route distance, ETA, and native map rendering are standardized on **Google Maps Platform**:
+
+- Native map UI uses `react-native-maps` with Google Maps configuration in each native app.
+- Server-side route/ETA calculations use the Google Routes API, with haversine/road-factor fallback when Google routing is unavailable.
+- Address and shared-location inputs support Google Maps links, Plus Codes, raw coordinates, and Ghana place search.
+- Android native builds require a real Maps SDK for Android key via `GOOGLE_MAPS_API_KEY_ANDROID`, `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`, or `GOOGLE_MAPS_API_KEY`; Firebase `google-services.json` keys are not valid map-tile fallbacks.
+
 ---
 
 ## Table of Contents
@@ -54,7 +70,7 @@ PENDING ──────────────> SEARCHING_RIDER ────
 
 ### What the Client Does
 
-- Opens the client PWA, enters **pickup address** and **dropoff address** (geocoded via Mapbox).
+- Opens the client native app, enters **pickup address** and **dropoff address** (geocoded via Google Maps Platform and supported Ghana place data).
 - Optionally adds **up to 5 stops** (multi-stop delivery).
 - Selects **package type**: Document, Small Parcel, Medium Parcel, Large Parcel, Fragile, Food, High-Value.
 - Enters **estimated weight** (if relevant).
@@ -67,7 +83,7 @@ PENDING ──────────────> SEARCHING_RIDER ────
 
 #### 1. Price Estimate (`POST /orders/estimate`)
 
-The system calculates the route via **Mapbox Directions API** → gets actual road distance and estimated duration. If Mapbox fails, falls back to **haversine distance × road factor** (1.15–1.4 depending on zone road conditions).
+The system calculates the route via the **Google Routes API** to get actual road distance and estimated duration. If Google routing fails, it falls back to **haversine distance × road factor** (1.15–1.4 depending on zone road conditions).
 
 **15-Factor Pricing Engine applied:**
 
@@ -210,7 +226,7 @@ Auto-dispatch kicks in immediately (or at scheduled time).
   - **Client app** (live map pin movement).
   - **Redis** (for fast lookups).
   - **Database** (periodic snapshots for audit trail).
-- **ETA calculated** dynamically using Mapbox Directions from rider's current position to pickup.
+- **ETA calculated** dynamically using Google Routes from rider's current position to pickup.
 
 ### 2. Client Sees on Their Screen
 
@@ -223,7 +239,7 @@ Auto-dispatch kicks in immediately (or at scheduled time).
 
 ### 3. Rider Sees on Their Screen
 
-- Turn-by-turn navigation to pickup (Mapbox).
+- Turn-by-turn navigation to pickup through native Google Maps routing/deep links.
 - Pickup address + any special instructions.
 - Client's name + phone.
 - Package details.
@@ -452,7 +468,7 @@ Cancellation can happen at multiple stages.
 | **Redis** | Session cache, rider location cache, surge calculation, Socket.IO Pub/Sub (multi-instance). |
 | **BullMQ** | Background jobs: payout batches, scheduled delivery triggers, notification queues, stale connection cleanup. |
 | **PostgreSQL (Neon)** | All persistent data, order history, transactions, full audit trail. |
-| **Mapbox** | Geocoding, routing, ETAs, distance calculations. |
+| **Google Maps Platform** | Native maps, geocoding, shared-location parsing, routing, ETAs, and distance calculations. |
 | **Paystack** | Payment processing (cards, mobile money, USSD), rider payouts/transfers. |
 | **Firebase FCM** | Push notifications to all 4 app frontends. |
 | **S3 / R2** | Photo storage: POD photos, package photos, rider documents, signatures. |
@@ -481,3 +497,136 @@ Cancellation can happen at multiple stages.
 ---
 
 *This document describes the intended complete lifecycle. The system is designed specifically for the Ghana market: GHS currency, mobile money as primary payment, connectivity resilience for variable network conditions, and motorcycle-based delivery.*
+
+---
+
+## Lifecycle Verification Checklist
+
+Use this checklist for every release that touches order creation, dispatch, rider navigation, client tracking, payment, proof, chat/call, cancellation, rating, or settlement. Each item should be covered by an automated unit/integration test, a local simulation, or a production smoke test with demo accounts.
+
+### 1. Order Creation And Pricing
+
+- [ ] Client can request an estimate with pickup/dropoff coordinates, package type, payment method, promo, express, and schedule options.
+- [ ] Server recalculates price on order creation and rejects client estimates that drift beyond the accepted tolerance.
+- [ ] Created order starts as `PENDING`, has an order number, delivery PIN, status history entry, pricing fields, currency `GHS`, and initial payment state.
+- [ ] Package photo upload succeeds for valid image files and rejects invalid type/size.
+- [ ] Scheduled and recurring orders do not enter dispatch until their release window.
+- [ ] Multi-stop orders create ordered pickup/dropoff stops and preserve the primary pickup/dropoff fields.
+
+### 2. Dispatch And Assignment
+
+- [ ] Auto-dispatch only picks `PENDING` or `SEARCHING_RIDER` orders with no assigned rider.
+- [ ] Auto-dispatch ranks only activated, unsuspended, online riders with usable location/presence data.
+- [ ] Rider offer accept assigns the order once, sets rider availability to `ON_DELIVERY`, writes `ASSIGNED` history, emits socket events, and cancels stale offer timers.
+- [ ] Rider decline/timeout moves to the next eligible rider and does not re-offer to a declined rider during the same dispatch cycle.
+- [ ] All-riders-declined keeps the order in a recoverable queue state and notifies the client/admin.
+- [ ] Admin manual assign, unassign, and reassign are atomic and guarded against concurrent rider/order claims.
+- [ ] A stale dispatch timeout cannot return an already assigned, delivered, or cancelled order back to `PENDING`.
+
+### 3. Rider Availability And Presence
+
+- [ ] Rider can go online only after onboarding activation and required location permissions.
+- [ ] Rider heartbeat/location updates refresh `lastSeenAt`, `lastLocationUpdate`, current coordinates, socket id, and connection quality.
+- [ ] Offline/stale presence removes rider from dispatch matching.
+- [ ] Completed, cancelled, and failed terminal orders release the rider from `ON_DELIVERY` unless a suspension/recovery workflow explicitly sets them `OFFLINE`.
+- [ ] Suspended riders cannot accept jobs or cancel into a fresh active assignment.
+
+### 4. Status State Machine
+
+- [ ] Happy path is enforced in order: `PENDING -> SEARCHING_RIDER -> ASSIGNED -> PICKUP_EN_ROUTE -> AT_PICKUP -> PICKED_UP -> IN_TRANSIT -> AT_DROPOFF -> DELIVERED`.
+- [ ] Supported skip path `PENDING -> ASSIGNED` is allowed for manual/auto assignment.
+- [ ] Backward jumps, duplicate terminal updates, and transitions from terminal states are rejected.
+- [ ] Concurrent status updates use optimistic guards and return a retryable conflict/error instead of double-mutating.
+- [ ] `AT_PICKUP` and `AT_DROPOFF` require fresh rider GPS within the geofence radius.
+- [ ] Missing rider GPS returns a safe null tracking payload and does not crash map screens.
+- [ ] `DELIVERED` cannot be written until payment has been confirmed and proof of delivery exists.
+
+### 5. Pickup Flow
+
+- [ ] Rider navigation starts to pickup from `ASSIGNED` and moves to `PICKUP_EN_ROUTE`.
+- [ ] Pickup arrival requires geofence validation and moves to `AT_PICKUP`.
+- [ ] Package collected moves to `PICKED_UP`, records `pickedUpAt`, and starts client-visible post-pickup tracking.
+- [ ] Package mismatch, unsafe pickup, prohibited item, or sender unreachable gives the rider a cancellation/failure path with reason capture.
+- [ ] Client and rider both receive real-time status updates and push notifications for pickup progress.
+
+### 6. Transit And Live Tracking
+
+- [ ] Rider location streams over Socket.IO and REST fallback while status is active.
+- [ ] Client tracking map renders pickup, dropoff, rider marker, route line, status rail, chat, and call controls without null-coordinate crashes.
+- [ ] Rider job map renders pickup/dropoff markers, route summary, navigation action, chat, call, cancellation, and proof action.
+- [ ] ETA targets pickup before pickup completion and dropoff after pickup completion.
+- [ ] Chat access is limited to the assigned rider and order client, persists messages, paginates history, and emits new-message events.
+- [ ] Call buttons use available phone numbers from the order client/rider profile and gracefully disable when unavailable.
+
+### 7. Dropoff, Payment, And Proof
+
+- [ ] Dropoff arrival requires geofence validation and moves to `AT_DROPOFF`.
+- [ ] Rider must confirm actual payment method before proof submission.
+- [ ] PIN proof validates against the generated delivery PIN and rejects bad PINs.
+- [ ] Photo proof validates image type/size, uploads to storage, and stores proof URL/type.
+- [ ] Proof submission with completion moves the order to `DELIVERED` in the same request.
+- [ ] Direct status completion without proof/payment is rejected.
+- [ ] Cash delivery marks payment complete at delivery; wallet delivery debits the client wallet when possible; card/mobile-money delivery leaves a clear payment-required state if post-delivery payment is pending.
+
+### 8. Wallet, Settlement, Rating, And Receipts
+
+- [ ] Delivered order increments rider delivery count, credits rider earnings once, queues commission settlement, queues receipt email, awards XP, records streak activity, and learns ETA data.
+- [ ] Wallet debit/credit operations are idempotent or protected from double-submit/concurrent completion.
+- [ ] Client profile total orders/spend updates once per completed delivery.
+- [ ] Client can rate only delivered orders they own.
+- [ ] Duplicate rating is rejected with optimistic guards.
+- [ ] Tips credit rider wallet exactly once and high ratings award appropriate XP.
+
+### 9. Cancellation And Recovery
+
+- [ ] Client cancellation before assignment is free and cancels dispatch timers.
+- [ ] Client cancellation after assignment but before pickup compensates the rider and releases the rider.
+- [ ] Client cancellation after pickup is blocked from the normal cancel endpoint and must use support/admin flow.
+- [ ] Rider cancellation before pickup requires a reason, records consequences, releases the rider, and informs the client.
+- [ ] Rider post-pickup cancellation creates a client authorization request instead of directly cancelling.
+- [ ] Client can authorize return, authorize complete, or deny post-pickup rider cancellation.
+- [ ] Authorized return requires client return confirmation before terminal cancellation.
+- [ ] Expired post-pickup cancellation requests escalate to admin and do not leave orders in limbo.
+- [ ] GPS-dark/offline pre-pickup riders trigger reassignment; GPS-dark/offline post-pickup riders trigger admin escalation or stuck-order failure.
+
+### 10. Failure, Fraud, And Admin Control
+
+- [ ] Payment failure after assignment cancels/reassigns safely, releases riders, and notifies both parties.
+- [ ] Rider can mark delivery failed only when assigned and active, with a reason and optional evidence.
+- [ ] Failed orders write failure reason/history and release the delivery lock.
+- [ ] Admin can cancel active orders with audit trail and controlled refund/compensation follow-up.
+- [ ] Fraud/dispute flags preserve order state, evidence, and account review context.
+- [ ] Every terminal state has `cancelledAt`, `deliveredAt`, or `failureReason` as applicable.
+
+### 11. Native Client App Checklist
+
+- [ ] Booking flow submits valid order payloads and handles estimate drift errors.
+- [ ] Orders list shows active, past, cancelled, and payment-pending states.
+- [ ] Tracking screen handles no rider yet, rider assigned, missing GPS, live GPS, delivered, and cancelled states.
+- [ ] Tracking screen chat and call controls route to the assigned rider correctly.
+- [ ] Payment-required screen can resume post-delivery card/mobile-money payment.
+- [ ] Rating screen posts rating/review/tip and blocks repeat rating UX.
+
+### 12. Native Rider App Checklist
+
+- [ ] Rider can go online/offline, receives job offers, accepts jobs, and sees active job state.
+- [ ] Job detail supports navigation, status progression, chat, call, and cancellation/reason capture.
+- [ ] Geofence failures display actionable messages instead of crashing.
+- [ ] Proof screen confirms payment, validates PIN/photo proof, and completes delivery.
+- [ ] Rider wallet/earnings update after delivery, cancellation compensation, tips, and penalties.
+- [ ] Cancellation history and appeals remain accessible separately from active-job cancellation.
+
+### 13. Release Simulation Matrix
+
+- [ ] Happy path: demo client creates order, demo rider accepts, progresses through every status, confirms payment, submits proof, client rates/tips.
+- [ ] Dispatch race: two riders attempt to accept the same order; only one assignment succeeds.
+- [ ] Dispatch timeout: first offer times out/declines, second rider receives and accepts.
+- [ ] Client cancellation: test before assignment and after assignment compensation.
+- [ ] Rider cancellation: test pre-pickup direct rider cancel and post-pickup authorization request.
+- [ ] Geofence: test arrival accepted inside 200m and rejected outside 200m.
+- [ ] Tracking: test missing GPS, active GPS, delivered location hidden, unauthorized user denied.
+- [ ] Proof guard: test direct `DELIVERED` status rejected before payment/proof and accepted through proof completion.
+- [ ] Payment edge: wallet insufficient leaves payment required; cash marks complete.
+- [ ] Rating edge: non-owner rejected, non-delivered rejected, duplicate rejected.
+- [ ] Failure path: active order marked failed releases rider and records failure reason.
+- [ ] Native smoke: client and rider apps open, sign in demo accounts, load orders/jobs, tracking maps render, chat/call/proof/rating screens do not crash.

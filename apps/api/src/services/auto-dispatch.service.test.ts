@@ -218,6 +218,7 @@ beforeEach(() => {
   // Default mock returns
   (prisma.order.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(makeOrder());
   (prisma.order.update as ReturnType<typeof vi.fn>).mockResolvedValue(makeOrder({ status: 'SEARCHING_RIDER' }));
+  (prisma.order.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
 });
 
 afterEach(() => {
@@ -265,9 +266,11 @@ describe('Scoring functions', () => {
       expect(proximityScore(8.0)).toBe(30);
     });
 
-    it('returns 0 for riders beyond 8 km', () => {
-      expect(proximityScore(8.1)).toBe(0);
-      expect(proximityScore(15)).toBe(0);
+    it('tapers scores beyond 8 km and returns 0 beyond 12 km', () => {
+      expect(proximityScore(8.1)).toBe(15);
+      expect(proximityScore(10)).toBe(15);
+      expect(proximityScore(12)).toBe(5);
+      expect(proximityScore(12.1)).toBe(0);
       expect(proximityScore(25)).toBe(0);
     });
   });
@@ -432,10 +435,7 @@ describe('autoDispatch', () => {
 
   beforeEach(() => {
     mockStatusHistory();
-    // Ensure order.updateMany exists for assignRider (via dispatch mock)
-    if (!(prisma.order as any).updateMany) {
-      (prisma.order as any).updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    }
+    (prisma.order.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
   });
 
   it('should transition order to SEARCHING_RIDER and emit job:offer to best rider', async () => {
@@ -444,10 +444,10 @@ describe('autoDispatch', () => {
 
     await autoDispatch(ORDER_ID);
 
-    // Order updated to SEARCHING_RIDER
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    // Order atomically claimed for SEARCHING_RIDER
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: ORDER_ID },
+        where: { id: ORDER_ID, status: 'PENDING' },
         data: { status: 'SEARCHING_RIDER' },
       }),
     );
@@ -497,9 +497,9 @@ describe('autoDispatch', () => {
     await autoDispatch(ORDER_ID);
 
     // Order reverted to PENDING
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: ORDER_ID },
+        where: { id: ORDER_ID, status: 'SEARCHING_RIDER', riderId: null },
         data: { status: 'PENDING' },
       }),
     );
@@ -514,22 +514,28 @@ describe('autoDispatch', () => {
   });
 
   it('should skip riders with stale GPS (> 10 min)', async () => {
-    const staleRider = makeRiderProfile({
-      lastLocationUpdate: new Date(Date.now() - 11 * 60_000), // 11 min ago
-    });
-    mockRiderSearch([staleRider]);
+    mockRiderSearch([]);
 
     await autoDispatch(ORDER_ID);
 
-    // No riders within radius after filtering → revert to PENDING
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    expect((prisma as any).riderProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({
+          lastLocationUpdate: expect.objectContaining({ gte: expect.any(Date) }),
+        }),
+      }),
+    );
+
+    // No riders after DB-level freshness filtering -> guarded revert to PENDING
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: ORDER_ID, status: 'SEARCHING_RIDER', riderId: null },
         data: { status: 'PENDING' },
       }),
     );
   });
 
-  it('should skip riders beyond 8 km radius', async () => {
+  it('should skip riders beyond the search radius', async () => {
     const distantRider = makeRiderProfile({
       currentLatitude: 5.700,   // ~16 km north of pickup
       currentLongitude: -0.200,
@@ -539,8 +545,9 @@ describe('autoDispatch', () => {
     await autoDispatch(ORDER_ID);
 
     // No eligible riders → revert to PENDING
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { id: ORDER_ID, status: 'SEARCHING_RIDER', riderId: null },
         data: { status: 'PENDING' },
       }),
     );
@@ -560,6 +567,24 @@ describe('autoDispatch', () => {
 
     // Order should NOT be updated
     expect(prisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it('should not dispatch scheduled orders before their release window', async () => {
+    mockRiderSearch([makeRiderProfile()]);
+    const scheduledAt = new Date(Date.now() + 60 * 60_000);
+    (prisma.order.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeOrder({ isScheduled: true, scheduledAt }),
+    );
+
+    await autoDispatch(ORDER_ID);
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: ORDER_ID, scheduledAt }),
+      '[AutoDispatch] Skipping scheduled order until release window',
+    );
+    expect(prisma.order.updateMany).not.toHaveBeenCalled();
+    expect((prisma as any).riderProfile.findMany).not.toHaveBeenCalled();
+    expect(io.emit).not.toHaveBeenCalledWith('job:offer', expect.anything());
   });
 
   it('should not dispatch if order not found', async () => {

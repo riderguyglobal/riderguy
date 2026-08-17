@@ -1,10 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   Target,
   Eye,
-  Heart,
   Users,
   Sparkles,
   TrendingUp,
@@ -18,34 +16,36 @@ import {
 } from 'lucide-react';
 import { ScrollRevealProvider } from '@/components/scroll-reveal';
 import { Counter } from '@/components/counter';
+import { ParallaxImage } from '@/components/parallax-image';
+import { ParallaxBg } from '@/components/parallax-bg';
 
 export const metadata: Metadata = {
   title: 'About Us | RiderGuy',
   description:
-    'RiderGuy is building the operating system for Ghana\'s rider economy — empowering delivery riders and connecting them with businesses and customers across the country.',
+    'RiderGuy is the operating system for the rider economy — purpose-built infrastructure that trains, verifies, and empowers professional delivery riders while giving businesses and customers total confidence in every dispatch.',
 };
 
 const VALUES = [
   { icon: Users, title: 'Rider-First', desc: 'Every decision starts with: does this make life better for our riders?' },
   { icon: Sparkles, title: 'Excellence', desc: 'We hold ourselves to the highest standards — from code quality to customer service.' },
   { icon: ShieldCheck, title: 'Integrity', desc: 'Honest pricing, fair earnings, transparent operations. No hidden fees, ever.' },
-  { icon: Rocket, title: 'Innovation', desc: 'We build technology that actually solves real problems for real people in Ghana.' },
+  { icon: Rocket, title: 'Innovation', desc: 'We build technology that actually solves real problems for real people.' },
   { icon: Globe, title: 'Community', desc: 'We invest in the communities where we operate — local teams, local growth.' },
   { icon: HeartHandshake, title: 'Respect', desc: 'Every rider, every customer, every business partner deserves dignity and respect.' },
 ];
 
 const PILLARS = [
   { icon: Users, title: 'Customers', desc: 'A seamless delivery experience with real-time tracking, multiple payment methods, and trusted riders.' },
-  { icon: Bike, title: 'Riders', desc: 'Professional training, insurance, 85% earnings, and a career path from Rookie to Legend.' },
-  { icon: Briefcase, title: 'Businesses', desc: 'On-demand delivery infrastructure with API access, analytics, and multi-city coverage.' },
+  { icon: Bike, title: 'Riders', desc: 'Professional training, insurance, industry-leading earnings, and a career path from Rookie to Legend.' },
+  { icon: Briefcase, title: 'Businesses', desc: 'On-demand delivery infrastructure with API access, real-time analytics, and a managed fleet — zero overhead.' },
   { icon: ShieldCheck, title: 'Admins', desc: 'A powerful operations suite — dispatch, verification, payouts, and oversight tools.' },
 ];
 
 const MILESTONES = [
-  { year: '2024', title: 'Founded', desc: 'RiderGuy launches in Accra with a mission to dignify delivery work.' },
-  { year: '2024', title: 'First 100 riders', desc: 'Trained, insured, and earning 85% of every delivery.' },
-  { year: '2025', title: 'Multi-city', desc: 'Expansion to Kumasi, Tamale, and beyond.' },
-  { year: 'Next', title: 'Pan-African', desc: 'Taking the rider-first model across West Africa.' },
+  { year: '2023', title: 'Founded', desc: 'RiderGuy launches with a mission to dignify delivery work.' },
+  { year: '2026', title: 'First 100 Riders', desc: 'Trained, insured, and earning their full share of every delivery.' },
+  { year: '2027', title: 'Platform Expansion', desc: 'Scaling the Rider OS to new cities, deeper fleet coverage, and expanded platform capabilities.' },
+  { year: 'Next', title: 'Wider Reach', desc: 'Taking the rider-first operating system to new markets — more cities, more categories, more confidence.' },
 ];
 
 export default function AboutPage() {
@@ -61,7 +61,6 @@ export default function AboutPage() {
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-12 lg:gap-16 lg:px-10">
           <div className="lg:col-span-6">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="flag-stripe">Ghana</span>
               <span className="theme-eyebrow">
                 About Us
                 <span className="sep" />
@@ -70,12 +69,12 @@ export default function AboutPage() {
             </div>
 
             <h1 className="theme-display mt-6">
-              Moving Ghana{' '}
-              <span className="accent">forward.</span>
+              Building For Now and{' '}
+              <span className="accent">The Future.</span>
             </h1>
 
             <p className="theme-lede mt-6 max-w-xl">
-              RiderGuy is building the <em>operating system for Ghana&apos;s rider
+              RiderGuy is building the <em>operating system for the rider
               economy</em> — empowering delivery riders with dignified careers and
               connecting them with the businesses and customers who depend on them.
             </p>
@@ -83,7 +82,7 @@ export default function AboutPage() {
             <div className="mt-8 grid grid-cols-3 gap-3 border-t border-surface-200 pt-6 sm:mt-10 sm:gap-6 sm:pt-7">
               <div>
                 <p className="theme-stat">
-                  <Counter target={2024} suffix="" />
+                  <Counter target={2023} suffix="" />
                 </p>
                 <p className="theme-stat-label">Founded</p>
               </div>
@@ -94,41 +93,19 @@ export default function AboutPage() {
                 <p className="theme-stat-label">Cities</p>
               </div>
               <div>
-                <p className="theme-stat">85%</p>
-                <p className="theme-stat-label">Rider share</p>
+                <p className="theme-stat">#1</p>
+                <p className="theme-stat-label">Rider earnings</p>
               </div>
             </div>
           </div>
 
           <div className="lg:col-span-6">
-            <div className="relative">
-              <div className="photo-frame aspect-[4/5]">
-                <Image
-                  src="/images/general/Confident delivery riders at RiderGuy hub.png"
-                  alt="Confident RiderGuy riders at the hub"
-                  fill
-                  priority
-                  sizes="(min-width: 1024px) 50vw, 100vw"
-                  className="object-cover"
-                />
-                <div className="photo-badge left-4 top-4 sm:left-5 sm:top-5">
-                  <Heart className="h-3.5 w-3.5 text-brand-600" />
-                  <span className="text-xs font-semibold text-surface-900">
-                    Rider-first, since 2024
-                  </span>
-                </div>
-                <div className="photo-badge bottom-4 right-4 !rounded-2xl !px-5 !py-3 sm:bottom-5 sm:right-5">
-                  <div>
-                    <p className="text-[0.6rem] font-semibold uppercase tracking-widest text-surface-500">
-                      Made in
-                    </p>
-                    <p className="text-lg font-extrabold leading-none text-brand-700">
-                      Accra, Ghana
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ParallaxImage
+              src="/images/new/Riderguy HQ Group Shot.png"
+              alt="RiderGuy team — building the rider economy"
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+            />
           </div>
         </div>
       </section>
@@ -155,9 +132,9 @@ export default function AboutPage() {
                 Our Mission
               </h3>
               <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-600">
-                To dignify delivery work in Ghana by giving riders the tools,
+                To dignify delivery work by giving riders the tools,
                 training, and fair compensation they deserve — while building the
-                most reliable last-mile delivery network in West Africa.
+                most trusted last-mile delivery platform in the industry.
               </p>
             </div>
 
@@ -169,9 +146,9 @@ export default function AboutPage() {
                 Our Vision
               </h3>
               <p className="mt-4 text-[0.95rem] leading-relaxed text-surface-600">
-                A Ghana — and eventually an Africa — where every delivery rider has
-                a real career path, every business has reliable logistics, and every
-                customer gets their package exactly when they expect it.
+                A world where every delivery rider has a real career path, every
+                business has reliable logistics, and every customer gets their
+                package exactly when they expect it — with full confidence every time.
               </p>
             </div>
           </div>
@@ -182,29 +159,28 @@ export default function AboutPage() {
           FULL-BLEED PHOTO STORY
           ============================================================ */}
       <section className="relative">
-        <div className="relative aspect-[21/9] w-full overflow-hidden">
-          <Image
-            src="/images/general/RiderGuy at dawn on open road.png"
-            alt="RiderGuy on the open road at dawn"
-            fill
-            className="object-cover"
-            sizes="100vw"
-          />
+        <ParallaxBg
+          src="/images/hero/sunrise.png"
+          alt="RiderGuy sunrise — a new day, a new ride"
+          sizes="100vw"
+          className="aspect-[21/9] w-full"
+          strength={50}
+        >
           <div className="absolute inset-0 bg-gradient-to-t from-surface-950/90 via-surface-950/40 to-transparent" />
           <div className="absolute inset-0 flex items-end">
             <div className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 sm:pb-16 lg:px-10 lg:pb-20">
               <p className="theme-eyebrow on-dark">
-                A new day
+                A New Day
                 <span className="sep" />
-                A new ride
+                A New Ride
               </p>
               <h2 className="theme-display on-dark mt-4 max-w-3xl">
-                Every sunrise is another chance to{' '}
-                <span className="accent">move forward.</span>
+                Every Sunrise is a new opportunity to{' '}
+                <span className="accent">Deliver a smile.</span>
               </h2>
             </div>
           </div>
-        </div>
+        </ParallaxBg>
       </section>
 
       {/* ============================================================
@@ -260,7 +236,7 @@ export default function AboutPage() {
 
           <div className="stagger mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { v: 85, s: '%', l: 'Rider earnings share' },
+              { v: 7, s: '', l: 'Career levels' },
               { v: 6, s: '+', l: 'Cities served' },
               { v: 24, s: '/7', l: 'Dispatch online' },
               { v: 15, s: 'min', l: 'Avg pickup time' },

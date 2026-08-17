@@ -2,8 +2,9 @@ import { config as dotenvConfig } from 'dotenv';
 import { resolve } from 'path';
 import type { StringValue } from 'ms';
 
-// Load .env from monorepo root (Turbo runs from apps/api/)
-dotenvConfig({ path: resolve(__dirname, '../../../../.env') });
+// Load .env from monorepo root (Turbo runs from apps/api/).
+// PM2 can preserve stale env vars across reloads; keep the deploy .env authoritative.
+dotenvConfig({ path: resolve(__dirname, '../../../../.env'), override: true });
 
 // ============================================================
 // Centralised configuration – reads from environment once,
@@ -61,9 +62,13 @@ export const config = {
   },
 
   // External Services
-  sendgrid: {
-    apiKey: optionalEnv('SENDGRID_API_KEY', ''),
-    fromEmail: optionalEnv('SENDGRID_FROM_EMAIL', 'noreply@myriderguy.com'),
+  // Gmail/Workspace SMTP — authenticates as GMAIL_USER (an app password, not the
+  // account password), sends with the From address in fromEmail (must be GMAIL_USER
+  // itself or a verified "Send mail as" alias on that account).
+  email: {
+    user: optionalEnv('GMAIL_USER', ''),
+    appPassword: optionalEnv('GMAIL_APP_PASSWORD', ''),
+    fromEmail: optionalEnv('EMAIL_FROM', 'noreply@myriderguy.com'),
   },
   // mNotify SMS (Ghana)
   mnotify: {
@@ -115,7 +120,7 @@ if (process.env.NODE_ENV === 'production') {
   const criticalServices: [string, string, string][] = [
     ['PAYSTACK_SECRET_KEY', config.paystack.secretKey, 'Payment processing'],
     ['MNOTIFY_API_KEY', config.mnotify.apiKey, 'SMS/OTP delivery'],
-    ['SENDGRID_API_KEY', config.sendgrid.apiKey, 'Email delivery'],
+    ['GMAIL_APP_PASSWORD', config.email.appPassword, 'Email delivery'],
     ['FIREBASE_PROJECT_ID', config.firebase.projectId, 'Push notifications'],
     ['REDIS_URL', process.env.REDIS_URL ?? '', 'Session store / rate limiting / queues'],
     ['S3_ENDPOINT', config.s3.endpoint, 'File uploads (S3/R2)'],

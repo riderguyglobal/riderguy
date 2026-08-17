@@ -214,6 +214,9 @@ function mockOrder(overrides: Record<string, unknown> = {}) {
     paymentMethod: 'MOBILE_MONEY',
     paymentStatus: 'COMPLETED',
     deliveryPinCode: '4829',
+    riderPaymentConfirmed: false,
+    proofOfDeliveryType: null,
+    proofOfDeliveryUrl: null,
     clientRating: null,
     tipAmount: 0,
     isScheduled: false,
@@ -455,11 +458,20 @@ describe('OrderService', () => {
     });
 
     it('should handle DELIVERED transition with full side effects', async () => {
-      const order = mockOrder({ status: 'AT_DROPOFF', riderId: 'rider-1' });
+      const order = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        riderPaymentConfirmed: true,
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:4829',
+      });
       const delivered = mockOrder({
         status: 'DELIVERED',
         riderId: 'rider-1',
         deliveredAt: new Date(),
+        riderPaymentConfirmed: true,
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:4829',
       });
       const rider = mockRiderProfile();
 
@@ -511,6 +523,27 @@ describe('OrderService', () => {
 
       // Should award XP
       expect(awardXp).toHaveBeenCalled();
+    });
+
+    it('should block DELIVERED until payment is confirmed and proof is saved', async () => {
+      const order = mockOrder({ status: 'AT_DROPOFF', riderId: 'rider-1' });
+      asMock(prisma.order.findUnique).mockResolvedValue(order);
+
+      await expect(
+        transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
+      ).rejects.toThrow('Payment must be confirmed');
+
+      asMock(prisma.order.findUnique).mockResolvedValueOnce(
+        mockOrder({
+          status: 'AT_DROPOFF',
+          riderId: 'rider-1',
+          riderPaymentConfirmed: true,
+        }),
+      );
+
+      await expect(
+        transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
+      ).rejects.toThrow('Proof of delivery is required');
     });
   });
 
@@ -741,6 +774,19 @@ describe('OrderService', () => {
       const result = await getAvailableJobs('rider-user-1');
 
       expect(result).toHaveLength(2);
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            riderId: null,
+            status: { in: ['PENDING', 'SEARCHING_RIDER'] },
+            OR: [
+              { isScheduled: false },
+              { scheduledAt: null },
+              { scheduledAt: { lte: expect.any(Date) } },
+            ],
+          }),
+        }),
+      );
     });
 
     it('should reject for non-activated rider', async () => {
@@ -794,6 +840,24 @@ describe('OrderService', () => {
       asMock(prisma.riderProfile.update).mockResolvedValue({});
 
       await transitionStatus('order-1', 'CANCELLED_BY_CLIENT' as any, 'client-1');
+
+      expect(prisma.riderProfile.update).toHaveBeenCalledWith({
+        where: { id: 'rider-1' },
+        data: { availability: 'ONLINE' },
+      });
+    });
+
+    it('should release rider availability when an active order fails', async () => {
+      const order = mockOrder({ status: 'IN_TRANSIT', riderId: 'rider-1' });
+      const failed = mockOrder({ status: 'FAILED', riderId: 'rider-1', failureReason: 'Recipient unreachable' });
+
+      asMock(prisma.order.findUnique).mockResolvedValue(order);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(failed);
+      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
+      asMock(prisma.riderProfile.update).mockResolvedValue({});
+
+      await transitionStatus('order-1', 'FAILED' as any, 'rider-user-1', 'Recipient unreachable');
 
       expect(prisma.riderProfile.update).toHaveBeenCalledWith({
         where: { id: 'rider-1' },

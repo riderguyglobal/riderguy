@@ -16,16 +16,20 @@ import { ArrowRight, Home, MapPin, Sparkles } from 'lucide-react';
 
 const HERO_SLIDES = [
   {
-    src: '/images/theme/B5.png',
-    alt: 'RiderGuy connects Ghana — network of riders across the country',
+    src: '/images/new/Broken Delivery System.png',
+    alt: 'The broken delivery system — RiderGuy is fixing it',
   },
   {
-    src: '/images/theme/B7.png',
-    alt: 'RiderGuy editorial — the operating system for the rider economy',
+    src: '/images/new/Right Rider.One Platform. Every Delivery png.png',
+    alt: 'Right Rider. One Platform. Every Delivery.',
   },
   {
-    src: '/images/system/A5.png',
-    alt: 'RiderGuy brand — delivery that moves Ghana forward',
+    src: '/images/new/Rider Dashboard.png',
+    alt: 'RiderGuy Rider Dashboard — manage your deliveries',
+  },
+  {
+    src: '/images/new/Group Landscape Foto.png',
+    alt: 'RiderGuy team — building the rider economy',
   },
 ];
 
@@ -54,6 +58,7 @@ export function ThemeHero() {
               fill
               priority={i === 0}
               sizes="100vw"
+              quality={90}
               className="object-contain object-center"
             />
           </div>
@@ -81,11 +86,11 @@ export function ThemeHero() {
       <div className="relative bg-white">
         <div className="mx-auto flex max-w-7xl flex-col items-start gap-3 px-4 pb-6 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:pb-12 sm:pt-2 lg:px-10">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <span className="flag-stripe">Ghana</span>
+            <span className="theme-eyebrow hidden sm:inline-flex">Rider Economy</span>
             <span className="theme-eyebrow hidden sm:inline-flex">
-              The Rider Economy
+              Building The Rider Economy Infrastructure
               <span className="sep" />
-              Since 2024
+              Since 2023
             </span>
           </div>
 

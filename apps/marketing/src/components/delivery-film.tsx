@@ -94,7 +94,7 @@ const ACTS: Act[] = [
     label: '07 Â· The Scale',
     headline: 'One of thousands. Every day.',
     body:
-      'This is not a demo. This is Tuesday. A dozen more deliveries light up across Accra â€” all already in motion.',
+      'This is not a demo. This is Tuesday. A dozen more deliveries light up across the city â€” all already in motion.',
     seconds: 10,
     camera: { x: 0, y: 0, scale: 0.92 },
   },
@@ -1021,7 +1021,7 @@ function ActSevenScale() {
             Delivery, lived.
           </p>
           <p className="mt-2 max-w-md text-sm text-surface-300">
-            This is not a demo. This is Tuesday in Accra.
+            This is not a demo. This is Tuesday.
           </p>
         </div>
       </div>
@@ -1098,7 +1098,7 @@ const MOBILE_STEPS = [
   { icon: MapPin, title: 'In Transit', desc: 'Live GPS. Auto-reroute on traffic. Everyone watches the same dot.' },
   { icon: Home, title: 'Arrival', desc: 'Courtesy ping 30 seconds out. Customer walks out on time.' },
   { icon: CheckCircle2, title: 'Proof', desc: 'Signature, photo, GPS stamp. Rider paid in 30 seconds.' },
-  { icon: Star, title: 'At scale', desc: 'Thousands of these every day across Accra, Kumasi, Tamale and beyond.' },
+  { icon: Star, title: 'At scale', desc: 'Thousands of these every day, across every city we operate in and beyond.' },
 ];
 
 export function DeliveryFilmMobile() {

@@ -108,6 +108,41 @@ router.get(
 // ── Admin: Update promo code ─────────────────────────────────
 
 /** PATCH /promo/:id — Update a promo code */
+/** GET /promo/available - List active promo codes clients can inspect */
+router.get(
+  '/available',
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const userOrderCount = await prisma.order.count({ where: { clientId: req.user!.userId } });
+    const promos = await prisma.promoCode.findMany({
+      where: {
+        isActive: true,
+        validFrom: { lte: now },
+        OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    const visiblePromos = promos
+      .filter((promo) => promo.maxUses == null || promo.usedCount < promo.maxUses)
+      .filter((promo) => !promo.forNewUsersOnly || userOrderCount === 0)
+      .map((promo) => ({
+        id: promo.id,
+        code: promo.code,
+        discountType: promo.discountType,
+        discountValue: Number(promo.discountValue),
+        maxDiscountGhs: promo.maxDiscountGhs ? Number(promo.maxDiscountGhs) : null,
+        description: promo.description,
+        validUntil: promo.validUntil,
+        packageTypes: promo.packageTypes,
+        forNewUsersOnly: promo.forNewUsersOnly,
+      }));
+
+    res.status(StatusCodes.OK).json({ success: true, data: visiblePromos });
+  }),
+);
+
 router.patch(
   '/:id',
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),

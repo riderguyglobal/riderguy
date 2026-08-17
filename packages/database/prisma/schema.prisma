@@ -200,6 +200,7 @@ enum OtpPurpose {
   REGISTRATION
   LOGIN
   PASSWORD_RESET
+  LOGIN_EMAIL_CONFIRM
 }
 
 enum TokenPurpose {
@@ -2167,4 +2168,23 @@ model JobPosting {
   @@index([createdById])
   @@index([publishedAt])
   @@map("job_postings")
+}
+
+// ============================================================
+// CONTACT SUBMISSIONS
+// ============================================================
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String
+  subject   String
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([read])
+  @@map("contact_submissions")
 }

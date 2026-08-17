@@ -8,10 +8,18 @@ import { MIN_WITHDRAWAL_AMOUNT } from '@riderguy/utils';
 import { StatusCodes } from 'http-status-codes';
 import type { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
 import { ApiError } from '../../lib/api-error';
+import { z } from 'zod';
+import { paystackService, PaystackService } from '../../services/paystack.service';
+import { creditWalletTopup } from '../../services/wallet-topup.service';
 
 const router = Router();
 
 router.use(authenticate);
+
+const topupSchema = z.object({
+  amount: z.coerce.number().min(1).max(50000),
+  callbackUrl: z.string().url().optional(),
+});
 
 /** GET /wallets — get own wallet */
 router.get(
@@ -21,7 +29,29 @@ router.get(
       where: { userId: req.user!.userId },
     });
 
-    res.status(StatusCodes.OK).json({ success: true, data: wallet });
+    if (!wallet) {
+      res.status(StatusCodes.OK).json({ success: true, data: wallet });
+      return;
+    }
+
+    // Today's earnings (Ghana is UTC year-round, so UTC midnight is local midnight)
+    const startOfToday = new Date();
+    startOfToday.setUTCHours(0, 0, 0, 0);
+    const todayAgg = await prisma.transaction.aggregate({
+      where: {
+        walletId: wallet.id,
+        type: { in: ['DELIVERY_EARNING', 'TIP', 'BONUS'] },
+        amount: { gt: 0 },
+        createdAt: { gte: startOfToday },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { ...wallet, todayEarnings: Number(todayAgg._sum.amount ?? 0) },
+    });
   })
 );
 
@@ -59,6 +89,101 @@ router.get(
       success: true,
       data: transactions,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  })
+);
+
+/** POST /wallets/topup - initialise a wallet top-up through Paystack */
+router.post(
+  '/topup',
+  sensitiveRateLimit,
+  validate(topupSchema),
+  asyncHandler(async (req, res) => {
+    const userId = req.user!.userId;
+    const amount = Number(req.body.amount);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true, lastName: true },
+    });
+
+    const reference = PaystackService.generateReference('WALLET');
+    const result = await paystackService.initializeTransaction({
+      email: user?.email ?? `user-${userId}@myriderguy.com`,
+      amount: Math.round(amount * 100),
+      reference,
+      callbackUrl: req.body.callbackUrl,
+      channels: ['card', 'mobile_money', 'bank_transfer'],
+      metadata: {
+        type: 'wallet_topup',
+        userId,
+        amount,
+        name: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
+      },
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        authorizationUrl: result.authorizationUrl,
+        checkoutUrl: result.authorizationUrl,
+        accessCode: result.accessCode,
+        reference: result.reference,
+        amount,
+        currency: 'GHS',
+      },
+    });
+  })
+);
+
+/** GET /wallets/topup/verify/:reference - verify and credit a wallet top-up */
+router.get(
+  '/topup/verify/:reference',
+  asyncHandler(async (req, res) => {
+    const reference = req.params.reference as string;
+    const verification = await paystackService.verifyTransaction(reference);
+
+    if (verification.status !== 'success') {
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: { status: verification.status, reference },
+      });
+      return;
+    }
+
+    const metadata = verification.metadata ?? {};
+    const metadataUserId = typeof metadata.userId === 'string' ? metadata.userId : undefined;
+    if (metadataUserId && metadataUserId !== req.user!.userId) {
+      throw ApiError.forbidden('This wallet top-up belongs to another user');
+    }
+
+    const metadataAmount = Number(metadata.amount);
+    if (Number.isFinite(metadataAmount) && metadataAmount > 0) {
+      const expectedPesewas = Math.round(metadataAmount * 100);
+      if (expectedPesewas !== verification.amount) {
+        throw ApiError.badRequest('Payment amount does not match wallet top-up');
+      }
+    }
+
+    const amount = verification.amount / 100;
+    const credited = await creditWalletTopup({
+      userId: req.user!.userId,
+      amount,
+      reference,
+      channel: verification.channel,
+      provider: 'paystack',
+      paidAt: verification.paidAt,
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        status: 'success',
+        amount,
+        currency: verification.currency,
+        reference,
+        alreadyCredited: credited.alreadyCredited,
+        wallet: credited.wallet,
+      },
     });
   })
 );

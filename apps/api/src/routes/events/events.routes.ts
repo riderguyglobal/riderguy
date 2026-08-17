@@ -25,7 +25,7 @@ router.use(authenticate);
 /** GET /events — List events */
 router.get(
   '/',
-  validate(listEventsSchema),
+  validate(listEventsSchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
     const { status, zoneId, type, page, limit } = req.query as any;
     const data = await EventService.listEvents({

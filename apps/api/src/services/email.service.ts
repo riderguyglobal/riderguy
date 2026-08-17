@@ -1,5 +1,5 @@
 // ============================================================
-// EmailService — SendGrid transactional email service
+// EmailService — Gmail/Workspace SMTP transactional email service
 //
 // Provides templated emails for all key user flows:
 //   - Welcome (post-registration)
@@ -37,25 +37,30 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// --------------- lazy-loaded SendGrid ---------------------------------
+// --------------- lazy-loaded Gmail/Workspace SMTP transport ------------
 
-let sgMail: any = null;
+let transporter: import('nodemailer').Transporter | null = null;
 
-async function getSendGrid(): Promise<any> {
-  if (sgMail) return sgMail;
-  if (!config.sendgrid.apiKey) {
-    logger.warn('SendGrid API key not configured — emails disabled');
+async function getTransporter(): Promise<import('nodemailer').Transporter | null> {
+  if (transporter) return transporter;
+  if (!config.email.user || !config.email.appPassword) {
+    logger.warn('GMAIL_USER/GMAIL_APP_PASSWORD not configured — emails disabled');
     return null;
   }
-  try {
-    const mod = await import('@sendgrid/mail');
-    sgMail = mod.default ?? mod;
-    sgMail.setApiKey(config.sendgrid.apiKey);
-    return sgMail;
-  } catch (err) {
-    logger.error({ err }, 'Failed to load @sendgrid/mail');
-    return null;
-  }
+  const nodemailer = await import('nodemailer');
+  transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    // Port 465 (implicit TLS) is blocked outbound on the production host (common on
+    // cloud VPS providers); 587 (STARTTLS) is open and is Gmail's other supported port.
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    auth: {
+      user: config.email.user,
+      pass: config.email.appPassword,
+    },
+  });
+  return transporter;
 }
 
 // --------------- base template ----------------------------------------
@@ -105,16 +110,13 @@ function baseLayout(title: string, body: string): string {
 // --------------- send helper ------------------------------------------
 
 async function sendMail(options: SendMailOptions): Promise<boolean> {
-  const sg = await getSendGrid();
-  if (!sg) return false;
+  const transport = await getTransporter();
+  if (!transport) return false;
 
   try {
-    await sg.send({
+    await transport.sendMail({
       to: options.to,
-      from: {
-        email: config.sendgrid.fromEmail,
-        name: 'RiderGuy',
-      },
+      from: `"RiderGuy" <${config.email.fromEmail}>`,
       subject: options.subject,
       html: options.html,
       text: options.text ?? options.subject,
@@ -333,7 +335,7 @@ export class EmailService {
     subject: string;
     message: string;
   }) {
-    const supportEmail = process.env.SUPPORT_EMAIL ?? config.sendgrid.fromEmail;
+    const supportEmail = process.env.SUPPORT_EMAIL ?? config.email.fromEmail;
     const html = baseLayout(
       'New Contact Form Submission',
       `

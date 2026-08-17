@@ -9,6 +9,7 @@ import { paystackService, PaystackService } from '../../services/paystack.servic
 import { logger } from '../../lib/logger';
 import { enqueuePayoutJob } from '../../jobs/queues';
 import { handlePaymentFailureAfterAssignment } from '../../services/order-reassign.service';
+import { creditWalletTopup } from '../../services/wallet-topup.service';
 
 const router = Router();
 
@@ -326,6 +327,21 @@ router.post(
       case 'charge.success': {
         const reference = event.data?.reference as string | undefined;
         if (!reference) break;
+
+        const metadata = event.data?.metadata ?? {};
+        if (metadata.type === 'wallet_topup' && metadata.userId) {
+          const amount = Number(event.data?.amount ?? 0) / 100;
+          await creditWalletTopup({
+            userId: String(metadata.userId),
+            amount,
+            reference,
+            channel: event.data?.channel,
+            provider: 'paystack',
+            paidAt: event.data?.paid_at ?? null,
+          });
+          logger.info({ userId: metadata.userId, reference, amount }, 'Wallet top-up completed via webhook');
+          break;
+        }
 
         const order = await prisma.order.findFirst({
           where: { paymentReference: reference },

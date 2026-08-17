@@ -180,7 +180,7 @@ export class AuthService {
   private static async _verifyOtpCode(
     phone: string,
     code: string,
-    purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET'
+    purpose: 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET' | 'LOGIN_EMAIL_CONFIRM'
   ) {
     const otp = await prisma.otp.findFirst({
       where: { phone, purpose, verified: false },
@@ -200,7 +200,10 @@ export class AuthService {
     }
 
     // Constant-time comparison to mitigate timing attacks.
-    const padded = (s: string) => s.padEnd(6, '\0').slice(0, 6);
+    // AU-10: pad to the longer of the two lengths so 8-digit OTPs (when used
+    //        for high-value flows in future) don't silently truncate.
+    const padLen = Math.max(otp.code.length, code.length, 6);
+    const padded = (s: string) => s.padEnd(padLen, '\0').slice(0, padLen);
     const lengthOk = otp.code.length === code.length;
     const bytesMatch = crypto.timingSafeEqual(Buffer.from(padded(otp.code)), Buffer.from(padded(code)));
 
@@ -336,8 +339,15 @@ export class AuthService {
         // Check if rider profile already exists (shouldn't, but be safe)
         const existingProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
         if (!existingProfile) {
-          // TODO: Remove ACTIVATED default — temporary skip of onboarding & admin approval
-          await prisma.riderProfile.create({ data: { userId: user.id, onboardingStatus: 'ACTIVATED' } });
+          // TODO: Remove full-access default when onboarding/admin approval is restored.
+          await prisma.riderProfile.create({
+            data: {
+              userId: user.id,
+              onboardingStatus: 'ACTIVATED',
+              isVerified: true,
+              activatedAt: new Date(),
+            },
+          });
         }
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
         const existingProfile = await prisma.clientProfile.findUnique({ where: { userId: user.id } });
@@ -474,7 +484,14 @@ export class AuthService {
     // ---- 4. Create profile + wallet ----
     try {
       if (input.role === 'RIDER') {
-        await prisma.riderProfile.create({ data: { userId: user.id } });
+        await prisma.riderProfile.create({
+          data: {
+            userId: user.id,
+            onboardingStatus: 'ACTIVATED',
+            isVerified: true,
+            activatedAt: new Date(),
+          },
+        });
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
         await prisma.clientProfile.create({ data: { userId: user.id } });
       } else if (input.role === 'PARTNER') {
@@ -597,7 +614,14 @@ export class AuthService {
     // 4. Create profile + wallet
     try {
       if (input.role === 'RIDER') {
-        await prisma.riderProfile.create({ data: { userId: user.id, onboardingStatus: 'ACTIVATED' } });
+        await prisma.riderProfile.create({
+          data: {
+            userId: user.id,
+            onboardingStatus: 'ACTIVATED',
+            isVerified: true,
+            activatedAt: new Date(),
+          },
+        });
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
         await prisma.clientProfile.create({ data: { userId: user.id } });
       } else if (input.role === 'PARTNER') {
@@ -708,53 +732,11 @@ export class AuthService {
       };
     }
 
-    // Create session (no PIN required)
-    const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        deviceInfo,
-        ipAddress,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-      },
-    });
-
-    const roles = getUserRoles(user);
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      role: user.role as UserRole,
-      roles,
-      sessionId: session.id,
-    });
-
-    const refreshToken = this.generateRefreshToken({
-      userId: user.id,
-      sessionId: session.id,
-    });
-
-    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
     logger.info({ userId: user.id, ghanaCard }, 'Ghana Card login successful');
 
-    return {
-      requiresPin: false,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        roles,
-        status: user.status,
-      },
-      accessToken,
-      refreshToken,
-    };
+    // Ghana Card + password never proves email ownership — always gated.
+    const finished = await this._finishLogin(user, deviceInfo, ipAddress, false);
+    return { requiresPin: false, ...finished };
   }
 
   // ---- Verify Security Answer (for Ghana Card recovery) ----
@@ -963,7 +945,14 @@ export class AuthService {
       // Create profile + wallet for new user
       try {
         if (role === 'RIDER') {
-          await prisma.riderProfile.create({ data: { userId: user.id } });
+          await prisma.riderProfile.create({
+            data: {
+              userId: user.id,
+              onboardingStatus: 'ACTIVATED',
+              isVerified: true,
+              activatedAt: new Date(),
+            },
+          });
         } else if (role === 'CLIENT' || role === 'BUSINESS_CLIENT') {
           await prisma.clientProfile.create({ data: { userId: user.id } });
         } else if (role === 'PARTNER') {
@@ -1042,51 +1031,9 @@ export class AuthService {
       throw ApiError.forbidden('Your account is not active');
     }
 
-    // Create session + tokens
-    const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        deviceInfo,
-        ipAddress,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-      },
-    });
-
-    const roles = getUserRoles(user);
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      role: user.role as UserRole,
-      roles,
-      sessionId: session.id,
-    });
-
-    const refreshToken = this.generateRefreshToken({
-      userId: user.id,
-      sessionId: session.id,
-    });
-
-    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
-
-    // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
-    return {
-      user: {
-        id: user.id,
-        phone: user.phone,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        roles,
-        status: user.status,
-      },
-      accessToken,
-      refreshToken,
-    };
+    // Phone OTP proves phone possession, not email — still gated behind the
+    // email-confirmation step (see AUTH-EMAIL-CONFIRM on _finishLogin).
+    return this._finishLogin(user, deviceInfo, ipAddress, false);
   }
 
   // ---- Refresh token ----
@@ -1187,39 +1134,20 @@ export class AuthService {
     });
   }
 
-  // ---- Password-based login ----
+  // ---- Login completion / email-confirmation gate ----
 
-  static async loginWithPassword(email: string, password: string, deviceInfo?: string, ipAddress?: string) {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.passwordHash) {
-      throw ApiError.unauthorized('Invalid email or password');
-    }
-
-    if (user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
-      throw ApiError.forbidden('Your account is not active');
-    }
-
-    // Brute-force protection
-    await this.checkAccountLock(user);
-
-    const isValid = await this.comparePassword(password, user.passwordHash);
-    if (!isValid) {
-      await this.recordFailedLogin(user.id);
-      throw ApiError.unauthorized('Invalid email or password');
-    }
-
-    // Clear failed attempts on success
-    if (user.failedLoginAttempts > 0) {
-      await this.clearFailedLoginAttempts(user.id);
-    }
-
+  /**
+   * AUTH-EMAIL-CONFIRM: issues the session + tokens for a user who has
+   * already passed primary authentication. Shared by every login method so
+   * the token/session shape stays identical regardless of entry path.
+   */
+  private static async _issueTokensForUser(
+    user: { id: string; phone: string; email: string | null; firstName: string; lastName: string; role: string; roles?: string[]; status: string },
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
     const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        deviceInfo,
-        ipAddress,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-      },
+      data: { userId: user.id, deviceInfo, ipAddress, expiresAt: new Date(Date.now() + SESSION_TTL_MS) },
     });
 
     const roles = getUserRoles(user);
@@ -1229,18 +1157,10 @@ export class AuthService {
       roles,
       sessionId: session.id,
     });
-
-    const refreshToken = this.generateRefreshToken({
-      userId: user.id,
-      sessionId: session.id,
-    });
+    const refreshToken = this.generateRefreshToken({ userId: user.id, sessionId: session.id });
 
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     return {
       user: {
@@ -1256,6 +1176,132 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  /**
+   * AUTH-EMAIL-CONFIRM: Google Play reviewers (and plenty of real users
+   * abroad) cannot receive Ghana SMS, so any login path that doesn't already
+   * prove control of the account's email — phone+password, phone+PIN,
+   * Ghana Card, phone OTP — ends with a one-time code sent to the user's
+   * email before tokens are issued. Email+password/PIN and Google Sign-In
+   * already prove email ownership, so they skip this. Skipped entirely for
+   * accounts with no email on file (phone-only signups).
+   */
+  private static async _finishLogin(
+    user: { id: string; phone: string; email: string | null; firstName: string; lastName: string; role: string; roles?: string[]; status: string },
+    deviceInfo: string | undefined,
+    ipAddress: string | undefined,
+    provedEmail: boolean,
+  ) {
+    if (!provedEmail && user.email) {
+      await this.requestLoginEmailConfirmation(user.id);
+      return { requiresEmailConfirmation: true as const, userId: user.id };
+    }
+    return this._issueTokensForUser(user, deviceInfo, ipAddress);
+  }
+
+  /** Send (or resend) the login email-confirmation code. No-op if the user has no email. */
+  static async requestLoginEmailConfirmation(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.email) return;
+
+    const code = this.generateOtpCode();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes — matches the email copy
+
+    const otp = await prisma.otp.create({
+      data: { phone: user.email, code, purpose: 'LOGIN_EMAIL_CONFIRM', expiresAt },
+    });
+
+    prisma.otp.updateMany({
+      where: { phone: user.email, purpose: 'LOGIN_EMAIL_CONFIRM', verified: false, id: { not: otp.id } },
+      data: { verified: true },
+    }).catch(() => {});
+
+    EmailService.sendOtp(user.email, user.firstName, code, 'sign-in verification').catch((err) => {
+      logger.error({ err, userId }, 'Failed to send login email-confirmation code');
+    });
+
+    logger.info({ userId }, 'Login email-confirmation code sent');
+  }
+
+  /** Verify the login email-confirmation code and issue the session + tokens. */
+  static async verifyLoginEmailConfirmation(userId: string, code: string, deviceInfo?: string, ipAddress?: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.email) {
+      throw ApiError.badRequest('No email on file for this account', 'NO_EMAIL');
+    }
+    if (user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
+      throw ApiError.forbidden('Your account is not active');
+    }
+
+    await this._verifyOtpCode(user.email, code, 'LOGIN_EMAIL_CONFIRM');
+
+    logger.info({ userId }, 'Login email-confirmation verified');
+    return this._issueTokensForUser(user, deviceInfo, ipAddress);
+  }
+
+  // ---- Password-based login ----
+
+  /**
+   * AU-01: `identifier` may be a phone number, email, or Ghana Card number.
+   * Resolves the same way `loginWithPin` does so the Client app's
+   * "phone + password" UI works alongside the admin/rider "email + password" UI.
+   */
+  static async loginWithPassword(
+    identifier: string,
+    password: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
+    if (!identifier || typeof identifier !== 'string') {
+      throw ApiError.unauthorized('Invalid credentials');
+    }
+
+    const ident = identifier.trim();
+    let user;
+    if (ident.includes('@')) {
+      user = await prisma.user.findUnique({ where: { email: ident.toLowerCase() } });
+    } else if (/^GHA-\d{9}-\d$/.test(ident)) {
+      user = await prisma.user.findUnique({ where: { ghanaCardNumber: ident } });
+    } else {
+      // Treat as phone — accept either +233... or 0... by normalising leading 0 to +233
+      // when it looks Ghanaian. Otherwise pass through verbatim.
+      const phone = ident.startsWith('0') && ident.length === 10
+        ? `+233${ident.slice(1)}`
+        : ident;
+      user = await prisma.user.findUnique({ where: { phone } });
+      // Fallback: maybe the user typed exactly what's in the DB (e.g. an email-style
+      // placeholder phone) — only try this if the first lookup missed.
+      if (!user && phone !== ident) {
+        user = await prisma.user.findUnique({ where: { phone: ident } });
+      }
+    }
+
+    if (!user || !user.passwordHash) {
+      throw ApiError.unauthorized('Invalid credentials');
+    }
+
+    if (user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
+      throw ApiError.forbidden('Your account is not active');
+    }
+
+    // Brute-force protection
+    await this.checkAccountLock(user);
+
+    const isValid = await this.comparePassword(password, user.passwordHash);
+    if (!isValid) {
+      await this.recordFailedLogin(user.id);
+      // AU-01: identifier-agnostic message — masks whether the user entered
+      // a phone, email, or Ghana Card.
+      throw ApiError.unauthorized('Invalid credentials');
+    }
+
+    // Clear failed attempts on success
+    if (user.failedLoginAttempts > 0) {
+      await this.clearFailedLoginAttempts(user.id);
+    }
+
+    return this._finishLogin(user, deviceInfo, ipAddress, ident.includes('@'));
   }
 
   // ---- Session management ----
@@ -1349,51 +1395,9 @@ export class AuthService {
       await this.clearFailedLoginAttempts(user.id);
     }
 
-    const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        deviceInfo,
-        ipAddress,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-      },
-    });
-
-    const roles = getUserRoles(user);
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      role: user.role as UserRole,
-      roles,
-      sessionId: session.id,
-    });
-
-    const refreshToken = this.generateRefreshToken({
-      userId: user.id,
-      sessionId: session.id,
-    });
-
-    await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: hashToken(refreshToken) } });
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
     logger.info({ userId: user.id, method: 'pin' }, 'User logged in with PIN');
 
-    return {
-      user: {
-        id: user.id,
-        phone: user.phone,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        roles,
-        status: user.status,
-      },
-      accessToken,
-      refreshToken,
-    };
+    return this._finishLogin(user, deviceInfo, ipAddress, identifier.includes('@'));
   }
 
   // ---- Change PIN ----
@@ -1544,6 +1548,9 @@ export class AuthService {
 
   /**
    * Verify email using the token from the verification link.
+   *
+   * AU-03: atomic mark-as-used to prevent two concurrent clicks (e.g. fast
+   *        double-tap on the email link) from both succeeding.
    */
   static async verifyEmail(token: string) {
     const emailToken = await prisma.emailToken.findUnique({ where: { token } });
@@ -1560,11 +1567,14 @@ export class AuthService {
       throw ApiError.badRequest('This link has expired. Please request a new one.', 'TOKEN_EXPIRED');
     }
 
-    // Mark token as used & verify the email
-    await prisma.emailToken.update({
-      where: { id: emailToken.id },
+    // AU-03: atomic — only one concurrent caller flips usedAt.
+    const tokenUpdate = await prisma.emailToken.updateMany({
+      where: { id: emailToken.id, usedAt: null },
       data: { usedAt: new Date() },
     });
+    if (tokenUpdate.count === 0) {
+      throw ApiError.badRequest('This link has already been used', 'TOKEN_USED');
+    }
 
     await prisma.user.update({
       where: { id: emailToken.userId },
@@ -1925,6 +1935,12 @@ export class AuthService {
   /**
    * Generate authentication options for biometric login.
    * Called with a phone number to look up the user's credentials.
+   *
+   * AU-04: returns synthetic-but-valid options for unknown phones so that
+   * registered vs unregistered phones look identical on the wire — defeats
+   * phone-number enumeration via this endpoint. Browsers without a matching
+   * authenticator simply fail to find credentials and the subsequent
+   * `/login/verify` call returns the existing `CREDENTIAL_NOT_FOUND` error.
    */
   static async webauthnLoginOptions(phone: string) {
     const user = await prisma.user.findUnique({
@@ -1937,20 +1953,21 @@ export class AuthService {
       },
     });
 
-    if (!user || user.webauthnCredentials.length === 0) {
-      throw ApiError.badRequest('No biometric credentials found for this phone number', 'NO_CREDENTIALS');
-    }
+    const allowCredentials = user
+      ? user.webauthnCredentials.map((cred) => ({
+          id: cred.credentialId,
+          transports: cred.transports as any[],
+        }))
+      : []; // unknown phone → empty allowCredentials, but still well-formed options
 
     const options = await generateAuthenticationOptions({
       rpID: config.webauthn.rpID,
-      allowCredentials: user.webauthnCredentials.map((cred) => ({
-        id: cred.credentialId,
-        transports: cred.transports as any[],
-      })),
+      allowCredentials,
       userVerification: 'required',
     });
 
-    // Store challenge
+    // Store challenge keyed by the phone (even for unknown phones — keeps the
+    // shape consistent and the row auto-expires after 5 min via cleanup).
     await prisma.webAuthnChallenge.create({
       data: {
         challenge: options.challenge,

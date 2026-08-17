@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { ApiError } from '../lib/api-error';
+import { getRedisClient } from '../lib/redis';
 import type { UserRole } from '@riderguy/types';
 
 // ============================================================
@@ -48,10 +49,9 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
 
   // AUTH-04: Reject tokens whose jti is on the Redis revocation list.
   //          Fail-open if Redis is unavailable — tokens still expire <=15min naturally.
+  // AU-08: hoisted to a top-level ES import (was `require()` in the hot path).
   if (payload.jti) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { getRedisClient } = require('../lib/redis');
       const redis = getRedisClient();
       if (redis) {
         redis.get(`auth:revoked:${payload.jti}`)

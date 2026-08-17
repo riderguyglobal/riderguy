@@ -197,4 +197,25 @@ export const tokenStorage = {
     const token = this.getAccessToken();
     return !token || isTokenExpired(token);
   },
+
+  /**
+   * AU-06: subscribe to cross-tab logout. When another tab clears the access
+   * token from localStorage, the `storage` event fires here and we invoke
+   * the callback so the in-memory auth state can be cleared too.
+   *
+   * Returns an unsubscribe function.
+   */
+  onTokensCleared(cb: () => void): () => void {
+    if (!isBrowser()) return () => {};
+    const handler = (e: StorageEvent) => {
+      // Only react when the access token was cleared by another tab.
+      // (newValue is null when the key was removed; oldValue !== null prevents
+      // firing when a tab is just initialising for the first time.)
+      if (e.key === ACCESS_TOKEN_KEY && e.oldValue && e.newValue === null) {
+        cb();
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  },
 } as const;

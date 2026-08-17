@@ -39,7 +39,7 @@ async function getRiderProfileId(userId: string): Promise<string> {
 router.get(
   '/mentors',
   requireRole(UserRole.RIDER),
-  validate(mentorSearchSchema),
+  validate(mentorSearchSchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
     const riderId = await getRiderProfileId(req.user!.userId);
     const { zoneId, minLevel, minDeliveries, page, limit } = req.query as any;

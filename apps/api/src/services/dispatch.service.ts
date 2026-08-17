@@ -37,6 +37,12 @@ export async function assignRider(
       'INVALID_ORDER_STATUS',
     );
   }
+  if (order.isScheduled && order.scheduledAt && order.scheduledAt > new Date()) {
+    throw ApiError.badRequest(
+      'Scheduled order is not ready for dispatch yet',
+      'SCHEDULED_ORDER_NOT_READY',
+    );
+  }
 
   // Validate rider eligibility
   // Bypass only when BYPASS_ONBOARDING_CHECK=true (for testing)

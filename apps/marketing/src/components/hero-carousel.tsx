@@ -18,7 +18,7 @@ const SLIDES = [
   {
     id: 2,
     image: '/images/hero/Morning delivery rush in Ghana.png',
-    title: 'Riders Keep 85%.',
+    title: 'Riders Earn First.',
     accent: 'Because Fair Pays.',
     description:
       'We believe delivery riding should be a career, not a dead end. Training, progression, instant payouts, and the highest rider earnings in the industry.',
@@ -27,10 +27,10 @@ const SLIDES = [
   {
     id: 3,
     image: '/images/hero/Riderguy at sunset on city streets.png',
-    title: 'Moving Ghana',
-    accent: 'Forward. Together.',
+    title: 'One OS.',
+    accent: 'Total Confidence.',
     description:
-      'From Accra to Kumasi, Tamale to Cape Coast. Reliable, trackable delivery built for every corner of Ghana, not just the capital.',
+      'Verified riders, live GPS, proof-of-delivery — every dispatch backed by platform-grade infrastructure built for reliability and client trust.',
     cta: { label: 'Send a Package', href: 'https://app.myriderguy.com/register' },
   },
 ];
@@ -81,7 +81,8 @@ export function HeroCarousel() {
               fill
               className="object-cover"
               priority={i === 0}
-              sizes="100vw"
+              sizes="110vw"
+              quality={90}
             />
           </div>
           {/* Cinematic overlays */}
@@ -104,7 +105,7 @@ export function HeroCarousel() {
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
               </span>
               <span className="text-xs font-medium tracking-wide text-white/80 sm:text-sm">
-                Now live across Ghana
+                Now live &amp; growing
               </span>
             </div>
 
@@ -152,8 +153,8 @@ export function HeroCarousel() {
       {/* Glass stat card — bottom-right corner */}
       <div className="absolute bottom-24 right-6 z-10 hidden lg:block">
         <div className="glass rounded-2xl px-6 py-5">
-          <p className="text-2xl font-bold text-white">85%</p>
-          <p className="text-xs text-white/60">Rider earnings share</p>
+          <p className="text-2xl font-bold text-white">Top Pay</p>
+          <p className="text-xs text-white/60">Rider earnings</p>
         </div>
       </div>
 

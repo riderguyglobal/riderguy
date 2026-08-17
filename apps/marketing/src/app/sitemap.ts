@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/privacy', priority: 0.3, changeFrequency: 'yearly' as const },
     { path: '/terms', priority: 0.3, changeFrequency: 'yearly' as const },
     { path: '/cookies', priority: 0.3, changeFrequency: 'yearly' as const },
+    { path: '/delete-account', priority: 0.3, changeFrequency: 'yearly' as const },
   ];
 
   return routes.map(({ path, priority, changeFrequency }) => ({

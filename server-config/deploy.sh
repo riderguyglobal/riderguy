@@ -1,155 +1,83 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-# ============================================================
-# RiderGuy — Hetzner Production Deploy Script
-# Usage: ssh riderguy-deploy 'bash /var/www/riderguy/source/server-config/deploy.sh'
-# ============================================================
+SOURCE_DIR="${RIDERGUY_SOURCE_DIR:-/var/www/riderguy/source}"
+ENV_FILE="${RIDERGUY_ENV_FILE:-/var/www/riderguy/shared/.env.production}"
+LOCK_FILE="${RIDERGUY_DEPLOY_LOCK:-/tmp/riderguy-deploy.lock}"
 
-BOLD='\033[1m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+log() { printf '[deploy] %s\n' "$*"; }
+fail() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
 
-log()   { echo -e "${GREEN}✓${NC} $1"; }
-warn()  { echo -e "${YELLOW}⚠${NC} $1"; }
-error() { echo -e "${RED}✗${NC} $1"; }
+command -v flock >/dev/null || fail 'flock is required'
+exec 9>"$LOCK_FILE"
+flock -n 9 || fail 'another deployment is already running'
 
-echo -e "${BOLD}"
-echo "═══════════════════════════════════════════════════"
-echo "  RiderGuy — Hetzner Production Deploy"
-echo "  Server: 178.104.193.184 (CX43)"
-echo "  $(date '+%Y-%m-%d %H:%M:%S %Z')"
-echo "═══════════════════════════════════════════════════"
-echo -e "${NC}"
+for command_name in git node npm npx pm2 curl pg_isready; do
+  command -v "$command_name" >/dev/null || fail "$command_name is not installed"
+done
 
-cd /var/www/riderguy/source
+[ -d "$SOURCE_DIR/.git" ] || fail "repository not found at $SOURCE_DIR"
+[ -f "$ENV_FILE" ] || fail "production environment file not found at $ENV_FILE"
 
-# ── Step 0: Pre-flight checks ──
-echo -e "\n${BOLD}▸ Pre-flight checks...${NC}"
+cd "$SOURCE_DIR"
 
-# Check PostgreSQL
-if pg_isready -q -h 127.0.0.1 -p 5432; then
-  log "PostgreSQL is running"
-else
-  error "PostgreSQL is not running!"
-  exit 1
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  fail 'tracked files are modified on the server; resolve them before deploying'
 fi
 
-# Check Redis
-REDIS_PASS=$(grep -oP '(?<=redis://:)[^@]+' .env | head -1)
-if [ -n "$REDIS_PASS" ] && redis-cli -a "$REDIS_PASS" ping 2>/dev/null | grep -q PONG; then
-  log "Redis is running"
-else
-  warn "Redis may not be running (not critical for deploy)"
-fi
+log 'updating source with a fast-forward-only pull'
+git fetch origin main
+git checkout main
+git pull --ff-only origin main
 
-# Check disk space (need at least 2GB free)
-FREE_MB=$(df /var/www/riderguy | tail -1 | awk '{print $4}')
-FREE_GB=$((FREE_MB / 1024 / 1024))
-if [ "$FREE_GB" -lt 2 ]; then
-  error "Low disk space: ${FREE_GB}GB free (need 2GB minimum)"
-  exit 1
-fi
-log "Disk space OK: ${FREE_GB}GB free"
-
-# ── Step 1: Pull latest code ──
-echo -e "\n${BOLD}▸ Step 1: Pulling latest code...${NC}"
-git stash --quiet 2>/dev/null || true
-git pull origin main 2>&1 | tail -5
-log "Code updated"
-
-# ── Step 2: Load environment ──
-echo -e "\n${BOLD}▸ Step 2: Loading environment...${NC}"
 set -a
-source .env
+# shellcheck disable=SC1090
+source "$ENV_FILE"
 set +a
-log "Environment loaded (NEXT_PUBLIC_* vars available for build)"
 
-# ── Step 3: Install dependencies ──
-echo -e "\n${BOLD}▸ Step 3: Installing dependencies...${NC}"
-NODE_ENV=development npm install --legacy-peer-deps 2>&1 | tail -5
-log "Dependencies installed"
+export RIDERGUY_SOURCE_DIR="$SOURCE_DIR"
+export RIDERGUY_LOG_DIR="${RIDERGUY_LOG_DIR:-/var/www/riderguy/logs}"
+mkdir -p "$RIDERGUY_LOG_DIR"
 
-# ── Step 4: Generate Prisma client ──
-echo -e "\n${BOLD}▸ Step 4: Generating Prisma client...${NC}"
-npx prisma generate --schema=packages/database/prisma/schema.prisma 2>&1 | tail -3
-log "Prisma client generated"
+log 'installing locked dependencies'
+npm ci --include=dev
 
-# ── Step 5: Run database migrations ──
-echo -e "\n${BOLD}▸ Step 5: Running database migrations...${NC}"
-npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma 2>&1 | tail -5
-log "Migrations applied"
+log 'generating Prisma client'
+npx prisma generate --schema=packages/database/prisma/schema.prisma
 
-# ── Step 6: Build API ──
-echo -e "\n${BOLD}▸ Step 6: Building API...${NC}"
-cd /var/www/riderguy/source/apps/api
-npx tsc --project tsconfig.json 2>&1 | tail -10
-log "API built"
+log 'building API, marketing, and admin workspaces'
+npx turbo run build \
+  --filter=@riderguy/api \
+  --filter=@riderguy/marketing-app \
+  --filter=@riderguy/admin-app
 
-# ── Step 7: Build shared packages ──
-echo -e "\n${BOLD}▸ Step 7: Building shared packages...${NC}"
-cd /var/www/riderguy/source
-npx turbo run build --filter='@riderguy/utils' --filter='@riderguy/config' --filter='@riderguy/types' --filter='@riderguy/validators' --filter='@riderguy/auth' --filter='@riderguy/ui' --filter='@riderguy/database' 2>&1 | tail -10
-log "Shared packages built"
-
-# ── Step 8: Build frontend apps ──
-APPS=("marketing:3000" "rider:3001" "client:3002" "admin:3003")
-for app_info in "${APPS[@]}"; do
-  APP="${app_info%%:*}"
-  echo -e "\n${BOLD}▸ Building ${APP} app...${NC}"
-  cd /var/www/riderguy/source/apps/${APP}
-  npx next build 2>&1 | tail -5
-
-  if [ -d ".next/standalone" ]; then
-    cp -r .next/static .next/standalone/apps/${APP}/.next/static
-    cp -r public .next/standalone/apps/${APP}/public
-    log "${APP} built + standalone assets copied"
-  else
-    error "${APP} build failed!"
-    exit 1
+for app_name in marketing admin; do
+  app_dir="$SOURCE_DIR/apps/$app_name"
+  standalone_dir="$app_dir/.next/standalone/apps/$app_name"
+  [ -f "$standalone_dir/server.js" ] || fail "$app_name standalone build is missing"
+  mkdir -p "$standalone_dir/.next"
+  cp -a "$app_dir/.next/static" "$standalone_dir/.next/"
+  if [ -d "$app_dir/public" ]; then
+    cp -a "$app_dir/public" "$standalone_dir/"
   fi
 done
 
-# ── Step 9: Restart services ──
-echo -e "\n${BOLD}▸ Step 9: Restarting PM2 services...${NC}"
-cd /var/www/riderguy
-pm2 reload ecosystem.config.js --update-env 2>&1 | tail -5
+log 'checking PostgreSQL and applying migrations'
+pg_isready -q -h 127.0.0.1 -p 5432 || fail 'PostgreSQL is not ready'
+npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
+
+log 'starting or reloading API, marketing, and admin services'
+pm2 startOrReload server-config/ecosystem.config.js --update-env
 pm2 save
-sleep 3
 
-# ── Step 10: Post-deploy health check ──
-echo -e "\n${BOLD}▸ Step 10: Health check...${NC}"
-sleep 2
+log 'checking local services'
+for check_url in \
+  http://127.0.0.1:4000/health \
+  http://127.0.0.1:3000/ \
+  http://127.0.0.1:3003/; do
+  curl --fail --silent --show-error --max-time 15 "$check_url" >/dev/null \
+    || fail "health check failed: $check_url"
+done
 
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4000/health || echo "000")
-if [ "$HTTP_CODE" = "200" ]; then
-  log "API health check passed (HTTP 200)"
-else
-  warn "API health check returned HTTP ${HTTP_CODE}"
-fi
-
-# Check all PM2 processes
-PM2_ERRORS=$(pm2 jlist 2>/dev/null | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-errors = [p['name'] for p in data if p.get('pm2_env', {}).get('status') != 'online']
-print(','.join(errors) if errors else '')
-" 2>/dev/null || echo "check_failed")
-
-if [ -z "$PM2_ERRORS" ]; then
-  log "All PM2 processes are online"
-elif [ "$PM2_ERRORS" = "check_failed" ]; then
-  warn "Could not verify PM2 status — check manually with 'pm2 ls'"
-else
-  error "PM2 processes not online: ${PM2_ERRORS}"
-fi
-
-pm2 ls
-
-echo -e "\n${BOLD}"
-echo "═══════════════════════════════════════════════════"
-echo "  Deploy Complete! $(date '+%Y-%m-%d %H:%M:%S %Z')"
-echo "═══════════════════════════════════════════════════"
-echo -e "${NC}"
+pm2 status
+log 'deployment completed successfully'

@@ -48,6 +48,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               { label: 'Jobs', href: '/dashboard/jobs' },
               { label: 'Financials', href: '/dashboard/financials' },
               { label: 'Analytics', href: '/dashboard/analytics' },
+              { label: 'Messages', href: '/dashboard/contact' },
               { label: 'Settings', href: '/dashboard/settings' },
             ].map((item) => (
               <button

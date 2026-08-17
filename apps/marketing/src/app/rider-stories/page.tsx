@@ -17,16 +17,22 @@ const MONTH_NAMES = [
 ];
 
 async function getSpotlights() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
     const res = await fetch(`${apiUrl}/rider-identity/spotlights?limit=12`, {
       next: { revalidate: 3600 },
+      signal: controller.signal,
     });
     if (!res.ok) return [];
     const body = await res.json();
     return body.data?.spotlights ?? [];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -60,7 +66,6 @@ export default async function RiderStoriesPage() {
 
         <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <span className="flag-stripe">Ghana</span>
             <span className="theme-eyebrow on-dark">
               Rider Spotlight
               <span className="sep" />

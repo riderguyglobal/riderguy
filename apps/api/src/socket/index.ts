@@ -306,7 +306,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
     // D-04: Batch breadcrumb buffer — flush every 30s instead of per-update
     const BREADCRUMB_FLUSH_INTERVAL_MS = 30_000;
     const MAX_BREADCRUMB_BUFFER_SIZE = 500; // Cap to prevent OOM on persistent DB failures
-    let breadcrumbBuffer: Array<{
+    const breadcrumbBuffer: Array<{
       riderId: string; orderId: string;
       latitude: number; longitude: number;
       heading: number | null; speed: number | null;

@@ -4,12 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3002",
-    "build": "next build",
+    "build": "node ../../scripts/next-build.cjs",
     "start": "next start --port 3002",
-    "lint": "next lint",
+    "lint": "eslint src --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@21st-sdk/nextjs": "^0.0.11",
+    "@21st-sdk/node": "^0.1.1",
+    "@21st-sdk/react": "^0.2.3",
+    "@ai-sdk/react": "^3.0.187",
     "@riderguy/auth": "*",
     "@riderguy/config": "*",
     "@riderguy/types": "*",
@@ -17,6 +21,7 @@
     "@riderguy/utils": "*",
     "@riderguy/validators": "*",
     "@tanstack/react-query": "^5.62.0",
+    "ai": "^6.0.185",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "next": "^14.2.0",
@@ -24,6 +29,7 @@
     "react-dom": "^18.3.0",
     "recharts": "^2.14.0",
     "tailwind-merge": "^2.6.0",
+    "zod": "^4.4.3",
     "zustand": "^5.0.0"
   },
   "devDependencies": {

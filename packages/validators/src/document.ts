@@ -13,18 +13,19 @@ export const uploadDocumentSchema = z.object({
     'VEHICLE_PHOTO_LEFT',
     'VEHICLE_PHOTO_RIGHT',
   ]),
-  fileName: z.string().min(1).max(255),
+  fileName: z.string().min(1).max(255).optional(),
   mimeType: z.enum([
     'image/jpeg',
     'image/png',
     'image/webp',
     'application/pdf',
-  ]),
-  fileSizeBytes: z
+  ]).optional(),
+  fileSizeBytes: z.coerce
     .number()
     .int()
     .positive()
-    .max(10 * 1024 * 1024, 'File size must be under 10MB'),
+    .max(10 * 1024 * 1024, 'File size must be under 10MB')
+    .optional(),
 });
 
 export const reviewDocumentSchema = z.object({

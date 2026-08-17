@@ -41,8 +41,8 @@ interface AuthContextValue {
   loginWithPin: (phone: string, pin: string) => Promise<void>;
   /** Login with fingerprint / Face ID (biometric) */
   loginWithBiometric: (phone: string) => Promise<void>;
-  /** Login with email & password */
-  loginWithPassword: (email: string, password: string) => Promise<void>;
+  /** Login with phone / email / Ghana Card & password (identifier is auto-detected by shape) */
+  loginWithPassword: (identifier: string, password: string) => Promise<void>;
   /** Register a new account */
   register: (data: {
     phone: string;
@@ -203,11 +203,18 @@ export function AuthProvider({ apiBaseUrl, children }: AuthProviderProps) {
   );
 
   const loginWithPassword = useCallback(
-    async (email: string, password: string) => {
+    async (identifier: string, password: string) => {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await api.post('/auth/login/password', { email, password });
+        // AU-01: backend accepts either `identifier` (phone/email/Ghana Card)
+        // or legacy `email`. Send both for back-compat: the identifier field
+        // is the source of truth; `email` is kept only when the value is
+        // email-shaped so older API builds keep working during rolling deploys.
+        const isEmail = typeof identifier === 'string' && identifier.includes('@');
+        const payload: Record<string, string> = { identifier, password };
+        if (isEmail) payload.email = identifier;
+        const { data } = await api.post('/auth/login/password', payload);
         storeLogin(
           { accessToken: data.data.accessToken, refreshToken: data.data.refreshToken },
           data.data.user
