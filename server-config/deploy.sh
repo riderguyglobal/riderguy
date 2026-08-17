@@ -84,15 +84,18 @@ for app_name in marketing admin; do
     cp -a "$app_dir/public" "$standalone_dir/"
   fi
 
-  # With this monorepo's outputFileTracingRoot, Next can leave a minimal traced
-  # package in the workspace node_modules directory. That partial package
-  # shadows the complete root installation and fails at runtime on internal
-  # modules such as node-polyfill-crypto. Link the workspace runtime to the
-  # complete locked package installed at the repository root.
-  [ -f "$SOURCE_DIR/node_modules/next/package.json" ] \
-    || fail 'root Next.js runtime package is missing'
-  rm -rf "$app_dir/node_modules/next"
-  ln -s '../../../node_modules/next' "$app_dir/node_modules/next"
+  # npm may install Next in each workspace or hoist it to the repository root.
+  # Prefer a complete workspace package. If tracing left only a partial package,
+  # replace it with a link to a complete hoisted runtime when one is available.
+  next_runtime="$app_dir/node_modules/next"
+  next_probe='dist/server/node-polyfill-crypto.js'
+  if [ ! -f "$next_runtime/$next_probe" ]; then
+    root_next="$SOURCE_DIR/node_modules/next"
+    [ -f "$root_next/$next_probe" ] \
+      || fail "$app_name Next.js runtime package is incomplete"
+    rm -rf "$next_runtime"
+    ln -s '../../../node_modules/next' "$next_runtime"
+  fi
 done
 
 log 'checking PostgreSQL and applying migrations'
