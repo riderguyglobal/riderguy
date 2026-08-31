@@ -4,7 +4,6 @@
 // ============================================================
 
 import { prisma } from '@riderguy/database';
-import { logger } from '../lib/logger';
 import { ApiError } from '../lib/api-error';
 
 // ────── Room Management ──────

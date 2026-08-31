@@ -84,7 +84,7 @@ export default function RiderLoginScreen() {
   const sendOtp = async () => {
     const normalized = normalizePhoneNumber(phone);
     if (!normalized) {
-      Alert.alert('Phone required', 'Enter your phone number first.');
+      Alert.alert('Ghana phone required', 'Enter a valid Ghana number starting with +233 or 0.');
       return;
     }
     setLoading(true);
@@ -103,7 +103,7 @@ export default function RiderLoginScreen() {
   const handleCheckMethods = async () => {
     const normalized = normalizePhoneNumber(phone);
     if (!normalized) {
-      Alert.alert('Phone required', 'Enter your phone number first.');
+      Alert.alert('Ghana phone required', 'Enter a valid Ghana number starting with +233 or 0.');
       return;
     }
     setLoading(true);

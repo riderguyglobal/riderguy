@@ -1,3 +1,5 @@
+const path = require('node:path');
+
 /** @type {import('next').NextConfig} */
 const monorepoTraceIgnores = [
   '**/.git/**',
@@ -23,33 +25,17 @@ const monorepoTraceIgnores = [
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  experimental: {
-    outputFileTracingRoot: __dirname,
-    outputFileTracingIncludes: {
-      '/*': [
-        '../../packages/config/**/*',
-        '../../packages/types/**/*',
-        '../../packages/ui/**/*',
-        '../../packages/utils/**/*',
-      ],
-    },
-    outputFileTracingIgnores: monorepoTraceIgnores,
-    outputFileTracingExcludes: {
-      '*': [
-        '../../archive/**',
-        '../../assets/**',
-        '../../docs/**',
-        '../../HOT_data/**',
-        '../../scripts/**',
-        '../../server-config/**',
-        '../../svg files/**',
-        '../../artifacts-*',
-        '../admin/**',
-        '../api/**',
-        '../client-native/**',
-        '../rider-native/**',
-      ],
-    },
+  outputFileTracingRoot: path.join(__dirname, '../..'),
+  outputFileTracingIncludes: {
+    '/*': [
+      '../../packages/config/**/*',
+      '../../packages/types/**/*',
+      '../../packages/ui/**/*',
+      '../../packages/utils/**/*',
+    ],
+  },
+  outputFileTracingExcludes: {
+    '*': monorepoTraceIgnores,
   },
   transpilePackages: [
     '@riderguy/ui',

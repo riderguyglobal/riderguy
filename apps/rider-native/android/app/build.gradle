@@ -39,7 +39,13 @@ def isPlaceholderMapKey = { Object value ->
     }
 
     def lower = text.toLowerCase()
-    return text == "YOUR_GOOGLE_MAPS_KEY_HERE" || lower.contains("your_google_maps") || lower.contains("your-google-maps") || lower.contains("maps_key_here")
+    return !(text ==~ /^AIza[0-9A-Za-z_-]{35}$/) ||
+        text == "YOUR_GOOGLE_MAPS_KEY_HERE" ||
+        lower.contains("your_google_maps") ||
+        lower.contains("your-google-maps") ||
+        lower.contains("maps_key_here") ||
+        lower.contains("replace-with") ||
+        lower.contains("placeholder")
 }
 
 def firstUsableMapKey = { Object... values ->
@@ -77,7 +83,7 @@ def googleMapsApiKey = firstUsableMapKey(
 )?.toString()?.trim()
 
 if (isPlaceholderMapKey(googleMapsApiKey)) {
-    throw new GradleException("Google Maps API key is missing. Set GOOGLE_MAPS_API_KEY_ANDROID or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY for the rider native Android build.")
+    throw new GradleException("A valid Google Maps API key is required. Set GOOGLE_MAPS_API_KEY_ANDROID or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY for the rider native Android build.")
 }
 
 def releaseStoreFile = resolveProjectFile(firstPresent(
@@ -141,7 +147,14 @@ def releaseKeyPassword = firstPresent(
     appEnv["ANDROID_UPLOAD_KEY_PASSWORD"],
     releaseStorePassword
 )
-def hasReleaseSigning = releaseStoreFile != null && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def hasFinalReleaseSigning = {
+    def signing = android.signingConfigs.release
+    return signing.storeFile != null &&
+        signing.storeFile.exists() &&
+        signing.storePassword &&
+        signing.keyAlias &&
+        signing.keyPassword
+}
 
 gradle.taskGraph.whenReady {
     def releaseRequested = gradle.startParameter.taskNames.any { taskName ->
@@ -149,8 +162,8 @@ gradle.taskGraph.whenReady {
         return lower.contains("release") || lower.contains("bundle")
     }
 
-    if (releaseRequested && !hasReleaseSigning && System.getenv("EAS_BUILD") != "true") {
-        throw new GradleException("Android release signing is missing for RiderGuy Rider. Set RIDER_ANDROID_KEYSTORE_PATH, RIDER_ANDROID_KEYSTORE_PASSWORD, RIDER_ANDROID_KEY_ALIAS, and RIDER_ANDROID_KEY_PASSWORD, or the generic ANDROID_* equivalents.")
+    if (releaseRequested && !hasFinalReleaseSigning()) {
+        throw new GradleException("Android release signing is missing for RiderGuy Rider. Configure EAS remote credentials or set RIDER_ANDROID_KEYSTORE_PATH, RIDER_ANDROID_KEYSTORE_PASSWORD, RIDER_ANDROID_KEY_ALIAS, and RIDER_ANDROID_KEY_PASSWORD (or the generic ANDROID_* equivalents).")
     }
 }
 
@@ -163,6 +176,7 @@ react {
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
     hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+    enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
 
     // Use Expo CLI to bundle the app, this ensures the Metro config
     // works correctly with Expo projects.
@@ -213,9 +227,9 @@ react {
 }
 
 /**
- * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ * Set this to true in release builds to optimize the app using R8.
  */
-def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInReleaseBuilds') ?: false).toBoolean()
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -228,7 +242,7 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
  * give correct results when using with locales other than en-US. Note that
  * this variant is about 6MiB larger per architecture than default.
  */
-def jscFlavor = 'org.webkit:android-jsc:+'
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -242,8 +256,9 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0.0"
+        versionName "1.0.1"
         manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {
         debug {
@@ -272,16 +287,17 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            signingConfig signingConfigs.release
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
-            minifyEnabled enableProguardInReleaseBuilds
+            minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             crunchPngs (findProperty('android.enablePngCrunchInReleaseBuilds')?.toBoolean() ?: true)
         }
     }
     packagingOptions {
         jniLibs {
-            useLegacyPackaging (findProperty('expo.useLegacyPackaging')?.toBoolean() ?: false)
+            def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
+            useLegacyPackaging enableLegacyPackaging.toBoolean()
         }
     }
     androidResources {
@@ -319,15 +335,15 @@ dependencies {
 
     if (isGifEnabled) {
         // For animated gif support
-        implementation("com.facebook.fresco:animated-gif:${reactAndroidLibs.versions.fresco.get()}")
+        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
     }
 
     if (isWebpEnabled) {
         // For webp support
-        implementation("com.facebook.fresco:webpsupport:${reactAndroidLibs.versions.fresco.get()}")
+        implementation("com.facebook.fresco:webpsupport:${expoLibs.versions.fresco.get()}")
         if (isWebpAnimatedEnabled) {
             // Animated webp support
-            implementation("com.facebook.fresco:animated-webp:${reactAndroidLibs.versions.fresco.get()}")
+            implementation("com.facebook.fresco:animated-webp:${expoLibs.versions.fresco.get()}")
         }
     }
 

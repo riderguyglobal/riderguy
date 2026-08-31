@@ -1,6 +1,12 @@
 # Riderguy Mobile Apps — Comprehensive Build Plan
 > iOS + Android for both Customer and Rider apps using Expo + React Native
 
+> **Release-safety override (2026-08-31):** this is a historical plan, not the
+> current runbook. Android now uses `play-internal` for Play Internal Testing
+> AABs, `preview` for direct-install QA APKs, and `internal` for Play internal
+> submission. No EAS production profile exists; closed/production promotion
+> requires a separate decision and explicit approval.
+
 ---
 
 ## Overview
@@ -28,7 +34,7 @@ Running macOS on non-Apple hardware (Hetzner or local PC VM) violates Apple's EU
 | Styling | NativeWind v4 | Same Tailwind class names the team already knows |
 | Maps | `react-native-maps` (Google Maps provider) | Same Google Maps API key, same backend directions endpoint |
 | Location | `expo-location` + `expo-task-manager` | Foreground + background GPS for rider app |
-| Push notifications | `expo-notifications` + `@react-native-firebase/messaging` | Reuses existing Firebase project + FCM infrastructure |
+| Push notifications | `expo-notifications` + `@react-native-firebase/messaging` | Uses the dedicated Rider and Client Firebase projects with API-side project routing |
 | Token storage | `expo-secure-store` | Encrypted keychain (iOS) + EncryptedSharedPrefs (Android) |
 | Biometric auth | `expo-local-authentication` | Replaces WebAuthn browser API |
 | Camera | `expo-image-picker` + `expo-camera` | Proof of delivery, KYC document upload |
@@ -184,7 +190,7 @@ app/
 4. **Bundle IDs** — register in Apple Developer portal:
    - `com.riderguy.client`
    - `com.riderguy.rider`
-5. **Firebase** — add iOS and Android apps to the existing Firebase project. Download:
+5. **Firebase** — keep each native app in its dedicated Firebase project (`riderguy-rider` and `riderguy-client`). Download:
    - `GoogleService-Info.plist` (iOS, one per app)
    - `google-services.json` (Android, one per app)
 6. **Google Maps** — create new API key restricted to the two iOS bundle IDs and two Android package names (separate from the web key)
@@ -200,7 +206,7 @@ cd apps && npx create-expo-app client-native --template expo-router
 
 Configure:
 - `app.config.ts` with name, slug, bundle IDs, permissions
-- `eas.json` — 3 build profiles: `development`, `preview`, `production`
+- `eas.json` — current Android profiles: `development`, `preview`, `play-internal`
 - NativeWind v4 + Tailwind config
 - `tsconfig.json` extending `../../tsconfig.base.json`
 - Turbo pipeline entry
@@ -233,19 +239,15 @@ eas credentials       # sets up iOS certificates + provisioning profiles
       "distribution": "internal",
       "ios": { "simulator": false }
     },
-    "production": {
-      "autoIncrement": true
+    "play-internal": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "android": { "buildType": "app-bundle" }
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "appleId": "your@email.com",
-        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_TEAM_ID"
-      },
+    "internal": {
       "android": {
-        "serviceAccountKeyPath": "./play-store-key.json",
         "track": "internal"
       }
     }
@@ -920,17 +922,19 @@ EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN=30
 
 ### Phase 12 — App Store Submission (Days 118–125)
 
-**Build production binaries:**
+**Current Android internal-only builds:**
 ```bash
-eas build --platform all --profile production --non-interactive
+eas build --platform android --profile play-internal --non-interactive
+eas build --platform android --profile preview --non-interactive
 ```
-This triggers cloud builds on EAS servers (Mac Mini for iOS, Linux for Android). Takes ~15–30 minutes.
+The AAB is for Play Internal Testing; the APK is only for direct QA installation.
 
-**Submit to stores:**
+**Submit only the inspected AAB to Play Internal Testing:**
 ```bash
-eas submit --platform ios --profile production
-eas submit --platform android --profile production
+eas submit --platform android --profile internal --path <verified-aab-path>
 ```
+
+Do not submit the preview APK or change closed/production tracks in this cycle.
 
 **Apple App Store Connect (per app):**
 - App name, subtitle, description, keywords (critical for search ranking)
@@ -972,7 +976,7 @@ eas submit --platform android --profile production
 | **9** | Rider: Earnings + withdrawal flow, gamification, community, proof of delivery. |
 | **10** | Both apps: all `app.config.ts` permissions, all native plugins configured and tested. |
 | **11** | QA on simulators + physical devices. Icons, splash screens, screenshots, empty/error states. |
-| **12** | EAS production builds. App Store Connect + Play Console submissions. |
+| **12** | EAS Play Internal AABs + preview APKs; internal QA and tester links. |
 
 ---
 
@@ -983,8 +987,8 @@ eas submit --platform android --profile production
 - **`@riderguy/types`** — all TypeScript interfaces
 - **`@riderguy/utils`** — all geo, format, date, and constant functions
 - **`@riderguy/validators`** — all Zod schemas
-- **Firebase project** — same project, same FCM sender ID
-- **Google Maps API** — same key, new platform restrictions added
+- **Firebase projects** — dedicated Rider and Client projects, routed explicitly by the API
+- **Google Maps API** — separate Android-restricted key per package and signing certificate set
 
 ### New code (native layer only):
 - 2 Expo app directories (`client-native`, `rider-native`)

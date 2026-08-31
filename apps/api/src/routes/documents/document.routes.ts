@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, hasAnyRole, requireRole, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { DocumentService } from '../../services/document.service';
@@ -131,8 +131,7 @@ router.get(
     // AUTH-06 (IDOR): only the owning user OR an admin / super-admin may view a
     // document. Previously only RIDER role was checked, leaving CLIENT (and any
     // future role) able to fetch documents by id.
-    const role = req.user!.role;
-    const isAdmin = role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN;
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
     const isOwner = document.userId === req.user!.userId;
     if (!isAdmin && !isOwner) {
       throw ApiError.forbidden('You can only view your own documents');

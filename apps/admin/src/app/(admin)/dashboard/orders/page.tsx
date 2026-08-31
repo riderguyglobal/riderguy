@@ -6,8 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Badge,
   Spinner,
   Separator,

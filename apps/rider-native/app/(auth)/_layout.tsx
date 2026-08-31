@@ -3,7 +3,7 @@ import { useAuth } from '@riderguy/auth-native';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function AuthLayout() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -13,7 +13,10 @@ export default function AuthLayout() {
     );
   }
 
-  if (isAuthenticated) return <Redirect href="/(tabs)" />;
+  if (isAuthenticated) {
+    const activated = user?.riderProfile?.onboardingStatus === 'ACTIVATED' && user.riderProfile.isVerified;
+    return <Redirect href={activated ? '/(tabs)' : '/(app)/onboarding'} />;
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

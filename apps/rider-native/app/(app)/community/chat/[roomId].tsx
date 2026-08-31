@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { tokenStorage, useAuth } from '@riderguy/auth-native';
@@ -61,7 +61,7 @@ export default function CommunityChatScreen() {
       socketRef.current?.emit('community:leave', { roomId });
       socketRef.current?.disconnect();
     };
-  }, [roomId]);
+  }, [api, roomId]);
 
   const send = async () => {
     const content = text.trim();

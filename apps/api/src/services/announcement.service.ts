@@ -112,11 +112,13 @@ export async function listAnnouncementsAdmin(options: {
 
 export async function getPublishedAnnouncements(options: {
   role?: string;
+  roles?: readonly string[];
   zoneId?: string;
   page?: number;
   limit?: number;
 }) {
-  const { role, zoneId, page = 1, limit = 20 } = options;
+  const { role, roles, zoneId, page = 1, limit = 20 } = options;
+  const targetRoles = roles?.length ? [...new Set(roles)] : role ? [role] : [];
   const skip = (page - 1) * limit;
   const now = new Date();
 
@@ -124,8 +126,8 @@ export async function getPublishedAnnouncements(options: {
     isPublished: true,
     AND: [
       { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
-      ...(role
-        ? [{ OR: [{ targetRoles: { isEmpty: true } }, { targetRoles: { has: role } }] }]
+      ...(targetRoles.length
+        ? [{ OR: [{ targetRoles: { isEmpty: true } }, { targetRoles: { hasSome: targetRoles } }] }]
         : []),
       ...(zoneId
         ? [{ OR: [{ targetZones: { isEmpty: true } }, { targetZones: { has: zoneId } }] }]

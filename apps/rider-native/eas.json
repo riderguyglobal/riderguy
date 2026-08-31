@@ -5,6 +5,8 @@
   },
   "build": {
     "development": {
+      "node": "22.14.0",
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "android": {
@@ -19,10 +21,12 @@
         "EXPO_PUBLIC_RIDER_LOCATION_INTERVAL_MS": "10000",
         "EXPO_PUBLIC_RIDER_HEARTBEAT_MS": "30000",
         "EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN": "30",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "822237251244-avsri95hle6007j1nnegv82g2t59unvp.apps.googleusercontent.com"
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
       }
     },
     "preview": {
+      "node": "22.14.0",
+      "environment": "preview",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -33,13 +37,15 @@
         "EXPO_PUBLIC_RIDER_LOCATION_INTERVAL_MS": "10000",
         "EXPO_PUBLIC_RIDER_HEARTBEAT_MS": "30000",
         "EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN": "30",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "822237251244-avsri95hle6007j1nnegv82g2t59unvp.apps.googleusercontent.com",
         "EAS_SKIP_AUTO_FINGERPRINT": "1"
       }
     },
-    "production": {
+    "play-internal": {
+      "node": "22.14.0",
+      "environment": "production",
       "autoIncrement": true,
-      "credentialsSource": "local",
+      "credentialsSource": "remote",
+      "distribution": "store",
       "android": {
         "buildType": "app-bundle"
       },
@@ -49,19 +55,13 @@
         "EXPO_PUBLIC_RIDER_LOCATION_INTERVAL_MS": "10000",
         "EXPO_PUBLIC_RIDER_HEARTBEAT_MS": "30000",
         "EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN": "30",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "822237251244-avsri95hle6007j1nnegv82g2t59unvp.apps.googleusercontent.com"
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
       }
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "appleId": "calbrixintelligence@gmail.com",
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
-      },
+    "internal": {
       "android": {
-        "serviceAccountKeyPath": "./play-store-key.json",
         "track": "internal"
       }
     }

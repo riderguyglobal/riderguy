@@ -26,6 +26,20 @@ interface SendMailOptions {
   text?: string;
 }
 
+type NativeAppAudience = 'CLIENT' | 'RIDER';
+
+function getNativeAppUrl(audience: NativeAppAudience): string {
+  if (audience === 'RIDER') {
+    return (process.env.RIDER_APP_URL ?? 'https://rider.myriderguy.com').replace(/\/+$/, '');
+  }
+  return (
+    process.env.NEXT_PUBLIC_CLIENT_URL ??
+    process.env.CLIENT_APP_URL ??
+    process.env.APP_URL ??
+    'https://app.myriderguy.com'
+  ).replace(/\/+$/, '');
+}
+
 // --------------- HTML escaping helper ----------------------------------
 
 function escapeHtml(str: string): string {
@@ -358,9 +372,15 @@ export class EmailService {
   }
 
   // ---- Email verification ----
-  static async sendVerificationEmail(to: string, firstName: string, token: string) {
-    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://app.myriderguy.com';
-    const verifyUrl = `${appUrl}/auth/verify-email?token=${encodeURIComponent(token)}`;
+  static async sendVerificationEmail(
+    to: string,
+    firstName: string,
+    token: string,
+    audience: NativeAppAudience = 'CLIENT',
+  ) {
+    const appUrl = getNativeAppUrl(audience);
+    const app = audience === 'RIDER' ? 'rider' : 'client';
+    const verifyUrl = `${appUrl}/auth/verify-email?token=${encodeURIComponent(token)}&app=${app}`;
     const html = baseLayout(
       'Verify Your Email',
       `
@@ -379,9 +399,15 @@ export class EmailService {
   }
 
   // ---- Password reset ----
-  static async sendPasswordReset(to: string, firstName: string, token: string) {
-    const appUrl = process.env.NEXT_PUBLIC_CLIENT_URL ?? process.env.APP_URL ?? 'https://app.myriderguy.com';
-    const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+  static async sendPasswordReset(
+    to: string,
+    firstName: string,
+    token: string,
+    audience: NativeAppAudience = 'CLIENT',
+  ) {
+    const appUrl = getNativeAppUrl(audience);
+    const app = audience === 'RIDER' ? 'rider' : 'client';
+    const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(token)}&app=${app}`;
     const html = baseLayout(
       'Reset Your Password',
       `

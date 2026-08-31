@@ -11,6 +11,7 @@ import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
 import { learnFromDelivery } from './eta-learning.service';
+import { assertRiderWorkEligible } from './rider-work-eligibility';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
 
 // ============================================================
@@ -41,6 +42,39 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
  */
 export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
   return STATUS_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+type DeliveryPaymentState = {
+  paymentMethod: PaymentMethod;
+  actualPaymentMethod?: PaymentMethod | null;
+  paymentStatus: string;
+  riderPaymentConfirmed: boolean;
+};
+
+/**
+ * Delivery can close only after money has been independently accounted for.
+ * Riders may attest to cash collected at the door. Every electronic rail is
+ * server-owned and must already have been completed by the provider/wallet
+ * flow; a rider-supplied `actualPaymentMethod` must never make it paid.
+ */
+export function isDeliveryPaymentReady(order: DeliveryPaymentState): boolean {
+  if (order.paymentMethod === 'CASH') {
+    return order.riderPaymentConfirmed === true
+      && (order.actualPaymentMethod == null || order.actualPaymentMethod === 'CASH');
+  }
+
+  return order.paymentStatus === 'COMPLETED';
+}
+
+export function assertDeliveryPaymentReady(order: DeliveryPaymentState): void {
+  if (isDeliveryPaymentReady(order)) return;
+
+  throw ApiError.badRequest(
+    order.paymentMethod === 'CASH'
+      ? 'Cash payment must be confirmed before delivery can be completed'
+      : 'Electronic payment must be verified before delivery can be completed',
+    'PAYMENT_NOT_CONFIRMED',
+  );
 }
 
 /**
@@ -386,7 +420,7 @@ export async function getOrderById(orderId: string) {
  */
 export async function listOrders(
   userId: string,
-  role: string,
+  roleOrRoles: string | readonly string[],
   options: { page?: number; limit?: number; status?: OrderStatus },
 ) {
   const page = options.page ?? 1;
@@ -395,14 +429,29 @@ export async function listOrders(
 
   const whereClause: any = {};
 
-  if (role === 'CLIENT' || role === 'BUSINESS_CLIENT') {
-    whereClause.clientId = userId;
-  } else if (role === 'RIDER') {
-    const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
-    if (!riderProfile) throw ApiError.notFound('Rider profile not found');
-    whereClause.riderId = riderProfile.id;
+  const roles = new Set(Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles]);
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'DISPATCHER'].some((role) => roles.has(role));
+
+  if (!isAdmin) {
+    const ownership: Array<Record<string, string>> = [];
+    const hasClientRole = roles.has('CLIENT') || roles.has('BUSINESS_CLIENT');
+    if (hasClientRole) ownership.push({ clientId: userId });
+
+    if (roles.has('RIDER')) {
+      const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
+      if (riderProfile) {
+        ownership.push({ riderId: riderProfile.id });
+      } else if (!hasClientRole) {
+        throw ApiError.notFound('Rider profile not found');
+      }
+    }
+
+    if (ownership.length === 0) {
+      throw ApiError.forbidden('You do not have permission to list orders');
+    }
+    whereClause.OR = ownership;
   }
-  // ADMIN / SUPER_ADMIN / DISPATCHER see everything
+  // ADMIN / SUPER_ADMIN / DISPATCHER membership sees everything.
 
   if (options.status) {
     // Support comma-separated status values (e.g. "ASSIGNED,PICKUP_EN_ROUTE")
@@ -466,12 +515,7 @@ export async function transitionStatus(
   }
 
   if (newStatus === 'DELIVERED') {
-    if (!order.riderPaymentConfirmed) {
-      throw ApiError.badRequest(
-        'Payment must be confirmed before delivery can be completed',
-        'PAYMENT_NOT_CONFIRMED',
-      );
-    }
+    assertDeliveryPaymentReady(order);
     if (!order.proofOfDeliveryType || !order.proofOfDeliveryUrl) {
       throw ApiError.badRequest(
         'Proof of delivery is required before completion',
@@ -557,7 +601,7 @@ export async function transitionStatus(
         waitTimeAdjustment = waitResult.charge;
         waitTotalMinutes = Math.round(waitResult.totalMinutes);
       }
-    } catch (err) {
+    } catch {
       // Don't block delivery completion if wait time calc fails
     }
 
@@ -586,7 +630,7 @@ export async function transitionStatus(
           Number(updated.pickupLongitude),
         );
       }
-    } catch (err) {
+    } catch {
       // Don't block delivery completion if bonus calc fails
     }
 
@@ -1018,12 +1062,11 @@ export async function rateOrder(
 export async function getAvailableJobs(userId: string) {
   const riderProfile = await prisma.riderProfile.findUnique({
     where: { userId },
+    include: { user: { select: { status: true } } },
   });
   if (!riderProfile) throw ApiError.notFound('Rider profile not found');
 
-  if (riderProfile.onboardingStatus !== 'ACTIVATED') {
-    throw ApiError.forbidden('Your account is not yet activated');
-  }
+  assertRiderWorkEligible(riderProfile);
 
   if (riderProfile.availability !== 'ONLINE') {
     throw ApiError.forbidden('You must be online to see available jobs');

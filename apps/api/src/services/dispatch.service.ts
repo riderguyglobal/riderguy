@@ -1,8 +1,8 @@
 import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
-import { transitionStatus } from './order.service';
 import { createOrderNotification } from './notification.service';
 import { emitOrderStatusUpdate } from '../socket';
+import { assertRiderWorkEligible, riderWorkEligibilityWhere } from './rider-work-eligibility';
 
 // ============================================================
 // Dispatch Service — handles rider assignment, reassignment,
@@ -23,7 +23,7 @@ export async function assignRider(
     prisma.order.findUnique({ where: { id: orderId } }),
     prisma.riderProfile.findUnique({
       where: { id: riderProfileId },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } },
     }),
   ]);
 
@@ -44,11 +44,8 @@ export async function assignRider(
     );
   }
 
-  // Validate rider eligibility
-  // Bypass only when BYPASS_ONBOARDING_CHECK=true (for testing)
-  if (process.env.BYPASS_ONBOARDING_CHECK !== 'true' && rider.onboardingStatus !== 'ACTIVATED') {
-    throw ApiError.badRequest('Rider is not activated', 'RIDER_NOT_ACTIVATED');
-  }
+  // Validate the same central work gate used by availability and job feeds.
+  assertRiderWorkEligible(rider);
   if (rider.suspendedUntil && rider.suspendedUntil > new Date()) {
     throw ApiError.forbidden('Rider is currently suspended due to cancellation violations');
   }
@@ -63,7 +60,7 @@ export async function assignRider(
   const updated = await prisma.$transaction(async (tx) => {
     // Guard 1: Claim the rider — only succeeds if they're still ONLINE
     const riderClaim = await tx.riderProfile.updateMany({
-      where: { id: riderProfileId, availability: 'ONLINE' },
+      where: { id: riderProfileId, availability: 'ONLINE', ...riderWorkEligibilityWhere() },
       data: { availability: 'ON_DELIVERY' },
     });
     if (riderClaim.count === 0) {
@@ -228,12 +225,10 @@ export async function reassignRider(
 
   const newRider = await prisma.riderProfile.findUnique({
     where: { id: newRiderProfileId },
-    include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } },
   });
   if (!newRider) throw ApiError.notFound('New rider not found');
-  if (process.env.BYPASS_ONBOARDING_CHECK !== 'true' && newRider.onboardingStatus !== 'ACTIVATED') {
-    throw ApiError.badRequest('New rider is not activated', 'RIDER_NOT_ACTIVATED');
-  }
+  assertRiderWorkEligible(newRider);
   if (newRider.availability !== 'ONLINE') {
     throw ApiError.badRequest(`New rider is currently ${newRider.availability}`, 'RIDER_UNAVAILABLE');
   }
@@ -249,7 +244,7 @@ export async function reassignRider(
 
     // Claim new rider — guard on availability
     const riderClaim = await tx.riderProfile.updateMany({
-      where: { id: newRiderProfileId, availability: 'ONLINE' },
+      where: { id: newRiderProfileId, availability: 'ONLINE', ...riderWorkEligibilityWhere() },
       data: { availability: 'ON_DELIVERY' },
     });
     if (riderClaim.count === 0) {
@@ -354,7 +349,7 @@ export async function getDispatchQueue(options?: {
 export async function getAvailableRiders(zoneId?: string) {
   const whereClause: any = {
     availability: 'ONLINE',
-    onboardingStatus: 'ACTIVATED',
+    ...riderWorkEligibilityWhere(),
   };
 
   if (zoneId) {

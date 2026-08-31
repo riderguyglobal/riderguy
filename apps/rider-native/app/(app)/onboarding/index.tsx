@@ -1,9 +1,10 @@
-import { ScrollView, Text, TouchableOpacity, View, RefreshControl } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, Text, TextInput, TouchableOpacity, View, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@riderguy/auth-native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getAuthErrorMessage, useAuth } from '@riderguy/auth-native';
 import { EmptyState, ProgressBar, RiderButton, RiderCard, RiderHeader, StatusPill } from '@/components/rider-ui';
 import { cleanLabel, riderColors } from '@/lib/rider-design';
 
@@ -24,6 +25,9 @@ function iconForStatus(status: string) {
 
 export default function OnboardingIndexScreen() {
   const { api } = useAuth();
+  const queryClient = useQueryClient();
+  const [invitationCode, setInvitationCode] = useState('');
+  const [channelError, setChannelError] = useState('');
 
   const { data: progress, isLoading, refetch } = useQuery({
     queryKey: ['rider-onboarding-status'],
@@ -44,8 +48,27 @@ export default function OnboardingIndexScreen() {
   const firstVehicleId = vehicles?.[0]?.id;
   const steps = progress?.steps ?? [];
 
+  const channelMutation = useMutation({
+    mutationFn: async ({ channel, code }: { channel: 'GUEST' | 'IN_HOUSE'; code?: string }) => {
+      const { data } = await api.post('/riders/onboarding/channel', {
+        channel,
+        ...(code ? { invitationCode: code.trim() } : {}),
+      });
+      return data.data ?? data;
+    },
+    onSuccess: async () => {
+      setChannelError('');
+      setInvitationCode('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['rider-onboarding-status'] }),
+        queryClient.invalidateQueries({ queryKey: ['rider-profile'] }),
+      ]);
+    },
+    onError: (error) => setChannelError(getAuthErrorMessage(error, 'Could not confirm this Rider channel.')),
+  });
+
   const openStep = (key: string) => {
-    const route = ROUTE_BY_STEP[key];
+    const route = key.startsWith('training_') ? '/(app)/training' : ROUTE_BY_STEP[key];
     if (!route) return;
     if (key === 'vehicle_photos' && firstVehicleId) {
       router.push({ pathname: route as any, params: { vehicleId: firstVehicleId } });
@@ -57,8 +80,12 @@ export default function OnboardingIndexScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.surface }}>
       <RiderHeader
-        title="Rider verification"
-        subtitle="Complete the essentials before dispatch activation"
+        title={!progress?.riderChannel ? 'Rider onboarding' : progress.riderChannel === 'IN_HOUSE' ? 'Trained In-House onboarding' : 'Guest Rider onboarding'}
+        subtitle={!progress?.riderChannel
+          ? 'Choose the correct channel to continue'
+          : progress.riderChannel === 'IN_HOUSE'
+            ? 'Confirm your RiderGuy training and verification'
+            : 'Complete identity and vehicle verification'}
         canGoBack
         right={<StatusPill status={progress?.onboardingStatus} />}
       />
@@ -68,6 +95,56 @@ export default function OnboardingIndexScreen() {
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={riderColors.green} />}
         showsVerticalScrollIndicator={false}
       >
+        {!progress?.riderChannel && !isLoading ? (
+          <RiderCard style={{ marginBottom: 14, padding: 16 }}>
+            <Text style={{ color: riderColors.ink, fontSize: 18, fontWeight: '900' }}>Confirm your Rider channel</Text>
+            <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>
+              Guest Riders can continue independently. The protected In-House channel requires a one-time invitation issued by RiderGuy.
+            </Text>
+
+            <RiderButton
+              label="Continue as 3rd Party Rider (Guest)"
+              icon="bicycle-outline"
+              loading={channelMutation.isPending && channelMutation.variables?.channel === 'GUEST'}
+              disabled={channelMutation.isPending}
+              onPress={() => channelMutation.mutate({ channel: 'GUEST' })}
+              style={{ marginTop: 14 }}
+            />
+
+            <View style={{ height: 1, backgroundColor: riderColors.line, marginVertical: 16 }} />
+            <Text style={{ color: riderColors.ink, fontSize: 14, fontWeight: '900' }}>RiderGuy Trained In-House Rider</Text>
+            <TextInput
+              value={invitationCode}
+              onChangeText={(value) => { setInvitationCode(value.toUpperCase()); setChannelError(''); }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="Enter your RiderGuy invitation code"
+              placeholderTextColor={riderColors.soft}
+              style={{
+                marginTop: 10,
+                borderWidth: 1,
+                borderColor: channelError ? '#DC2626' : riderColors.line,
+                borderRadius: 14,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                color: riderColors.ink,
+                fontWeight: '800',
+                backgroundColor: riderColors.white,
+              }}
+            />
+            {channelError ? <Text style={{ color: '#B91C1C', fontSize: 12, lineHeight: 17, marginTop: 7 }}>{channelError}</Text> : null}
+            <RiderButton
+              label="Verify In-House Invitation"
+              icon="shield-checkmark-outline"
+              variant="dark"
+              loading={channelMutation.isPending && channelMutation.variables?.channel === 'IN_HOUSE'}
+              disabled={channelMutation.isPending || invitationCode.trim().length < 8}
+              onPress={() => channelMutation.mutate({ channel: 'IN_HOUSE', code: invitationCode })}
+              style={{ marginTop: 10 }}
+            />
+          </RiderCard>
+        ) : null}
+
         <RiderCard dark style={{ marginBottom: 14 }}>
           <Text style={{ color: '#9fb0c4', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' }}>Activation progress</Text>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8, marginBottom: 12 }}>
@@ -91,7 +168,7 @@ export default function OnboardingIndexScreen() {
 
         <View style={{ gap: 10 }}>
           {steps.map((step: any, index: number) => {
-            const disabled = !ROUTE_BY_STEP[step.key];
+            const disabled = !(ROUTE_BY_STEP[step.key] || step.key.startsWith('training_'));
             const current = step.status === 'current';
             const completed = step.status === 'completed';
             return (

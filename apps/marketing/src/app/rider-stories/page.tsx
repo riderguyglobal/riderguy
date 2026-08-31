@@ -21,7 +21,11 @@ async function getSpotlights() {
   const timeout = setTimeout(() => controller.abort(), 3000);
 
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ??
+      (process.env.NODE_ENV === 'production'
+        ? 'https://api.myriderguy.com/api/v1'
+        : 'http://localhost:4000/api/v1');
     const res = await fetch(`${apiUrl}/rider-identity/spotlights?limit=12`, {
       next: { revalidate: 3600 },
       signal: controller.signal,

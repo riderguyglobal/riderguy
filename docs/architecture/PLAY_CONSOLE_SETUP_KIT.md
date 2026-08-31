@@ -1,6 +1,6 @@
 # RiderGuy Play Console Setup Kit
 
-Last updated: 2026-06-03
+Last updated: 2026-08-31
 
 This is a fill-in-the-console kit. Everything Google asks for in Play Console is pre-written below for both apps. Where a field can only be set in the Play Console UI (no public API), copy the text from here. Items already pushed automatically via the Android Publisher API are marked **[API-pushed]**.
 
@@ -300,8 +300,10 @@ Play Console → App content → Foreground service permissions → `FOREGROUND_
 ## 13. Release & signing notes
 
 - Both apps are signed by the upload key (`upload-key.jks`, alias `upload`) and use **Play App Signing**.
-- After the first release, copy the **Play App Signing SHA-256** from Play Console → Setup → App signing, and register it with: Google Maps Android keys, Firebase Android apps, Google OAuth (if used), and `assetlinks.json` for `riderguy.com`, `www.riderguy.com`, `app.myriderguy.com`.
-- Current internal-track builds: client `versionCode 2`, rider `versionCode 4` (auto-incremented by EAS).
+- The **Play App Signing SHA-256** certificates from Play Console are checked into `apps/marketing/public/.well-known/assetlinks.json`: the client package verifies `app.myriderguy.com`, and the rider package verifies `rider.myriderguy.com`. Deploy the marketing/nginx changes and also register these certificates with Google Maps, Firebase, and Google OAuth where used.
+- Current workflow: `play-internal` builds the Play Internal Testing AAB; `preview` builds the directly installable QA APK; EAS `internal` submits only to Play's internal track.
+- Version codes are remote and auto-incremented. Query EAS and Play before every build; never rely on a number recorded in documentation or assume a draft version code is reusable.
+- No EAS production build or submit profile exists in this repo.
 
 ---
 
@@ -318,5 +320,7 @@ Play Console → App content → Foreground service permissions → `FOREGROUND_
 - [ ] Background location declaration + demo video (Rider, Section 10)
 - [ ] Foreground service declaration + demo video (Rider, Section 11)
 - [ ] Account deletion URL set → `https://myriderguy.com/delete-account`
-- [ ] Promote internal → closed/production when ready
+- [ ] Upload the inspected `play-internal` AAB to Internal Testing only
+- [ ] Share the Play tester link and separate `preview` APK link for QA
+- [ ] Leave closed testing and production unchanged pending separate explicit approval
 ```

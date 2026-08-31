@@ -44,6 +44,7 @@ export class PaystackService {
   async initializeTransaction(params: {
     email: string;
     amount: number; // in pesewas (1 GHS = 100 pesewas)
+    currency: string;
     reference: string;
     callbackUrl?: string;
     metadata?: Record<string, unknown>;
@@ -57,6 +58,7 @@ export class PaystackService {
       const { data } = await this.client.post('/transaction/initialize', {
         email: params.email,
         amount: params.amount,
+        currency: params.currency,
         reference: params.reference,
         callback_url: params.callbackUrl,
         metadata: params.metadata,
@@ -165,7 +167,7 @@ export class PaystackService {
    * Must be done before initiating a transfer.
    */
   async createTransferRecipient(params: {
-    type: 'nuban' | 'mobile_money' | 'basa';
+    type: 'nuban' | 'ghipss' | 'mobile_money' | 'basa';
     name: string;
     accountNumber: string;
     bankCode: string;

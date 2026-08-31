@@ -55,6 +55,7 @@ describe('PaystackService', () => {
       const result = await service.initializeTransaction({
         email: 'test@riderguy.com',
         amount: 5000,
+        currency: 'GHS',
         reference: 'ORD_test_ref',
         callbackUrl: 'https://riderguy.com/callback',
         metadata: { orderId: 'order-1' },
@@ -68,6 +69,7 @@ describe('PaystackService', () => {
       expect(mockPost).toHaveBeenCalledWith('/transaction/initialize', {
         email: 'test@riderguy.com',
         amount: 5000,
+        currency: 'GHS',
         reference: 'ORD_test_ref',
         callback_url: 'https://riderguy.com/callback',
         metadata: { orderId: 'order-1' },
@@ -82,6 +84,7 @@ describe('PaystackService', () => {
         service.initializeTransaction({
           email: 'test@riderguy.com',
           amount: 5000,
+          currency: 'GHS',
           reference: 'REF_123',
         }),
       ).rejects.toThrow('Payment initialisation failed');

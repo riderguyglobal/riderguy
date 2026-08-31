@@ -5,9 +5,14 @@ import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { StatusCodes } from 'http-status-codes';
 import { prisma } from '@riderguy/database';
-import { parseGoogleMapsUrl, parseRawCoordinates, isGoogleMapsShortLink, formatPlusCode } from '@riderguy/utils';
+import { parseGoogleMapsUrl, isGoogleMapsShortLink, formatPlusCode } from '@riderguy/utils';
 import axios from 'axios';
 import { reverseGeocode } from '../../services/geocoding.service';
+import {
+  GHANA_ORDER_BOUNDS,
+  ghanaOrderLatitudeSchema,
+  ghanaOrderLongitudeSchema,
+} from '@riderguy/validators';
 
 // ============================================================
 // Community Places — user-contributed locations that grow the
@@ -36,22 +41,33 @@ const createFromLinkSchema = z.object({
 });
 
 const createFromPinSchema = z.object({
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
+  latitude: ghanaOrderLatitudeSchema,
+  longitude: ghanaOrderLongitudeSchema,
   name: z.string().min(1).max(200).optional(),
   category: z.string().max(100).optional(),
 });
 
 const searchSchema = z.object({
   q: z.string().min(1).max(200),
-  lat: z.coerce.number().min(-90).max(90).optional(),
-  lng: z.coerce.number().min(-180).max(180).optional(),
+  lat: z.coerce.number().pipe(ghanaOrderLatitudeSchema).optional(),
+  lng: z.coerce.number().pipe(ghanaOrderLongitudeSchema).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
 
+const ghanaCoordinatesSchema = z.object({
+  latitude: ghanaOrderLatitudeSchema,
+  longitude: ghanaOrderLongitudeSchema,
+});
+
+function assertGhanaCoordinates(latitude: number, longitude: number): void {
+  if (!ghanaCoordinatesSchema.safeParse({ latitude, longitude }).success) {
+    throw ApiError.badRequest('Location must be within Ghana');
+  }
+}
+
 const nearbySchema = z.object({
-  lat: z.coerce.number().min(-90).max(90),
-  lng: z.coerce.number().min(-180).max(180),
+  lat: z.coerce.number().pipe(ghanaOrderLatitudeSchema),
+  lng: z.coerce.number().pipe(ghanaOrderLongitudeSchema),
   radius: z.coerce.number().min(0.1).max(50).default(5), // km
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
@@ -79,6 +95,7 @@ router.get(
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       throw ApiError.badRequest('Valid latitude and longitude query parameters are required');
     }
+    assertGhanaCoordinates(latitude, longitude);
 
     const result = await reverseGeocode(latitude, longitude);
     res.status(StatusCodes.OK).json({ success: true, data: result });
@@ -115,6 +132,7 @@ router.post(
       });
       return;
     }
+    assertGhanaCoordinates(parsed.latitude, parsed.longitude);
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -155,6 +173,7 @@ router.post(
     }
 
     const { latitude, longitude, placeName } = parsed;
+    assertGhanaCoordinates(latitude, longitude);
 
     // Check for existing place within ~200m
     const existing = await findNearbyExisting(latitude, longitude);
@@ -265,6 +284,14 @@ router.get(
 
     const places = await prisma.communityPlace.findMany({
       where: {
+        latitude: {
+          gte: GHANA_ORDER_BOUNDS.minLatitude,
+          lte: GHANA_ORDER_BOUNDS.maxLatitude,
+        },
+        longitude: {
+          gte: GHANA_ORDER_BOUNDS.minLongitude,
+          lte: GHANA_ORDER_BOUNDS.maxLongitude,
+        },
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
           { address: { contains: q, mode: 'insensitive' } },
@@ -310,8 +337,14 @@ router.get(
 
     const places = await prisma.communityPlace.findMany({
       where: {
-        latitude: { gte: lat - latDelta, lte: lat + latDelta },
-        longitude: { gte: lng - lngDelta, lte: lng + lngDelta },
+        latitude: {
+          gte: Math.max(lat - latDelta, GHANA_ORDER_BOUNDS.minLatitude),
+          lte: Math.min(lat + latDelta, GHANA_ORDER_BOUNDS.maxLatitude),
+        },
+        longitude: {
+          gte: Math.max(lng - lngDelta, GHANA_ORDER_BOUNDS.minLongitude),
+          lte: Math.min(lng + lngDelta, GHANA_ORDER_BOUNDS.maxLongitude),
+        },
       },
       orderBy: { usageCount: 'desc' },
       take: limit,

@@ -182,11 +182,12 @@ import {
   cancelOrderByRider,
   rateOrder,
   getAvailableJobs,
+  listOrders,
 } from './order.service';
 import { prisma } from '@riderguy/database';
 import { creditWallet, creditTip } from './wallet.service';
 import { awardXp } from './gamification.service';
-import { enqueueCommissionJob, enqueueReceiptJob } from '../jobs/queues';
+import { enqueueReceiptJob } from '../jobs/queues';
 
 // ── Test Data ──
 
@@ -213,6 +214,7 @@ function mockOrder(overrides: Record<string, unknown> = {}) {
     estimatedDurationMinutes: 18,
     paymentMethod: 'MOBILE_MONEY',
     paymentStatus: 'COMPLETED',
+    actualPaymentMethod: null,
     deliveryPinCode: '4829',
     riderPaymentConfirmed: false,
     proofOfDeliveryType: null,
@@ -238,6 +240,8 @@ function mockRiderProfile(overrides: Record<string, unknown> = {}) {
     userId: 'rider-user-1',
     availability: 'ONLINE',
     onboardingStatus: 'ACTIVATED',
+    isVerified: true,
+    user: { status: 'ACTIVE' },
     totalDeliveries: 50,
     averageRating: 4.8,
     totalRatings: 45,
@@ -526,12 +530,16 @@ describe('OrderService', () => {
     });
 
     it('should block DELIVERED until payment is confirmed and proof is saved', async () => {
-      const order = mockOrder({ status: 'AT_DROPOFF', riderId: 'rider-1' });
+      const order = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        paymentStatus: 'PENDING',
+      });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
       await expect(
         transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
-      ).rejects.toThrow('Payment must be confirmed');
+      ).rejects.toThrow('Electronic payment must be verified');
 
       asMock(prisma.order.findUnique).mockResolvedValueOnce(
         mockOrder({
@@ -544,6 +552,97 @@ describe('OrderService', () => {
       await expect(
         transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
       ).rejects.toThrow('Proof of delivery is required');
+    });
+
+    it.each(['CARD', 'MOBILE_MONEY', 'WALLET', 'BANK_TRANSFER'] as const)(
+      'does not let rider confirmation close an unverified %s order',
+      async (paymentMethod) => {
+        asMock(prisma.order.findUnique).mockResolvedValue(
+          mockOrder({
+            status: 'AT_DROPOFF',
+            riderId: 'rider-1',
+            paymentMethod,
+            paymentStatus: 'PENDING',
+            riderPaymentConfirmed: true,
+            actualPaymentMethod: paymentMethod,
+            proofOfDeliveryType: 'PIN_CODE',
+            proofOfDeliveryUrl: 'pin:4829',
+          }),
+        );
+
+        await expect(
+          transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
+        ).rejects.toThrow('Electronic payment must be verified');
+
+        expect(prisma.order.updateMany).not.toHaveBeenCalled();
+        expect(creditWallet).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not credit a rider when a wallet order cannot be debited', async () => {
+      asMock(prisma.order.findUnique).mockResolvedValue(
+        mockOrder({
+          status: 'AT_DROPOFF',
+          riderId: 'rider-1',
+          paymentMethod: 'WALLET',
+          paymentStatus: 'PENDING',
+          riderPaymentConfirmed: true,
+          actualPaymentMethod: 'WALLET',
+          proofOfDeliveryType: 'PIN_CODE',
+          proofOfDeliveryUrl: 'pin:4829',
+        }),
+      );
+      asMock(prisma.$transaction).mockResolvedValue(null);
+
+      await expect(
+        transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
+      ).rejects.toThrow('Electronic payment must be verified');
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(creditWallet).not.toHaveBeenCalled();
+    });
+
+    it('allows the cash happy path after the assigned rider confirms collection', async () => {
+      const cashOrder = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        paymentMethod: 'CASH',
+        paymentStatus: 'PENDING',
+        riderPaymentConfirmed: true,
+        actualPaymentMethod: 'CASH',
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:4829',
+      });
+      const deliveredCashOrder = mockOrder({
+        ...cashOrder,
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+      });
+      const rider = mockRiderProfile({ currentLevel: 1 });
+
+      asMock(prisma.order.findUnique).mockResolvedValue(cashOrder);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(deliveredCashOrder);
+      asMock(prisma.order.update).mockResolvedValue({
+        ...deliveredCashOrder,
+        paymentStatus: 'COMPLETED',
+      });
+      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
+      asMock(prisma.orderStatusHistory.findMany).mockResolvedValue([]);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
+      asMock(prisma.riderProfile.update).mockResolvedValue(rider);
+      asMock(prisma.clientProfile.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.locationHistory.findFirst).mockResolvedValue(null);
+
+      const result = await transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1');
+
+      expect(result.status).toBe('DELIVERED');
+      expect(result.paymentStatus).toBe('COMPLETED');
+      expect(prisma.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-1' },
+        data: { paymentStatus: 'COMPLETED' },
+      });
+      expect(creditWallet).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -763,6 +862,44 @@ describe('OrderService', () => {
   // ────────────────────────────────────────────────────────────
   // 8. AVAILABLE JOBS — rider sees pending orders
   // ────────────────────────────────────────────────────────────
+  describe('Order list authorization', () => {
+    it('scopes a Client + Rider account to both of its ownership identities', async () => {
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue({ id: 'rider-profile-1' });
+      asMock(prisma.order.findMany).mockResolvedValue([]);
+      asMock(prisma.order.count).mockResolvedValue(0);
+
+      await listOrders('user-1', ['CLIENT', 'RIDER'], {});
+
+      const expectedWhere = {
+        OR: [{ clientId: 'user-1' }, { riderId: 'rider-profile-1' }],
+      };
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(prisma.order.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('never falls through to an unscoped list for an unsupported role', async () => {
+      await expect(listOrders('partner-1', ['PARTNER'], {}))
+        .rejects.toThrow('You do not have permission to list orders');
+
+      expect(prisma.order.findMany).not.toHaveBeenCalled();
+      expect(prisma.order.count).not.toHaveBeenCalled();
+    });
+
+    it('allows an explicit admin membership to list all orders', async () => {
+      asMock(prisma.order.findMany).mockResolvedValue([]);
+      asMock(prisma.order.count).mockResolvedValue(0);
+
+      await listOrders('admin-1', ['CLIENT', 'ADMIN'], {});
+
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+      expect(prisma.order.count).toHaveBeenCalledWith({ where: {} });
+    });
+  });
+
   describe('Available Jobs', () => {
     it('should return all pending orders for activated rider regardless of zone', async () => {
       const rider = mockRiderProfile();

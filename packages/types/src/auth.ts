@@ -34,6 +34,7 @@ export interface RegisterInput {
   email?: string;
   password?: string;
   role: UserRole;
+  riderChannel?: 'GUEST' | 'IN_HOUSE';
   referralCode?: string;
   otpCode: string;
 }

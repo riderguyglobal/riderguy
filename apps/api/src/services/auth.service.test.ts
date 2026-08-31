@@ -15,6 +15,10 @@ vi.mock('../config', () => ({
       accessExpiresIn: '15m',
       refreshExpiresIn: '30d',
     },
+    google: {
+      clientId: 'legacy-google-client',
+      clientIds: ['rider-google-client', 'client-google-client'],
+    },
   },
 }));
 
@@ -102,15 +106,24 @@ vi.mock('@simplewebauthn/server', () => ({
   verifyAuthenticationResponse: vi.fn(),
 }));
 
+const googleAuthMocks = vi.hoisted(() => ({ verifyIdToken: vi.fn() }));
+vi.mock('google-auth-library', () => ({
+  OAuth2Client: class {
+    verifyIdToken(options: unknown) {
+      return googleAuthMocks.verifyIdToken(options);
+    }
+  },
+}));
+
 // ── Import AFTER mocks ──
 import { AuthService } from './auth.service';
 import { prisma } from '@riderguy/database';
 import { SmsService } from './sms.service';
 import { EmailService } from './email.service';
+import { config } from '../config';
 
 // ── Test Data ──
 const RIDER_PHONE = '+233241234567';
-const CLIENT_PHONE = '+233501234567';
 const TEST_EMAIL = 'test@riderguy.com';
 const TEST_OTP = '123456';
 const TEST_PIN = '1234';
@@ -201,6 +214,7 @@ function expectLoginEmailConfirmation(result: { requiresEmailConfirmation?: bool
 describe('AuthService', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllGlobals();
     asMock(SmsService.sendOtp).mockResolvedValue({ success: true });
     asMock(SmsService.sendWelcome).mockResolvedValue({ success: true });
     asMock(SmsService.sendNewJobAvailable).mockResolvedValue({ success: true });
@@ -251,6 +265,28 @@ describe('AuthService', () => {
       const result = await AuthService.createOtp(RIDER_PHONE, 'LOGIN');
 
       expect(result).toEqual(otp);
+    });
+
+    it('fails closed and invalidates an OTP that cannot be delivered in production', async () => {
+      const otp = mockOtp();
+      asMock(prisma.otp.create).mockResolvedValue(otp);
+      asMock(prisma.otp.updateMany).mockResolvedValue({ count: 0 });
+      asMock(prisma.otp.update).mockResolvedValue({ ...otp, verified: true });
+      asMock(SmsService.sendOtp).mockResolvedValue(false);
+      (config as { isProduction: boolean }).isProduction = true;
+
+      try {
+        await expect(
+          AuthService.createOtp(RIDER_PHONE, 'REGISTRATION'),
+        ).rejects.toThrow('Unable to send the verification code');
+
+        expect(prisma.otp.update).toHaveBeenCalledWith({
+          where: { id: otp.id },
+          data: { verified: true },
+        });
+      } finally {
+        (config as { isProduction: boolean }).isProduction = false;
+      }
     });
 
     it('should verify a valid OTP code', async () => {
@@ -338,6 +374,7 @@ describe('AuthService', () => {
         email: TEST_EMAIL,
         pin: TEST_PIN,
         role: 'RIDER' as any,
+        riderChannel: 'IN_HOUSE',
       });
 
       expect(result.user.id).toBe('user-1');
@@ -346,7 +383,16 @@ describe('AuthService', () => {
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
       // Should have created rider profile
-      expect(prisma.riderProfile.create).toHaveBeenCalled();
+      expect(prisma.riderProfile.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: user.id,
+          riderChannel: null,
+          requestedRiderChannel: 'IN_HOUSE',
+          onboardingStatus: 'REGISTERED',
+          isVerified: false,
+          referralCode: expect.stringMatching(/^RGR-[A-F0-9]{10}$/),
+        }),
+      });
       // Should have created wallet
       expect(prisma.wallet.create).toHaveBeenCalled();
     });
@@ -362,6 +408,59 @@ describe('AuthService', () => {
           role: 'RIDER' as any,
         }),
       ).rejects.toThrow('Phone number not verified');
+    });
+
+    it('should reject an unknown Rider referral code instead of silently ignoring it', async () => {
+      const user = mockUser();
+      asMock(prisma.otp.findFirst).mockResolvedValue(mockOtp({ verified: true, createdAt: new Date() }));
+      asMock(prisma.user.findUnique).mockResolvedValue(null);
+      asMock(prisma.user.create).mockResolvedValue(user);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(null);
+      asMock(prisma.partnerProfile.findUnique).mockResolvedValue(null);
+      asMock(prisma.user.delete).mockResolvedValue(user);
+
+      await expect(AuthService.register({
+        phone: RIDER_PHONE,
+        firstName: 'Kwame',
+        lastName: 'Mensah',
+        role: 'RIDER' as any,
+        riderChannel: 'GUEST',
+        referralCode: 'NOT-A-REAL-CODE',
+      })).rejects.toThrow('Referral code is invalid or is not active');
+
+      expect(prisma.riderProfile.create).not.toHaveBeenCalled();
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: user.id } });
+    });
+
+    it('should attribute a valid active Partner referral to the new Rider profile', async () => {
+      const user = mockUser();
+      const session = mockSession();
+      asMock(prisma.otp.findFirst).mockResolvedValue(mockOtp({ verified: true, createdAt: new Date() }));
+      asMock(prisma.user.findUnique).mockResolvedValue(null);
+      asMock(prisma.user.create).mockResolvedValue(user);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(null);
+      asMock(prisma.partnerProfile.findUnique).mockResolvedValue({ id: 'partner-1', isActive: true });
+      asMock(prisma.riderProfile.create).mockResolvedValue({ id: 'rp-1', userId: user.id });
+      asMock(prisma.wallet.create).mockResolvedValue({ id: 'wallet-1' });
+      asMock(prisma.session.create).mockResolvedValue(session);
+      asMock(prisma.session.update).mockResolvedValue(session);
+      asMock(prisma.otp.deleteMany).mockResolvedValue({ count: 1 });
+
+      await AuthService.register({
+        phone: RIDER_PHONE,
+        firstName: 'Kwame',
+        lastName: 'Mensah',
+        role: 'RIDER' as any,
+        riderChannel: 'GUEST',
+        referralCode: 'rg-partner',
+      });
+
+      expect(prisma.partnerProfile.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+        where: { referralCode: 'RG-PARTNER' },
+      }));
+      expect(prisma.riderProfile.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ referredByPartnerId: 'partner-1' }),
+      });
     });
 
     it('should reject registration with expired OTP verification', async () => {
@@ -501,6 +600,138 @@ describe('AuthService', () => {
         }),
       });
       expect(prisma.clientProfile.create).toHaveBeenCalledWith({ data: { userId: user.id } });
+    });
+  });
+
+  describe('Google OAuth audience enforcement', () => {
+    it('rejects roles that cannot be self-assigned through native Google Sign-In', async () => {
+      await expect(AuthService.authenticateWithGoogle('header.payload.signature', 'PARTNER' as any))
+        .rejects.toThrow('Google Sign-In supports only Client or Rider accounts');
+
+      expect(googleAuthMocks.verifyIdToken).not.toHaveBeenCalled();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('passes the complete configured audience allowlist when verifying a native ID token', async () => {
+      googleAuthMocks.verifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: TEST_EMAIL, email_verified: true, given_name: 'Kwame', family_name: 'Mensah' }),
+      });
+      const user = mockUser({ emailVerified: true });
+      const profile = { id: 'rp-1', userId: user.id, onboardingStatus: 'DOCUMENTS_PENDING', riderChannel: 'GUEST' };
+      asMock(prisma.user.findUnique).mockResolvedValue(user);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(profile);
+      asMock(prisma.session.create).mockResolvedValue(mockSession());
+      asMock(prisma.session.update).mockResolvedValue(mockSession());
+
+      await AuthService.authenticateWithGoogle('header.payload.signature', 'RIDER' as any);
+
+      expect(googleAuthMocks.verifyIdToken).toHaveBeenCalledWith({
+        idToken: 'header.payload.signature',
+        audience: ['rider-google-client', 'client-google-client'],
+      });
+    });
+
+    it('rejects a native ID token when Google audience verification fails', async () => {
+      googleAuthMocks.verifyIdToken.mockRejectedValue(new Error('wrong audience'));
+
+      await expect(AuthService.authenticateWithGoogle('header.payload.signature', 'RIDER' as any))
+        .rejects.toThrow('Invalid Google credential');
+
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.session.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a legacy access token only when tokeninfo reports an allowed audience', async () => {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ aud: 'rider-google-client' }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ email: TEST_EMAIL, given_name: 'Kwame', family_name: 'Mensah', email_verified: true }),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+      const user = mockUser({ emailVerified: true });
+      const profile = { id: 'rp-1', userId: user.id, onboardingStatus: 'DOCUMENTS_PENDING', riderChannel: 'GUEST' };
+      asMock(prisma.user.findUnique).mockResolvedValue(user);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(profile);
+      asMock(prisma.session.create).mockResolvedValue(mockSession());
+      asMock(prisma.session.update).mockResolvedValue(mockSession());
+
+      const result = await AuthService.authenticateWithGoogle('opaque-access-token', 'RIDER' as any);
+
+      expect(result.user.id).toBe(user.id);
+      expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining('oauth2.googleapis.com/tokeninfo'));
+      expect(fetchMock).toHaveBeenNthCalledWith(2, 'https://www.googleapis.com/oauth2/v3/userinfo', expect.any(Object));
+    });
+
+    it('rejects an access token issued to an OAuth client outside the allowlist', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ aud: 'attacker-google-client' }),
+      }));
+
+      await expect(AuthService.authenticateWithGoogle('opaque-access-token', 'RIDER' as any))
+        .rejects.toThrow('Invalid Google credential');
+
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('rejects a Google account whose email is not verified', async () => {
+      vi.stubGlobal('fetch', vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ aud: 'rider-google-client' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ email: TEST_EMAIL, email_verified: false }) }));
+
+      await expect(AuthService.authenticateWithGoogle('opaque-access-token', 'RIDER' as any))
+        .rejects.toThrow('Google account email is not verified');
+
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.session.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a suspended existing user before creating a Google session', async () => {
+      vi.stubGlobal('fetch', vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ aud: 'rider-google-client' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ email: TEST_EMAIL, email_verified: true }) }));
+      asMock(prisma.user.findUnique).mockResolvedValue(mockUser({ status: 'SUSPENDED' }));
+
+      await expect(AuthService.authenticateWithGoogle('opaque-access-token', 'RIDER' as any))
+        .rejects.toThrow('Your account is not active');
+
+      expect(prisma.session.create).not.toHaveBeenCalled();
+    });
+
+    it('normalizes Google email but refuses to auto-link an existing unverified account', async () => {
+      googleAuthMocks.verifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: '  Test@RiderGuy.Com ',
+          email_verified: true,
+          given_name: 'Kwame',
+          family_name: 'Mensah',
+        }),
+      });
+      const user = mockUser({ emailVerified: false });
+      asMock(prisma.user.findUnique).mockResolvedValue(user);
+
+      await expect(AuthService.authenticateWithGoogle('header.payload.signature', 'RIDER' as any))
+        .rejects.toMatchObject({ code: 'GOOGLE_ACCOUNT_LINK_REQUIRED' });
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: TEST_EMAIL } });
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.session.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a soft-deleted account before creating a Google session', async () => {
+      googleAuthMocks.verifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: TEST_EMAIL, email_verified: true }),
+      });
+      asMock(prisma.user.findUnique).mockResolvedValue(mockUser({
+        emailVerified: true,
+        deletedAt: new Date(),
+      }));
+
+      await expect(AuthService.authenticateWithGoogle('header.payload.signature', 'RIDER' as any))
+        .rejects.toThrow('Your account is not active');
+
+      expect(prisma.session.create).not.toHaveBeenCalled();
     });
   });
 
@@ -733,7 +964,12 @@ describe('AuthService', () => {
           token: expect.any(String),
         }),
       });
-      expect(EmailService.sendPasswordReset).toHaveBeenCalledWith(TEST_EMAIL, user.firstName, expect.any(String));
+      expect(EmailService.sendPasswordReset).toHaveBeenCalledWith(
+        TEST_EMAIL,
+        user.firstName,
+        expect.any(String),
+        'RIDER',
+      );
     });
   });
 

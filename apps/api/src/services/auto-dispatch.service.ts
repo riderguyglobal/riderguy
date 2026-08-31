@@ -19,9 +19,10 @@ import { prisma } from '@riderguy/database';
 import { haversineDistance } from '@riderguy/utils';
 import { logger } from '../lib/logger';
 import { assignRider } from './dispatch.service';
-import { getIO, emitOrderStatusUpdate } from '../socket';
+import { getIO } from '../socket';
 import { getRedisClient } from '../lib/redis';
 import type { JobOffer } from '@riderguy/types';
+import { riderWorkEligibilityWhere } from './rider-work-eligibility';
 
 // ── Configuration ──
 
@@ -367,8 +368,7 @@ export async function autoDispatch(orderId: string): Promise<void> {
   const riders = await prisma.riderProfile.findMany({
     where: {
       availability: 'ONLINE',
-      // Bypass onboarding check only when BYPASS_ONBOARDING_CHECK=true (for testing)
-      ...(process.env.BYPASS_ONBOARDING_CHECK !== 'true' ? { onboardingStatus: 'ACTIVATED' } : {}),
+      ...riderWorkEligibilityWhere(),
       // Exclude suspended riders
       OR: [{ suspendedUntil: null }, { suspendedUntil: { lt: new Date() } }],
       // Bounding box: only fetch riders roughly within max radius

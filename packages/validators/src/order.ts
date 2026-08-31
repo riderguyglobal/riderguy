@@ -1,5 +1,22 @@
 import { z } from 'zod';
-import { latitudeSchema, longitudeSchema, requiredStringSchema } from './common';
+import { latitudeSchema, longitudeSchema, phoneSchema, requiredStringSchema } from './common';
+
+// Operational launch boundary. Keep these order-specific so global GPS features
+// (for example rider location updates) retain their generic coordinate schemas.
+export const GHANA_ORDER_BOUNDS = {
+  minLatitude: 4.5,
+  maxLatitude: 11.5,
+  minLongitude: -3.5,
+  maxLongitude: 1.5,
+} as const;
+
+export const ghanaOrderLatitudeSchema = latitudeSchema
+  .min(GHANA_ORDER_BOUNDS.minLatitude, 'Location must be within Ghana')
+  .max(GHANA_ORDER_BOUNDS.maxLatitude, 'Location must be within Ghana');
+
+export const ghanaOrderLongitudeSchema = longitudeSchema
+  .min(GHANA_ORDER_BOUNDS.minLongitude, 'Location must be within Ghana')
+  .max(GHANA_ORDER_BOUNDS.maxLongitude, 'Location must be within Ghana');
 
 // ── Enums shared with Prisma ──
 const stopType = z.enum(['PICKUP', 'DROPOFF']);
@@ -21,10 +38,10 @@ const stopSchema = z.object({
   type: stopType,
   sequence: z.number().int().min(0),
   address: requiredStringSchema.max(500),
-  latitude: latitudeSchema,
-  longitude: longitudeSchema,
+  latitude: ghanaOrderLatitudeSchema,
+  longitude: ghanaOrderLongitudeSchema,
   contactName: z.string().max(100).optional(),
-  contactPhone: z.string().max(20).optional(),
+  contactPhone: phoneSchema.optional(),
   instructions: z.string().max(500).optional(),
   packageType: packageTypeEnum.optional(),
   packageDescription: z.string().max(500).optional(),
@@ -33,18 +50,18 @@ const stopSchema = z.object({
 export const createOrderSchema = z.object({
   // Primary pickup (always required — first stop)
   pickupAddress: requiredStringSchema.max(500),
-  pickupLatitude: latitudeSchema,
-  pickupLongitude: longitudeSchema,
+  pickupLatitude: ghanaOrderLatitudeSchema,
+  pickupLongitude: ghanaOrderLongitudeSchema,
   pickupContactName: z.string().max(100).optional(),
-  pickupContactPhone: z.string().max(20).optional(),
+  pickupContactPhone: phoneSchema.optional(),
   pickupInstructions: z.string().max(500).optional(),
 
   // Primary dropoff (always required — last stop)
   dropoffAddress: requiredStringSchema.max(500),
-  dropoffLatitude: latitudeSchema,
-  dropoffLongitude: longitudeSchema,
+  dropoffLatitude: ghanaOrderLatitudeSchema,
+  dropoffLongitude: ghanaOrderLongitudeSchema,
   dropoffContactName: z.string().max(100).optional(),
-  dropoffContactPhone: z.string().max(20).optional(),
+  dropoffContactPhone: phoneSchema.optional(),
   dropoffInstructions: z.string().max(500).optional(),
 
   // Package
@@ -132,10 +149,10 @@ export const createOrderSchema = z.object({
 );
 
 export const priceEstimateSchema = z.object({
-  pickupLatitude: latitudeSchema,
-  pickupLongitude: longitudeSchema,
-  dropoffLatitude: latitudeSchema,
-  dropoffLongitude: longitudeSchema,
+  pickupLatitude: ghanaOrderLatitudeSchema,
+  pickupLongitude: ghanaOrderLongitudeSchema,
+  dropoffLatitude: ghanaOrderLatitudeSchema,
+  dropoffLongitude: ghanaOrderLongitudeSchema,
   packageType: packageTypeEnum,
   // Number of additional stops (simple count for quick estimates)
   additionalStops: z.number().int().min(0).max(10).optional(),
@@ -152,8 +169,8 @@ export const priceEstimateSchema = z.object({
   // Optional extra stops with coordinates for precise multi-stop pricing
   stops: z.array(z.object({
     type: stopType,
-    latitude: latitudeSchema,
-    longitude: longitudeSchema,
+    latitude: ghanaOrderLatitudeSchema,
+    longitude: ghanaOrderLongitudeSchema,
   })).max(10).optional(),
 });
 
@@ -181,17 +198,17 @@ export const createScheduledDeliverySchema = z.object({
 
   // Route template
   pickupAddress: requiredStringSchema.max(500),
-  pickupLatitude: latitudeSchema,
-  pickupLongitude: longitudeSchema,
+  pickupLatitude: ghanaOrderLatitudeSchema,
+  pickupLongitude: ghanaOrderLongitudeSchema,
   pickupContactName: z.string().max(100).optional(),
-  pickupContactPhone: z.string().max(20).optional(),
+  pickupContactPhone: phoneSchema.optional(),
   pickupInstructions: z.string().max(500).optional(),
 
   dropoffAddress: requiredStringSchema.max(500),
-  dropoffLatitude: latitudeSchema,
-  dropoffLongitude: longitudeSchema,
+  dropoffLatitude: ghanaOrderLatitudeSchema,
+  dropoffLongitude: ghanaOrderLongitudeSchema,
   dropoffContactName: z.string().max(100).optional(),
-  dropoffContactPhone: z.string().max(20).optional(),
+  dropoffContactPhone: phoneSchema.optional(),
   dropoffInstructions: z.string().max(500).optional(),
 
   // Multi-stop template for recurring multi-stop deliveries

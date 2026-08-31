@@ -10,9 +10,8 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   getAuthErrorMessage,
   isSixDigitCode,
@@ -23,7 +22,6 @@ import {
   registerWithPhone,
   requestOtp,
   setPin as setAuthPin,
-  signInWithGoogle,
   verifyOtp,
 } from '@riderguy/auth-native';
 import { IconButton, PinBoxes, ProgressBar, RiderButton, RiderCard, RiderTextField, SegmentedControl, StatusPill } from '@/components/rider-ui';
@@ -31,6 +29,7 @@ import { riderColors } from '@/lib/rider-design';
 
 type Method = 'phone' | 'email' | 'ghanacard';
 type PhoneStep = 'phone' | 'otp' | 'profile' | 'pin';
+type RiderChannel = 'GUEST' | 'IN_HOUSE';
 
 const SECURITY_QUESTIONS = [
   'What was the name of your first school?',
@@ -75,7 +74,7 @@ function OtpEntry({
 
 export default function RiderRegisterScreen() {
   const [method, setMethod] = useState<Method>('email');
-  const [showMoreMethods, setShowMoreMethods] = useState(false);
+  const [riderChannel, setRiderChannel] = useState<RiderChannel | null>(null);
   const [phoneStep, setPhoneStep] = useState<PhoneStep>('phone');
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -125,12 +124,13 @@ export default function RiderRegisterScreen() {
     if (method === 'phone' && phoneStep === 'otp') setPhoneStep('phone');
     else if (method === 'phone' && phoneStep === 'profile') setPhoneStep('otp');
     else if (method === 'phone' && phoneStep === 'pin') setPhoneStep('profile');
+    else if (riderChannel) setRiderChannel(null);
     else router.back();
   };
 
   const sendOtp = async () => {
     if (!normalizedPhone) {
-      Alert.alert('Phone required', 'Enter a valid phone number.');
+      Alert.alert('Ghana phone required', 'Enter a valid Ghana number starting with +233 or 0.');
       return;
     }
     setLoading(true);
@@ -161,6 +161,7 @@ export default function RiderRegisterScreen() {
   };
 
   const submitPhone = async () => {
+    if (!riderChannel) return;
     const optionalPasswordError = password || confirmPassword ? validatePassword(password, confirmPassword) : '';
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Name required', 'Enter your legal first and last name.');
@@ -189,6 +190,7 @@ export default function RiderRegisterScreen() {
         password: password || undefined,
         pin,
         role: 'RIDER',
+        riderChannel,
         referralCode: referralCode.trim() || undefined,
       });
       router.replace('/(app)/onboarding');
@@ -200,6 +202,7 @@ export default function RiderRegisterScreen() {
   };
 
   const submitEmail = async () => {
+    if (!riderChannel) return;
     const passwordError = validatePassword(password, confirmPassword);
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       Alert.alert('Details required', 'Enter your name and email.');
@@ -221,6 +224,7 @@ export default function RiderRegisterScreen() {
         email: email.trim().toLowerCase(),
         password,
         role: 'RIDER',
+        riderChannel,
         referralCode: referralCode.trim() || undefined,
       });
       await setAuthPin(pin);
@@ -233,6 +237,7 @@ export default function RiderRegisterScreen() {
   };
 
   const submitGhanaCard = async () => {
+    if (!riderChannel) return;
     const passwordError = validatePassword(ghanaPassword, confirmGhanaPassword);
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Name required', 'Enter your legal first and last name.');
@@ -258,6 +263,7 @@ export default function RiderRegisterScreen() {
         lastName: lastName.trim(),
         password: ghanaPassword,
         role: 'RIDER',
+        riderChannel,
         securityQuestion,
         securityAnswer: securityAnswer.trim(),
       });
@@ -265,24 +271,6 @@ export default function RiderRegisterScreen() {
       router.replace('/(app)/onboarding');
     } catch (error) {
       Alert.alert('Registration failed', getAuthErrorMessage(error, 'Could not create your rider account.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    const webClientId = Constants.expoConfig?.extra?.googleWebClientId as string | undefined;
-    if (!webClientId) {
-      Alert.alert('Google not configured', 'Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID for native Google sign-in.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const user = await signInWithGoogle('RIDER', webClientId);
-      if (!user) return; // user cancelled the picker
-      router.replace('/(app)/onboarding');
-    } catch (error) {
-      Alert.alert('Google sign-in failed', getAuthErrorMessage(error, 'Could not complete Google sign-in.'));
     } finally {
       setLoading(false);
     }
@@ -299,12 +287,48 @@ export default function RiderRegisterScreen() {
 
           <View style={{ marginBottom: 16 }}>
             <Text style={{ color: riderColors.greenDark, fontSize: 12, fontWeight: '900', textTransform: 'uppercase' }}>Create rider account</Text>
-            <Text style={{ color: riderColors.ink, fontSize: 30, lineHeight: 35, fontWeight: '900', marginTop: 7 }}>Built for the road from day one.</Text>
-            <Text style={{ color: riderColors.muted, fontSize: 14, lineHeight: 21, marginTop: 9 }}>Verify identity, secure your PIN, then move straight into rider onboarding.</Text>
+            <Text style={{ color: riderColors.ink, fontSize: 30, lineHeight: 35, fontWeight: '900', marginTop: 7 }}>
+              {riderChannel ? 'Create your rider profile.' : 'Choose your rider channel.'}
+            </Text>
+            <Text style={{ color: riderColors.muted, fontSize: 14, lineHeight: 21, marginTop: 9 }}>
+              {riderChannel
+                ? 'Verify your identity, secure your PIN, then continue through the correct onboarding path.'
+                : 'Tell us whether you ride independently or as a RiderGuy-trained in-house rider.'}
+            </Text>
           </View>
 
-          <RiderCard style={{ gap: 12, marginBottom: 14 }}>
-            {showMoreMethods ? (
+          {!riderChannel ? (
+            <View style={{ gap: 12 }}>
+              <RiderChannelCard
+                icon="bicycle"
+                title="3rd Party Rider (Guest)"
+                body="I ride independently and will submit my personal and vehicle documents."
+                onPress={() => setRiderChannel('GUEST')}
+              />
+              <RiderChannelCard
+                icon="shield-checkmark"
+                title="RiderGuy Trained In-House Rider"
+                body="RiderGuy enrolled me in its trained in-house rider programme."
+                onPress={() => setRiderChannel('IN_HOUSE')}
+              />
+            </View>
+          ) : (
+            <>
+              <RiderCard style={{ gap: 12, marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 42, height: 42, borderRadius: 15, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={riderChannel === 'IN_HOUSE' ? 'shield-checkmark' : 'bicycle'} size={21} color={riderColors.greenDark} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: riderColors.ink, fontSize: 14, fontWeight: '900' }}>
+                      {riderChannel === 'IN_HOUSE' ? 'RiderGuy Trained In-House Rider' : '3rd Party Rider (Guest)'}
+                    </Text>
+                    <Text style={{ color: riderColors.muted, fontSize: 11, marginTop: 3 }}>Choose how you want to create your account.</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setRiderChannel(null)}>
+                    <Text style={{ color: riderColors.greenDark, fontSize: 12, fontWeight: '900' }}>Change</Text>
+                  </TouchableOpacity>
+                </View>
               <SegmentedControl
                 value={method}
                 onChange={setMethod}
@@ -314,16 +338,9 @@ export default function RiderRegisterScreen() {
                   { label: 'Ghana', value: 'ghanacard' },
                 ]}
               />
-            ) : null}
-            <RiderButton label="Continue with Google" icon="logo-google" variant="dark" loading={loading} onPress={handleGoogle} />
-            {!showMoreMethods ? (
-              <TouchableOpacity onPress={() => setShowMoreMethods(true)} style={{ alignItems: 'center' }}>
-                <Text style={{ color: riderColors.muted, fontSize: 12, fontWeight: '800' }}>More sign-up options</Text>
-              </TouchableOpacity>
-            ) : null}
-          </RiderCard>
+              </RiderCard>
 
-          <RiderCard>
+              <RiderCard>
             {method === 'phone' ? (
               <>
                 <ProgressBar progress={phoneProgress} />
@@ -408,7 +425,9 @@ export default function RiderRegisterScreen() {
                 <RiderButton label="Create Ghana Card account" icon="card" loading={loading} disabled={!firstName.trim() || !lastName.trim() || !ghanaCard.trim() || !ghanaPassword || !confirmGhanaPassword || securityAnswer.trim().length < 2 || !isSixDigitCode(pin) || !isSixDigitCode(confirmPin)} onPress={submitGhanaCard} />
               </>
             ) : null}
-          </RiderCard>
+              </RiderCard>
+            </>
+          )}
 
           <View style={{ alignItems: 'center', marginTop: 22 }}>
             <Text style={{ color: riderColors.muted, fontSize: 13 }}>
@@ -419,5 +438,34 @@ export default function RiderRegisterScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function RiderChannelCard({
+  body,
+  icon,
+  onPress,
+  title,
+}: {
+  body: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  title: string;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.86} onPress={onPress}>
+      <RiderCard style={{ padding: 18 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ width: 54, height: 54, borderRadius: 19, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={icon} size={26} color={riderColors.greenDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>{title}</Text>
+            <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>{body}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={21} color={riderColors.soft} />
+        </View>
+      </RiderCard>
+    </TouchableOpacity>
   );
 }

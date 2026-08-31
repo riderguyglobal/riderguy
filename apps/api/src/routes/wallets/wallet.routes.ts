@@ -10,7 +10,10 @@ import type { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
 import { ApiError } from '../../lib/api-error';
 import { z } from 'zod';
 import { paystackService, PaystackService } from '../../services/paystack.service';
-import { creditWalletTopup } from '../../services/wallet-topup.service';
+import {
+  creditWalletTopup,
+  validateWalletTopupVerification,
+} from '../../services/wallet-topup.service';
 
 const router = Router();
 
@@ -110,6 +113,7 @@ router.post(
     const result = await paystackService.initializeTransaction({
       email: user?.email ?? `user-${userId}@myriderguy.com`,
       amount: Math.round(amount * 100),
+      currency: 'GHS',
       reference,
       callbackUrl: req.body.callbackUrl,
       channels: ['card', 'mobile_money', 'bank_transfer'],
@@ -150,21 +154,14 @@ router.get(
       return;
     }
 
-    const metadata = verification.metadata ?? {};
-    const metadataUserId = typeof metadata.userId === 'string' ? metadata.userId : undefined;
-    if (metadataUserId && metadataUserId !== req.user!.userId) {
-      throw ApiError.forbidden('This wallet top-up belongs to another user');
-    }
-
-    const metadataAmount = Number(metadata.amount);
-    if (Number.isFinite(metadataAmount) && metadataAmount > 0) {
-      const expectedPesewas = Math.round(metadataAmount * 100);
-      if (expectedPesewas !== verification.amount) {
-        throw ApiError.badRequest('Payment amount does not match wallet top-up');
-      }
-    }
-
-    const amount = verification.amount / 100;
+    const { amount } = validateWalletTopupVerification(
+      {
+        amount: verification.amount,
+        currency: verification.currency,
+        metadata: verification.metadata ?? {},
+      },
+      req.user!.userId,
+    );
     const credited = await creditWalletTopup({
       userId: req.user!.userId,
       amount,
@@ -196,6 +193,28 @@ router.post(
   validate(requestWithdrawalSchema),
   asyncHandler(async (req, res) => {
     const { amount, method, destination, destinationName, bankCode } = req.body;
+
+    const payoutType = method === 'MOBILE_MONEY' ? 'mobile_money' : 'ghipss';
+    const supportedProviders = await paystackService.listBanks({
+      currency: 'GHS',
+      type: payoutType,
+    });
+    const payoutProvider = supportedProviders.find(
+      (provider) =>
+        provider.currency.toUpperCase() === 'GHS' &&
+        provider.type.toLowerCase() === payoutType &&
+        provider.name.trim().toLowerCase() !== 'bank of ghana' &&
+        provider.code.toLowerCase() === bankCode.toLowerCase(),
+    );
+
+    if (!payoutProvider) {
+      throw ApiError.badRequest(
+        method === 'MOBILE_MONEY'
+          ? 'Select a supported Ghana Mobile Money network'
+          : 'Select a supported Ghana bank',
+        'INVALID_PAYOUT_PROVIDER',
+      );
+    }
 
     const wallet = await prisma.wallet.findUnique({
       where: { userId: req.user!.userId },
@@ -256,7 +275,7 @@ router.post(
             method: method as PrismaPaymentMethod,
             destination,
             destinationName,
-            bankCode,
+            bankCode: payoutProvider.code,
             status: 'PENDING',
           },
         });

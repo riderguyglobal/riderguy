@@ -1,4 +1,4 @@
-export { authenticate, requireRole, type AuthPayload } from './auth';
+export { authenticate, getAuthRoles, hasAnyRole, requireRole, type AuthPayload } from './auth';
 export { errorHandler } from './error-handler';
 export { validate } from './validate';
 export { globalRateLimit, authRateLimit, sensitiveRateLimit } from './rate-limit';

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Spinner } from '@riderguy/ui';
-import { useAuth } from '@riderguy/auth';
 import { getApiClient } from '@riderguy/auth';
 
 interface DashboardStats {

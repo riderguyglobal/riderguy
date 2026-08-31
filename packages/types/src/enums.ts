@@ -32,7 +32,14 @@ export enum RiderOnboardingStatus {
   DOCUMENTS_REJECTED = 'DOCUMENTS_REJECTED',
   TRAINING_PENDING = 'TRAINING_PENDING',
   TRAINING_COMPLETE = 'TRAINING_COMPLETE',
+  APPLICATION_REJECTED = 'APPLICATION_REJECTED',
   ACTIVATED = 'ACTIVATED',
+}
+
+/** How a rider joins and is managed by RiderGuy. */
+export enum RiderChannel {
+  GUEST = 'GUEST',
+  IN_HOUSE = 'IN_HOUSE',
 }
 
 /** Rider's real-time availability */

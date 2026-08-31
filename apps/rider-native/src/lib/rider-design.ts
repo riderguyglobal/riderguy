@@ -23,6 +23,14 @@ export const riderColors = {
   white: '#ffffff',
 };
 
+export const riderFonts = {
+  regular: 'Poppins_400Regular',
+  medium: 'Poppins_500Medium',
+  semibold: 'Poppins_600SemiBold',
+  bold: 'Poppins_700Bold',
+  extrabold: 'Poppins_800ExtraBold',
+} as const;
+
 export const riderShadow = {
   shadowColor: '#0A0F0D',
   shadowOffset: { width: 0, height: 10 },

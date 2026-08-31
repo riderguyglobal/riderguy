@@ -10,7 +10,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { useAuthStore, type AuthUser } from './auth-store';
-import { getApiClient, initApiClient } from './api-client';
+import { initApiClient } from './api-client';
 import { tokenStorage } from './token-storage';
 import {
   authenticateWithBiometric,

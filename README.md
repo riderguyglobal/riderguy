@@ -46,9 +46,25 @@ npm run type-check --workspace=@riderguy/client-native
 npm run type-check --workspace=@riderguy/rider-native
 ```
 
-Production Android bundles are built through each app's EAS `production`
-profile. Native apps call the public API; they are not hosted on the production
-server.
+The current Android release workflow is deliberately internal-only:
+
+```bash
+# Play Internal Testing artifact (.aab)
+eas build --platform android --profile play-internal --non-interactive
+
+# Directly installable QA artifact (.apk)
+eas build --platform android --profile preview --non-interactive
+```
+
+After verifying the package name, signature, target SDK, and version code of a
+downloaded AAB, submit that exact file with the EAS `internal` submit profile.
+The repo intentionally has no EAS production build or submit profile. Never use
+the preview APK as a Play release artifact, and never promote an internal build
+to closed testing or production without a separate, explicit release approval.
+EAS manages Android version codes remotely, so query EAS and Play immediately
+before every build instead of relying on a number written in documentation.
+
+Native apps call the public API; they are not hosted on the production server.
 
 ## Production reset
 

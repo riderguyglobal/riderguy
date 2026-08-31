@@ -3,7 +3,25 @@ import { tokenStorage } from './token-storage';
 
 let apiInstance: AxiosInstance | null = null;
 let isRefreshing = false;
-let refreshQueue: Array<(token: string) => void> = [];
+type RefreshQueueEntry = {
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+};
+
+let refreshQueue: RefreshQueueEntry[] = [];
+
+function settleRefreshQueue(error?: unknown, token?: string): void {
+  const queuedRequests = refreshQueue;
+  refreshQueue = [];
+
+  queuedRequests.forEach((entry) => {
+    if (error || !token) {
+      entry.reject(error ?? new Error('Token refresh did not return an access token.'));
+      return;
+    }
+    entry.resolve(token);
+  });
+}
 
 function normalizeBaseURL(baseURL: string): string {
   const trimmed = baseURL
@@ -61,10 +79,14 @@ export function initApiClient(baseURL: string): AxiosInstance {
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshQueue.push((newToken: string) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            resolve(apiInstance!(originalRequest));
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({
+            resolve: (newToken: string) => {
+              originalRequest.headers = originalRequest.headers ?? {};
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              resolve(apiInstance!(originalRequest));
+            },
+            reject,
           });
         });
       }
@@ -79,18 +101,21 @@ export function initApiClient(baseURL: string): AxiosInstance {
           refreshToken,
         });
 
-        const newAccessToken: string = data.data?.accessToken ?? data.accessToken;
+        const newAccessToken: unknown = data.data?.accessToken ?? data.accessToken;
+        if (typeof newAccessToken !== 'string' || !newAccessToken) {
+          throw new Error('Token refresh did not return an access token.');
+        }
         await tokenStorage.setAccessToken(newAccessToken);
 
-        refreshQueue.forEach((cb) => cb(newAccessToken));
-        refreshQueue = [];
+        settleRefreshQueue(undefined, newAccessToken);
 
+        originalRequest.headers = originalRequest.headers ?? {};
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiInstance!(originalRequest);
-      } catch {
-        refreshQueue = [];
+      } catch (refreshError) {
+        settleRefreshQueue(refreshError);
         await tokenStorage.clearTokens();
-        return Promise.reject(error);
+        return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }

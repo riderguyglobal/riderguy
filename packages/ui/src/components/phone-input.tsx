@@ -6,24 +6,19 @@ import { cn } from '../lib/utils';
 // ============================================================
 // PhoneInput — phone number input with country code selector
 //
-// Simple version focused on Ghana (+233) as default, with
-// the ability to extend to other countries as needed.
+// Ghana-only by default. Callers may still provide an explicit country list
+// if RiderGuy expands to another market in the future.
 // ============================================================
 
 export interface CountryCode {
-  code: string; // e.g. 'NG'
-  dialCode: string; // e.g. '+234'
+  code: string; // e.g. 'GH'
+  dialCode: string; // e.g. '+233'
   name: string;
   flag: string; // emoji flag
 }
 
 const DEFAULT_COUNTRIES: CountryCode[] = [
   { code: 'GH', dialCode: '+233', name: 'Ghana', flag: '🇬🇭' },
-  { code: 'NG', dialCode: '+234', name: 'Nigeria', flag: '🇳🇬' },
-  { code: 'KE', dialCode: '+254', name: 'Kenya', flag: '🇰🇪' },
-  { code: 'ZA', dialCode: '+27', name: 'South Africa', flag: '🇿🇦' },
-  { code: 'GB', dialCode: '+44', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: 'US', dialCode: '+1', name: 'United States', flag: '🇺🇸' },
 ];
 
 export interface PhoneInputProps {
@@ -31,7 +26,7 @@ export interface PhoneInputProps {
   value?: string;
   /** Called when the phone number changes (includes dial code) */
   onValueChange?: (fullNumber: string) => void;
-  /** List of countries to show (default: common African + intl) */
+  /** List of countries to show (default: Ghana only) */
   countries?: CountryCode[];
   /** Default selected country code (default: 'GH') */
   defaultCountry?: string;
@@ -51,7 +46,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(function
     onValueChange,
     countries = DEFAULT_COUNTRIES,
     defaultCountry = 'GH',
-    placeholder = '800 000 0000',
+    placeholder = '24 000 0000',
     disabled = false,
     hasError = false,
     className,

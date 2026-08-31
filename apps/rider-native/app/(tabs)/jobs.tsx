@@ -3,12 +3,13 @@ import { ActivityIndicator, Alert, FlatList, RefreshControl, Text, TouchableOpac
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@riderguy/auth-native';
 import { formatCurrency } from '@riderguy/utils';
 import Toast from 'react-native-toast-message';
 import { BrandHeader, EmptyState, RiderButton, RiderCard, RouteSummary, SegmentedControl, StatusPill } from '@/components/rider-ui';
 import { cleanLabel, riderColors } from '@/lib/rider-design';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
+import { RiderNavigationMenu } from '@/components/rider-navigation-menu';
 
 type Tab = 'available' | 'active';
 
@@ -16,8 +17,10 @@ const ACTIVE_STATUSES = new Set(['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PI
 
 export default function JobsScreen() {
   const [tab, setTab] = useState<Tab>('available');
+  const [menuOpen, setMenuOpen] = useState(false);
   const { api } = useAuth();
   const qc = useQueryClient();
+  const { unreadCount } = useUnreadNotifications();
 
   const { data: available, isLoading: availableLoading, refetch: refetchAvailable, error: availableError } = useQuery({
     queryKey: ['jobs-available'],
@@ -69,9 +72,9 @@ export default function JobsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.white }} edges={['top']}>
       <BrandHeader
-        onMenu={() => router.push('/(tabs)/account')}
+        onMenu={() => setMenuOpen(true)}
         onNotifications={() => router.push('/(app)/notifications')}
-        unread={false}
+        unread={unreadCount > 0}
       />
       <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: riderColors.white }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
@@ -145,6 +148,7 @@ export default function JobsScreen() {
           </TouchableOpacity>
         )}
       />
+      <RiderNavigationMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </SafeAreaView>
   );
 }

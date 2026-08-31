@@ -18,7 +18,6 @@ import {
   getAuthErrorMessage,
   isSixDigitCode,
   normalizeGhanaCard,
-  normalizePhoneNumber,
   registerWithEmail,
   registerWithGhanaCard,
   registerWithPhone,
@@ -28,6 +27,7 @@ import {
   verifyOtp,
 } from '@riderguy/auth-native';
 import { colors, shadow } from '@/design/client';
+import { normalizeGhanaPhoneNumber as normalizePhoneNumber } from '@/lib/ghana-phone';
 
 type Method = 'phone' | 'email' | 'ghanacard';
 type PhoneStep = 'phone' | 'otp' | 'profile' | 'pin';
@@ -215,7 +215,7 @@ export default function RegisterScreen() {
 
   const sendOtp = async () => {
     if (!normalizedPhone) {
-      Alert.alert('Phone required', 'Enter a valid phone number.');
+      Alert.alert('Ghana phone required', 'Enter a valid Ghana number starting with +233 or 0.');
       return;
     }
     setLoading(true);

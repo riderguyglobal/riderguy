@@ -1,5 +1,4 @@
 import { Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -22,10 +21,10 @@ export default function RiderAboutScreen() {
 
         <RiderCard style={{ padding: 0, overflow: 'hidden' }}>
           {[
-            { label: 'Rider terms', url: 'https://riderguy.com/rider-terms', icon: 'document-text-outline' as const },
-            { label: 'Privacy policy', url: 'https://riderguy.com/privacy', icon: 'shield-checkmark-outline' as const },
+            { label: 'Rider terms', url: 'https://myriderguy.com/terms', icon: 'document-text-outline' as const },
+            { label: 'Privacy policy', url: 'https://myriderguy.com/privacy', icon: 'shield-checkmark-outline' as const },
             { label: 'Delete account', url: 'https://myriderguy.com/delete-account', icon: 'trash-outline' as const },
-            { label: 'Rider support', url: 'mailto:riders@riderguy.com', icon: 'mail-outline' as const },
+            { label: 'Rider support', url: 'mailto:hello@myriderguy.com?subject=RiderGuy%20Rider%20Support', icon: 'mail-outline' as const },
           ].map((link, index, arr) => (
             <TouchableOpacity key={link.label} onPress={() => Linking.openURL(link.url)} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: index < arr.length - 1 ? 1 : 0, borderBottomColor: riderColors.line }}>
               <View style={{ width: 38, height: 38, borderRadius: 14, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>

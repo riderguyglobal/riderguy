@@ -1,6 +1,6 @@
 # RiderGuy Android Play Store Deployment Requirements
 
-Last researched: 2026-06-01
+Last researched: 2026-08-18
 
 Scope:
 
@@ -15,18 +15,19 @@ This document is a practical launch checklist. It is not legal advice; privacy, 
 
 ## 1. Current Launch Status
 
-This status reflects the native Play Store configuration pass completed on 2026-06-01. Items marked "repo configured" still need real Play Console, credential, legal, and QA follow-through before upload.
+This status reflects a direct Play Console audit and native configuration pass completed on 2026-08-18. Items marked "repo configured" still need a new signed bundle, Play Console follow-through, deployment, or device QA before the warnings disappear from Play.
 
 | Area | Current state | Requirement / risk | Required action |
 |---|---|---|---|
-| Target SDK | Repo configured: both Android projects default `targetSdkVersion` to `35`. Fresh release manifest checks showed target SDK 35. | New mobile apps and app updates submitted to Google Play currently need Android 15 / API 35 or higher. | Test Android 15 behavior before upload. |
+| Target SDK | Repo configured: Expo SDK 54 / React Native 0.81.5 resolves `compileSdk` and `targetSdk` 36 for both Android projects. | Play Console requires these apps to target Android 16 / API 36 by 2026-08-31. | Build and upload new signed AABs, then test Android 16 behavior. |
+| 16 KB memory pages | Repo configured: React Native 0.81.5, AGP 8.11, Gradle 8.14.3, current native modules, and modern uncompressed native-library packaging replace the prior SDK 52 build stack. | Play currently flags the uploaded bundles as not supporting 16 KB devices. | Build new Play Internal Testing AABs and verify them with Play's bundle explorer. |
 | Release signing | Repo configured: release signing now reads app-specific or generic keystore secrets, with debug signing only as a local/EAS fallback. | Production releases must be signed with a real upload key. Debug signing is not acceptable for Play deployment. | Add real EAS/CI upload keystore credentials for both packages. Use Play App Signing. |
-| Rider background location | Rider app declares `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE`, and `FOREGROUND_SERVICE_LOCATION`. | Play requires background location approval and foreground service declarations for Android 14+. | Prepare location permission declaration, prominent disclosure, privacy policy, and short demo video showing active-delivery tracking. |
+| Rider background location | Rider app declares `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE`, and `FOREGROUND_SERVICE_LOCATION`, with a prominent in-app disclosure before the Android prompt. | The 2026-07-06 update was rejected because the submitted video was inaccessible or did not accurately demonstrate the declared behavior. | Upload an accessible unlisted video showing Go Online, disclosure, permission prompt, foreground notification, and active tracking; update the Play declaration. |
 | Photo access | Repo configured: broad photo/storage permissions are blocked from release manifests. Image selection remains through picker/camera flows. | Play restricts broad photo/video permissions unless core functionality needs persistent or frequent access. | QA profile, package-photo, rider document, vehicle-photo, selfie, and proof-of-delivery flows on Android 13-15. |
 | Extra manifest permissions | Repo configured: `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, `SYSTEM_ALERT_WINDOW`, `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, and broad media permissions are blocked from release manifests. | Sensitive or special permissions must be necessary, disclosed, and justifiable. | Keep monitoring release manifests after dependency changes. |
 | Account deletion | Repo configured: both apps include a signed-in account deletion request screen, and marketing has `/delete-account`. | If users can create accounts, Google Play requires an in-app account deletion path and a web link for account/data deletion requests. | Deploy the marketing page, configure the Play Console deletion URL, and operationalize the admin/support deletion workflow. |
-| Reviewer access | Both apps require login. Rider app has onboarding, dispatch, wallet, and location flows. | Reviewers must be able to access restricted parts of the app. Missing credentials can block release. | Create durable reviewer accounts and written test instructions for client and rider roles. |
-| Deep links / app links | Both apps use `android:autoVerify="true"` for `riderguy.com`, `www.riderguy.com`, and `app.myriderguy.com`. | Verified App Links need `assetlinks.json` per host with the Play app signing SHA-256 certificate. | After first upload, copy app signing SHA-256 values from Play Console and publish asset links for both packages. |
+| Reviewer access | Both apps require login and enforce the expected client/rider role. The 2026-07-06 client update was rejected after rider credentials were supplied for the client app. | Reviewers must receive a valid, durable, app-specific account. | Put the client account only in RiderGuy App access and the rider account only in RiderGuy Rider App access; verify both immediately before submission. |
+| Deep links / app links | Client verifies only `app.myriderguy.com`; rider verifies only `rider.myriderguy.com`. The repo includes `assetlinks.json` entries using both Play App Signing SHA-256 certificates and nginx routing for both hosts. | Play cannot verify links until the updated marketing asset and nginx configuration are deployed over HTTPS. | Deploy the marketing/nginx changes, verify both public URLs, then request Play re-verification. |
 
 ---
 
@@ -90,32 +91,33 @@ For each app:
 
 ### 4.1 Android App Bundle
 
-Google Play requires new apps to publish using Android App Bundle (`.aab`). APKs are still useful for local/internal distribution, but Play production uploads should be AABs.
+Google Play releases use Android App Bundles (`.aab`). APKs remain useful for direct internal installation, but must not be uploaded as the Play release artifact.
 
 Required:
 
-- Use `eas build --platform android --profile production` or equivalent Gradle bundle task.
+- Use `eas build --platform android --profile play-internal --non-interactive` for the Play Internal Testing AAB.
+- Use `eas build --platform android --profile preview --non-interactive` separately for a directly installable QA APK.
 - Verify the output is `.aab`, not only `.apk`.
 - Keep per-app package IDs stable.
 - Confirm the bundle contains production API endpoints.
 - Confirm no dev menu, network inspector, mock URLs, or debug-only behavior is enabled.
+- Submit only the inspected AAB with the EAS `internal` submit profile or the Play Console Internal Testing page. This repo intentionally has no EAS production profile.
 
 ### 4.2 Target API level
 
-Current Play requirement for new mobile apps and app updates:
+Current Play Console requirement for these apps:
 
-- Target Android 15 / API 35 or higher.
-- Existing apps must at least target Android 14 / API 34 to remain available to new users on newer Android versions.
+- Target Android 16 / API 36 by 2026-08-31.
 
 RiderGuy repo status:
 
-- `apps/client-native/android/build.gradle` defaults `targetSdkVersion` to `35`.
-- `apps/rider-native/android/build.gradle` defaults `targetSdkVersion` to `35`.
-- Fresh release manifest checks on 2026-06-01 produced `android:targetSdkVersion="35"` for both apps.
+- Both projects use Expo SDK 54 and React Native 0.81.5.
+- The React Native version catalog resolves `compileSdk = 36`, `targetSdk = 36`, Build Tools 36.0.0, AGP 8.11, and NDK 27.1.
+- A new signed AAB still has to be uploaded before Play replaces the API 35 warning attached to the existing bundles.
 
 Required action:
 
-- Test Android 15 runtime behavior, especially location, notification, storage/media selection, edge-to-edge layout, and foreground service behavior.
+- Test Android 16 runtime behavior, especially location, notification, storage/media selection, edge-to-edge layout, and foreground service behavior.
 - Re-check the official target API page immediately before upload; Google Play updates this requirement on an annual cadence.
 
 ### 4.3 Versioning
@@ -125,11 +127,10 @@ Required:
 - Each upload must increment `versionCode`.
 - `versionCode` must stay below Play Console's maximum of `2100000000`.
 - `versionName` should be human-readable, for example `1.0.0`.
-- EAS `autoIncrement` can manage production version codes, but confirm remote version state for both apps.
+- EAS `autoIncrement` manages `play-internal` version codes remotely; confirm EAS and Play state before every build.
 
-Current:
-
-- Both apps currently have native `versionCode 1` and `versionName "1.0.0"`.
+Do not copy a version code from this document. The next AAB must be greater than
+every artifact Play has accepted, including artifacts retained in drafts.
 
 ### 4.4 Signing
 
@@ -548,16 +549,15 @@ Required if Google sign-in is active:
 
 ### 8.4 Android App Links
 
-Current hosts:
+Current verified hosts:
 
-- `riderguy.com`
-- `www.riderguy.com`
-- `app.myriderguy.com`
+- Client (`com.riderguy.client`): `app.myriderguy.com`
+- Rider (`com.riderguy.rider`): `rider.myriderguy.com`
 
 Required:
 
-- Publish `https://<host>/.well-known/assetlinks.json` for every host in the verified intent filters.
-- Include both packages and release SHA-256 fingerprints.
+- Deploy `apps/marketing/public/.well-known/assetlinks.json` so it is served from both verified hosts.
+- Keep both packages and their Play App Signing SHA-256 fingerprints in that file.
 - Use the Play App Signing certificate fingerprint, not only local upload key.
 - Test with `adb shell pm get-app-links --user 0 <package>`.
 
@@ -576,11 +576,15 @@ Required:
 
 ## 9. Release Track Plan
 
-Recommended sequence:
+Current correction-cycle sequence (internal only):
 
-1. Internal app sharing or internal testing:
-   - Upload first AABs.
+1. Internal testing:
+   - Upload only the verified `play-internal` AAB.
+   - Use the `preview` APK only for direct QA installation.
    - Validate signing, maps, Firebase, OAuth, app links, login, and crash-free startup.
+   - Keep closed testing and production unchanged.
+
+Future phases require a separate release decision and explicit approval:
 2. Closed testing:
    - Test with internal team/riders.
    - Include at least one realistic client order and one rider delivery path.
@@ -685,7 +689,7 @@ For each app:
 - Permission declaration answers.
 - Background location demo video for rider app.
 - Foreground service demo video for rider app.
-- `assetlinks.json` entries after Play App Signing certificate is available.
+- Deployment and live verification of the checked-in `assetlinks.json` entries.
 - Google Maps/Firebase/OAuth release certificate fingerprints.
 
 ---
@@ -695,8 +699,9 @@ For each app:
 | Item | Client app | Rider app | Status |
 |---|---|---|---|
 | Package name final | `com.riderguy.client` | `com.riderguy.rider` | Looks final, confirm before first upload |
-| Target SDK 35+ | Yes | Yes | Repo configured; QA Android 15 behavior |
-| AAB production profile | Yes | Yes | `eas.json` production uses `app-bundle` |
+| Target SDK 36 | Yes | Yes | Repo configured; QA Android 16 behavior |
+| Play Internal AAB profile | Yes | Yes | `eas.json` `play-internal` uses `app-bundle`; no production profile exists |
+| Direct-install QA APK profile | Yes | Yes | `preview` produces an APK; never promote it as a Play release |
 | Release signing | Configurable via secrets | Configurable via secrets | Add real upload keystores in EAS/CI |
 | Google Maps key | Required | Required | Needs release SHA restrictions |
 | Firebase config | Required | Required | Needs release SHA fingerprints |

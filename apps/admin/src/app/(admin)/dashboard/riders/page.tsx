@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getApiClient } from '@riderguy/auth';
+import { API_BASE_URL } from '@/lib/constants';
 import {
   Card,
   CardContent,
@@ -27,6 +28,10 @@ interface RiderApplication {
   id: string;
   userId: string;
   onboardingStatus: string;
+  riderChannel: 'GUEST' | 'IN_HOUSE' | null;
+  requestedRiderChannel: 'GUEST' | 'IN_HOUSE' | null;
+  channelVerifiedAt: string | null;
+  referralCode: string;
   createdAt: string;
   user: RiderUser;
   vehicles: Array<{
@@ -72,6 +77,7 @@ function onboardingBadge(status: string) {
     DOCUMENTS_APPROVED: { label: 'Docs Approved', className: 'bg-teal-100 text-teal-800 hover:bg-teal-100' },
     TRAINING_PENDING: { label: 'Training', className: 'bg-purple-100 text-purple-800 hover:bg-purple-100' },
     TRAINING_COMPLETE: { label: 'Training Done', className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100' },
+    APPLICATION_REJECTED: { label: 'Application Rejected', className: 'bg-red-100 text-red-800 hover:bg-red-100' },
   };
   const entry = map[status] ?? { label: status.replace(/_/g, ' '), className: '' };
   return <Badge className={entry.className}>{entry.label}</Badge>;
@@ -109,7 +115,12 @@ export default function RiderManagementPage() {
   const [applications, setApplications] = useState<RiderApplication[]>([]);
   const [appPagination, setAppPagination] = useState<Pagination | null>(null);
   const [appPage, setAppPage] = useState(1);
+  const [appChannelFilter, setAppChannelFilter] = useState('');
   const [appsLoading, setAppsLoading] = useState(false);
+  const [inviteType, setInviteType] = useState<'email' | 'phone'>('email');
+  const [inviteTarget, setInviteTarget] = useState('');
+  const [issuedInviteCode, setIssuedInviteCode] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const [error, setError] = useState('');
   const [statusModal, setStatusModal] = useState<{ userId: string; name: string; current: string } | null>(null);
@@ -140,8 +151,10 @@ export default function RiderManagementPage() {
   const fetchApplications = useCallback(async () => {
     setAppsLoading(true);
     try {
+      const params = new URLSearchParams({ page: String(appPage), limit: '20' });
+      if (appChannelFilter) params.set('channel', appChannelFilter);
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/riders/applications?page=${appPage}&limit=20`,
+        `${API_BASE_URL}/riders/applications?${params}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (!res.ok) throw new Error('Failed');
@@ -154,7 +167,7 @@ export default function RiderManagementPage() {
     } finally {
       setAppsLoading(false);
     }
-  }, [accessToken, appPage]);
+  }, [accessToken, appPage, appChannelFilter]);
 
   useEffect(() => {
     if (tab === 'all') fetchRiders();
@@ -182,6 +195,28 @@ export default function RiderManagementPage() {
       setError('Failed to update status');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const createInHouseInvitation = async () => {
+    if (!inviteTarget.trim()) return;
+    setInviteLoading(true);
+    setIssuedInviteCode('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/riders/invitations`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [inviteType]: inviteTarget.trim(), expiresInDays: 7 }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message ?? 'Invitation could not be created');
+      setIssuedInviteCode(json.data.code);
+      setInviteTarget('');
+      setError('');
+    } catch (inviteError) {
+      setError(inviteError instanceof Error ? inviteError.message : 'Invitation could not be created');
+    } finally {
+      setInviteLoading(false);
     }
   };
 
@@ -342,6 +377,51 @@ export default function RiderManagementPage() {
       {/* ── Applications Tab ── */}
       {tab === 'applications' && (
         <>
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <p className="font-semibold text-gray-900">Issue In-House invitation</p>
+                  <p className="text-xs text-gray-500">The targeted one-time code expires in 7 days and is shown only once.</p>
+                </div>
+                <select
+                  value={inviteType}
+                  onChange={(event) => setInviteType(event.target.value as 'email' | 'phone')}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <option value="email">Email</option>
+                  <option value="phone">Phone</option>
+                </select>
+                <Input
+                  value={inviteTarget}
+                  onChange={(event) => setInviteTarget(event.target.value)}
+                  placeholder={inviteType === 'email' ? 'rider@example.com' : '+233...'}
+                  className="w-64"
+                />
+                <Button onClick={() => void createInHouseInvitation()} disabled={!inviteTarget.trim() || inviteLoading}>
+                  {inviteLoading ? 'Issuing...' : 'Issue invitation'}
+                </Button>
+              </div>
+              {issuedInviteCode ? (
+                <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <p className="text-xs font-medium text-green-800">Copy and send this code securely. It cannot be displayed again.</p>
+                  <code className="mt-1 block select-all text-base font-bold tracking-wide text-green-950">{issuedInviteCode}</code>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <select
+              value={appChannelFilter}
+              onChange={(event) => { setAppChannelFilter(event.target.value); setAppPage(1); }}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            >
+              <option value="">All Rider Channels</option>
+              <option value="GUEST">3rd Party Riders (Guest)</option>
+              <option value="IN_HOUSE">RiderGuy In-House</option>
+            </select>
+          </div>
           {loading && (
             <div className="flex items-center justify-center py-16">
               <Spinner className="h-8 w-8 text-brand-500" />
@@ -373,6 +453,19 @@ export default function RiderManagementPage() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-gray-900">{app.user.firstName} {app.user.lastName}</p>
                         {onboardingBadge(app.onboardingStatus)}
+                        <Badge className={app.riderChannel === 'IN_HOUSE'
+                          ? 'bg-purple-100 text-purple-800 hover:bg-purple-100'
+                          : app.riderChannel === 'GUEST'
+                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
+                            : 'bg-amber-100 text-amber-800 hover:bg-amber-100'}>
+                          {app.riderChannel === 'IN_HOUSE'
+                            ? 'In-House'
+                            : app.riderChannel === 'GUEST'
+                              ? 'Guest'
+                              : app.requestedRiderChannel === 'IN_HOUSE'
+                                ? 'In-House Invite Needed'
+                                : 'Channel Needed'}
+                        </Badge>
                       </div>
                       <p className="mt-0.5 text-sm text-gray-500">
                         {app.user.phone}{app.user.email && ` • ${app.user.email}`}
@@ -380,6 +473,7 @@ export default function RiderManagementPage() {
                       <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
                         <span>Applied {new Date(app.createdAt).toLocaleDateString()}</span>
                         {app.vehicles.length > 0 && <span>{app.vehicles.length} vehicle{app.vehicles.length > 1 ? 's' : ''}</span>}
+                        <span>Code {app.referralCode}</span>
                       </div>
                     </div>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5 flex-shrink-0 text-gray-300">

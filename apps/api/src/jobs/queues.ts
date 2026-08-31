@@ -110,10 +110,14 @@ if (redisEnabled) {
     const n = Number.parseInt(raw, 10);
     return Number.isFinite(n) && n > 0 ? n : 90;
   })();
-  cleanupQueue.add('purge-location-history', { retentionDays: locationRetentionDays }, {
-    repeat: { pattern: '0 3 * * *', tz: 'Africa/Accra' }, // Daily at 03:00 Accra
-    jobId: 'daily-location-cleanup',
-  }).catch(() => {
+  cleanupQueue.upsertJobScheduler(
+    'daily-location-cleanup',
+    { pattern: '0 3 * * *', tz: 'Africa/Accra' }, // Daily at 03:00 Accra
+    {
+      name: 'purge-location-history',
+      data: { retentionDays: locationRetentionDays },
+    },
+  ).catch(() => {
     logger.warn('Failed to schedule location history cleanup job');
   });
 
@@ -166,12 +170,14 @@ export interface PushJobData {
   correlationId?: string;
 }
 
-// ── Queue helpers — safe no-ops when Redis is not configured ──
+// ── Queue helpers ──
+// Financial jobs fail closed when Redis is unavailable; non-financial jobs
+// retain their documented fallback/no-op behavior.
 
 export async function enqueuePayoutJob(data: PayoutJobData): Promise<void> {
   if (!payoutQueue) {
-    logger.warn({ withdrawalId: data.withdrawalId }, 'Payout job skipped — Redis not configured');
-    return;
+    logger.error({ withdrawalId: data.withdrawalId }, 'Payout cannot be queued — Redis not configured');
+    throw new Error('Payout processing is temporarily unavailable');
   }
   await payoutQueue.add('process-payout', data, {
     jobId: `payout-${data.withdrawalId}`,

@@ -1,18 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    ext {
-        buildToolsVersion = findProperty('android.buildToolsVersion') ?: '35.0.0'
-        minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
-        compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
-        targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '35')
-        kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
-
-        // r27+ builds native code 16 KB-page-size aligned by default (Play Console
-        // "Does not support 16 KB" flag). expo.useLegacyPackaging=false is already
-        // set in gradle.properties, the other half of the requirement.
-        ndkVersion = "27.1.12297006"
-    }
     repositories {
         google()
         mavenCentral()
@@ -25,21 +13,14 @@ buildscript {
     }
 }
 
-apply plugin: "com.facebook.react.rootproject"
-
 allprojects {
     repositories {
-        maven {
-            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
-            url(new File(['node', '--print', "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), '../android'))
-        }
-        maven {
-            // Android JSC is installed from npm
-            url(new File(['node', '--print', "require.resolve('jsc-android/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim(), '../dist'))
-        }
-
         google()
         mavenCentral()
         maven { url 'https://www.jitpack.io' }
     }
 }
+
+// Expo SDK 54 supplies the API 36 toolchain and 16 KB-compatible native defaults.
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"

@@ -281,6 +281,12 @@ describe('NotificationService', () => {
       });
       // Should notify both riders
       expect(prisma.notification.create).toHaveBeenCalledTimes(2);
+      expect(PushService.sendToUser).toHaveBeenCalledWith(
+        'rider-1',
+        'New Delivery Available',
+        expect.any(String),
+        expect.objectContaining({ orderId: 'order-1', channelId: 'job-offers' }),
+      );
     });
 
     it('should handle no online riders gracefully', async () => {

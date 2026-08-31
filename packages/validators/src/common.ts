@@ -1,11 +1,24 @@
 import { z } from 'zod';
 
-/** Reusable phone number validation (E.164 format) */
+/** Normalize supported Ghana phone input to the canonical +233XXXXXXXXX form. */
+export function normalizeGhanaPhoneNumber(value: string): string {
+  const raw = value.trim();
+  if (!/^\+?[\d\s().-]+$/.test(raw)) return '';
+
+  const digits = raw.replace(/\D/g, '');
+  if (/^233[1-9]\d{8}$/.test(digits)) return `+${digits}`;
+  if (/^0[1-9]\d{8}$/.test(digits)) return `+233${digits.slice(1)}`;
+  if (/^[1-9]\d{8}$/.test(digits)) return `+233${digits}`;
+  return '';
+}
+
+/** User-entered phone numbers are Ghana-only for the current launch. */
 export const phoneSchema = z
   .string()
-  .min(10, 'Phone number must be at least 10 digits')
-  .max(15, 'Phone number must be at most 15 digits')
-  .regex(/^\+?[1-9]\d{9,14}$/, 'Invalid phone number format');
+  .transform(normalizeGhanaPhoneNumber)
+  .refine((value) => /^\+233[1-9]\d{8}$/.test(value), {
+    message: 'Enter a valid Ghana phone number starting with +233 or 0',
+  });
 
 /** Reusable email validation */
 export const emailSchema = z.string().email('Invalid email address').toLowerCase().trim();

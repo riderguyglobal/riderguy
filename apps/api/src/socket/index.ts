@@ -11,6 +11,7 @@ import type {
 import { prisma } from '@riderguy/database';
 import { handleOfferResponse, getPendingOfferForRider } from '../services/auto-dispatch.service';
 import * as ChatService from '../services/chat.service';
+import { isRiderWorkEligible } from '../services/rider-work-eligibility';
 import {
   riderConnected,
   riderDisconnected,
@@ -58,7 +59,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
   }
 
   // ── Authentication middleware ──
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token =
       socket.handshake.auth?.token ||
       socket.handshake.headers?.authorization?.replace('Bearer ', '');
@@ -72,23 +73,24 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         userId: string;
         role: string;
         roles?: string[];
+        sessionId: string;
         jti?: string;
       };
-      (socket.data as any).userId = payload.userId;
-      (socket.data as any).role = payload.role;
-      (socket.data as any).roles = payload.roles || [payload.role];
-      (socket.data as any).jti = payload.jti;
+
       // AUTH-04: Check Redis revocation list. Tokens added via
       //          AuthService.revokeAccessToken(jti, ttlSec) are blocked here
       //          so a stolen token can be killed before its 15-min expiry.
       const redis = getRedisClient();
       if (redis && payload.jti) {
-        redis.get(`auth:revoked:${payload.jti}`).then((revoked) => {
+        try {
+          const revoked = await redis.get(`auth:revoked:${payload.jti}`);
           if (revoked) {
             logger.warn({ userId: payload.userId, jti: payload.jti }, '[Socket] Auth rejected — token revoked');
-            socket.disconnect(true);
+            return next(new Error('Invalid or expired token'));
           }
-        }).catch(() => { /* Redis hiccup — fall through (fail-open for availability) */ });
+        } catch {
+          // The database-backed session check below remains authoritative.
+        }
       } else if (redis && !payload.jti) {
         // Backward-compat: legacy tokens without jti — allow but log once per minute.
         const now = Date.now();
@@ -97,6 +99,39 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
           logger.warn({ userId: payload.userId }, '[Socket] Token has no jti — revocation list bypass possible');
         }
       }
+
+      const session = await prisma.session.findUnique({
+        where: { id: payload.sessionId },
+        select: {
+          userId: true,
+          expiresAt: true,
+          user: {
+            select: {
+              role: true,
+              roles: true,
+              status: true,
+              deletedAt: true,
+            },
+          },
+        },
+      });
+      if (
+        !session
+        || session.userId !== payload.userId
+        || session.expiresAt <= new Date()
+        || session.user.deletedAt
+        || ['SUSPENDED', 'DEACTIVATED', 'BANNED'].includes(session.user.status)
+      ) {
+        return next(new Error('Invalid or expired token'));
+      }
+
+      const currentRoles = session.user.roles.length
+        ? session.user.roles.map(String)
+        : [String(session.user.role)];
+      (socket.data as any).userId = payload.userId;
+      (socket.data as any).role = String(session.user.role);
+      (socket.data as any).roles = currentRoles;
+      (socket.data as any).jti = payload.jti;
       next();
     } catch {
       next(new Error('Invalid or expired token'));
@@ -214,6 +249,8 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
               availability: true,
               suspendedUntil: true,
               onboardingStatus: true,
+              isVerified: true,
+              user: { select: { status: true } },
             },
           }),
           prisma.order.findUnique({
@@ -235,7 +272,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
         const riderEligible =
           !!riderProfile &&
           riderProfile.availability === 'ONLINE' &&
-          riderProfile.onboardingStatus === 'ACTIVATED' &&
+          isRiderWorkEligible(riderProfile) &&
           (!riderProfile.suspendedUntil || riderProfile.suspendedUntil <= now);
 
         // Order must still be unassigned and in a dispatchable state
@@ -475,7 +512,9 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 
         const isClient = order.clientId === userId;
         const isRider = order.rider?.userId === userId;
-        const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DISPATCHER';
+        const isAdmin = roles.some((currentRole) =>
+          currentRole === 'ADMIN' || currentRole === 'SUPER_ADMIN' || currentRole === 'DISPATCHER'
+        );
 
         if (!isClient && !isRider && !isAdmin) {
           logger.warn({ socketId: socket.id, userId, orderId }, 'Unauthorized order:subscribe attempt');
@@ -763,6 +802,12 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
 export function getIO(): AppSocket {
   if (!io) throw new Error('Socket.IO not initialised — call initSocketServer() first');
   return io;
+}
+
+/** Immediately terminate every live connection for a suspended/deactivated user. */
+export function disconnectUserSockets(userId: string): void {
+  if (!io) return;
+  io.in(`user:${userId}`).disconnectSockets(true);
 }
 
 /**

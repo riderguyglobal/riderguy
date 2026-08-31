@@ -75,22 +75,9 @@ export async function startWorkers(): Promise<void> {
         });
 
         if (!config.paystack.secretKey) {
-          logger.warn({ withdrawalId }, 'Paystack not configured — auto-completing payout');
-          await prisma.withdrawal.update({
-            where: { id: withdrawalId },
-            data: {
-              status: 'COMPLETED',
-              processedAt: new Date(),
-              paymentReference: `DEV_${Date.now()}`,
-            },
-          });
-
-          await prisma.wallet.update({
-            where: { userId },
-            data: { totalWithdrawn: { increment: amount } },
-          });
-
-          return { status: 'completed', dev: true };
+          // Never claim that money moved when no payout provider was called.
+          // The catch block below marks this FAILED and refunds the wallet.
+          throw new Error('Paystack is not configured for payouts');
         }
 
         // Reuse a previously-created Paystack recipient code when present.
@@ -98,11 +85,15 @@ export async function startWorkers(): Promise<void> {
         // resulting in orphaned recipient records and unnecessary API calls.
         let recipientCode = withdrawal.paystackRecipientCode ?? null;
         if (!recipientCode) {
+          if (!bankCode) {
+            throw new Error('Withdrawal is missing a payout provider code');
+          }
+
           const recipient = await paystackService.createTransferRecipient({
-            type: method === 'MOBILE_MONEY' ? 'mobile_money' : 'nuban',
+            type: method === 'MOBILE_MONEY' ? 'mobile_money' : 'ghipss',
             name: destinationName,
             accountNumber: destination,
-            bankCode: bankCode ?? '',
+            bankCode,
           });
           recipientCode = recipient.recipientCode;
           await prisma.withdrawal.update({

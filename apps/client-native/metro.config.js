@@ -1,9 +1,21 @@
-const { getDefaultConfig } = require('expo/metro-config');
-const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
+const Module = require('module');
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
+
+// NativeWind is hoisted by npm, while React Native is intentionally local to
+// this workspace because the web apps use a different React version. Give
+// hoisted Metro plugins a fallback path to this app's native dependencies.
+const appNodeModules = path.resolve(projectRoot, 'node_modules');
+const nodePathEntries = (process.env.NODE_PATH ?? '').split(path.delimiter).filter(Boolean);
+if (!nodePathEntries.includes(appNodeModules)) {
+  process.env.NODE_PATH = [appNodeModules, ...nodePathEntries].join(path.delimiter);
+  Module._initPaths();
+}
+
+const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(projectRoot);
 
@@ -19,19 +31,12 @@ config.resolver.nodeModulesPaths = [
 // Shim Node.js crypto (used by @riderguy/utils id.ts server fallback, never reached in RN)
 config.resolver.extraNodeModules = {
   crypto: path.resolve(projectRoot, 'src/crypto-shim.js'),
+  // Shared workspace packages must use the app's React 19 runtime, not the
+  // React 18 runtime used by the Next.js workspaces at the monorepo root.
+  react: path.resolve(appNodeModules, 'react'),
 };
 
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
-
-// On Windows the RN Gradle plugin passes a relative --entry-file (relative to `root`).
-// expo/metro-config sets unstable_serverRoot = monorepoRoot, so Metro resolves that
-// relative path from the monorepo root — going 2 levels above it — and fails.
-// Fix: keep serverRoot = projectRoot so Metro resolves from the app directory,
-// where ../../node_modules/expo-router/entry.js correctly reaches riderguy/node_modules/.
-config.server = {
-  ...config.server,
-  unstable_serverRoot: projectRoot,
-};
 
 // Force axios to use its browser bundle BEFORE withNativeWind so NativeWind wraps
 // this resolver (not the other way around). withNativeWind saves the current

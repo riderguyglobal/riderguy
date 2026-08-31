@@ -1,5 +1,6 @@
 import {
   RiderAvailability,
+  RiderChannel,
   RiderLevel,
   RiderOnboardingStatus,
   VehicleType,
@@ -10,6 +11,9 @@ export interface RiderProfile {
   id: string;
   userId: string;
   onboardingStatus: RiderOnboardingStatus;
+  riderChannel: RiderChannel | null;
+  requestedRiderChannel: RiderChannel | null;
+  channelVerifiedAt: Date | null;
   availability: RiderAvailability;
   currentLevel: RiderLevel;
   totalXp: number;
@@ -22,6 +26,9 @@ export interface RiderProfile {
   preferredVehicleType: VehicleType | null;
   isVerified: boolean;
   activatedAt: Date | null;
+  referralCode: string;
+  referredByRiderId: string | null;
+  applicationRejectionReason: string | null;
   currentLatitude: number | null;
   currentLongitude: number | null;
   lastLocationUpdate: Date | null;

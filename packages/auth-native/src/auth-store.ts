@@ -12,6 +12,14 @@ export interface AuthUser {
   roles?: UserRole[];
   status: AccountStatus;
   createdAt: string;
+  riderProfile?: {
+    onboardingStatus: string;
+    riderChannel: 'GUEST' | 'IN_HOUSE' | null;
+    requestedRiderChannel: 'GUEST' | 'IN_HOUSE' | null;
+    channelVerifiedAt: string | null;
+    referralCode: string;
+    isVerified: boolean;
+  } | null;
 }
 
 interface AuthState {

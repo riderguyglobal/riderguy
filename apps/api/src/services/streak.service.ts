@@ -4,7 +4,7 @@
 // ============================================================
 
 import { prisma } from '@riderguy/database';
-import { XpAction, XP_VALUES } from '@riderguy/types';
+import { XpAction } from '@riderguy/types';
 import { logger } from '../lib/logger';
 import * as GamificationService from './gamification.service';
 

@@ -132,7 +132,7 @@ export async function awardXp(
   });
 
   // Check for new badges
-  const newBadges = await checkAndAwardBadges(riderId, action);
+  const newBadges = await checkAndAwardBadges(riderId);
 
   // If leveled up, create a notification
   if (leveledUp) {
@@ -172,10 +172,7 @@ export async function awardXp(
 /**
  * Check all badge criteria and award any newly qualified badges.
  */
-async function checkAndAwardBadges(
-  riderId: string,
-  triggerAction: string,
-): Promise<Array<{ badge: Badge }>> {
+async function checkAndAwardBadges(riderId: string): Promise<Array<{ badge: Badge }>> {
   // Get rider's existing badges
   const existingBadges = await prisma.riderBadge.findMany({
     where: { riderId },

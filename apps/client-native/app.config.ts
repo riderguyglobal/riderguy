@@ -1,4 +1,5 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
+import { existsSync } from 'node:fs';
 
 function normalizePublicUrl(value: string) {
   return value.trim().replace('api.riderguy.com', 'api.myriderguy.com').replace(/\/+$/, '');
@@ -6,14 +7,17 @@ function normalizePublicUrl(value: string) {
 
 const apiUrl = normalizePublicUrl(process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myriderguy.com/api/v1');
 const socketUrl = normalizePublicUrl(process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com');
+const androidGoogleServicesFile = process.env.GOOGLE_SERVICES_JSON ?? './android/app/google-services.json';
+const iosGoogleServicesFile = process.env.GOOGLE_SERVICE_INFO_PLIST ?? './GoogleService-Info.plist';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'RiderGuy',
   slug: 'riderguy-client',
   scheme: 'riderguy-client',
-  version: '1.0.0',
-  orientation: 'portrait',
+  version: '1.0.1',
+  // Allow Android 16 large-screen devices to resize and rotate the activity.
+  orientation: 'default',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
   newArchEnabled: false,
@@ -26,8 +30,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.riderguy.client',
-    associatedDomains: ['applinks:app.myriderguy.com', 'applinks:riderguy.com', 'applinks:www.riderguy.com'],
-    googleServicesFile: process.env.GOOGLE_SERVICE_INFO_PLIST ?? './GoogleService-Info.plist',
+    associatedDomains: ['applinks:app.myriderguy.com'],
+    ...(existsSync(iosGoogleServicesFile) ? { googleServicesFile: iosGoogleServicesFile } : {}),
     config: {
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY_IOS ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     },
@@ -49,7 +53,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#40BE89',
     },
     package: 'com.riderguy.client',
-    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
+    googleServicesFile: androidGoogleServicesFile,
     config: {
       googleMaps: {
         apiKey: process.env.GOOGLE_MAPS_API_KEY_ANDROID ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -100,8 +104,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         action: 'VIEW',
         autoVerify: true,
         data: [
-          { scheme: 'https', host: 'riderguy.com', pathPrefix: '/auth' },
-          { scheme: 'https', host: 'www.riderguy.com', pathPrefix: '/auth' },
           { scheme: 'https', host: 'app.myriderguy.com', pathPrefix: '/auth' },
         ],
         category: ['BROWSABLE', 'DEFAULT'],
@@ -145,6 +147,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ],
   experiments: {
     typedRoutes: true,
+    autolinkingModuleResolution: true,
   },
   extra: {
     apiUrl,

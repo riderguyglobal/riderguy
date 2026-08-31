@@ -9,6 +9,7 @@ import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
 import { StorageService } from './storage.service';
 import type { DocumentType, DocumentStatus } from '@prisma/client';
+import { OnboardingService } from './onboarding.service';
 
 // --------------- types ------------------------------------------------
 
@@ -185,56 +186,6 @@ export class DocumentService {
 
   // ---- Update onboarding status based on document states ----
   private static async updateOnboardingStatus(userId: string) {
-    const riderProfile = await prisma.riderProfile.findUnique({
-      where: { userId },
-    });
-
-    if (!riderProfile) return;
-
-    const docs = await prisma.document.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (docs.length === 0) return;
-
-    // Required document types for full approval
-    const requiredTypes: DocumentType[] = [
-      'NATIONAL_ID',
-      'DRIVERS_LICENSE',
-      'SELFIE',
-    ];
-
-    // Deduplicate — keep only the most recent document per type
-    const statusMap = new Map<string, string>();
-    for (const d of docs) {
-      if (!statusMap.has(d.type)) {
-        statusMap.set(d.type, d.status);
-      }
-    }
-    const hasAllRequired = requiredTypes.every((t) => statusMap.has(t));
-    const allApproved = requiredTypes.every((t) => statusMap.get(t) === 'APPROVED');
-    const statuses = Array.from(statusMap.values());
-    const anyRejected = statuses.some((s) => s === 'REJECTED');
-    const anyPending = statuses.some((s) => s === 'PENDING' || s === 'UNDER_REVIEW');
-
-    let newStatus = riderProfile.onboardingStatus;
-
-    if (allApproved && hasAllRequired) {
-      newStatus = 'DOCUMENTS_APPROVED';
-    } else if (anyRejected) {
-      newStatus = 'DOCUMENTS_REJECTED';
-    } else if (hasAllRequired && anyPending) {
-      newStatus = 'DOCUMENTS_SUBMITTED';
-    } else if (docs.length > 0) {
-      newStatus = 'DOCUMENTS_PENDING';
-    }
-
-    if (newStatus !== riderProfile.onboardingStatus) {
-      await prisma.riderProfile.update({
-        where: { userId },
-        data: { onboardingStatus: newStatus },
-      });
-    }
+    await OnboardingService.recalculateStatus(userId);
   }
 }

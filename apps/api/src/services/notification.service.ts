@@ -162,13 +162,14 @@ export async function createOrderNotification(
   title: string,
   body: string,
   orderId: string,
+  channelId?: 'default' | 'job-offers',
 ) {
   return NotificationService.create({
     userId,
     title,
     body,
     type: 'ORDER',
-    data: { orderId },
+    data: { orderId, ...(channelId ? { channelId } : {}) },
   });
 }
 
@@ -239,6 +240,7 @@ export async function notifyNearbyRiders(
         'New Delivery Available',
         `New order ${orderNumber} — pickup at ${pickupAddress}. Open the job feed to accept.`,
         orderId,
+        'job-offers',
       ),
     ),
   );

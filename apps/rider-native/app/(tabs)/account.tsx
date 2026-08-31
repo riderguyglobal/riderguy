@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,12 +14,14 @@ import {
   SettingsListItem,
 } from '@/components/rider-ui';
 import { cleanLabel, riderColors } from '@/lib/rider-design';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
+import { RiderNavigationMenu } from '@/components/rider-navigation-menu';
 
 const MENU_ITEMS = [
   { icon: 'person' as const, label: 'Personal Information', sub: 'Update your personal details', route: '/(app)/settings/profile' },
   { icon: 'bicycle' as const, label: 'Vehicle Information', sub: 'Manage your vehicle details', route: '/(app)/onboarding/vehicle' },
   { icon: 'wallet' as const, label: 'Payout Information', sub: 'Manage your bank and payout settings', route: '/(tabs)/earnings' },
-  { icon: 'shield' as const, label: 'Safety Center', sub: 'Tools and resources for your safety', route: '/(app)/settings/about' },
+  { icon: 'shield' as const, label: 'Safety Center', sub: 'Tools and resources for your safety', route: '/(app)/safety' },
   { icon: 'headset' as const, label: 'Help & Support', sub: 'Get help and contact support', route: '/(app)/settings/about' },
   { icon: 'settings' as const, label: 'App Settings', sub: 'Preferences and app configuration', route: '/(app)/settings/security/set-pin' },
 ];
@@ -32,7 +35,9 @@ function formatMemberSince(createdAt?: string) {
 }
 
 export default function AccountScreen() {
+  const [menuOpen, setMenuOpen] = useState(false);
   const { user, api, logout } = useAuth();
+  const { unreadCount } = useUnreadNotifications();
 
   const { data: profile } = useQuery({
     queryKey: ['rider-profile'],
@@ -41,13 +46,15 @@ export default function AccountScreen() {
       return data.data ?? data;
     },
   });
+  const onboardingStatus = String(profile?.onboardingStatus ?? 'REGISTERED').toUpperCase();
+  const onboardingApproved = ['ACTIVATED', 'APPROVED'].includes(onboardingStatus) && profile?.isVerified === true;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.white }} edges={['top']}>
       <BrandHeader
-        onMenu={() => router.push('/(tabs)' as any)}
+        onMenu={() => setMenuOpen(true)}
         onNotifications={() => router.push('/(app)/notifications')}
-        unread
+        unread={unreadCount > 0}
       />
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 34 }} showsVerticalScrollIndicator={false}>
@@ -62,9 +69,9 @@ export default function AccountScreen() {
             <Text style={{ color: riderColors.ink, fontSize: 30, fontWeight: '900', lineHeight: 35 }} numberOfLines={2}>
               {user?.firstName ?? 'Rider'} {user?.lastName ?? ''}
             </Text>
-            <View style={{ alignSelf: 'flex-start', marginTop: 10, borderRadius: 8, backgroundColor: riderColors.greenSoft, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <Ionicons name="checkmark-circle" size={18} color={riderColors.greenDark} />
-              <Text style={{ color: riderColors.greenDark, fontSize: 13, fontWeight: '900' }}>{cleanLabel(profile?.onboardingStatus ?? 'Verified')}</Text>
+            <View style={{ alignSelf: 'flex-start', marginTop: 10, borderRadius: 8, backgroundColor: onboardingApproved ? riderColors.greenSoft : riderColors.amberSoft, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <Ionicons name={onboardingApproved ? 'checkmark-circle' : 'time-outline'} size={18} color={onboardingApproved ? riderColors.greenDark : '#9A5F05'} />
+              <Text style={{ color: onboardingApproved ? riderColors.greenDark : '#9A5F05', fontSize: 13, fontWeight: '900' }}>{cleanLabel(onboardingStatus)}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 }}>
               <Ionicons name="star" size={20} color={riderColors.greenDark} />
@@ -92,8 +99,8 @@ export default function AccountScreen() {
             title="Account Overview"
             items={[
               { label: 'Member Since', value: formatMemberSince(user?.createdAt), icon: 'calendar', tone: 'green' },
-              { label: 'Current City', value: profile?.city ?? 'Accra', icon: 'location', tone: 'green' },
-              { label: 'Vehicle Type', value: cleanLabel(profile?.vehicleType ?? 'Motorbike'), icon: 'bicycle', tone: 'green' },
+              { label: 'Current City', value: profile?.city ?? 'Not set', icon: 'location', tone: 'green' },
+              { label: 'Vehicle Type', value: profile?.vehicleType ? cleanLabel(profile.vehicleType) : 'Not set', icon: 'bicycle', tone: 'green' },
             ]}
           />
 
@@ -130,6 +137,7 @@ export default function AccountScreen() {
           <Text style={{ textAlign: 'center', color: riderColors.soft, fontSize: 11, marginTop: 4 }}>RiderGuy Rider v1.0</Text>
         </View>
       </ScrollView>
+      <RiderNavigationMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </SafeAreaView>
   );
 }

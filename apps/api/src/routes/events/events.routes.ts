@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, hasAnyRole, requireRole, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { UserRole } from '@riderguy/types';
 import {
@@ -54,7 +54,7 @@ router.get(
 /** POST /events — Create event (rider or admin) */
 router.post(
   '/',
-  requireRole(UserRole.RIDER, UserRole.ADMIN),
+  requireRole(UserRole.RIDER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(createEventSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await EventService.createEvent(req.user!.userId, req.body);
@@ -65,10 +65,10 @@ router.post(
 /** PATCH /events/:id — Update event */
 router.patch(
   '/:id',
-  requireRole(UserRole.RIDER, UserRole.ADMIN),
+  requireRole(UserRole.RIDER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(updateEventSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const isAdmin = req.user!.role === UserRole.ADMIN;
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
     const data = await EventService.updateEvent(
       req.params.id as string,
       req.user!.userId,

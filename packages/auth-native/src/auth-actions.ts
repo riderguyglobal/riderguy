@@ -5,8 +5,10 @@ import { getApiClient } from './api-client';
 import { tokenStorage } from './token-storage';
 
 export type NativeUserRole = 'CLIENT' | 'RIDER' | 'PARTNER';
+export type GoogleNativeUserRole = Extract<NativeUserRole, 'CLIENT' | 'RIDER'>;
 export type OtpPurpose = 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET';
 export type RecoveryMethod = 'phone' | 'email' | 'ghanacard';
+export type RiderChannel = 'GUEST' | 'IN_HOUSE';
 
 export interface AuthTokens {
   accessToken: string;
@@ -29,6 +31,7 @@ export interface PhoneRegisterInput {
   password?: string;
   pin?: string;
   referralCode?: string;
+  riderChannel?: RiderChannel;
 }
 
 export interface EmailRegisterInput {
@@ -38,6 +41,7 @@ export interface EmailRegisterInput {
   lastName: string;
   role: NativeUserRole;
   referralCode?: string;
+  riderChannel?: RiderChannel;
 }
 
 export interface GhanaCardRegisterInput {
@@ -48,6 +52,8 @@ export interface GhanaCardRegisterInput {
   role: NativeUserRole;
   securityQuestion: string;
   securityAnswer: string;
+  riderChannel?: RiderChannel;
+  referralCode?: string;
 }
 
 function unwrap<T = any>(payload: any): T {
@@ -81,15 +87,7 @@ export function getAuthErrorMessage(error: unknown, fallback = 'Something went w
   return err?.response?.data?.error?.message ?? err?.response?.data?.message ?? err?.message ?? fallback;
 }
 
-export function normalizePhoneNumber(value: string): string {
-  const cleaned = value.trim().replace(/[^\d+]/g, '');
-  if (!cleaned) return '';
-  if (cleaned.startsWith('+')) return cleaned;
-  if (cleaned.startsWith('233')) return `+${cleaned}`;
-  if (cleaned.startsWith('0')) return `+233${cleaned.slice(1)}`;
-  if (cleaned.length === 9) return `+233${cleaned}`;
-  return cleaned;
-}
+export { normalizePhoneNumber } from './phone';
 
 export function normalizeGhanaCard(value: string): string {
   const upper = value.trim().toUpperCase().replace(/\s+/g, '');
@@ -210,7 +208,7 @@ export async function resendLoginEmailConfirmation(userId: string): Promise<void
   await getApiClient().post('/auth/login/email-confirm/resend', { userId });
 }
 
-export async function loginWithGoogleCredential(credential: string, role: NativeUserRole): Promise<AuthUser> {
+export async function loginWithGoogleCredential(credential: string, role: GoogleNativeUserRole): Promise<AuthUser> {
   const { data } = await getApiClient().post('/auth/google', { credential, role });
   return completeAuth(data, role);
 }
@@ -226,7 +224,7 @@ function ensureGoogleConfigured(webClientId: string) {
 // Native Google Sign-In (replaces the old manual browser-redirect flow, which
 // Google blocks for custom URI scheme redirects). Returns null if the user
 // cancelled the picker — callers should treat that as a silent no-op, not an error.
-export async function signInWithGoogle(role: NativeUserRole, webClientId: string): Promise<AuthUser | null> {
+export async function signInWithGoogle(role: GoogleNativeUserRole, webClientId: string): Promise<AuthUser | null> {
   ensureGoogleConfigured(webClientId);
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   const response = await GoogleSignin.signIn();

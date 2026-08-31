@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "main": "./tailwind/index.ts",
+  "exports": {
+    "./tailwind": "./tailwind/index.ts"
+  },
   "scripts": {
     "clean": "rm -rf .turbo"
   }

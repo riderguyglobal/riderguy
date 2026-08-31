@@ -24,12 +24,12 @@ import {
   loginWithPassword,
   loginWithPin,
   normalizeGhanaCard,
-  normalizePhoneNumber,
   requestOtp,
   resendLoginEmailConfirmation,
   signInWithGoogle,
 } from '@riderguy/auth-native';
 import { colors, shadow } from '@/design/client';
+import { normalizeGhanaPhoneNumber as normalizePhoneNumber } from '@/lib/ghana-phone';
 
 type Stage = 'input' | 'method-select' | 'otp' | 'pin' | 'email-confirm';
 type Mode = 'phone' | 'email' | 'ghanacard';
@@ -179,7 +179,7 @@ export default function LoginScreen() {
           : normalizePhoneNumber(phone);
     const pass = mode === 'email' ? emailPassword : mode === 'ghanacard' ? ghanaPassword : password;
     if (!identifier || !pass) {
-      Alert.alert('', 'Enter your phone number (or email) and password.');
+      Alert.alert('', 'Enter a valid Ghana phone number (or email) and password.');
       return;
     }
     setLoading(true);
@@ -218,7 +218,7 @@ export default function LoginScreen() {
   const sendOtp = async () => {
     const normalized = normalizePhoneNumber(phone);
     if (!normalized) {
-      Alert.alert('', 'Enter your phone number first.');
+      Alert.alert('', 'Enter a valid Ghana number starting with +233 or 0.');
       return;
     }
     setLoading(true);
@@ -237,7 +237,7 @@ export default function LoginScreen() {
   const handleCheckMethods = async () => {
     const normalized = normalizePhoneNumber(phone);
     if (!normalized) {
-      Alert.alert('', 'Enter your phone number first.');
+      Alert.alert('', 'Enter a valid Ghana number starting with +233 or 0.');
       return;
     }
     setLoading(true);

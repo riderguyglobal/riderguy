@@ -44,7 +44,13 @@ enum RiderOnboardingStatus {
   DOCUMENTS_REJECTED
   TRAINING_PENDING
   TRAINING_COMPLETE
+  APPLICATION_REJECTED
   ACTIVATED
+}
+
+enum RiderChannel {
+  GUEST
+  IN_HOUSE
 }
 
 enum RiderAvailability {
@@ -218,6 +224,11 @@ enum NotificationType {
   PROMOTION
 }
 
+enum PushAppProject {
+  RIDER
+  CLIENT
+}
+
 enum WebhookEventStatus {
   PROCESSED
   FAILED
@@ -289,6 +300,10 @@ model User {
 
   // Job postings created by admin
   jobPostings           JobPosting[]       @relation("JobPostingsCreatedBy")
+
+  // Rider onboarding administration
+  riderInvitationsCreated RiderInvitation[] @relation("RiderInvitationCreator")
+  riderApplicationsReviewed RiderProfile[]  @relation("RiderApplicationReviewer")
 
   emailTokens    EmailToken[]
 
@@ -388,6 +403,13 @@ model RiderProfile {
   userId             String               @unique
   user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   onboardingStatus   RiderOnboardingStatus @default(REGISTERED)
+  // Null until the rider has deliberately selected Guest, or has redeemed a
+  // server-issued invitation for the protected In-House channel.
+  riderChannel       RiderChannel?
+  requestedRiderChannel RiderChannel?
+  channelVerifiedAt  DateTime?
+  channelInvitationId String?              @unique
+  channelInvitation  RiderInvitation?      @relation("RiderInvitationConsumption", fields: [channelInvitationId], references: [id], onDelete: SetNull)
   availability       RiderAvailability     @default(OFFLINE)
   currentLevel       Int                  @default(1) // 1-7
   totalXp            Int                  @default(0)
@@ -401,6 +423,14 @@ model RiderProfile {
   preferredVehicleType VehicleType?
   isVerified         Boolean              @default(false)
   activatedAt        DateTime?
+  applicationRejectionReason String?
+  applicationReviewedAt DateTime?
+  applicationReviewedById String?
+  applicationReviewedBy User?             @relation("RiderApplicationReviewer", fields: [applicationReviewedById], references: [id], onDelete: SetNull)
+  referralCode       String               @unique
+  referredByRiderId  String?
+  referredByRider    RiderProfile?         @relation("RiderReferrals", fields: [referredByRiderId], references: [id], onDelete: SetNull)
+  referredRiders     RiderProfile[]        @relation("RiderReferrals")
   currentLatitude    Float?
   currentLongitude   Float?
   lastLocationUpdate DateTime?
@@ -431,6 +461,7 @@ model RiderProfile {
   rewardPoints       Int                  @default(0) // Reward store points balance
   favoritedByClients FavoriteRider[]
   locationHistory    LocationHistory[]
+  trainingCompletions RiderTrainingCompletion[]
 
   // Sprint 12 — Identity & Mentorship
   bio                String?              @db.Text
@@ -449,9 +480,51 @@ model RiderProfile {
   @@index([availability])
   @@index([currentZoneId])
   @@index([onboardingStatus])
+  @@index([riderChannel])
+  @@index([requestedRiderChannel])
+  @@index([referredByRiderId])
   @@index([currentLatitude, currentLongitude])
   @@index([totalXp])
   @@map("rider_profiles")
+}
+
+/// A one-time, server-issued authorization for joining the protected
+/// RiderGuy In-House channel. Only the hash is stored; plaintext is shown once.
+model RiderInvitation {
+  id             String   @id @default(cuid())
+  codeHash       String   @unique
+  targetEmail    String?
+  targetPhone    String?
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  createdById    String
+  createdBy      User     @relation("RiderInvitationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  consumedBy     RiderProfile? @relation("RiderInvitationConsumption")
+  createdAt      DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([targetEmail])
+  @@index([targetPhone])
+  @@map("rider_invitations")
+}
+
+/// Persisted training progress. A rider can complete a module, but an admin
+/// must verify it before it satisfies In-House activation requirements.
+model RiderTrainingCompletion {
+  id           String   @id @default(cuid())
+  riderId      String
+  rider        RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  moduleKey    String
+  completedAt  DateTime @default(now())
+  verifiedAt   DateTime?
+  verifiedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([riderId, moduleKey])
+  @@index([verifiedAt])
+  @@map("rider_training_completions")
 }
 
 model Vehicle {
@@ -1144,15 +1217,17 @@ model PushToken {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   // FCM registration token
+  token     String   @unique // FCM registration token; one device token has one current owner
   platform  String   // 'web', 'android', 'ios'
+  appProject PushAppProject? // Null only for deactivated rows created before project routing
   deviceId  String?  // optional device identifier for de-duplication
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, token])
   @@index([userId, isActive])
+  @@index([appProject, isActive])
+  @@index([deviceId])
   @@map("push_tokens")
 }
 

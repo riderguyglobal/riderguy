@@ -83,14 +83,34 @@ export const config = {
 
   // Firebase Cloud Messaging (push notifications)
   firebase: {
+    // Legacy single-project settings are retained for non-native integrations,
+    // but native push delivery is routed through the explicit Rider/Client
+    // projects below. Never guess a target project from an FCM token.
     projectId: optionalEnv('FIREBASE_PROJECT_ID', ''),
     clientEmail: optionalEnv('FIREBASE_CLIENT_EMAIL', ''),
     privateKey: optionalEnv('FIREBASE_PRIVATE_KEY', '').replace(/\\n/g, '\n'),
+    rider: {
+      projectId: optionalEnv('FIREBASE_RIDER_PROJECT_ID', ''),
+      clientEmail: optionalEnv('FIREBASE_RIDER_CLIENT_EMAIL', ''),
+      privateKey: optionalEnv('FIREBASE_RIDER_PRIVATE_KEY', '').replace(/\\n/g, '\n'),
+    },
+    client: {
+      projectId: optionalEnv('FIREBASE_CLIENT_PROJECT_ID', ''),
+      clientEmail: optionalEnv('FIREBASE_CLIENT_CLIENT_EMAIL', ''),
+      privateKey: optionalEnv('FIREBASE_CLIENT_PRIVATE_KEY', '').replace(/\\n/g, '\n'),
+    },
   },
 
   // Google Maps
   google: {
     clientId: optionalEnv('GOOGLE_CLIENT_ID', ''),
+    // Rider and Client are separate Android apps and therefore use separate
+    // OAuth Web client IDs. GOOGLE_CLIENT_IDS is the preferred comma-separated
+    // allowlist; GOOGLE_CLIENT_ID remains a backwards-compatible fallback.
+    clientIds: optionalEnv('GOOGLE_CLIENT_IDS', optionalEnv('GOOGLE_CLIENT_ID', ''))
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
     mapsApiKey: optionalEnv('GOOGLE_MAPS_API_KEY', ''),
   },
 
@@ -121,10 +141,16 @@ if (process.env.NODE_ENV === 'production') {
     ['PAYSTACK_SECRET_KEY', config.paystack.secretKey, 'Payment processing'],
     ['MNOTIFY_API_KEY', config.mnotify.apiKey, 'SMS/OTP delivery'],
     ['GMAIL_APP_PASSWORD', config.email.appPassword, 'Email delivery'],
-    ['FIREBASE_PROJECT_ID', config.firebase.projectId, 'Push notifications'],
+    ['FIREBASE_RIDER_PROJECT_ID', config.firebase.rider.projectId, 'Rider push notifications'],
+    ['FIREBASE_RIDER_CLIENT_EMAIL', config.firebase.rider.clientEmail, 'Rider push notifications'],
+    ['FIREBASE_RIDER_PRIVATE_KEY', config.firebase.rider.privateKey, 'Rider push notifications'],
+    ['FIREBASE_CLIENT_PROJECT_ID', config.firebase.client.projectId, 'Client push notifications'],
+    ['FIREBASE_CLIENT_CLIENT_EMAIL', config.firebase.client.clientEmail, 'Client push notifications'],
+    ['FIREBASE_CLIENT_PRIVATE_KEY', config.firebase.client.privateKey, 'Client push notifications'],
     ['REDIS_URL', process.env.REDIS_URL ?? '', 'Session store / rate limiting / queues'],
     ['S3_ENDPOINT', config.s3.endpoint, 'File uploads (S3/R2)'],
     ['GOOGLE_MAPS_API_KEY', config.google.mapsApiKey, 'Maps / geocoding'],
+    ['GOOGLE_CLIENT_IDS', config.google.clientIds.join(','), 'Google Sign-In'],
   ];
   const missing = criticalServices.filter(([, val]) => !val);
   if (missing.length > 0) {

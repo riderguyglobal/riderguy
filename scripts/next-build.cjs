@@ -9,5 +9,8 @@ process.env.NEXT_TELEMETRY_DISABLED = process.env.NEXT_TELEMETRY_DISABLED || '1'
 const projectRequire = createRequire(path.join(process.cwd(), 'package.json'));
 const nextBin = projectRequire.resolve('next/dist/bin/next');
 
-process.argv = [process.execPath, nextBin, 'build', ...process.argv.slice(2)];
+// Keep production builds on webpack while the monorepo still consumes
+// TypeScript workspace packages directly. Turbopack's project-root boundary
+// otherwise treats those linked packages as unresolved external sources.
+process.argv = [process.execPath, nextBin, 'build', '--webpack', ...process.argv.slice(2)];
 require(nextBin);

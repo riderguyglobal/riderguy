@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,10 +38,11 @@ function emitOfferResponse(socket: Socket | null, orderId: string, response: 'ac
 
 export default function JobOfferScreen() {
   const { offer: offerStr } = useLocalSearchParams<{ offer: string }>();
-  const offer = (() => {
+  const offer = useMemo(() => {
     if (!offerStr) return null;
     try { return JSON.parse(offerStr); } catch { return null; }
-  })();
+  }, [offerStr]);
+  const orderId = offer?.orderId ? String(offer.orderId) : '';
   const [timeLeft, setTimeLeft] = useState(OFFER_TIMEOUT);
   const [responding, setResponding] = useState(false);
   const progressAnim = useRef(new Animated.Value(100)).current;
@@ -49,7 +50,10 @@ export default function JobOfferScreen() {
   const respondedRef = useRef(false);
 
   useEffect(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    if (!orderId) return undefined;
+    let cancelled = false;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
     Animated.timing(progressAnim, { toValue: 0, duration: OFFER_TIMEOUT * 1000, useNativeDriver: false }).start();
     const interval = setInterval(() => {
       setTimeLeft((current) => {
@@ -64,22 +68,31 @@ export default function JobOfferScreen() {
 
     const connect = async () => {
       const token = await tokenStorage.getAccessToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+      if (cancelled) return;
       const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'], auth: { token } });
       socket.on('job:offer:taken', (payload: any) => {
-        if (payload?.orderId === offer?.orderId && !respondedRef.current) {
+        if (String(payload?.orderId ?? '') === orderId && !respondedRef.current) {
           Toast.show({ type: 'info', text1: 'This job has been taken.' });
           router.back();
         }
       });
       socketRef.current = socket;
     };
-    connect();
+    connect().catch((error) => {
+      Toast.show({ type: 'error', text1: error?.message ?? 'Could not connect to the job offer.' });
+    });
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
       socketRef.current?.disconnect();
     };
-  }, []);
+  }, [orderId, progressAnim]);
+
+  useEffect(() => {
+    if (!offer) router.back();
+  }, [offer]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -115,7 +128,6 @@ export default function JobOfferScreen() {
   };
 
   if (!offer) {
-    router.back();
     return null;
   }
 

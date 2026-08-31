@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, hasAnyRole, requireRole, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { UserRole } from '@riderguy/types';
 import {
@@ -77,7 +77,7 @@ router.post(
 router.delete(
   '/:id',
   asyncHandler(async (req: Request, res: Response) => {
-    const isAdmin = req.user!.role === UserRole.ADMIN;
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
     const data = await FeatureRequestService.deleteFeatureRequest(
       req.params.id as string,
       req.user!.userId,
@@ -90,7 +90,7 @@ router.delete(
 /** PATCH /feature-requests/:id/status — Admin: update status */
 router.patch(
   '/:id/status',
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(updateFeatureRequestStatusSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await FeatureRequestService.updateFeatureRequestStatus(

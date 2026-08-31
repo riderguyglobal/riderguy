@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, getAuthRoles, requireRole, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { prisma } from '@riderguy/database';
 import { UserRole } from '@riderguy/types';
@@ -217,7 +217,7 @@ router.post(
 router.post(
   '/push-token',
   asyncHandler(async (req, res) => {
-    const { token, platform, deviceId } = req.body;
+    const { token, platform, appProject } = req.body;
     if (!token || typeof token !== 'string') {
       res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -232,14 +232,62 @@ router.post(
       });
       return;
     }
-    const allowedPlatforms = ['web', 'android', 'ios'];
-    const safePlatform = allowedPlatforms.includes(platform) ? platform : 'web';
+    const allowedPlatforms = ['web', 'android', 'ios'] as const;
+    if (!allowedPlatforms.includes(platform)) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'platform must be web, android, or ios' },
+      });
+      return;
+    }
+
+    let safeAppProject: 'RIDER' | 'CLIENT' | undefined;
+    if (appProject === 'RIDER' || appProject === 'CLIENT') {
+      safeAppProject = appProject;
+    } else if (appProject != null) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'appProject must be RIDER or CLIENT' },
+      });
+      return;
+    } else {
+      // Backwards-compatible inference for older single-role builds. Never
+      // guess when a multi-role account could be using either native app.
+      const appRoles = getAuthRoles(req.user!).filter(
+        (role): role is UserRole.RIDER | UserRole.CLIENT =>
+          role === UserRole.RIDER || role === UserRole.CLIENT,
+      );
+      if (appRoles.length === 1) safeAppProject = appRoles[0];
+    }
+
+    if (!safeAppProject) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: {
+          code: 'PUSH_APP_PROJECT_REQUIRED',
+          message: 'appProject is required for this account',
+        },
+      });
+      return;
+    }
+
+    if (!getAuthRoles(req.user!).includes(safeAppProject as UserRole)) {
+      res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        error: {
+          code: 'PUSH_APP_PROJECT_ROLE_MISMATCH',
+          message: 'This account cannot register for the requested app project',
+        },
+      });
+      return;
+    }
 
     const pushToken = await PushService.registerToken(
       req.user!.userId,
       token,
-      safePlatform,
-      deviceId,
+      platform,
+      safeAppProject,
+      req.user!.sessionId,
     );
     res.status(StatusCodes.CREATED).json({ success: true, data: pushToken });
   })

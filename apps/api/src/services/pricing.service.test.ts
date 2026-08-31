@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { calculatePrice, type PriceBreakdown } from './pricing.service';
+import { calculatePrice } from './pricing.service';
 import { prisma } from '@riderguy/database';
 
 vi.mock('@riderguy/database', () => ({

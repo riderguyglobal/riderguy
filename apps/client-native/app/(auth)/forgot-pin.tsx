@@ -3,9 +3,10 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, Te
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getAuthErrorMessage, isSixDigitCode, normalizePhoneNumber, requestOtp as requestAuthOtp, resetPinWithOtp } from '@riderguy/auth-native';
+import { getAuthErrorMessage, isSixDigitCode, requestOtp as requestAuthOtp, resetPinWithOtp } from '@riderguy/auth-native';
 import Toast from 'react-native-toast-message';
 import { colors, shadow } from '@/design/client';
+import { normalizeGhanaPhoneNumber as normalizePhoneNumber } from '@/lib/ghana-phone';
 
 type Step = 'phone' | 'otp' | 'pin';
 
@@ -42,12 +43,16 @@ export default function ForgotPinScreen() {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const normalizedPhone = normalizePhoneNumber(phone);
 
   const requestOtp = async () => {
-    if (!phone.trim()) return;
+    if (!normalizedPhone) {
+      Toast.show({ type: 'error', text1: 'Enter a valid Ghana phone number' });
+      return;
+    }
     setLoading(true);
     try {
-      await requestAuthOtp(normalizePhoneNumber(phone), 'PASSWORD_RESET');
+      await requestAuthOtp(normalizedPhone, 'PASSWORD_RESET');
       setStep('otp');
       Toast.show({ type: 'success', text1: 'OTP sent' });
     } catch (error: any) {
@@ -66,7 +71,7 @@ export default function ForgotPinScreen() {
     }
     setLoading(true);
     try {
-      await resetPinWithOtp(normalizePhoneNumber(phone), otp, newPin);
+      await resetPinWithOtp(normalizedPhone, otp, newPin);
       Toast.show({ type: 'success', text1: 'PIN reset' });
       router.back();
     } catch (error: any) {
@@ -114,7 +119,7 @@ export default function ForgotPinScreen() {
                     keyboardType="phone-pad"
                     style={{ height: 52, borderRadius: 16, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F7', paddingHorizontal: 14, color: colors.ink, fontSize: 14, fontWeight: '800' }}
                   />
-                  <TouchableOpacity onPress={requestOtp} disabled={!phone.trim() || loading} style={{ marginTop: 14, height: 54, borderRadius: 18, backgroundColor: phone.trim() && !loading ? colors.brand : '#D1D5DB', alignItems: 'center', justifyContent: 'center' }}>
+                  <TouchableOpacity onPress={requestOtp} disabled={!normalizedPhone || loading} style={{ marginTop: 14, height: 54, borderRadius: 18, backgroundColor: normalizedPhone && !loading ? colors.brand : '#D1D5DB', alignItems: 'center', justifyContent: 'center' }}>
                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>Send OTP</Text>}
                   </TouchableOpacity>
                 </>

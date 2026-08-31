@@ -1,0 +1,22 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.riderguy.client",
+      "sha256_cert_fingerprints": [
+        "14:BB:F4:BE:14:24:71:3B:FD:1F:49:BA:7A:70:CA:39:C1:B4:CD:27:19:60:A0:E9:AF:CD:61:99:6B:13:A3:E9"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.riderguy.rider",
+      "sha256_cert_fingerprints": [
+        "A2:18:64:62:FF:0C:53:54:18:80:03:7C:66:DC:F7:CD:07:65:73:4E:D7:E0:45:02:6F:5E:DF:2A:9A:02:A3:1C"
+      ]
+    }
+  }
+]

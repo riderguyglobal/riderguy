@@ -4,7 +4,7 @@
 // ============================================================
 
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, getAuthRoles, hasAnyRole, requireRole, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { UserRole } from '@riderguy/types';
 import {
@@ -71,7 +71,7 @@ router.post(
   '/chat/direct',
   validate(createDirectChatSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const room = await ChatService.getOrCreateDirectRoom(req.user!.userId, req.body.userId);
+    const room = await ChatService.getOrCreateDirectRoom(req.user!.userId, req.body.targetUserId);
     res.status(StatusCodes.OK).json({ success: true, data: room });
   }),
 );
@@ -107,6 +107,7 @@ router.post(
 /** PUT /community/chat/rooms/:roomId/read — Mark room as read */
 router.put(
   '/chat/rooms/:roomId/read',
+  validate(updateLastReadSchema, 'params'),
   asyncHandler(async (req: Request, res: Response) => {
     await ChatService.markAsRead(req.params.roomId as string, req.user!.userId);
     res.status(StatusCodes.OK).json({ success: true });
@@ -224,7 +225,7 @@ router.put(
 router.delete(
   '/forum/posts/:postId',
   asyncHandler(async (req: Request, res: Response) => {
-    const isAdmin = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.SUPER_ADMIN;
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
     await ForumService.deletePost(req.params.postId as string, req.user!.userId, isAdmin);
     res.status(StatusCodes.OK).json({ success: true });
   }),
@@ -258,7 +259,7 @@ router.post(
 router.delete(
   '/forum/comments/:commentId',
   asyncHandler(async (req: Request, res: Response) => {
-    const isAdmin = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.SUPER_ADMIN;
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
     await ForumService.deleteComment(req.params.commentId as string, req.user!.userId, isAdmin);
     res.status(StatusCodes.OK).json({ success: true });
   }),
@@ -293,6 +294,7 @@ router.post(
 /** POST /community/forum/polls/:optionId/vote — Vote on a poll */
 router.post(
   '/forum/polls/:optionId/vote',
+  validate(pollVoteSchema, 'params'),
   asyncHandler(async (req: Request, res: Response) => {
     const result = await ForumService.votePoll(req.params.optionId as string, req.user!.userId);
     res.status(StatusCodes.OK).json({ success: true, data: result });
@@ -317,7 +319,7 @@ router.get(
   '/announcements',
   asyncHandler(async (req: Request, res: Response) => {
     const data = await AnnouncementService.getPublishedAnnouncements({
-      role: req.user!.role,
+      roles: getAuthRoles(req.user!),
       page: parseInt(req.query.page as string) || 1,
       limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
     });

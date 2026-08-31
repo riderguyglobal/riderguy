@@ -92,7 +92,7 @@ router.patch(
 /** POST /rider-identity/spotlights — Create spotlight (admin) */
 router.post(
   '/spotlights',
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(createSpotlightSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await RiderIdentityService.createSpotlight(req.body);
@@ -103,7 +103,7 @@ router.post(
 /** PATCH /rider-identity/spotlights/:id — Update spotlight (admin) */
 router.patch(
   '/spotlights/:id',
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(updateSpotlightSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const data = await RiderIdentityService.updateSpotlight(

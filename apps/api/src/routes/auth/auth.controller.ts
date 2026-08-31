@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { AuthService } from '../../services/auth.service';
+import { PushService } from '../../services/push.service';
 import { StatusCodes } from 'http-status-codes';
 
 // ============================================================
@@ -111,6 +112,7 @@ export class AuthController {
   static async logout(req: Request, res: Response) {
     if (req.user?.sessionId) {
       await AuthService.logout(req.user.sessionId);
+      await PushService.removeSessionTokens(req.user.userId, req.user.sessionId);
     }
     // AUTH-04: Add the access-token jti to Redis revocation list so the
     //          remaining few minutes of token life can't be reused (e.g. socket).
@@ -140,6 +142,16 @@ export class AuthController {
         roles: true,
         status: true,
         createdAt: true,
+        riderProfile: {
+          select: {
+            onboardingStatus: true,
+            riderChannel: true,
+            requestedRiderChannel: true,
+            channelVerifiedAt: true,
+            referralCode: true,
+            isVerified: true,
+          },
+        },
       },
     });
 
@@ -196,6 +208,7 @@ export class AuthController {
   static async revokeSession(req: Request, res: Response) {
     const sessionId = req.params.id as string;
     await AuthService.revokeSession(req.user!.userId, sessionId);
+    await PushService.removeSessionTokens(req.user!.userId, sessionId);
     res.status(StatusCodes.OK).json({
       success: true,
       data: { message: 'Session revoked' },
@@ -207,6 +220,10 @@ export class AuthController {
     const count = await AuthService.revokeAllSessions(
       req.user!.userId,
       req.user?.sessionId ?? undefined
+    );
+    await PushService.removeSessionTokensExcept(
+      req.user!.userId,
+      req.user?.sessionId ?? undefined,
     );
     res.status(StatusCodes.OK).json({
       success: true,

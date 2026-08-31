@@ -20,7 +20,7 @@ import * as Location from 'expo-location';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '@riderguy/auth-native';
 import { formatCurrency } from '@riderguy/utils';
-import { colors, radius, shadow } from '@/design/client';
+import { colors, shadow } from '@/design/client';
 import { PACKAGE_TYPES, PAYMENT_METHODS, SCHEDULE_TYPES } from '@/lib/client-design';
 
 type LocationValue = {

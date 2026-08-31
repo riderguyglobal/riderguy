@@ -1,58 +1,73 @@
-import { Image, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ImageBackground, Linking, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ActionBand, RiderButton, RiderCard } from '@/components/rider-ui';
 import { riderColors } from '@/lib/rider-design';
 
-const hero = require('../../assets/images/illustrations/rider-fleet.png');
+const hero = require('../../assets/images/illustrations/rider-sign-in-hero.png');
 
 export default function RiderLandingScreen() {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.white }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.white }} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor={riderColors.white} />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
-        <View style={{ minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <TouchableOpacity activeOpacity={0.84} style={{ width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+        <View style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <TouchableOpacity
+            activeOpacity={0.84}
+            accessibilityRole="button"
+            accessibilityLabel="Open sign-in menu"
+            onPress={() => Alert.alert(
+              'RiderGuy Rider',
+              'Choose where you want to go.',
+              [
+                { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+                { text: 'Become a Rider', onPress: () => router.push('/(auth)/register') },
+                { text: 'Cancel', style: 'cancel' },
+              ],
+            )}
+            style={{ width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
+          >
             <Ionicons name="menu" size={28} color={riderColors.ink} />
           </TouchableOpacity>
           <Text style={{ color: riderColors.greenDark, fontSize: 28, fontWeight: '900' }}>Riderguy</Text>
-          <View style={{ width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity
+            activeOpacity={0.84}
+            accessibilityRole="link"
+            accessibilityLabel="Read about RiderGuy rider safety"
+            onPress={() => void Linking.openURL('https://myriderguy.com/for-riders')}
+            style={{ width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
+          >
             <Ionicons name="shield-checkmark-outline" size={25} color={riderColors.ink} />
-          </View>
+          </TouchableOpacity>
         </View>
 
-        <View style={{ borderRadius: 18, backgroundColor: riderColors.green, overflow: 'hidden', marginTop: 6 }}>
-          <View style={{ height: 256 }}>
-            <Image source={hero} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
-            <View style={{ position: 'absolute', left: 16, top: 16, borderRadius: 999, backgroundColor: riderColors.white, paddingHorizontal: 12, paddingVertical: 7 }}>
-              <Text style={{ color: riderColors.ink, fontSize: 12, fontWeight: '900' }}>RIDER APP</Text>
-            </View>
-          </View>
-          <View style={{ padding: 18, backgroundColor: riderColors.green }}>
-            <Text style={{ color: riderColors.ink, fontSize: 34, lineHeight: 38, fontWeight: '900' }}>
-              Own the route. Earn with control.
+        <View style={{ borderRadius: 18, backgroundColor: riderColors.green, overflow: 'hidden', marginTop: 4 }}>
+          <ImageBackground source={hero} resizeMode="cover" style={{ width: '100%', aspectRatio: 1.5 }} />
+          <View style={{ paddingHorizontal: 16, paddingVertical: 14, backgroundColor: riderColors.green }}>
+            <Text style={{ color: riderColors.ink, fontSize: 29, lineHeight: 33, fontWeight: '900' }}>
+              {'Prioritise Your Safety & Earn -'}
             </Text>
-            <Text style={{ color: riderColors.ink2, fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 8 }}>
-              Live offers, map-first delivery flow, fast payouts, training, and safety in one rider app.
+            <Text style={{ color: riderColors.ink2, fontSize: 13, lineHeight: 19, fontWeight: '700', marginTop: 6 }}>
+              Training, Insurance, Fast Pay-outs, 24hr Support
             </Text>
           </View>
         </View>
 
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
           {[
-            { icon: 'flash' as const, label: 'Live offers' },
-            { icon: 'wallet' as const, label: 'Fast cashout' },
-            { icon: 'shield-checkmark' as const, label: 'Safer flow' },
+            { icon: 'flash' as const, label: 'Live Offers' },
+            { icon: 'map' as const, label: 'Map' },
+            { icon: 'apps' as const, label: 'One App' },
           ].map((item) => (
-            <RiderCard key={item.label} style={{ flex: 1, minHeight: 86, padding: 12, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name={item.icon} size={22} color={riderColors.greenDark} />
-              <Text style={{ color: riderColors.ink, fontSize: 11, fontWeight: '900', marginTop: 8, textAlign: 'center' }}>{item.label}</Text>
+            <RiderCard key={item.label} style={{ flex: 1, minHeight: 72, padding: 10, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={item.icon} size={20} color={riderColors.greenDark} />
+              <Text style={{ color: riderColors.ink, fontSize: 11, fontWeight: '900', marginTop: 6, textAlign: 'center' }}>{item.label}</Text>
             </RiderCard>
           ))}
         </View>
 
-        <View style={{ gap: 12, paddingTop: 16 }}>
+        <View style={{ gap: 10, paddingTop: 14 }}>
           <RiderButton label="Sign In" icon="log-in" onPress={() => router.push('/(auth)/login')} />
           <RiderButton label="Become a Rider" icon="person-add" variant="ghost" onPress={() => router.push('/(auth)/register')} />
           <Text style={{ color: riderColors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center' }}>
@@ -60,7 +75,7 @@ export default function RiderLandingScreen() {
           </Text>
         </View>
 
-        <View style={{ marginTop: 14 }}>
+        <View style={{ marginTop: 12 }}>
           <ActionBand
             icon="radio"
             title="Dispatch ready"

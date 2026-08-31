@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRole } from '../../middleware';
+import { authenticate, hasAnyRole, requireRole } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { prisma } from '@riderguy/database';
 import { UserRole } from '@riderguy/types';
 import { StatusCodes } from 'http-status-codes';
 import { logger } from '../../lib/logger';
 import { handleRiderSuspended } from '../../services/order-reassign.service';
+import { PushService } from '../../services/push.service';
+import { disconnectUserSockets } from '../../socket';
 
 const router = Router();
 
@@ -156,7 +158,7 @@ router.get(
       }),
       prisma.user.findMany({
         where: { createdAt: { gte: startDate } },
-        select: { id: true, role: true, createdAt: true },
+        select: { id: true, role: true, roles: true, createdAt: true },
         orderBy: { createdAt: 'asc' },
       }),
       prisma.withdrawal.findMany({
@@ -214,8 +216,8 @@ router.get(
       const key = user.createdAt.toISOString().split('T')[0] as string;
       const bucket = dailyMap.get(key);
       if (bucket) {
-        if (user.role === 'RIDER') bucket.newRiders++;
-        else if (user.role === 'CLIENT' || user.role === 'BUSINESS_CLIENT') bucket.newClients++;
+        if (hasAnyRole(user, UserRole.RIDER)) bucket.newRiders++;
+        else if (hasAnyRole(user, UserRole.CLIENT, UserRole.BUSINESS_CLIENT)) bucket.newClients++;
       }
     }
 
@@ -290,8 +292,8 @@ router.patch(
 
     // Prevent admins from modifying other admins (only super_admin can)
     if (
-      (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') &&
-      req.user!.role !== 'SUPER_ADMIN'
+      hasAnyRole(user, UserRole.ADMIN, UserRole.SUPER_ADMIN) &&
+      !hasAnyRole(req.user!, UserRole.SUPER_ADMIN)
     ) {
       res.status(StatusCodes.FORBIDDEN).json({
         success: false,
@@ -314,10 +316,22 @@ router.patch(
       },
     });
 
+    if (status !== 'ACTIVE') {
+      // A status change is an immediate security boundary: remove refresh
+      // sessions and terminate already-connected sockets. HTTP access tokens
+      // are also rejected by the live session/account check in `authenticate`.
+      await prisma.session.deleteMany({ where: { userId } });
+      await PushService.removeAllTokens(userId);
+      disconnectUserSockets(userId);
+    }
+
     logger.info({ userId, newStatus: status, reason, adminId: req.user!.userId }, 'User status updated by admin');
 
     // If a rider is being suspended, reassign/escalate their active orders
-    if ((status === 'SUSPENDED' || status === 'BANNED') && user.role === 'RIDER') {
+    if (
+      (status === 'SUSPENDED' || status === 'BANNED')
+      && hasAnyRole(user, UserRole.RIDER)
+    ) {
       const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
       if (riderProfile) {
         handleRiderSuspended(riderProfile.id).catch((err) =>

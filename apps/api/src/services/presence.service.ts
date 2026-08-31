@@ -47,9 +47,6 @@ const STALE_THRESHOLD_MS = 2 * 60_000; // 2 minutes
 /** How long before a disconnected rider is auto-set to OFFLINE (ms) */
 const OFFLINE_GRACE_PERIOD_MS = 5 * 60_000; // 5 minutes — allows for brief network drops
 
-/** Maximum time to consider a rider "recently active" for dispatch (ms) */
-const DISPATCH_FRESHNESS_MS = 10 * 60_000; // 10 minutes
-
 /** DB sync interval — flush in-memory presence to Prisma (ms) */
 const DB_SYNC_INTERVAL_MS = 60_000; // 1 minute
 
@@ -81,6 +78,8 @@ function syncPresenceToRedis(presence: RiderPresence): void {
     isConnected: presence.isConnected,
     lastHeartbeat: presence.lastHeartbeat.toISOString(),
     lastSeenAt: presence.lastSeenAt.toISOString(),
+    sessionStartedAt: presence.sessionStartedAt.toISOString(),
+    priorOnlineSeconds: presence.priorOnlineSeconds,
     connectionQuality: presence.connectionQuality,
     latitude: presence.latitude,
     longitude: presence.longitude,
@@ -126,9 +125,11 @@ async function getOnlineRidersFromRedis(): Promise<RiderPresence[]> {
           isConnected: data.isConnected,
           lastHeartbeat: new Date(data.lastHeartbeat),
           lastSeenAt: new Date(data.lastSeenAt),
-          sessionStartedAt: new Date(),
+          sessionStartedAt: data.sessionStartedAt
+            ? new Date(data.sessionStartedAt)
+            : new Date(),
           connectionQuality: data.connectionQuality,
-          priorOnlineSeconds: 0,
+          priorOnlineSeconds: Number(data.priorOnlineSeconds ?? 0),
           missedHeartbeats: 0,
           latitude: data.latitude,
           longitude: data.longitude,
@@ -142,6 +143,17 @@ async function getOnlineRidersFromRedis(): Promise<RiderPresence[]> {
 }
 
 // ── Public API ──────────────────────────────────────────────
+
+/**
+ * Preserve the start of an existing online session. A fresh timestamp is
+ * created only when the profile does not already have one.
+ */
+export function resolveOnlineSessionStartedAt(
+  existing: Date | null | undefined,
+  now = new Date(),
+): Date {
+  return existing ?? now;
+}
 
 /**
  * Start the presence manager — call once at server boot.
@@ -173,7 +185,7 @@ export async function startPresenceManager(): Promise<void> {
         isConnected: false, // Will be set true when they reconnect via socket
         lastHeartbeat: rider.lastHeartbeat ?? new Date(),
         lastSeenAt: rider.lastSeenAt ?? new Date(),
-        sessionStartedAt: rider.sessionStartedAt ?? new Date(),
+        sessionStartedAt: resolveOnlineSessionStartedAt(rider.sessionStartedAt),
         connectionQuality: 'disconnected',
         priorOnlineSeconds: rider.totalOnlineSeconds ?? 0,
         missedHeartbeats: 0,
@@ -220,6 +232,7 @@ export async function riderConnected(
   const now = new Date();
 
   let presence = presenceMap.get(userId);
+  let shouldPersistSessionStart = Boolean(presence);
 
   if (presence) {
     // Reconnecting — update socket but keep session intact
@@ -235,6 +248,8 @@ export async function riderConnected(
       where: { userId },
       select: {
         id: true,
+        availability: true,
+        sessionStartedAt: true,
         totalOnlineSeconds: true,
         currentLatitude: true,
         currentLongitude: true,
@@ -243,6 +258,8 @@ export async function riderConnected(
 
     if (!profile) return;
 
+    const isOnlineSession = profile.availability === 'ONLINE' || profile.availability === 'ON_DELIVERY';
+    shouldPersistSessionStart = isOnlineSession;
     presence = {
       userId,
       riderProfileId: profile.id,
@@ -250,7 +267,9 @@ export async function riderConnected(
       isConnected: true,
       lastHeartbeat: now,
       lastSeenAt: now,
-      sessionStartedAt: now,
+      sessionStartedAt: isOnlineSession
+        ? resolveOnlineSessionStartedAt(profile.sessionStartedAt, now)
+        : now,
       connectionQuality: 'good',
       priorOnlineSeconds: profile.totalOnlineSeconds ?? 0,
       missedHeartbeats: 0,
@@ -269,7 +288,9 @@ export async function riderConnected(
       lastHeartbeat: now,
       lastSeenAt: now,
       connectionQuality: 'good',
-      sessionStartedAt: presence.sessionStartedAt,
+      // A socket can exist while a Rider is offline. Only persist an online
+      // session timestamp when the profile is actually in a working state.
+      sessionStartedAt: shouldPersistSessionStart ? presence.sessionStartedAt : undefined,
     },
   }).catch((err) => {
     logger.error({ err, userId }, '[Presence] Failed to persist connection');

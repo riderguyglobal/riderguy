@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -35,6 +35,10 @@ export default function RiderRecoveryScreen() {
   const [loading, setLoading] = useState(false);
 
   const startRecovery = async () => {
+    if (method === 'phone' && !normalizePhoneNumber(phone)) {
+      Alert.alert('Ghana phone required', 'Enter a valid Ghana number starting with +233 or 0.');
+      return;
+    }
     setLoading(true);
     try {
       if (method === 'phone') {

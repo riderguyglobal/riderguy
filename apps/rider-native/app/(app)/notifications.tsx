@@ -10,25 +10,62 @@ import { dateTime, riderColors } from '@/lib/rider-design';
 export default function NotificationsScreen() {
   const { api } = useAuth();
   const qc = useQueryClient();
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const { data } = await api.get('/notifications?pageSize=50');
-      return (data.data ?? data) as any[];
+      const { data: response } = await api.get('/notifications?pageSize=50');
+      const items = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+      return {
+        items: items as any[],
+        unreadCount: Number(response?.unreadCount ?? 0),
+      };
     },
   });
 
   const markAll = useMutation({
     mutationFn: async () => api.patch('/notifications/read-all'),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['notifications'] }),
+        qc.invalidateQueries({ queryKey: ['notifications-summary'] }),
+      ]);
+    },
   });
 
   const markRead = useMutation({
     mutationFn: async (id: string) => api.patch(`/notifications/${id}/read`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['notifications'] }),
+        qc.invalidateQueries({ queryKey: ['notifications-summary'] }),
+      ]);
+    },
   });
 
-  const unread = (data ?? []).filter((item: any) => !item.read && !item.readAt).length;
+  const notifications = data?.items ?? [];
+  const unread = data?.unreadCount
+    ?? notifications.filter((item: any) => item.isRead !== true && !item.readAt).length;
+
+  const openNotification = async (item: any) => {
+    if (item.isRead !== true && !item.readAt) {
+      await markRead.mutateAsync(item.id).catch(() => undefined);
+    }
+
+    const orderId = item.data?.orderId;
+    if (orderId) {
+      router.push(`/(app)/jobs/${orderId}` as any);
+      return;
+    }
+
+    const targetByType: Record<string, string> = {
+      PAYMENT: '/(tabs)/earnings',
+      TRAINING: '/(app)/training',
+      COMMUNITY: '/(tabs)/community',
+      GAMIFICATION: '/(app)/gamification',
+    };
+    const target = targetByType[String(item.type ?? '').toUpperCase()];
+    if (target) router.push(target as any);
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.surface }}>
@@ -39,16 +76,16 @@ export default function NotificationsScreen() {
         right={<StatusPill status={unread > 0 ? 'PENDING' : 'ONLINE'} label={`${unread} unread`} />}
       />
       <FlatList
-        data={data ?? []}
+        data={notifications}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={riderColors.green} />}
+        refreshControl={<RefreshControl refreshing={isLoading || isRefetching} onRefresh={refetch} tintColor={riderColors.green} />}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 32 }}
         ListHeaderComponent={unread > 0 ? <RiderButton label="Mark all read" variant="light" icon="checkmark-done" loading={markAll.isPending} onPress={() => markAll.mutate()} style={{ marginBottom: 4 }} /> : null}
         ListEmptyComponent={!isLoading ? <EmptyState icon="notifications-outline" title="No notifications" body="Important rider updates will collect here." /> : null}
         renderItem={({ item }) => {
-          const isUnread = !item.read && !item.readAt;
+          const isUnread = item.isRead !== true && !item.readAt;
           return (
-            <TouchableOpacity activeOpacity={0.84} onPress={() => isUnread ? markRead.mutate(item.id) : undefined}>
+            <TouchableOpacity activeOpacity={0.84} onPress={() => void openNotification(item)}>
               <RiderCard style={{ borderColor: isUnread ? '#b7efd8' : riderColors.line }}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
                   <View style={{ width: 42, height: 42, borderRadius: 15, backgroundColor: isUnread ? riderColors.greenSoft : riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>

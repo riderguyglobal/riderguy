@@ -1,12 +1,15 @@
-import { Redirect, Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@riderguy/auth-native';
 import { riderColors } from '@/lib/rider-design';
+import { useRiderOnboardingGate } from '@/hooks/useRiderOnboardingGate';
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const pathname = usePathname();
+  const onboarding = useRiderOnboardingGate();
 
-  if (isLoading) {
+  if (isLoading || (isAuthenticated && onboarding.isLoading)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: riderColors.surface }}>
         <ActivityIndicator size="large" color={riderColors.green} />
@@ -16,6 +19,16 @@ export default function AppLayout() {
 
   if (!isAuthenticated) return <Redirect href="/(auth)" />;
 
+  const isOnboardingRoute = pathname.includes('/onboarding') || pathname.includes('/training');
+  const isVehicleManagementRoute = pathname.endsWith('/onboarding/vehicle')
+    || pathname.endsWith('/onboarding/vehicle-photos');
+  if (!onboarding.isActivated && !isOnboardingRoute) {
+    return <Redirect href="/(app)/onboarding" />;
+  }
+  if (onboarding.isActivated && pathname.includes('/onboarding') && !isVehicleManagementRoute) {
+    return <Redirect href="/(tabs)" />;
+  }
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="jobs/[id]" />
@@ -24,8 +37,10 @@ export default function AppLayout() {
       <Stack.Screen name="job-offer" options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="gamification" />
       <Stack.Screen name="training" />
+      <Stack.Screen name="safety" />
       <Stack.Screen name="cancellations" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="wallet/add-funds" />
       <Stack.Screen name="onboarding/index" />
       <Stack.Screen name="onboarding/documents" />
       <Stack.Screen name="onboarding/selfie" />

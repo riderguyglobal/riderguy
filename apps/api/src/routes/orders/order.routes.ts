@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireRole, validate, sensitiveRateLimit } from '../../middleware';
+import { authenticate, getAuthRoles, hasAnyRole, requireRole, validate, sensitiveRateLimit } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { z } from 'zod';
@@ -8,6 +8,8 @@ import {
   priceEstimateSchema,
   cancelOrderSchema,
   rateOrderSchema,
+  ghanaOrderLatitudeSchema,
+  ghanaOrderLongitudeSchema,
 } from '@riderguy/validators';
 import { UserRole } from '@riderguy/types';
 import { StatusCodes } from 'http-status-codes';
@@ -23,7 +25,7 @@ import * as CancelRequestService from '../../services/cancellation-request.servi
 import { StorageService } from '../../services/storage.service';
 import { prisma } from '@riderguy/database';
 import { logger } from '../../lib/logger';
-import type { OrderStatus, PaymentMethod } from '@prisma/client';
+import type { OrderStatus } from '@prisma/client';
 import multer from 'multer';
 import type { Request } from 'express';
 import os from 'node:os';
@@ -265,8 +267,8 @@ const recordSelectionSchema = z.object({
     id: z.string().max(500).optional(),
     text: z.string().min(1).max(300),
     placeName: z.string().min(1).max(500).optional(),
-    latitude: z.number().min(-90).max(90),
-    longitude: z.number().min(-180).max(180),
+    latitude: ghanaOrderLatitudeSchema,
+    longitude: ghanaOrderLongitudeSchema,
     source: z.enum(['google', 'nominatim', 'gazetteer', 'community']).optional(),
   }),
 });
@@ -383,6 +385,10 @@ router.get(
     if (isNaN(latitude) || isNaN(longitude)) {
       throw ApiError.badRequest('Provide either "code" (Plus Code) or "latitude" & "longitude" query parameters');
     }
+    if (!ghanaOrderLatitudeSchema.safeParse(latitude).success
+      || !ghanaOrderLongitudeSchema.safeParse(longitude).success) {
+      throw ApiError.badRequest('Location must be within Ghana');
+    }
     const plusCode = formatPlusCode(latitude, longitude);
     res.status(StatusCodes.OK).json({ success: true, data: plusCode });
   }),
@@ -407,13 +413,13 @@ router.get(
     });
     if (pairs.length < 2) throw ApiError.badRequest('At least 2 coordinate pairs required');
 
-    // Validate coordinate bounds
+    // Validate every route point against the Ghana launch boundary.
     for (const p of pairs) {
       if (p.latitude == null || p.longitude == null ||
           isNaN(p.latitude) || isNaN(p.longitude) ||
-          p.latitude < -90 || p.latitude > 90 ||
-          p.longitude < -180 || p.longitude > 180) {
-        throw ApiError.badRequest('Invalid coordinates: each pair must be valid lng,lat values');
+          !ghanaOrderLatitudeSchema.safeParse(p.latitude).success ||
+          !ghanaOrderLongitudeSchema.safeParse(p.longitude).success) {
+        throw ApiError.badRequest('Invalid coordinates: every route point must be within Ghana');
       }
     }
 
@@ -597,7 +603,7 @@ router.get(
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const status = req.query.status as OrderStatus | undefined;
 
-    const result = await OrderService.listOrders(req.user!.userId, req.user!.role, {
+    const result = await OrderService.listOrders(req.user!.userId, getAuthRoles(req.user!), {
       page,
       limit,
       status,
@@ -615,9 +621,13 @@ router.get(
     const order = await OrderService.getOrderById(orderId);
 
     // Access control
-    const role = req.user!.role;
     const userId = req.user!.userId;
-    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DISPATCHER';
+    const isAdmin = hasAnyRole(
+      req.user!,
+      UserRole.ADMIN,
+      UserRole.SUPER_ADMIN,
+      UserRole.DISPATCHER,
+    );
 
     if (!isAdmin) {
       const isClient = order.clientId === userId;
@@ -705,9 +715,14 @@ router.patch(
     const orderId = req.params.id as string;
 
     // If rider, verify they're assigned to this order
-    const role = req.user!.role;
+    const isAdmin = hasAnyRole(
+      req.user!,
+      UserRole.ADMIN,
+      UserRole.SUPER_ADMIN,
+      UserRole.DISPATCHER,
+    );
     let previousStatus = '';
-    if (role === 'RIDER') {
+    if (!isAdmin) {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         select: {
@@ -865,7 +880,7 @@ router.post(
             order.id,
           );
         }
-      } catch (err) {
+      } catch {
         logger.warn(`Failed to notify rider of cancellation for order ${order.id}`);
       }
     }
@@ -1113,9 +1128,13 @@ router.post(
     const orderId = req.params.id as string;
     const { actualPaymentMethod } = req.body;
 
-    const VALID_METHODS = ['CARD', 'MOBILE_MONEY', 'WALLET', 'CASH', 'BANK_TRANSFER'];
-    if (!actualPaymentMethod || !VALID_METHODS.includes(actualPaymentMethod)) {
-      throw ApiError.badRequest(`actualPaymentMethod must be one of: ${VALID_METHODS.join(', ')}`);
+    // Only cash can be attested by the rider. Electronic payment state is
+    // provider/wallet-owned and may only move through the payment routes.
+    if (actualPaymentMethod !== 'CASH') {
+      throw ApiError.badRequest(
+        'Riders can only confirm cash collected at dropoff. Electronic payments must be verified in the customer app.',
+        'ELECTRONIC_PAYMENT_REQUIRES_VERIFICATION',
+      );
     }
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -1133,6 +1152,13 @@ router.post(
       throw ApiError.badRequest('Payment can only be confirmed at the delivery point');
     }
 
+    if (order.paymentMethod !== 'CASH') {
+      throw ApiError.badRequest(
+        'This order uses electronic payment and must be verified before delivery can be completed',
+        'ELECTRONIC_PAYMENT_REQUIRES_VERIFICATION',
+      );
+    }
+
     if (order.riderPaymentConfirmed) {
       throw ApiError.badRequest('Payment already confirmed');
     }
@@ -1141,7 +1167,7 @@ router.post(
       where: { id: orderId },
       data: {
         riderPaymentConfirmed: true,
-        actualPaymentMethod: actualPaymentMethod as PaymentMethod,
+        actualPaymentMethod: 'CASH',
       },
     });
 
@@ -1179,10 +1205,7 @@ router.post(
       throw ApiError.forbidden('You are not assigned to this order');
     }
 
-    // Rider must confirm payment before submitting proof
-    if (!order.riderPaymentConfirmed) {
-      throw ApiError.badRequest('You must confirm payment received before submitting proof of delivery', 'PAYMENT_NOT_CONFIRMED');
-    }
+    OrderService.assertDeliveryPaymentReady(order);
 
     let proofUrl: string;
 

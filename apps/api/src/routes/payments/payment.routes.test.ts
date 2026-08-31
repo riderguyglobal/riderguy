@@ -89,30 +89,6 @@ import { enqueuePayoutJob } from '../../jobs/queues';
 // objects rather than spinning up a full Express server.
 // ─────────────────────────────────────────────────────────────
 
-interface MockRequest {
-  body?: Record<string, unknown>;
-  params?: Record<string, string>;
-  query?: Record<string, string>;
-  headers?: Record<string, string>;
-  user?: { userId: string; role: string };
-  rawBody?: Buffer;
-}
-
-function createMockRes() {
-  const res: Record<string, unknown> = {};
-  res.statusCode = 200;
-  res.status = vi.fn().mockImplementation((code: number) => {
-    res.statusCode = code;
-    return res;
-  });
-  res.json = vi.fn().mockReturnValue(res);
-  return res as {
-    statusCode: number;
-    status: ReturnType<typeof vi.fn>;
-    json: ReturnType<typeof vi.fn>;
-  };
-}
-
 // ─────────────────────────────────────────────────────────────
 // Payment Webhook Logic Tests
 // ─────────────────────────────────────────────────────────────

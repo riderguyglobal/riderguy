@@ -6,6 +6,8 @@ export const ghanaCardSchema = z
   .string()
   .regex(/^GHA-\d{9}-\d$/, 'Ghana Card number must be in format GHA-XXXXXXXXX-X');
 
+const authIdentifierSchema = z.union([emailSchema, ghanaCardSchema, phoneSchema]);
+
 export const registerSchema = z.object({
   phone: phoneSchema,
   firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters').optional().default(''),
@@ -15,6 +17,7 @@ export const registerSchema = z.object({
   pin: pinSchema.optional(),
   otpCode: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
   role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
+  riderChannel: z.enum(['GUEST', 'IN_HOUSE']).optional(),
   referralCode: z.string().max(20).optional(),
 });
 
@@ -24,12 +27,19 @@ export const emailRegisterSchema = z.object({
   firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters').optional().default(''),
   lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters').optional().default(''),
   role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
+  riderChannel: z.enum(['GUEST', 'IN_HOUSE']).optional(),
   referralCode: z.string().max(20).optional(),
 });
 
 export const googleAuthSchema = z.object({
-  credential: z.string().min(1, 'Google credential is required'),
-  role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']).default('CLIENT'),
+  credential: z
+    .string()
+    .min(1, 'Google credential is required')
+    .max(4096, 'Google credential is too large'),
+  // The two public native Google entry points are the Rider and Client apps.
+  // Business/Partner onboarding has separate requirements and must not be
+  // self-assigned through a public identity-provider callback.
+  role: z.enum(['RIDER', 'CLIENT']).default('CLIENT'),
 });
 
 export const loginWithOtpSchema = z.object({
@@ -38,7 +48,7 @@ export const loginWithOtpSchema = z.object({
 });
 
 export const loginWithPinSchema = z.object({
-  identifier: z.string().min(1, 'Phone, email, or Ghana Card is required'),
+  identifier: authIdentifierSchema,
   pin: pinSchema,
 });
 
@@ -48,8 +58,8 @@ export const loginWithPinSchema = z.object({
 // way `loginWithPin` does.
 export const loginWithPasswordSchema = z
   .object({
-    identifier: z.string().min(1, 'Identifier is required').optional(),
-    email: z.string().min(1, 'Email is required').optional(),
+    identifier: authIdentifierSchema.optional(),
+    email: emailSchema.optional(),
     password: z.string().min(1, 'Password is required'),
   })
   .refine((data) => !!(data.identifier || data.email), {
@@ -189,6 +199,7 @@ export const ghanaCardRegisterSchema = z.object({
   firstName: requiredStringSchema.max(50, 'First name must be at most 50 characters'),
   lastName: requiredStringSchema.max(50, 'Last name must be at most 50 characters'),
   role: z.enum(['RIDER', 'CLIENT', 'BUSINESS_CLIENT', 'PARTNER']),
+  riderChannel: z.enum(['GUEST', 'IN_HOUSE']).optional(),
   securityQuestion: requiredStringSchema.max(200, 'Security question must be at most 200 characters'),
   securityAnswer: requiredStringSchema.min(2, 'Security answer must be at least 2 characters').max(200),
 });

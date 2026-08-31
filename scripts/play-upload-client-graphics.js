@@ -5,7 +5,9 @@
  * - featureGraphic: 1024x500 brand canvas with logo + tagline
  * - phoneScreenshots: device captures framed onto 1080x1920 brand canvases
  *
- * Usage: node scripts/play-upload-client-graphics.js [--dry-run]
+ * Generation is local-only by default. Play listing graphics are global (not
+ * internal-track scoped), so upload requires both explicit live-action flags:
+ *   --upload-live-listing --confirm-live-metadata=com.riderguy.client
  */
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +18,25 @@ const ROOT = path.resolve(__dirname, '..');
 const KEY_PATH = path.join(ROOT, 'apps/client-native/play-store-key.json');
 const PACKAGE = 'com.riderguy.client';
 const OUT_DIR = path.join(ROOT, 'assets/play-store/client');
-const DRY_RUN = process.argv.includes('--dry-run');
+const LIVE_UPLOAD = process.argv.includes('--upload-live-listing');
+const LIVE_CONFIRM = process.argv.includes(`--confirm-live-metadata=${PACKAGE}`);
+const allowedArgs = new Set([
+  '--dry-run',
+  '--upload-live-listing',
+  `--confirm-live-metadata=${PACKAGE}`,
+]);
+const unknownArgs = process.argv.slice(2).filter((arg) => !allowedArgs.has(arg));
+if (
+  unknownArgs.length ||
+  LIVE_UPLOAD !== LIVE_CONFIRM ||
+  (LIVE_UPLOAD && process.argv.includes('--dry-run'))
+) {
+  console.error(
+    `Refusing unsafe invocation. Generate locally with no flags (or --dry-run). To change GLOBAL Play listing metadata, pass exactly: --upload-live-listing --confirm-live-metadata=${PACKAGE}`,
+  );
+  process.exit(2);
+}
+const DRY_RUN = !LIVE_UPLOAD;
 
 const BRAND = '#40BE89';
 const BRAND_DARK = '#079B61';
@@ -25,26 +45,31 @@ const INK = '#0B1512';
 const SCREENSHOTS = [
   { file: '.artifacts/mobile/artifacts-client-home.png', caption: 'Book a rider in seconds' },
   { file: '.artifacts/mobile/artifacts-client-ui.png', caption: 'Fast. Reliable. Secure.' },
-  { file: '.artifacts/mobile/artifacts-client-tracking-map-after-key.png', caption: 'Track your delivery live' },
+  {
+    file: '.artifacts/mobile/artifacts-client-tracking-map-after-key.png',
+    caption: 'Track your delivery live',
+  },
   { file: '.artifacts/mobile/artifacts-client-orders.png', caption: 'Every order in one place' },
 ];
-
-const key = JSON.parse(fs.readFileSync(KEY_PATH, 'utf8'));
 
 function b64url(input) {
   return Buffer.from(input).toString('base64url');
 }
 
 async function getAccessToken() {
+  const key = JSON.parse(fs.readFileSync(KEY_PATH, 'utf8'));
+  if (!key.client_email || !key.private_key) throw new Error('Invalid Play service-account key');
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claims = b64url(JSON.stringify({
-    iss: key.client_email,
-    scope: 'https://www.googleapis.com/auth/androidpublisher',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  }));
+  const claims = b64url(
+    JSON.stringify({
+      iss: key.client_email,
+      scope: 'https://www.googleapis.com/auth/androidpublisher',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+    }),
+  );
   const signer = crypto.createSign('RSA-SHA256');
   signer.update(`${header}.${claims}`);
   const signature = signer.sign(key.private_key).toString('base64url');
@@ -59,14 +84,23 @@ async function getAccessToken() {
 }
 
 async function jsonApi(token, method, p, body) {
-  const res = await fetch(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}${p}`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const res = await fetch(
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}${p}`,
+    {
+      method,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    },
+  );
   const text = await res.text();
-  let json; try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 300) }; }
-  if (!res.ok) throw new Error(`${method} ${p} -> ${res.status}: ${JSON.stringify(json).slice(0, 400)}`);
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text.slice(0, 300) };
+  }
+  if (!res.ok)
+    throw new Error(`${method} ${p} -> ${res.status}: ${JSON.stringify(json).slice(0, 400)}`);
   return json;
 }
 
@@ -81,7 +115,10 @@ async function uploadImage(token, editId, imageType, filePath) {
     },
   );
   const body = await res.json();
-  if (!res.ok) throw new Error(`upload ${imageType} (${path.basename(filePath)}) -> ${res.status}: ${JSON.stringify(body).slice(0, 400)}`);
+  if (!res.ok)
+    throw new Error(
+      `upload ${imageType} (${path.basename(filePath)}) -> ${res.status}: ${JSON.stringify(body).slice(0, 400)}`,
+    );
   return body;
 }
 
@@ -134,10 +171,7 @@ async function buildScreenshot(srcFile, caption, index) {
   const W = 1080;
   const H = 1920;
   const shotH = 1610;
-  const src = await sharp(path.join(ROOT, srcFile))
-    .resize({ height: shotH })
-    .png()
-    .toBuffer();
+  const src = await sharp(path.join(ROOT, srcFile)).resize({ height: shotH }).png().toBuffer();
   const meta = await sharp(src).metadata();
 
   // Rounded-corner mask for the framed device capture
@@ -182,7 +216,10 @@ async function buildScreenshot(srcFile, caption, index) {
   for (let i = 0; i < SCREENSHOTS.length; i++) {
     screenshotPaths.push(await buildScreenshot(SCREENSHOTS[i].file, SCREENSHOTS[i].caption, i));
   }
-  console.log('Built:', [iconPath, featurePath, ...screenshotPaths].map((p) => path.basename(p)).join(', '));
+  console.log(
+    'Built:',
+    [iconPath, featurePath, ...screenshotPaths].map((p) => path.basename(p)).join(', '),
+  );
 
   if (DRY_RUN) {
     console.log('Dry run — not uploading.');

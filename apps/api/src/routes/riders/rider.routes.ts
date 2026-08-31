@@ -8,11 +8,23 @@ import {
   updateAvailabilitySchema,
   updateLocationSchema,
   registerVehicleSchema,
+  selectRiderChannelSchema,
+  createInHouseInvitationSchema,
+  rejectRiderApplicationSchema,
+  adminClassifyRiderChannelSchema,
 } from '@riderguy/validators';
 import { VehicleService } from '../../services/vehicle.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { NotificationService } from '../../services/notification.service';
-import { recordHeartbeat, forceRiderOffline } from '../../services/presence.service';
+import {
+  recordHeartbeat,
+  forceRiderOffline,
+  resolveOnlineSessionStartedAt,
+} from '../../services/presence.service';
+import {
+  assertRiderWorkEligible,
+  riderWorkEligibilityWhere,
+} from '../../services/rider-work-eligibility';
 import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
 import type { Request } from 'express';
@@ -80,38 +92,40 @@ router.patch(
   validate(updateAvailabilitySchema),
   asyncHandler(async (req, res) => {
     const { availability, latitude, longitude } = req.body;
+    let existingSessionStartedAt: Date | null = null;
 
-    // Gate: only ACTIVATED riders can go ONLINE
+    // Gate: only fully approved riders with an active account can go ONLINE.
     if (availability === 'ONLINE') {
       const currentProfile = await prisma.riderProfile.findUnique({
         where: { userId: req.user!.userId },
-        select: { onboardingStatus: true },
+        select: {
+          onboardingStatus: true,
+          isVerified: true,
+          suspendedUntil: true,
+          availability: true,
+          sessionStartedAt: true,
+          user: { select: { status: true } },
+        },
       });
       if (!currentProfile) {
         throw ApiError.notFound('Rider profile not found');
       }
-      if (currentProfile.onboardingStatus !== 'ACTIVATED') {
+      assertRiderWorkEligible(currentProfile);
+      if (currentProfile.suspendedUntil && currentProfile.suspendedUntil > new Date()) {
         throw ApiError.forbidden(
-          'Your account is not yet activated. Please complete onboarding and wait for admin approval before going online.',
+          `Your account is suspended until ${currentProfile.suspendedUntil.toISOString()}. You cannot go online during a suspension.`,
         );
       }
-    }
-
-    // Gate: suspended riders cannot go ONLINE
-    if (availability === 'ONLINE') {
-      const suspCheck = await prisma.riderProfile.findUnique({
-        where: { userId: req.user!.userId },
-        select: { suspendedUntil: true },
-      });
-      if (suspCheck?.suspendedUntil && suspCheck.suspendedUntil > new Date()) {
-        throw ApiError.forbidden(
-          `Your account is suspended until ${suspCheck.suspendedUntil.toISOString()}. You cannot go online during a suspension.`,
-        );
+      if (currentProfile.availability === 'ONLINE' || currentProfile.availability === 'ON_DELIVERY') {
+        existingSessionStartedAt = currentProfile.sessionStartedAt;
       }
     }
 
     // Build update data — always set availability
     const updateData: Record<string, unknown> = { availability };
+    if (availability === 'ONLINE') {
+      updateData.sessionStartedAt = resolveOnlineSessionStartedAt(existingSessionStartedAt);
+    }
 
     // If coordinates provided (rider going ONLINE), persist initial GPS immediately
     if (typeof latitude === 'number' && typeof longitude === 'number') {
@@ -192,6 +206,7 @@ router.get(
     const riders = await prisma.riderProfile.findMany({
       where: {
         availability: 'ONLINE',
+        ...riderWorkEligibilityWhere(),
         currentLatitude: { not: null },
         currentLongitude: { not: null },
         lastLocationUpdate: { gte: thirtyMinutesAgo },
@@ -274,6 +289,44 @@ router.get(
   asyncHandler(async (req, res) => {
     const progress = await OnboardingService.getProgress(req.user!.userId);
     res.status(StatusCodes.OK).json({ success: true, data: progress });
+  }),
+);
+
+/** POST /riders/onboarding/channel — confirm Guest or redeem an In-House invitation */
+router.post(
+  '/onboarding/channel',
+  requireRole(UserRole.RIDER),
+  validate(selectRiderChannelSchema),
+  asyncHandler(async (req, res) => {
+    const profile = await OnboardingService.selectChannel(
+      req.user!.userId,
+      req.body.channel,
+      req.body.invitationCode,
+    );
+    res.status(StatusCodes.OK).json({ success: true, data: profile });
+  }),
+);
+
+/** GET /riders/training — persisted RiderGuy training progress */
+router.get(
+  '/training',
+  requireRole(UserRole.RIDER),
+  asyncHandler(async (req, res) => {
+    const training = await OnboardingService.getTraining(req.user!.userId);
+    res.status(StatusCodes.OK).json({ success: true, data: training });
+  }),
+);
+
+/** POST /riders/training/:moduleKey/complete — idempotently record completion */
+router.post(
+  '/training/:moduleKey/complete',
+  requireRole(UserRole.RIDER),
+  asyncHandler(async (req, res) => {
+    const completion = await OnboardingService.completeTrainingModule(
+      req.user!.userId,
+      String(req.params.moduleKey).toUpperCase(),
+    );
+    res.status(StatusCodes.OK).json({ success: true, data: completion });
   }),
 );
 
@@ -428,6 +481,27 @@ router.patch(
 
 // ──────────── Admin — rider application management ────────────
 
+/** POST /riders/invitations — issue a targeted one-time In-House invitation */
+router.post(
+  '/invitations',
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate(createInHouseInvitationSchema),
+  asyncHandler(async (req, res) => {
+    const invitation = await OnboardingService.createInHouseInvitation(req.user!.userId, req.body);
+    res.status(StatusCodes.CREATED).json({ success: true, data: invitation });
+  }),
+);
+
+/** GET /riders/invitations — list invitation metadata (plaintext codes are never stored) */
+router.get(
+  '/invitations',
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  asyncHandler(async (_req, res) => {
+    const invitations = await OnboardingService.listInHouseInvitations();
+    res.status(StatusCodes.OK).json({ success: true, data: invitations });
+  }),
+);
+
 /** GET /riders/profile/:riderId — get a single rider profile by userId (admin) */
 router.get(
   '/profile/:riderId',
@@ -450,6 +524,10 @@ router.get(
           },
         },
         vehicles: true,
+        trainingCompletions: { orderBy: { moduleKey: 'asc' } },
+        channelInvitation: {
+          select: { id: true, targetEmail: true, targetPhone: true, expiresAt: true, usedAt: true },
+        },
       },
     });
 
@@ -457,7 +535,11 @@ router.get(
       throw ApiError.notFound('Rider profile not found');
     }
 
-    res.status(StatusCodes.OK).json({ success: true, data: profile });
+    const readiness = await OnboardingService.getApprovalReadiness(riderId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { ...profile, approvalReadiness: { ready: readiness.ready, missing: readiness.missing } },
+    });
   }),
 );
 
@@ -469,14 +551,32 @@ router.get(
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const skip = (page - 1) * limit;
+    const channel = req.query.channel === 'GUEST' || req.query.channel === 'IN_HOUSE'
+      ? req.query.channel
+      : undefined;
+    const requestedChannel = req.query.requestedChannel === 'GUEST' || req.query.requestedChannel === 'IN_HOUSE'
+      ? req.query.requestedChannel
+      : undefined;
+    const requestedStatus = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const allowedStatuses = new Set([
+      'REGISTERED', 'DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW',
+      'DOCUMENTS_APPROVED', 'DOCUMENTS_REJECTED', 'TRAINING_PENDING', 'TRAINING_COMPLETE',
+      'APPLICATION_REJECTED', 'ACTIVATED',
+    ]);
+    const status = requestedStatus && allowedStatuses.has(requestedStatus) ? requestedStatus : undefined;
+    const where: any = {
+      ...(status
+        ? { onboardingStatus: status }
+        : { OR: [{ onboardingStatus: { not: 'ACTIVATED' } }, { riderChannel: null }] }),
+      ...(channel
+        ? { AND: [{ OR: [{ riderChannel: channel }, { riderChannel: null, requestedRiderChannel: channel }] }] }
+        : {}),
+      ...(requestedChannel ? { requestedRiderChannel: requestedChannel } : {}),
+    };
 
     const [riders, total] = await Promise.all([
       prisma.riderProfile.findMany({
-        where: {
-          onboardingStatus: {
-            in: ['DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW'],
-          },
-        },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -492,15 +592,10 @@ router.get(
             },
           },
           vehicles: true,
+          trainingCompletions: { orderBy: { moduleKey: 'asc' } },
         },
       }),
-      prisma.riderProfile.count({
-        where: {
-          onboardingStatus: {
-            in: ['DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW'],
-          },
-        },
-      }),
+      prisma.riderProfile.count({ where }),
     ]);
 
     res.status(StatusCodes.OK).json({
@@ -513,18 +608,81 @@ router.get(
 
 /** PATCH /riders/:riderId/approve — approve a rider application (admin) */
 router.patch(
-  '/:riderId/approve',
+  '/:riderId/training/:moduleKey/verify',
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
-    const riderId = req.params.riderId as string;
+    const completion = await OnboardingService.verifyTrainingModule(
+      req.user!.userId,
+      String(req.params.riderId),
+      String(req.params.moduleKey).toUpperCase(),
+    );
+    res.status(StatusCodes.OK).json({ success: true, data: completion });
+  }),
+);
+
+/** PATCH /riders/:riderId/channel — explicit admin classification for legacy Riders. */
+router.patch(
+  '/:riderId/channel',
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate(adminClassifyRiderChannelSchema),
+  asyncHandler(async (req, res) => {
+    const riderId = String(req.params.riderId);
+    const channel = req.body.channel as 'GUEST' | 'IN_HOUSE';
+    const existing = await prisma.riderProfile.findUnique({ where: { userId: riderId } });
+    if (!existing) throw ApiError.notFound('Rider profile not found');
+    if (existing.riderChannel) {
+      throw ApiError.conflict('This Rider already has a verified channel classification.');
+    }
 
     const profile = await prisma.riderProfile.update({
       where: { userId: riderId },
       data: {
-        onboardingStatus: 'ACTIVATED',
-        isVerified: true,
-        activatedAt: new Date(),
+        riderChannel: channel,
+        requestedRiderChannel: channel,
+        channelVerifiedAt: new Date(),
+        channelInvitationId: null,
+        applicationReviewedAt: new Date(),
+        applicationReviewedById: req.user!.userId,
       },
+    });
+    if (profile.onboardingStatus !== 'ACTIVATED') {
+      await OnboardingService.recalculateStatus(riderId);
+    }
+
+    res.status(StatusCodes.OK).json({ success: true, data: profile });
+  }),
+);
+
+router.patch(
+  '/:riderId/approve',
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  asyncHandler(async (req, res) => {
+    const riderId = req.params.riderId as string;
+    const readiness = await OnboardingService.getApprovalReadiness(riderId);
+    if (!readiness.ready) {
+      throw ApiError.badRequest(
+        'This Rider cannot be activated until all required checks are complete.',
+        'RIDER_ONBOARDING_INCOMPLETE',
+        { missing: readiness.missing },
+      );
+    }
+
+    const now = new Date();
+    const profile = await prisma.$transaction(async (tx) => {
+      const activated = await tx.riderProfile.update({
+        where: { userId: riderId },
+        data: {
+          onboardingStatus: 'ACTIVATED',
+          isVerified: true,
+          activatedAt: now,
+          availability: 'OFFLINE',
+          applicationRejectionReason: null,
+          applicationReviewedAt: now,
+          applicationReviewedById: req.user!.userId,
+        },
+      });
+      await tx.user.update({ where: { id: riderId }, data: { status: 'ACTIVE' } });
+      return activated;
     });
 
     // Notify the rider
@@ -544,13 +702,22 @@ router.patch(
 router.patch(
   '/:riderId/reject',
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate(rejectRiderApplicationSchema),
   asyncHandler(async (req, res) => {
     const riderId = req.params.riderId as string;
     const { reason } = req.body;
 
     const profile = await prisma.riderProfile.update({
       where: { userId: riderId },
-      data: { onboardingStatus: 'DOCUMENTS_REJECTED' },
+      data: {
+        onboardingStatus: 'APPLICATION_REJECTED',
+        isVerified: false,
+        activatedAt: null,
+        availability: 'OFFLINE',
+        applicationRejectionReason: reason,
+        applicationReviewedAt: new Date(),
+        applicationReviewedById: req.user!.userId,
+      },
     });
 
     await NotificationService.create({
@@ -558,7 +725,7 @@ router.patch(
       title: 'Application Not Approved',
       body: reason || 'Your application was not approved at this time. Please check your documents.',
       type: 'TRAINING',
-      data: { status: 'DOCUMENTS_REJECTED', reason },
+      data: { status: 'APPLICATION_REJECTED', reason },
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });

@@ -12,13 +12,13 @@ import { riderColors } from '@/lib/rider-design';
 
 type DocumentType = 'NATIONAL_ID' | 'DRIVERS_LICENSE' | 'INSURANCE_CERTIFICATE';
 
-const DOCUMENTS: Array<{
+const DOCUMENTS: {
   type: DocumentType;
   title: string;
   body: string;
   optional?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
-}> = [
+}[] = [
   { type: 'NATIONAL_ID', title: 'National ID', body: 'Ghana Card, passport, or other government ID.', icon: 'card-outline' },
   { type: 'DRIVERS_LICENSE', title: "Driver's license", body: 'A clear current license for rider verification.', icon: 'card-outline' },
   { type: 'INSURANCE_CERTIFICATE', title: 'Insurance certificate', body: 'Optional vehicle insurance document.', optional: true, icon: 'shield-checkmark-outline' },

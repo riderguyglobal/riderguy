@@ -16,8 +16,8 @@
     "clean": "rimraf dist .turbo node_modules/.prisma"
   },
   "dependencies": {
-    "@prisma/client": "6.19.2",
-    "prisma": "6.19.2"
+    "@prisma/client": "6.12.0",
+    "prisma": "6.12.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -11,7 +11,6 @@ import {
   Button,
   Input,
   Label,
-  Textarea,
   Separator,
   Spinner,
   Dialog,
@@ -58,7 +57,7 @@ export default function ZoneManagementPage() {
   const [newPerKm, setNewPerKm] = useState('5');
   const [newMinFare, setNewMinFare] = useState('20');
   const [newCommission, setNewCommission] = useState('15');
-  const [newCurrency, setNewCurrency] = useState('GHS');
+  const newCurrency = 'GHS';
   const [newCenterLat, setNewCenterLat] = useState('');
   const [newCenterLng, setNewCenterLng] = useState('');
 
@@ -248,7 +247,7 @@ export default function ZoneManagementPage() {
                 id="zoneName"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. Johannesburg CBD"
+                placeholder="e.g. Accra Central"
                 className="mt-1"
               />
             </div>
@@ -262,7 +261,7 @@ export default function ZoneManagementPage() {
                   step="0.0001"
                   value={newCenterLat}
                   onChange={(e) => setNewCenterLat(e.target.value)}
-                  placeholder="-26.2041"
+                  placeholder="5.6037"
                   className="mt-1"
                 />
               </div>
@@ -274,7 +273,7 @@ export default function ZoneManagementPage() {
                   step="0.0001"
                   value={newCenterLng}
                   onChange={(e) => setNewCenterLng(e.target.value)}
-                  placeholder="28.0473"
+                  placeholder="-0.1870"
                   className="mt-1"
                 />
               </div>

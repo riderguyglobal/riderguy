@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   type AppStateStatus,
   Image,
-  ImageBackground,
-  type ImageSourcePropType,
   Modal,
   RefreshControl,
+  Share,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { router, useNavigation } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE, type LatLng } from 'react-native-maps';
@@ -23,16 +24,13 @@ import * as TaskManager from 'expo-task-manager';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { io, type Socket } from 'socket.io-client';
-import { tokenStorage, useAuth } from '@riderguy/auth-native';
+import { initApiClient, tokenStorage, useAuth } from '@riderguy/auth-native';
 import { formatCurrency } from '@riderguy/utils';
 import Toast from 'react-native-toast-message';
-import {
-  BrandHeader,
-  ProgressBar,
-  RiderCard,
-  StatusPill,
-} from '@/components/rider-ui';
-import { cleanLabel, riderColors, riderShadow } from '@/lib/rider-design';
+import { BrandHeader, ProgressBar } from '@/components/rider-ui';
+import { RiderNavigationMenu } from '@/components/rider-navigation-menu';
+import { cleanLabel, riderColors, riderFonts, riderShadow } from '@/lib/rider-design';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
 type IncomingOffer = Record<string, any> & {
   orderId?: string;
@@ -53,24 +51,13 @@ const SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myridergu
 const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myriderguy.com/api/v1')
   .replace('api.riderguy.com', 'api.myriderguy.com')
   .replace(/\/+$/, '');
-const ACTIVE_STATUSES = new Set(['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF']);
 const LOCATION_TIMEOUT_MS = 8000;
+const LAST_KNOWN_MAX_AGE_MS = 5 * 60 * 1000;
+const MAX_LAST_KNOWN_ACCURACY_METERS = 250;
 const OFFER_TIMEOUT = parseInt(process.env.EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN ?? '30', 10);
 const ACCRA_CENTER = { latitude: 5.6037, longitude: -0.1870 };
-const DEFAULT_TAB_BAR_STYLE = {
-  borderTopWidth: 1,
-  borderTopColor: '#EDF2EF',
-  backgroundColor: riderColors.white,
-  height: 78,
-  paddingTop: 9,
-  paddingBottom: 12,
-};
-
-const heroReady = require('../../assets/images/illustrations/rider-fleet.png');
-const referImage = require('../../assets/images/illustrations/rider-workplace.png');
-const academyImage = require('../../assets/images/illustrations/rider-academy.png');
-const payoutsImage = require('../../assets/images/illustrations/rider-earnings.png');
-const supportImage = require('../../assets/images/illustrations/rider-support.png');
+const dashboardHero = require('../../assets/images/illustrations/rider-dashboard-hero-v4.png');
+const dashboardWallet = require('../../assets/images/illustrations/rider-dashboard-wallet-v1.png');
 
 const RIDER_MAP_STYLE = [
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
@@ -91,16 +78,31 @@ async function getUsablePosition() {
     new Promise<null>((resolve) => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS)),
   ]).catch(() => null);
 
-  if (current) return current;
+  if (current && Number.isFinite(current.coords.latitude) && Number.isFinite(current.coords.longitude)) {
+    return current;
+  }
 
   const lastKnown = await Location.getLastKnownPositionAsync({
-    maxAge: 5 * 60 * 1000,
-    requiredAccuracy: 1000,
+    maxAge: LAST_KNOWN_MAX_AGE_MS,
+    requiredAccuracy: MAX_LAST_KNOWN_ACCURACY_METERS,
   }).catch(() => null);
 
-  if (lastKnown) return lastKnown;
+  const lastKnownAge = lastKnown ? Date.now() - lastKnown.timestamp : Number.POSITIVE_INFINITY;
+  const lastKnownAccuracy = lastKnown?.coords.accuracy;
+  if (
+    lastKnown
+    && Number.isFinite(lastKnown.coords.latitude)
+    && Number.isFinite(lastKnown.coords.longitude)
+    && lastKnownAge >= 0
+    && lastKnownAge <= LAST_KNOWN_MAX_AGE_MS
+    && typeof lastKnownAccuracy === 'number'
+    && Number.isFinite(lastKnownAccuracy)
+    && lastKnownAccuracy <= MAX_LAST_KNOWN_ACCURACY_METERS
+  ) {
+    return lastKnown;
+  }
 
-  throw new Error('Could not get your location. Please check location services and try again.');
+  throw new Error('A recent, accurate GPS location is required before you can go online. Move to an open area and try again.');
 }
 
 function offerOrderId(offer?: IncomingOffer | null) {
@@ -133,7 +135,7 @@ function waitingRegion(position: LatLng) {
 }
 
 function formatOnlineDuration(startedAt: number | null, now: number) {
-  if (!startedAt) return 'Ready';
+  if (!startedAt) return 'Unavailable';
   const minutes = Math.max(0, Math.floor((now - startedAt) / 60000));
   if (minutes < 1) return 'Now';
   if (minutes < 60) return `${minutes} min`;
@@ -142,9 +144,11 @@ function formatOnlineDuration(startedAt: number | null, now: number) {
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
-function inferAreaName(profile: any, position: LatLng) {
+function inferAreaName(profile: any, position: LatLng | null) {
   const direct = profile?.currentZone?.name ?? profile?.currentZoneName ?? profile?.zoneName ?? profile?.city ?? profile?.market;
   if (direct) return cleanLabel(String(direct));
+
+  if (!position) return 'Current area';
 
   if (position.latitude >= 4.75 && position.latitude <= 5.35 && position.longitude >= -2.25 && position.longitude <= -1.45) {
     return 'Takoradi';
@@ -152,13 +156,24 @@ function inferAreaName(profile: any, position: LatLng) {
   if (position.latitude >= 5.45 && position.latitude <= 5.75 && position.longitude >= -0.35 && position.longitude <= 0.05) {
     return 'Accra';
   }
-  return 'Takoradi';
+  return 'Current area';
 }
 
 function formatTodayAmount(wallet: any) {
   const amount = Number(wallet?.todayEarnings ?? wallet?.earningsToday ?? wallet?.todayTotal ?? 0);
   const currency = String(wallet?.currency ?? 'GHS').toUpperCase();
   return formatMoneyAmount(amount, currency);
+}
+
+function formatOverviewEarnings(wallet: any) {
+  const amount = Number(wallet?.todayEarnings ?? wallet?.earningsToday ?? wallet?.todayTotal ?? 0);
+  const currency = String(wallet?.currency ?? 'GHS').toUpperCase();
+  if (currency !== 'GHS') return formatCurrency(amount, currency);
+  const hasPesewas = Math.abs(amount % 1) > 0.005;
+  return `GHS ${amount.toLocaleString('en-GH', {
+    minimumFractionDigits: hasPesewas ? 2 : 0,
+    maximumFractionDigits: hasPesewas ? 2 : 0,
+  })}`;
 }
 
 function formatMoneyAmount(amount: number, currency = 'GHS') {
@@ -172,34 +187,52 @@ if (!TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK)) {
     if (error || !data?.locations?.length) return;
     const loc = data.locations[data.locations.length - 1];
     try {
-      const token = await tokenStorage.getAccessToken();
-      if (!token) return;
-      await fetch(`${API_URL}/riders/location`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ latitude: loc.coords.latitude, longitude: loc.coords.longitude }),
+      const api = initApiClient(API_URL);
+      await api.post('/riders/location', {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
       });
     } catch {}
   });
 }
 
 export default function RiderHomeScreen() {
-  const { api } = useAuth();
+  const { api, user } = useAuth();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const qc = useQueryClient();
   const [isOnline, setIsOnline] = useState(false);
+  const [showLiveMap, setShowLiveMap] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [incomingOffer, setIncomingOffer] = useState<IncomingOffer | null>(null);
   const [offerTimeLeft, setOfferTimeLeft] = useState(OFFER_TIMEOUT);
   const [respondingOffer, setRespondingOffer] = useState(false);
-  const [onlineStartedAt, setOnlineStartedAt] = useState<number | null>(null);
   const [clock, setClock] = useState(Date.now());
+  const [confirmedPosition, setConfirmedPosition] = useState<LatLng | null>(null);
   const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
   const [requestingBackgroundLocation, setRequestingBackgroundLocation] = useState(false);
+  const [mainMenuOpen, setMainMenuOpen] = useState(false);
+  const [availabilityMenuOpen, setAvailabilityMenuOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
+  const onlineServicesSetupRef = useRef<Promise<void> | null>(null);
+  const promptForBackgroundLocationRef = useRef(false);
+  const { unreadCount } = useUnreadNotifications();
+  const defaultTabBarStyle = useMemo(() => ({
+    borderTopWidth: 1,
+    borderTopColor: '#EDF2EF',
+    backgroundColor: riderColors.white,
+    height: 62 + insets.bottom,
+    paddingTop: 9,
+    paddingBottom: Math.max(insets.bottom, 8),
+  }), [insets.bottom]);
 
-  const { data: wallet, isLoading: walletLoading, refetch: refetchWallet } = useQuery({
+  const {
+    data: wallet,
+    isError: walletError,
+    isLoading: walletLoading,
+    refetch: refetchWallet,
+  } = useQuery({
     queryKey: ['rider-wallet'],
     queryFn: async () => {
       const { data } = await api.get('/wallets');
@@ -207,7 +240,12 @@ export default function RiderHomeScreen() {
     },
   });
 
-  const { data: profile, refetch: refetchProfile } = useQuery({
+  const {
+    data: profile,
+    isError: profileError,
+    isLoading: profileLoading,
+    refetch: refetchProfile,
+  } = useQuery({
     queryKey: ['rider-profile'],
     queryFn: async () => {
       const { data } = await api.get('/riders/profile');
@@ -215,7 +253,7 @@ export default function RiderHomeScreen() {
     },
   });
 
-  const { data: availableJobs, refetch: refetchAvailableJobs } = useQuery({
+  const { refetch: refetchAvailableJobs } = useQuery({
     queryKey: ['jobs-available'],
     queryFn: async () => {
       const { data } = await api.get('/orders/available');
@@ -226,34 +264,33 @@ export default function RiderHomeScreen() {
     retry: false,
   });
 
-  const { data: activeJobs } = useQuery({
-    queryKey: ['jobs-active'],
+  const {
+    data: recentJobs,
+    isError: recentJobsError,
+    isLoading: recentJobsLoading,
+    refetch: refetchRecentJobs,
+  } = useQuery({
+    queryKey: ['rider-jobs-recent'],
     queryFn: async () => {
-      const { data } = await api.get('/orders?limit=40');
+      const { data } = await api.get('/orders?limit=100');
       const jobs = (data.data ?? data) as any[];
-      return jobs.filter((job) => ACTIVE_STATUSES.has(job.status)).slice(0, 10);
+      return jobs;
     },
-    refetchInterval: 6000,
-  });
-
-  const { data: gamification } = useQuery({
-    queryKey: ['gamification-profile'],
-    queryFn: async () => {
-      const { data } = await api.get('/gamification/profile');
-      return data.data ?? data;
-    },
+    refetchInterval: 15000,
   });
 
   useEffect(() => {
-    setIsOnline(profile?.availability === 'ONLINE' || profile?.availability === 'ON_DELIVERY');
+    if (!profile?.availability) return;
+    setIsOnline(profile.availability === 'ONLINE' || profile.availability === 'ON_DELIVERY');
   }, [profile?.availability]);
 
   useEffect(() => {
-    setOnlineStartedAt((current) => (isOnline ? current ?? Date.now() : null));
+    if (!isOnline) setShowLiveMap(false);
   }, [isOnline]);
 
   useEffect(() => {
     if (!isOnline) return undefined;
+    setClock(Date.now());
     const timer = setInterval(() => setClock(Date.now()), 30000);
     return () => clearInterval(timer);
   }, [isOnline]);
@@ -282,18 +319,31 @@ export default function RiderHomeScreen() {
 
   useEffect(() => {
     navigation.setOptions({
-      tabBarStyle: isOnline ? { display: 'none' } : DEFAULT_TAB_BAR_STYLE,
+      tabBarStyle: isOnline && showLiveMap ? { display: 'none' } : defaultTabBarStyle,
     });
 
     return () => {
-      navigation.setOptions({ tabBarStyle: DEFAULT_TAB_BAR_STYLE });
+      navigation.setOptions({ tabBarStyle: defaultTabBarStyle });
     };
-  }, [isOnline, navigation]);
+  }, [defaultTabBarStyle, isOnline, navigation, showLiveMap]);
 
   const connectSocket = useCallback(async () => {
-    if (socketRef.current?.connected) return;
     const token = await tokenStorage.getAccessToken();
+    if (!token) throw new Error('Your session has expired. Please sign in again.');
+
+    if (socketRef.current) {
+      socketRef.current.auth = { token };
+      if (!socketRef.current.connected) socketRef.current.connect();
+      else await qc.invalidateQueries({ queryKey: ['rider-profile'] });
+      return;
+    }
+
     const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'], auth: { token } });
+    socket.on('connect', () => {
+      // Presence persists the authoritative sessionStartedAt during the
+      // handshake. Refresh the active profile after every reconnect.
+      void qc.invalidateQueries({ queryKey: ['rider-profile'] });
+    });
     socket.on('job:offer', (offer: any) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
       setIncomingOffer(offer);
@@ -369,37 +419,18 @@ export default function RiderHomeScreen() {
     setShowLocationDisclosure(false);
   }, []);
 
-  const goOnline = async () => {
-    setTogglingOnline(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Toast.show({ type: 'error', text1: 'Location permission is required.' });
-        return;
-      }
-      const profileLatitude = Number(profile?.currentLatitude);
-      const profileLongitude = Number(profile?.currentLongitude);
-      const fallbackPosition = Number.isFinite(profileLatitude) && Number.isFinite(profileLongitude)
-        ? { latitude: profileLatitude, longitude: profileLongitude }
-        : ACCRA_CENTER;
-      const current = await getUsablePosition().catch(() => null);
-      const startingPosition = current?.coords
-        ? { latitude: current.coords.latitude, longitude: current.coords.longitude }
-        : fallbackPosition;
+  const setupOnlineServices = useCallback(async (promptForBackgroundLocation: boolean) => {
+    if (onlineServicesSetupRef.current) return onlineServicesSetupRef.current;
 
-      await api.patch('/riders/availability', {
-        availability: 'ONLINE',
-        latitude: startingPosition.latitude,
-        longitude: startingPosition.longitude,
-      });
-      setIsOnline(true);
-      Toast.show({ type: 'success', text1: 'You are online.' });
-
-      const setupOnlineServices = async () => {
-        locationWatchRef.current?.remove();
+    const setup = (async () => {
+      if (!locationWatchRef.current) {
         locationWatchRef.current = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, timeInterval: 9000, distanceInterval: 25 },
           (loc) => {
+            setConfirmedPosition({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            });
             socketRef.current?.emit('rider:updateLocation', {
               latitude: loc.coords.latitude,
               longitude: loc.coords.longitude,
@@ -408,27 +439,54 @@ export default function RiderHomeScreen() {
             });
           },
         );
+      }
 
-        await activateKeepAwakeAsync();
-        await connectSocket();
+      await activateKeepAwakeAsync();
+      await connectSocket();
 
-        // Background location requires a prominent in-app disclosure (Play policy)
-        // shown before the OS "Allow all the time" prompt — see LocationDisclosureModal.
-        const { status: existingBackground } = await Location.getBackgroundPermissionsAsync();
-        if (existingBackground === 'granted') {
-          await startBackgroundLocationUpdates();
-        } else {
-          setShowLocationDisclosure(true);
-        }
+      // Background location requires a prominent in-app disclosure (Play policy)
+      // shown before the OS "Allow all the time" prompt.
+      const { status: existingBackground } = await Location.getBackgroundPermissionsAsync();
+      if (existingBackground === 'granted') {
+        await startBackgroundLocationUpdates();
+      } else if (promptForBackgroundLocation) {
+        setShowLocationDisclosure(true);
+      }
+    })();
+
+    onlineServicesSetupRef.current = setup;
+    try {
+      await setup;
+    } finally {
+      onlineServicesSetupRef.current = null;
+    }
+  }, [connectSocket, startBackgroundLocationUpdates]);
+
+  const goOnline = async () => {
+    setTogglingOnline(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Toast.show({ type: 'error', text1: 'Location permission is required.' });
+        return;
+      }
+      const current = await getUsablePosition();
+      const startingPosition = {
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
       };
 
-      setupOnlineServices().catch(() => {
-        Toast.show({
-          type: 'info',
-          text1: 'Online. Live tracking will retry shortly.',
-          text2: 'Keep the app open while the phone warms up GPS.',
-        });
+      const { data } = await api.patch('/riders/availability', {
+        availability: 'ONLINE',
+        latitude: startingPosition.latitude,
+        longitude: startingPosition.longitude,
       });
+      const updatedProfile = data.data ?? data;
+      qc.setQueryData(['rider-profile'], (existing: any) => ({ ...(existing ?? {}), ...updatedProfile }));
+      setConfirmedPosition(startingPosition);
+      promptForBackgroundLocationRef.current = true;
+      setIsOnline(true);
+      Toast.show({ type: 'success', text1: 'You are online.' });
 
       await Promise.allSettled([
         refetchProfile(),
@@ -437,7 +495,10 @@ export default function RiderHomeScreen() {
       ]);
     } catch (error: any) {
       setIsOnline(false);
-      Toast.show({ type: 'error', text1: error?.response?.data?.error?.message ?? 'Could not go online.' });
+      Toast.show({
+        type: 'error',
+        text1: error?.response?.data?.error?.message ?? error?.message ?? 'Could not go online.',
+      });
     } finally {
       setTogglingOnline(false);
     }
@@ -453,8 +514,12 @@ export default function RiderHomeScreen() {
       if (running) await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       socketRef.current?.disconnect();
       socketRef.current = null;
+      onlineServicesSetupRef.current = null;
+      promptForBackgroundLocationRef.current = false;
       deactivateKeepAwake();
       setIsOnline(false);
+      setShowLiveMap(false);
+      setConfirmedPosition(null);
       await refetchProfile();
     } catch (error: any) {
       Toast.show({ type: 'error', text1: error?.response?.data?.error?.message ?? 'Could not go offline.' });
@@ -462,6 +527,20 @@ export default function RiderHomeScreen() {
       setTogglingOnline(false);
     }
   };
+
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const shouldPrompt = promptForBackgroundLocationRef.current;
+    promptForBackgroundLocationRef.current = false;
+    setupOnlineServices(shouldPrompt).catch(() => {
+      Toast.show({
+        type: 'info',
+        text1: 'Online. Live tracking will retry shortly.',
+        text2: 'Keep the app open while the phone warms up GPS.',
+      });
+    });
+  }, [isOnline, setupOnlineServices]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
@@ -474,6 +553,7 @@ export default function RiderHomeScreen() {
     return () => {
       locationWatchRef.current?.remove();
       socketRef.current?.disconnect();
+      onlineServicesSetupRef.current = null;
       deactivateKeepAwake();
     };
   }, []);
@@ -483,54 +563,93 @@ export default function RiderHomeScreen() {
       refetchWallet(),
       refetchProfile(),
       refetchAvailableJobs(),
-      qc.invalidateQueries({ queryKey: ['jobs-active'] }),
+      refetchRecentJobs(),
     ]);
   };
 
-  const levelProgress = gamification?.progressPercent ?? (
-    gamification?.nextLevelXp ? ((gamification.currentLevelXp ?? 0) / gamification.nextLevelXp) * 100 : 0
-  );
-  const riderPosition = useMemo<LatLng>(() => {
+  const riderPosition = useMemo<LatLng | null>(() => {
+    if (confirmedPosition) return confirmedPosition;
     const latitude = Number(profile?.currentLatitude);
     const longitude = Number(profile?.currentLongitude);
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) return { latitude, longitude };
-    return ACCRA_CENTER;
-  }, [profile?.currentLatitude, profile?.currentLongitude]);
+    return null;
+  }, [confirmedPosition, profile?.currentLatitude, profile?.currentLongitude]);
   const areaName = useMemo(() => inferAreaName(profile, riderPosition), [profile, riderPosition]);
-  const todayAmount = formatTodayAmount(wallet);
-  const onlineFor = formatOnlineDuration(onlineStartedAt, clock);
+  const walletUnavailable = !wallet && !walletLoading;
+  const profileUnavailable = !profile && !profileLoading;
+  const recentJobsUnavailable = !recentJobs && !recentJobsLoading;
+  const todayAmount = walletUnavailable
+    ? 'Unavailable'
+    : walletLoading && !wallet
+      ? 'Loading'
+      : formatTodayAmount(wallet);
+  const todayDeliveries = (recentJobs ?? []).filter((job: any) => {
+    const completedAt = job.deliveredAt ?? job.completedAt ?? job.updatedAt ?? job.createdAt;
+    if (job.status !== 'DELIVERED' || !completedAt) return false;
+    const delivered = new Date(completedAt);
+    const now = new Date();
+    return delivered.getFullYear() === now.getFullYear()
+      && delivered.getMonth() === now.getMonth()
+      && delivered.getDate() === now.getDate();
+  }).length;
+  const parsedSessionStartedAt = profile?.sessionStartedAt
+    ? Date.parse(String(profile.sessionStartedAt))
+    : Number.NaN;
+  const onlineFor = formatOnlineDuration(
+    Number.isFinite(parsedSessionStartedAt) ? parsedSessionStartedAt : null,
+    clock,
+  );
+  const retryDashboardData = async () => {
+    await Promise.allSettled([refetchWallet(), refetchProfile(), refetchRecentJobs()]);
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: isOnline ? riderColors.white : riderColors.surface }} edges={['top']}>
-      {isOnline ? (
+    <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.white }} edges={['top']}>
+      {isOnline && showLiveMap ? (
         <OnlineDashboard
           areaName={areaName}
+          bottomInset={insets.bottom}
           onGoOffline={goOffline}
-          onMenu={() => router.push('/(tabs)/account')}
+          onBack={() => setShowLiveMap(false)}
           onNotifications={() => router.push('/(app)/notifications')}
+          onAvailability={() => setAvailabilityMenuOpen(true)}
           onlineFor={onlineFor}
           riderPosition={riderPosition}
           todayAmount={todayAmount}
           toggling={togglingOnline}
+          unread={unreadCount > 0}
         />
       ) : (
         <>
           <BrandHeader
-            onMenu={() => router.push('/(tabs)/account')}
+            onMenu={() => setMainMenuOpen(true)}
             onNotifications={() => router.push('/(app)/notifications')}
-            unread
+            unread={unreadCount > 0}
           />
           <ScrollView
             refreshControl={<RefreshControl refreshing={walletLoading} onRefresh={onRefresh} tintColor={riderColors.green} />}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 28 }}
+            style={{ backgroundColor: riderColors.white }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 22 }}
           >
-            <OfflineDashboard
-              gamification={gamification}
-              levelProgress={levelProgress}
+            <HomeDashboard
+              dataError={walletError || profileError || recentJobsError || walletUnavailable || profileUnavailable || recentJobsUnavailable}
+              isOnline={isOnline}
+              onGoOffline={goOffline}
               onGoOnline={goOnline}
+              onAvailabilityPress={() => setAvailabilityMenuOpen(true)}
+              onRetryData={() => void retryDashboardData()}
               profile={profile}
+              profileLoading={profileLoading}
+              profileUnavailable={profileUnavailable}
+              recentJobsLoading={recentJobsLoading}
+              recentJobsUnavailable={recentJobsUnavailable}
+              todayDeliveries={todayDeliveries}
               toggling={togglingOnline}
+              user={user}
+              wallet={wallet}
+              walletUnavailable={walletUnavailable}
+              walletLoading={walletLoading}
             />
           </ScrollView>
         </>
@@ -548,78 +667,1107 @@ export default function RiderHomeScreen() {
         onDecline={declineBackgroundLocation}
         onContinue={confirmBackgroundLocation}
       />
+      <RiderNavigationMenu
+        visible={mainMenuOpen}
+        onClose={() => setMainMenuOpen(false)}
+      />
+      <AvailabilityMenuModal
+        visible={availabilityMenuOpen}
+        isOnline={isOnline}
+        loading={togglingOnline}
+        onClose={() => setAvailabilityMenuOpen(false)}
+        onGoOnline={() => {
+          setAvailabilityMenuOpen(false);
+          void goOnline();
+        }}
+        onGoOffline={() => {
+          setAvailabilityMenuOpen(false);
+          void goOffline();
+        }}
+        onOpenMap={() => {
+          setAvailabilityMenuOpen(false);
+          setShowLiveMap(true);
+        }}
+      />
     </SafeAreaView>
   );
 }
 
-function OfflineDashboard({
-  gamification,
-  levelProgress,
+function HomeDashboard({
+  dataError,
+  isOnline,
+  onGoOffline,
   onGoOnline,
+  onAvailabilityPress,
+  onRetryData,
   profile,
+  profileLoading,
+  profileUnavailable,
+  recentJobsLoading,
+  recentJobsUnavailable,
+  todayDeliveries,
   toggling,
+  user,
+  wallet,
+  walletLoading,
+  walletUnavailable,
 }: {
-  gamification: any;
-  levelProgress: number;
+  dataError: boolean;
+  isOnline: boolean;
+  onGoOffline: () => void;
   onGoOnline: () => void;
+  onAvailabilityPress: () => void;
+  onRetryData: () => void;
   profile: any;
+  profileLoading: boolean;
+  profileUnavailable: boolean;
+  recentJobsLoading: boolean;
+  recentJobsUnavailable: boolean;
+  todayDeliveries: number;
   toggling: boolean;
+  user: any;
+  wallet: any;
+  walletLoading: boolean;
+  walletUnavailable: boolean;
 }) {
-  return (
-    <View style={{ paddingTop: 4, gap: 10 }}>
-      <View style={{ marginBottom: 48 }}>
-        <ImageBackground
-          source={heroReady}
-          resizeMode="cover"
-          imageStyle={{ borderRadius: 22 }}
-          style={{ height: 268, overflow: 'hidden', borderRadius: 22, backgroundColor: riderColors.ink }}
-        >
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.05)' }} />
-        </ImageBackground>
+  const [balanceVisible, setBalanceVisible] = useState(true);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+  const currency = String(wallet?.currency ?? 'GHS').toUpperCase();
+  const balance = walletUnavailable ? 'Unavailable' : formatMoneyAmount(Number(wallet?.balance ?? 0), currency);
+  const todayEarnings = walletUnavailable
+    ? '—'
+    : walletLoading && !wallet
+      ? '…'
+      : formatOverviewEarnings(wallet);
+  const rating = Number(profile?.averageRating ?? 0);
+  const availabilityLoading = profileLoading && !profile;
+  const availabilityState = profileUnavailable
+    ? 'unavailable'
+    : availabilityLoading
+      ? 'loading'
+      : isOnline
+        ? 'online'
+        : 'offline';
+  const availabilityLabel = availabilityState === 'unavailable'
+    ? 'Unavailable'
+    : availabilityState === 'loading'
+      ? 'Checking'
+      : availabilityState === 'online'
+        ? 'Online'
+        : 'Offline';
+  const deliveriesValue = recentJobsUnavailable
+    ? '—'
+    : recentJobsLoading
+      ? '…'
+      : String(todayDeliveries);
+  const ratingValue = profileUnavailable
+    ? '—'
+    : availabilityLoading
+      ? '…'
+      : rating > 0
+        ? rating.toFixed(1)
+        : 'New';
+  const firstName = String(user?.firstName ?? 'Rider').trim() || 'Rider';
+  const referralCode = String(user?.referralCode ?? profile?.referralCode ?? '').trim();
 
-        <PowerCircle
-          loading={toggling}
-          onPress={onGoOnline}
+  const shareReferral = () => {
+    if (!referralCode) {
+      Alert.alert(
+        'Referral code unavailable',
+        'Your personal referral code has not been issued yet. Refresh your profile later or contact RiderGuy support. No placeholder code will be shared.',
+      );
+      return;
+    }
+
+    void Share.share({
+      title: 'Join RiderGuy',
+      message: `Join me on RiderGuy and start earning as a delivery rider. Use my referral code: ${referralCode}. https://myriderguy.com/for-riders`,
+    }).catch(() => {
+      Toast.show({ type: 'error', text1: 'Could not open sharing.' });
+    });
+  };
+
+  return (
+    <View style={homeStyles.dashboard}>
+      <View style={homeStyles.greetingArea}>
+        <View style={homeStyles.greetingCopy}>
+          <Text style={homeStyles.greeting}>{greeting}</Text>
+          <Text style={homeStyles.riderName} numberOfLines={1}>
+            {firstName} <Text style={homeStyles.wave}>👋</Text>
+          </Text>
+          <Text style={homeStyles.readyText}>Ready to deliver?</Text>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.84}
+          disabled={toggling || availabilityLoading || profileUnavailable}
+          onPress={onAvailabilityPress}
+          style={homeStyles.availabilityPill}
+          accessibilityRole="button"
+          accessibilityLabel={`Change availability. Currently ${availabilityLabel.toLowerCase()}`}
+        >
+          <View style={[homeStyles.availabilityDot, availabilityState !== 'online' ? homeStyles.availabilityDotOffline : null]} />
+          <Text style={homeStyles.availabilityText}>{availabilityLabel}</Text>
+          <Ionicons name="chevron-down" size={13} color="#717875" />
+        </TouchableOpacity>
+
+        <Image source={dashboardHero} resizeMode="contain" style={homeStyles.heroArt} />
+      </View>
+
+      {dataError ? <DashboardDataNotice onRetry={onRetryData} /> : null}
+
+      <HomeWalletCard
+        balance={balance}
+        balanceVisible={balanceVisible}
+        loading={walletLoading}
+        unavailable={walletUnavailable}
+        onAddMoney={() => router.push('/(app)/wallet/add-funds' as any)}
+        onCashOut={() => router.push({ pathname: '/(tabs)/earnings', params: { action: 'cash-out' } })}
+        onHistory={() => router.push('/(tabs)/earnings')}
+        onToggleBalance={() => setBalanceVisible((current) => !current)}
+      />
+
+      <View style={homeStyles.overviewSpacing}>
+        <HomeOverviewCard
+          deliveries={deliveriesValue}
+          earnings={todayEarnings}
+          rating={ratingValue}
+          ratingStarred={!profileUnavailable && !availabilityLoading && rating > 0}
+          onViewAll={() => router.push('/(tabs)/earnings')}
         />
       </View>
 
-      <RecommendedStrip compact />
+      <View style={[homeStyles.section, homeStyles.sectionSpacing]}>
+        <Text style={homeStyles.sectionTitle}>Go Online &amp; Deliver</Text>
+        <HomeOnlineCard
+          availabilityState={availabilityState}
+          loading={toggling || availabilityLoading}
+          onToggle={profileUnavailable ? onRetryData : isOnline ? onGoOffline : onGoOnline}
+        />
+      </View>
 
-      <RiderCard style={{ padding: 14, borderRadius: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <View>
-            <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>Level progress</Text>
-            <Text style={{ color: riderColors.muted, fontSize: 11, marginTop: 2 }}>{gamification?.levelName ?? cleanLabel(profile?.onboardingStatus)}</Text>
-          </View>
-          <StatusPill status="ONLINE" label={`${gamification?.totalXp ?? profile?.totalXp ?? 0} XP`} />
+      <View style={[homeStyles.section, homeStyles.sectionSpacing]}>
+        <Text style={homeStyles.sectionTitle}>Recommended for You</Text>
+        <View style={homeStyles.recommendationRow}>
+          <HomeRecommendationTile
+            icon="gift-outline"
+            title="Refer & Earn"
+            body={referralCode
+              ? 'Invite friends and earn exciting bonuses.'
+              : profileUnavailable
+                ? 'Referral details are currently unavailable.'
+                : 'Your personal invite code is being prepared.'}
+            iconColor="#08A86B"
+            iconBackground="#E7F7F0"
+            onPress={shareReferral}
+          />
+          <HomeRecommendationTile
+            icon="school-outline"
+            title="Learning Center"
+            body="Learn, grow and be a better rider."
+            iconColor="#277AE7"
+            iconBackground="#EAF2FF"
+            onPress={() => router.push('/(app)/training')}
+          />
+          <HomeRecommendationTile
+            icon="people-outline"
+            title="Community"
+            body="Connect with other riders in your city."
+            iconColor="#D99A13"
+            iconBackground="#FFF4D8"
+            onPress={() => router.push('/(tabs)/community')}
+          />
         </View>
-        <ProgressBar progress={levelProgress} color={riderColors.greenDark} />
-      </RiderCard>
+      </View>
+
+      <HomeSafetyBand onPress={() => router.push('/(app)/safety')} />
     </View>
   );
 }
 
+function DashboardDataNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={homeStyles.dataNotice} accessibilityRole="alert">
+      <Ionicons name="cloud-offline-outline" size={18} color="#8A5706" />
+      <Text style={homeStyles.dataNoticeText}>Some live dashboard data is unavailable.</Text>
+      <TouchableOpacity
+        activeOpacity={0.82}
+        accessibilityRole="button"
+        accessibilityLabel="Retry dashboard data"
+        onPress={onRetry}
+        style={homeStyles.dataNoticeButton}
+      >
+        <Text style={homeStyles.dataNoticeButtonText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function HomeWalletCard({
+  balance,
+  balanceVisible,
+  loading,
+  onAddMoney,
+  onCashOut,
+  onHistory,
+  onToggleBalance,
+  unavailable,
+}: {
+  balance: string;
+  balanceVisible: boolean;
+  loading: boolean;
+  onAddMoney: () => void;
+  onCashOut: () => void;
+  onHistory: () => void;
+  onToggleBalance: () => void;
+  unavailable: boolean;
+}) {
+  return (
+    <View style={homeStyles.walletCard}>
+      <View style={homeStyles.walletGlowLarge} />
+      <View style={homeStyles.walletGlowSmall} />
+      <Image source={dashboardWallet} resizeMode="contain" style={homeStyles.walletArtwork} />
+
+      <View style={homeStyles.walletHeading}>
+        <Text style={homeStyles.walletLabel}>Wallet Balance</Text>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={unavailable ? 'Wallet balance unavailable' : balanceVisible ? 'Hide wallet balance' : 'Show wallet balance'}
+          disabled={unavailable}
+          hitSlop={8}
+          onPress={onToggleBalance}
+        >
+          <Ionicons name={balanceVisible ? 'eye-outline' : 'eye-off-outline'} size={16} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+      <Text style={homeStyles.walletBalance} numberOfLines={1}>
+        {loading ? '...' : unavailable ? 'Unavailable' : balanceVisible ? balance : '••••••'}
+      </Text>
+
+      <View style={homeStyles.walletDivider} />
+      <View style={homeStyles.walletActions}>
+        <HomeWalletAction flex={0.95} icon="cash-outline" label="Add Money" onPress={onAddMoney} />
+        <HomeWalletAction flex={0.95} icon="share-outline" label="Cash Out" onPress={onCashOut} divided />
+        <HomeWalletAction flex={1.3} icon="receipt-outline" label="Transaction History" onPress={onHistory} divided />
+      </View>
+    </View>
+  );
+}
+
+function HomeWalletAction({
+  divided,
+  flex,
+  icon,
+  label,
+  onPress,
+}: {
+  divided?: boolean;
+  flex: number;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      style={[homeStyles.walletAction, { flex }, divided ? homeStyles.walletActionDivided : null]}
+    >
+      <Ionicons name={icon} size={17} color="#FFFFFF" />
+      <Text style={homeStyles.walletActionText} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function HomeOverviewCard({
+  deliveries,
+  earnings,
+  onViewAll,
+  rating,
+  ratingStarred,
+}: {
+  deliveries: string;
+  earnings: string;
+  onViewAll: () => void;
+  rating: string;
+  ratingStarred: boolean;
+}) {
+  return (
+    <View style={homeStyles.overviewCard}>
+      <View style={homeStyles.overviewHeader}>
+        <Text style={homeStyles.overviewTitle}>Today’s Overview</Text>
+        <TouchableOpacity activeOpacity={0.8} onPress={onViewAll}>
+          <Text style={homeStyles.viewAll}>View all</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={homeStyles.metricRow}>
+        <HomeMetric icon="bag-handle" label="Deliveries" value={deliveries} />
+        <View style={homeStyles.metricDivider} />
+        <HomeMetric icon="wallet" label="Earnings" value={earnings} />
+        <View style={homeStyles.metricDivider} />
+        <HomeMetric icon="star" label="Rating" value={rating} starred={ratingStarred} />
+      </View>
+    </View>
+  );
+}
+
+function HomeMetric({
+  icon,
+  label,
+  starred,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  starred?: boolean;
+  value: string;
+}) {
+  return (
+    <View style={homeStyles.metric}>
+      <View style={homeStyles.metricIcon}>
+        <Ionicons name={icon} size={18} color="#08A568" />
+      </View>
+      <Text style={homeStyles.metricLabel}>{label}</Text>
+      <View style={homeStyles.metricValueRow}>
+        {starred ? <Ionicons name="star" size={15} color="#08A568" /> : null}
+        <Text style={[homeStyles.metricValue, value.length > 12 ? homeStyles.metricValueCompact : null]} numberOfLines={1}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function HomeOnlineCard({
+  availabilityState,
+  loading,
+  onToggle,
+}: {
+  availabilityState: 'loading' | 'unavailable' | 'online' | 'offline';
+  loading: boolean;
+  onToggle: () => void;
+}) {
+  const isOnline = availabilityState === 'online';
+  const unavailable = availabilityState === 'unavailable';
+  const title = unavailable
+    ? 'Availability unavailable'
+    : availabilityState === 'loading'
+      ? 'Checking availability'
+      : isOnline
+        ? 'You are Online'
+        : 'You are Offline';
+  const body = unavailable
+    ? 'Reconnect and retry before changing your status.'
+    : availabilityState === 'loading'
+      ? 'Confirming your current Rider status.'
+      : isOnline
+        ? 'You’re all set to receive delivery requests.'
+        : 'Go online when you’re ready to receive requests.';
+
+  return (
+    <View style={homeStyles.onlineCard}>
+      <View style={homeStyles.onlinePulseOuter}>
+        <View style={homeStyles.onlinePulseInner}>
+          <Ionicons name="radio" size={25} color="#FFFFFF" />
+        </View>
+      </View>
+      <View style={homeStyles.onlineCopy}>
+        <View style={homeStyles.onlineTitleRow}>
+          <Text style={homeStyles.onlineTitle}>{title}</Text>
+          <View style={[homeStyles.onlineTitleDot, !isOnline ? homeStyles.availabilityDotOffline : null]} />
+        </View>
+        <Text style={homeStyles.onlineBody} numberOfLines={2}>
+          {body}
+        </Text>
+      </View>
+      <TouchableOpacity
+        activeOpacity={0.86}
+        disabled={loading}
+        onPress={onToggle}
+        style={[homeStyles.onlineButton, loading ? homeStyles.disabledButton : null]}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={homeStyles.onlineButtonText}>{unavailable ? 'Retry' : isOnline ? 'Go Offline' : 'Go Online'}</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function HomeRecommendationTile({
+  body,
+  icon,
+  iconBackground,
+  iconColor,
+  onPress,
+  title,
+}: {
+  body: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconBackground: string;
+  iconColor: string;
+  onPress: () => void;
+  title: string;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.84} onPress={onPress} style={homeStyles.recommendationTile}>
+      <View style={[homeStyles.recommendationIcon, { backgroundColor: iconBackground }]}>
+        <Ionicons name={icon} size={21} color={iconColor} />
+      </View>
+      <Text style={homeStyles.recommendationTitle} numberOfLines={2}>{title}</Text>
+      <Text style={homeStyles.recommendationBody} numberOfLines={3}>{body}</Text>
+      <Ionicons name="chevron-forward" size={17} color="#777F7B" style={homeStyles.recommendationArrow} />
+    </TouchableOpacity>
+  );
+}
+
+function HomeSafetyBand({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity activeOpacity={0.86} onPress={onPress} style={homeStyles.safetyBand}>
+      <View style={homeStyles.safetyArtwork}>
+        <View style={homeStyles.safetyBubbleOne} />
+        <View style={homeStyles.safetyBubbleTwo} />
+        <MaterialCommunityIcons name="shield-check" size={39} color="#06A565" />
+      </View>
+      <View style={homeStyles.safetyCopy}>
+        <Text style={homeStyles.safetyTitle}>Ride Safe, Deliver Safe</Text>
+        <Text style={homeStyles.safetyBody} numberOfLines={2}>Follow safety guidelines and make every delivery count.</Text>
+      </View>
+      <View style={homeStyles.safetyButton}>
+        <Text style={homeStyles.safetyButtonText}>Safety Center</Text>
+        <Ionicons name="chevron-forward" size={15} color="#08A568" />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function AvailabilityMenuModal({
+  isOnline,
+  loading,
+  onClose,
+  onGoOffline,
+  onGoOnline,
+  onOpenMap,
+  visible,
+}: {
+  isOnline: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onGoOffline: () => void;
+  onGoOnline: () => void;
+  onOpenMap: () => void;
+  visible: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,15,10,0.48)' }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close availability menu" activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill} />
+        <View style={{ backgroundColor: riderColors.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 18, paddingBottom: Math.max(insets.bottom, 18) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={{ color: riderColors.ink, fontSize: 20, fontWeight: '900' }}>Availability</Text>
+              <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 3 }}>
+                You are currently {isOnline ? 'online and receiving offers' : 'offline'}.
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="close" size={21} color={riderColors.ink} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ gap: 10, marginTop: 18 }}>
+            {isOnline ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                disabled={loading}
+                onPress={onOpenMap}
+                style={{ minHeight: 56, borderRadius: 16, backgroundColor: riderColors.greenDark, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+              >
+                <Ionicons name="map-outline" size={23} color={riderColors.white} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: riderColors.white, fontSize: 14, fontWeight: '900' }}>Open live map</Text>
+                  <Text style={{ color: '#DDF6EA', fontSize: 11, marginTop: 2 }}>View your position while waiting for offers</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={riderColors.white} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                disabled={loading}
+                onPress={onGoOnline}
+                style={{ minHeight: 56, borderRadius: 16, backgroundColor: riderColors.greenDark, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+              >
+                {loading ? <ActivityIndicator color={riderColors.white} /> : <Ionicons name="radio-outline" size={23} color={riderColors.white} />}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: riderColors.white, fontSize: 14, fontWeight: '900' }}>Go online</Text>
+                  <Text style={{ color: '#DDF6EA', fontSize: 11, marginTop: 2 }}>Start receiving nearby delivery offers</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {isOnline ? (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                disabled={loading}
+                onPress={onGoOffline}
+                style={{ minHeight: 54, borderRadius: 16, backgroundColor: riderColors.white, borderWidth: 1, borderColor: riderColors.line, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+              >
+                {loading ? <ActivityIndicator color={riderColors.ink} /> : <Ionicons name="power-outline" size={22} color={riderColors.ink} />}
+                <Text style={{ flex: 1, color: riderColors.ink, fontSize: 14, fontWeight: '900' }}>Go offline</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const homeStyles = StyleSheet.create({
+  dashboard: {
+    paddingTop: 0,
+    gap: 0,
+  },
+  greetingArea: {
+    height: 128,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  greetingCopy: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    zIndex: 2,
+    maxWidth: '56%',
+  },
+  greeting: {
+    color: '#3E4541',
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: riderFonts.medium,
+    fontWeight: '500',
+  },
+  riderName: {
+    color: '#080A09',
+    fontSize: 29,
+    lineHeight: 35,
+    fontFamily: riderFonts.extrabold,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  wave: {
+    fontSize: 23,
+  },
+  readyText: {
+    color: '#777E7A',
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: riderFonts.regular,
+    fontWeight: '500',
+    marginTop: 5,
+  },
+  availabilityPill: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 2,
+    right: 2,
+    minWidth: 78,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E6ECE9',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    shadowColor: '#0C1812',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  availabilityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#0AB36C',
+  },
+  availabilityDotOffline: {
+    backgroundColor: '#9AA19D',
+  },
+  availabilityText: {
+    color: '#313633',
+    fontSize: 11,
+    fontFamily: riderFonts.semibold,
+    fontWeight: '700',
+  },
+  heroArt: {
+    position: 'absolute',
+    right: -8,
+    bottom: -4,
+    width: '82%',
+    height: 126,
+  },
+  dataNotice: {
+    minHeight: 44,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#F1D59B',
+    backgroundColor: '#FFF8E8',
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  dataNoticeText: {
+    flex: 1,
+    color: '#68430A',
+    fontSize: 10.5,
+    lineHeight: 14,
+    fontFamily: riderFonts.medium,
+    fontWeight: '600',
+  },
+  dataNoticeButton: {
+    minHeight: 30,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dataNoticeButtonText: {
+    color: '#68430A',
+    fontSize: 10.5,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  walletCard: {
+    height: 125,
+    borderRadius: 11,
+    backgroundColor: '#06A65F',
+    overflow: 'hidden',
+    paddingTop: 12,
+    paddingHorizontal: 15,
+    shadowColor: '#057647',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  walletGlowLarge: {
+    position: 'absolute',
+    width: 145,
+    height: 145,
+    borderRadius: 73,
+    right: -42,
+    top: -31,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  walletGlowSmall: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    right: 23,
+    top: 19,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  walletArtwork: {
+    position: 'absolute',
+    right: 14,
+    top: 15,
+    width: 68,
+    height: 68,
+    opacity: 0.5,
+  },
+  walletHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  walletLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: riderFonts.medium,
+    fontWeight: '500',
+  },
+  walletBalance: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    lineHeight: 31,
+    fontFamily: riderFonts.bold,
+    fontWeight: '900',
+    marginTop: 2,
+    maxWidth: '72%',
+  },
+  walletDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.23)',
+    marginTop: 7,
+  },
+  walletActions: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  walletAction: {
+    flex: 1,
+    height: 31,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 3,
+  },
+  walletActionDivided: {
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.22)',
+  },
+  walletActionText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontFamily: riderFonts.medium,
+    fontWeight: '600',
+  },
+  overviewCard: {
+    height: 123,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F0F3F1',
+    paddingTop: 12,
+    paddingHorizontal: 13,
+    paddingBottom: 10,
+    shadowColor: '#15231C',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.07,
+    shadowRadius: 13,
+    elevation: 3,
+  },
+  overviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 7,
+  },
+  overviewTitle: {
+    color: '#171A18',
+    fontSize: 13,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  viewAll: {
+    color: '#08A568',
+    fontSize: 11,
+    fontFamily: riderFonts.medium,
+    fontWeight: '600',
+  },
+  metricRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metric: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  metricDivider: {
+    width: 1,
+    height: 58,
+    backgroundColor: '#EDF1EF',
+  },
+  metricIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E8F8F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricLabel: {
+    color: '#737A76',
+    fontSize: 10.5,
+    fontFamily: riderFonts.regular,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  metricValueRow: {
+    minHeight: 20,
+    maxWidth: '96%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    marginTop: 1,
+  },
+  metricValue: {
+    color: '#111412',
+    fontSize: 15,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  metricValueCompact: {
+    fontSize: 11.5,
+  },
+  section: {
+    gap: 7,
+  },
+  overviewSpacing: {
+    marginTop: 14,
+  },
+  sectionSpacing: {
+    marginTop: 14,
+  },
+  sectionTitle: {
+    color: '#151817',
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  onlineCard: {
+    minHeight: 70,
+    borderRadius: 11,
+    backgroundColor: '#F1FBF6',
+    borderWidth: 1,
+    borderColor: '#E6F5ED',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlinePulseOuter: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#D9F4E7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+  onlinePulseInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#08A866',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onlineCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 7,
+  },
+  onlineTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  onlineTitle: {
+    color: '#171A18',
+    fontSize: 12.5,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  onlineTitleDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#08AE68',
+  },
+  onlineBody: {
+    color: '#717975',
+    fontSize: 9.8,
+    lineHeight: 14,
+    fontFamily: riderFonts.regular,
+    marginTop: 3,
+    maxWidth: 145,
+  },
+  onlineButton: {
+    minWidth: 91,
+    height: 39,
+    borderRadius: 8,
+    backgroundColor: '#07A562',
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledButton: {
+    opacity: 0.62,
+  },
+  onlineButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontFamily: riderFonts.semibold,
+    fontWeight: '700',
+  },
+  recommendationRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  recommendationTile: {
+    flex: 1,
+    minWidth: 0,
+    height: 116,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF2F0',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    alignItems: 'center',
+    shadowColor: '#17241E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  recommendationIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recommendationTitle: {
+    color: '#171A18',
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: riderFonts.semibold,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  recommendationBody: {
+    color: '#737A76',
+    fontSize: 9.3,
+    lineHeight: 12.5,
+    fontFamily: riderFonts.regular,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 3,
+    paddingHorizontal: 1,
+  },
+  recommendationArrow: {
+    position: 'absolute',
+    right: 6,
+    bottom: 8,
+  },
+  safetyBand: {
+    minHeight: 70,
+    borderRadius: 11,
+    backgroundColor: '#EDF9F3',
+    borderWidth: 1,
+    borderColor: '#E2F2EA',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 2,
+  },
+  safetyArtwork: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  safetyBubbleOne: {
+    position: 'absolute',
+    width: 45,
+    height: 45,
+    borderRadius: 23,
+    backgroundColor: '#DDF3E8',
+  },
+  safetyBubbleTwo: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    left: 0,
+    bottom: 0,
+    backgroundColor: '#CDEBDE',
+  },
+  safetyCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  safetyTitle: {
+    color: '#171A18',
+    fontSize: 12,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  safetyBody: {
+    color: '#727A76',
+    fontSize: 9.5,
+    lineHeight: 13,
+    fontFamily: riderFonts.regular,
+    marginTop: 3,
+    maxWidth: 165,
+  },
+  safetyButton: {
+    height: 32,
+    borderRadius: 7,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    shadowColor: '#1B3227',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  safetyButtonText: {
+    color: '#08A568',
+    fontSize: 9.5,
+    fontFamily: riderFonts.semibold,
+    fontWeight: '700',
+  },
+});
+
 function OnlineDashboard({
   areaName,
+  bottomInset,
+  onBack,
+  onAvailability,
   onGoOffline,
-  onMenu,
   onNotifications,
   onlineFor,
   riderPosition,
   todayAmount,
   toggling,
+  unread,
 }: {
   areaName: string;
+  bottomInset: number;
+  onBack: () => void;
+  onAvailability: () => void;
   onGoOffline: () => void;
-  onMenu: () => void;
   onNotifications: () => void;
   onlineFor: string;
-  riderPosition: LatLng;
+  riderPosition: LatLng | null;
   todayAmount: string;
   toggling: boolean;
+  unread: boolean;
 }) {
   const mapRef = useRef<MapView | null>(null);
-  const initialRegion = useMemo(() => waitingRegion(riderPosition), [riderPosition]);
+  const initialRegion = useMemo(() => waitingRegion(riderPosition ?? ACCRA_CENTER), [riderPosition]);
   const regionRef = useRef(initialRegion);
 
   const animateMap = (nextRegion: typeof initialRegion) => {
@@ -627,9 +1775,16 @@ function OnlineDashboard({
     mapRef.current?.animateToRegion(nextRegion, 320);
   };
 
+  useEffect(() => {
+    if (!riderPosition) return;
+    const nextRegion = waitingRegion(riderPosition);
+    regionRef.current = nextRegion;
+    mapRef.current?.animateToRegion(nextRegion, 320);
+  }, [riderPosition]);
+
   return (
     <View style={{ flex: 1, backgroundColor: riderColors.white }}>
-      <OnlineTopBar onMenu={onMenu} onNotifications={onNotifications} />
+      <OnlineTopBar onAvailability={onAvailability} onBack={onBack} onNotifications={onNotifications} unread={unread} />
 
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: '#EAF1EF' }}>
         <MapView
@@ -645,14 +1800,19 @@ function OnlineDashboard({
           showsMyLocationButton={false}
           toolbarEnabled={false}
         >
-          <Marker coordinate={riderPosition} anchor={{ x: 0.5, y: 0.58 }} title="You">
-            <RiderPulseMarker />
-          </Marker>
+          {riderPosition ? (
+            <Marker coordinate={riderPosition} anchor={{ x: 0.5, y: 0.58 }} title="You">
+              <RiderPulseMarker />
+            </Marker>
+          ) : null}
         </MapView>
 
         <OnlineReadySheet
           areaName={areaName}
-          onCenterMap={() => animateMap(waitingRegion(riderPosition))}
+          bottomInset={bottomInset}
+          onCenterMap={() => {
+            if (riderPosition) animateMap(waitingRegion(riderPosition));
+          }}
           onGoOffline={onGoOffline}
           onlineFor={onlineFor}
           todayAmount={todayAmount}
@@ -664,19 +1824,23 @@ function OnlineDashboard({
 }
 
 function OnlineTopBar({
-  onMenu,
+  onAvailability,
+  onBack,
   onNotifications,
+  unread,
 }: {
-  onMenu: () => void;
+  onAvailability: () => void;
+  onBack: () => void;
   onNotifications: () => void;
+  unread: boolean;
 }) {
   return (
     <View style={{ height: 72, backgroundColor: riderColors.white, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <TouchableOpacity onPress={onMenu} activeOpacity={0.82} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name="menu" size={30} color={riderColors.ink} />
+      <TouchableOpacity onPress={onBack} activeOpacity={0.82} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="arrow-back" size={27} color={riderColors.ink} />
       </TouchableOpacity>
 
-      <TouchableOpacity activeOpacity={0.86} onPress={() => router.push('/(tabs)/jobs')} style={{ minWidth: 142, height: 44, borderRadius: 22, borderWidth: 1, borderColor: riderColors.line, backgroundColor: riderColors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, ...riderShadow }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change availability. Currently online" activeOpacity={0.86} onPress={onAvailability} style={{ minWidth: 142, height: 44, borderRadius: 22, borderWidth: 1, borderColor: riderColors.line, backgroundColor: riderColors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, ...riderShadow }}>
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#10B66B' }} />
         <Text style={{ color: riderColors.ink, fontSize: 17, fontWeight: '700' }}>Online</Text>
         <Ionicons name="chevron-down" size={20} color={riderColors.soft} />
@@ -684,7 +1848,7 @@ function OnlineTopBar({
 
       <TouchableOpacity onPress={onNotifications} activeOpacity={0.82} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="notifications-outline" size={28} color={riderColors.ink} />
-        <View style={{ position: 'absolute', top: 8, right: 7, width: 14, height: 14, borderRadius: 7, backgroundColor: riderColors.red }} />
+        {unread ? <View style={{ position: 'absolute', top: 8, right: 7, width: 14, height: 14, borderRadius: 7, backgroundColor: riderColors.red, borderWidth: 2, borderColor: riderColors.white }} /> : null}
       </TouchableOpacity>
     </View>
   );
@@ -706,6 +1870,7 @@ function RiderPulseMarker() {
 
 function OnlineReadySheet({
   areaName,
+  bottomInset,
   onCenterMap,
   onGoOffline,
   onlineFor,
@@ -713,6 +1878,7 @@ function OnlineReadySheet({
   toggling,
 }: {
   areaName: string;
+  bottomInset: number;
   onCenterMap: () => void;
   onGoOffline: () => void;
   onlineFor: string;
@@ -720,7 +1886,7 @@ function OnlineReadySheet({
   toggling: boolean;
 }) {
   return (
-    <View style={{ position: 'absolute', left: 12, right: 12, bottom: 0, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: riderColors.white, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18, ...riderShadow }}>
+    <View style={{ position: 'absolute', left: 12, right: 12, bottom: 0, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: riderColors.white, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(bottomInset, 18), ...riderShadow }}>
       <View style={{ alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: '#C8D0CC', marginBottom: 16 }} />
 
       <View style={{ alignItems: 'center', paddingHorizontal: 8 }}>
@@ -922,86 +2088,5 @@ function OfferChip({
       <Ionicons name={icon} size={14} color={riderColors.greenDark} />
       <Text style={{ color: riderColors.ink, fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{label}</Text>
     </View>
-  );
-}
-
-function PowerCircle({
-  loading,
-  onPress,
-}: {
-  loading?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      disabled={loading}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Go online"
-      style={{ position: 'absolute', alignSelf: 'center', bottom: -48, width: 112, height: 112, borderRadius: 56, backgroundColor: riderColors.green, alignItems: 'center', justifyContent: 'center', ...riderShadow }}
-    >
-      <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: riderColors.ink, alignItems: 'center', justifyContent: 'center' }}>
-        {loading ? <ActivityIndicator color={riderColors.white} /> : <Ionicons name="power" size={30} color={riderColors.white} />}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function RecommendedStrip({ compact }: { compact?: boolean }) {
-  const items = [
-    { title: 'Refer', body: 'Invite crew', image: referImage, route: '/(tabs)/community' },
-    { title: 'Center', body: 'Train faster', image: academyImage, route: '/(app)/training' },
-    { title: 'Payouts', body: 'Cash out', image: payoutsImage, route: '/(tabs)/earnings' },
-    { title: 'Safety', body: 'Support line', image: supportImage, route: '/(app)/settings/about' },
-  ];
-
-  return (
-    <View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
-        <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>Recommended for you</Text>
-        <Text style={{ color: riderColors.greenDark, fontSize: 11, fontWeight: '900' }}>Rider tools</Text>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {items.map((item) => (
-          <ImageTile
-            key={item.title}
-            title={item.title}
-            body={item.body}
-            image={item.image}
-            compact={compact}
-            onPress={() => router.push(item.route as any)}
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function ImageTile({
-  body,
-  compact,
-  image,
-  onPress,
-  title,
-}: {
-  body: string;
-  compact?: boolean;
-  image: ImageSourcePropType;
-  onPress: () => void;
-  title: string;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.86}
-      onPress={onPress}
-      style={{ flex: 1, borderRadius: 15, backgroundColor: riderColors.white, borderWidth: 1, borderColor: riderColors.line, overflow: 'hidden' }}
-    >
-      <Image source={image} resizeMode="cover" style={{ height: compact ? 58 : 68, width: '100%' }} />
-      <View style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
-        <Text style={{ color: riderColors.ink, fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{title}</Text>
-        <Text style={{ color: riderColors.muted, fontSize: 9, fontWeight: '700', marginTop: 2 }} numberOfLines={1}>{body}</Text>
-      </View>
-    </TouchableOpacity>
   );
 }

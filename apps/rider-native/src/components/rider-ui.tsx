@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { riderColors, riderShadow, statusTone, cleanLabel } from '@/lib/rider-design';
+import { riderColors, riderFonts, riderShadow, statusTone, cleanLabel } from '@/lib/rider-design';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -63,6 +63,8 @@ export function BrandHeader({
     <View style={styles.brandHeader}>
       <TouchableOpacity
         onPress={onMenu}
+        accessibilityRole="button"
+        accessibilityLabel="Open navigation menu"
         activeOpacity={0.82}
         style={styles.brandHeaderButton}
       >
@@ -74,6 +76,8 @@ export function BrandHeader({
       ) : (
         <TouchableOpacity
           onPress={onNotifications}
+          accessibilityRole="button"
+          accessibilityLabel={unread ? 'Open notifications, unread items available' : 'Open notifications'}
           activeOpacity={0.82}
           style={styles.brandHeaderButton}
         >
@@ -247,7 +251,7 @@ export function OverviewPanel({
   title: string;
   actionLabel?: string;
   onAction?: () => void;
-  items: Array<{ icon: IconName; label: string; value: string; tone?: 'green' | 'blue' | 'amber' | 'red' | 'violet' | 'dark' }>;
+  items: { icon: IconName; label: string; value: string; tone?: 'green' | 'blue' | 'amber' | 'red' | 'violet' | 'dark' }[];
 }) {
   return (
     <RiderCard style={{ padding: 0, overflow: 'hidden' }}>
@@ -508,7 +512,7 @@ export function SegmentedControl<T extends string>({
   onChange,
 }: {
   value: T;
-  options: Array<{ label: string; value: T }>;
+  options: { label: string; value: T }[];
   onChange: (value: T) => void;
 }) {
   return (
@@ -630,6 +634,7 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     color: riderColors.greenDark,
     fontSize: 28,
+    fontFamily: riderFonts.bold,
     fontWeight: '900',
   },
   unreadDot: {

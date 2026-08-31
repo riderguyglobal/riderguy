@@ -9,7 +9,10 @@ import { paystackService, PaystackService } from '../../services/paystack.servic
 import { logger } from '../../lib/logger';
 import { enqueuePayoutJob } from '../../jobs/queues';
 import { handlePaymentFailureAfterAssignment } from '../../services/order-reassign.service';
-import { creditWalletTopup } from '../../services/wallet-topup.service';
+import {
+  processWalletTopupWebhook,
+} from '../../services/wallet-topup.service';
+import { getOrderPaymentReceiptMismatch } from '../../services/order-payment-verification';
 
 const router = Router();
 
@@ -101,6 +104,7 @@ router.post(
     const result = await paystackService.initializeTransaction({
       email: user?.email ?? `user-${userId}@myriderguy.com`,
       amount: Math.round(Number(order.totalPrice) * 100), // Convert to pesewas
+      currency: order.currency,
       reference,
       callbackUrl: callbackUrl ?? undefined,
       metadata: {
@@ -138,6 +142,7 @@ router.post(
 router.get(
   '/verify/:reference',
   authenticate,
+  validate(verifyPaymentSchema, 'params'),
   asyncHandler(async (req: Request, res: Response) => {
     const { reference } = req.params;
 
@@ -182,16 +187,20 @@ router.get(
       const verification = await paystackService.verifyTransaction(reference as string);
 
       if (verification.status === 'success') {
-        // Verify amount matches (in pesewas)
-        const expectedPesewas = Math.round(Number(order.totalPrice) * 100);
-        if (verification.amount !== expectedPesewas) {
+        const receiptMismatch = getOrderPaymentReceiptMismatch(order, verification);
+        if (receiptMismatch) {
           logger.warn(
-            { reference, expected: expectedPesewas, received: verification.amount },
-            'Payment amount mismatch',
+            {
+              reference,
+              code: receiptMismatch.code,
+              expected: receiptMismatch.expected,
+              received: receiptMismatch.received,
+            },
+            'Rejected mismatched order payment verification',
           );
           res.status(StatusCodes.BAD_REQUEST).json({
             success: false,
-            error: { code: 'AMOUNT_MISMATCH', message: 'Payment amount does not match order' },
+            error: { code: receiptMismatch.code, message: receiptMismatch.message },
           });
           return;
         }
@@ -329,23 +338,50 @@ router.post(
         if (!reference) break;
 
         const metadata = event.data?.metadata ?? {};
-        if (metadata.type === 'wallet_topup' && metadata.userId) {
-          const amount = Number(event.data?.amount ?? 0) / 100;
-          await creditWalletTopup({
-            userId: String(metadata.userId),
-            amount,
+        if (metadata.type === 'wallet_topup') {
+          const topup = await processWalletTopupWebhook({
+            amount: Number(event.data?.amount),
+            currency: String(event.data?.currency ?? ''),
+            metadata,
             reference,
             channel: event.data?.channel,
-            provider: 'paystack',
             paidAt: event.data?.paid_at ?? null,
           });
-          logger.info({ userId: metadata.userId, reference, amount }, 'Wallet top-up completed via webhook');
+          if (!topup.accepted) {
+            logger.warn({ err: topup.error, reference }, 'Rejected invalid wallet top-up webhook');
+            break;
+          }
+          logger.info(
+            { userId: topup.userId, reference, amount: topup.amount },
+            'Wallet top-up completed via webhook',
+          );
           break;
         }
 
         const order = await prisma.order.findFirst({
           where: { paymentReference: reference },
         });
+
+        const receiptMismatch = order
+          ? getOrderPaymentReceiptMismatch(order, {
+              amount: event.data?.amount,
+              currency: event.data?.currency,
+            })
+          : null;
+
+        if (order && receiptMismatch) {
+          logger.warn(
+            {
+              orderId: order.id,
+              reference,
+              code: receiptMismatch.code,
+              expected: receiptMismatch.expected,
+              received: receiptMismatch.received,
+            },
+            'Rejected mismatched order payment webhook',
+          );
+          break;
+        }
 
         if (order && order.paymentStatus !== 'COMPLETED') {
           // Optimistic update: only mark COMPLETED if not already done (prevents double-dispatch with /verify)

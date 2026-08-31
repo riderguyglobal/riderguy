@@ -77,24 +77,29 @@ done
 for app_name in marketing admin; do
   app_dir="$SOURCE_DIR/apps/$app_name"
   standalone_dir="$app_dir/.next/standalone"
-  [ -f "$standalone_dir/server.js" ] || fail "$app_name standalone build is missing"
-  mkdir -p "$standalone_dir/.next"
-  cp -a "$app_dir/.next/static" "$standalone_dir/.next/"
+  standalone_app_dir="$standalone_dir/apps/$app_name"
+  [ -f "$standalone_app_dir/server.js" ] || fail "$app_name standalone build is missing"
+  mkdir -p "$standalone_app_dir/.next"
+  cp -a "$app_dir/.next/static" "$standalone_app_dir/.next/"
   if [ -d "$app_dir/public" ]; then
-    cp -a "$app_dir/public" "$standalone_dir/"
+    cp -a "$app_dir/public" "$standalone_app_dir/"
   fi
 
   # npm may install Next in each workspace or hoist it to the repository root.
   # Prefer a complete workspace package. If tracing left only a partial package,
   # replace it with a link to a complete hoisted runtime when one is available.
-  next_runtime="$app_dir/node_modules/next"
+  next_runtime="$standalone_dir/node_modules/next"
   next_probe='dist/server/node-polyfill-crypto.js'
   if [ ! -f "$next_runtime/$next_probe" ]; then
-    root_next="$SOURCE_DIR/node_modules/next"
-    [ -f "$root_next/$next_probe" ] \
+    complete_next="$app_dir/node_modules/next"
+    if [ ! -f "$complete_next/$next_probe" ]; then
+      complete_next="$SOURCE_DIR/node_modules/next"
+    fi
+    [ -f "$complete_next/$next_probe" ] \
       || fail "$app_name Next.js runtime package is incomplete"
     rm -rf "$next_runtime"
-    ln -s '../../../node_modules/next' "$next_runtime"
+    mkdir -p "$(dirname "$next_runtime")"
+    ln -s "$complete_next" "$next_runtime"
   fi
 done
 

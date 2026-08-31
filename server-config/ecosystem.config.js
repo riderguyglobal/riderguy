@@ -30,7 +30,7 @@ module.exports = {
     {
       ...common,
       name: 'riderguy-marketing',
-      script: 'apps/marketing/.next/standalone/server.js',
+      script: 'apps/marketing/.next/standalone/apps/marketing/server.js',
       env: { ...common.env, PORT: 3000, HOSTNAME: '127.0.0.1' },
       instances: 1,
       exec_mode: 'fork',
@@ -41,7 +41,7 @@ module.exports = {
     {
       ...common,
       name: 'riderguy-admin',
-      script: 'apps/admin/.next/standalone/server.js',
+      script: 'apps/admin/.next/standalone/apps/admin/server.js',
       env: { ...common.env, PORT: 3003, HOSTNAME: '127.0.0.1' },
       instances: 1,
       exec_mode: 'fork',

@@ -8,8 +8,6 @@ const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
 
 // ── Explicit mocks (more reliable than config-based aliases for relative imports) ──
 
-const mockRooms = new Map<string, Set<string>>();
-
 const { mockIo, mockGetIO } = vi.hoisted(() => {
   const rooms = new Map<string, Set<string>>();
   const mockIo = {

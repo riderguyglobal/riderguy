@@ -256,6 +256,10 @@ async function main() {
     const profile = await prisma.riderProfile.create({
       data: {
         userId: user.id,
+        referralCode: `RGR-SEED-${String(riders.length + 1).padStart(3, '0')}`,
+        riderChannel: 'GUEST',
+        requestedRiderChannel: 'GUEST',
+        channelVerifiedAt: new Date(),
         onboardingStatus: r.status,
         availability: r.availability,
         currentLevel: Math.min(7, Math.floor(r.xp / 500) + 1),

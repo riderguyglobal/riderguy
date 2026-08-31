@@ -13,9 +13,7 @@ import { logger } from '../lib/logger';
 // ============================================================
 
 function isRedisConfigured(): boolean {
-  const url = config.redis.url;
-  if (!url) return false;
-  return true;
+  return Boolean(process.env.REDIS_URL?.trim());
 }
 
 let globalLimiter: RateLimiterAbstract;

@@ -13,17 +13,10 @@ import { riderColors } from '@/lib/rider-design';
 type ProofMode = 'PIN_CODE' | 'PHOTO';
 type PaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'CARD' | 'WALLET' | 'BANK_TRANSFER';
 
-const PAYMENT_OPTIONS: Array<{ label: string; value: PaymentMethod }> = [
-  { label: 'Cash', value: 'CASH' },
-  { label: 'MoMo', value: 'MOBILE_MONEY' },
-  { label: 'Card', value: 'CARD' },
-];
-
 export default function ProofOfDeliveryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api } = useAuth();
   const qc = useQueryClient();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [proofMode, setProofMode] = useState<ProofMode>('PIN_CODE');
   const [pin, setPin] = useState('');
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -32,13 +25,14 @@ export default function ProofOfDeliveryScreen() {
     queryKey: ['order', id],
     queryFn: async () => {
       const { data } = await api.get(`/orders/${id}`);
-      const next = data.data ?? data;
-      if (next.actualPaymentMethod || next.paymentMethod) {
-        setPaymentMethod(next.actualPaymentMethod ?? next.paymentMethod);
-      }
-      return next;
+      return data.data ?? data;
     },
   });
+
+  const paymentMethod = (order?.paymentMethod ?? 'CASH') as PaymentMethod;
+  const isCashPayment = paymentMethod === 'CASH';
+  const electronicPaymentVerified = !isCashPayment && order?.paymentStatus === 'COMPLETED';
+  const paymentReady = isCashPayment || electronicPaymentVerified;
 
   const takePhoto = async () => {
     const result = await ImagePicker.launchCameraAsync({
@@ -52,8 +46,12 @@ export default function ProofOfDeliveryScreen() {
 
   const complete = useMutation({
     mutationFn: async () => {
-      if (!order?.riderPaymentConfirmed) {
-        await api.post(`/orders/${id}/confirm-payment`, { actualPaymentMethod: paymentMethod });
+      if (isCashPayment) {
+        if (!order?.riderPaymentConfirmed) {
+          await api.post(`/orders/${id}/confirm-payment`, { actualPaymentMethod: 'CASH' });
+        }
+      } else if (!electronicPaymentVerified) {
+        throw new Error('Electronic payment is still awaiting provider verification. Ask the customer to complete payment in their app.');
       }
 
       if (proofMode === 'PIN_CODE') {
@@ -84,7 +82,8 @@ export default function ProofOfDeliveryScreen() {
     onError: (error: any) => Alert.alert('Completion failed', error?.response?.data?.error?.message ?? error?.message ?? 'Could not complete delivery.'),
   });
 
-  const ready = proofMode === 'PIN_CODE' ? pin.length === 6 : !!photo;
+  const proofReady = proofMode === 'PIN_CODE' ? pin.length === 6 : !!photo;
+  const ready = paymentReady && proofReady;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.surface }}>
@@ -105,7 +104,25 @@ export default function ProofOfDeliveryScreen() {
 
           <RiderCard style={{ marginBottom: 14 }}>
             <Text style={{ color: riderColors.muted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 9 }}>Payment received by</Text>
-            <SegmentedControl value={paymentMethod} options={PAYMENT_OPTIONS} onChange={setPaymentMethod} />
+            <View style={{ borderRadius: 16, backgroundColor: paymentReady ? riderColors.greenSoft : riderColors.amberSoft, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11 }}>
+              <Ionicons
+                name={paymentReady ? 'checkmark-circle' : 'time-outline'}
+                size={24}
+                color={paymentReady ? riderColors.greenDark : riderColors.amber}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: riderColors.ink, fontSize: 14, fontWeight: '900' }}>
+                  {paymentMethod.replace(/_/g, ' ')}
+                </Text>
+                <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 }}>
+                  {isCashPayment
+                    ? 'Confirm cash only after it has been collected from the customer.'
+                    : electronicPaymentVerified
+                      ? 'Payment was verified by the electronic payment provider.'
+                      : 'Waiting for the customer to complete payment in their app.'}
+                </Text>
+              </View>
+            </View>
           </RiderCard>
 
           <RiderCard style={{ marginBottom: 14 }}>

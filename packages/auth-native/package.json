@@ -6,20 +6,23 @@
   "types": "./src/index.ts",
   "scripts": {
     "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx"
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest run"
   },
   "dependencies": {
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@riderguy/types": "*",
-    "axios": "^1.7.0",
-    "expo-local-authentication": ">=14.0.0",
-    "expo-secure-store": ">=13.0.0",
+    "axios": "^1.19.0",
+    "expo-local-authentication": "~17.0.9",
+    "expo-secure-store": "~15.0.8",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@types/react": "~18.3.12",
-    "react": "18.3.1",
-    "typescript": "^5.7.0"
+    "@types/react": "~19.1.17",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "~5.9.2",
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "react": "*",

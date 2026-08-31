@@ -58,6 +58,18 @@ interface RiderProfile {
   id: string;
   userId: string;
   onboardingStatus: string;
+  riderChannel: 'GUEST' | 'IN_HOUSE' | null;
+  requestedRiderChannel: 'GUEST' | 'IN_HOUSE' | null;
+  channelVerifiedAt: string | null;
+  referralCode: string;
+  applicationRejectionReason: string | null;
+  approvalReadiness: { ready: boolean; missing: string[] };
+  trainingCompletions: Array<{
+    id: string;
+    moduleKey: string;
+    completedAt: string;
+    verifiedAt: string | null;
+  }>;
   user: {
     id: string;
     firstName: string;
@@ -100,7 +112,6 @@ export default function RiderReviewPage() {
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reviewingDoc, setReviewingDoc] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
@@ -161,7 +172,6 @@ export default function RiderReviewPage() {
 
         if (!res.ok) throw new Error('Review failed');
 
-        setReviewingDoc(null);
         setRejectionReason('');
         await fetchData();
       } catch {
@@ -189,17 +199,65 @@ export default function RiderReviewPage() {
           body: JSON.stringify(body),
         });
 
-        if (!res.ok) throw new Error('Decision failed');
+        if (!res.ok) {
+          const json = await res.json().catch((_error: unknown): null => null);
+          const missing = json?.error?.details?.missing as string[] | undefined;
+          throw new Error(missing?.length ? missing.join('; ') : json?.error?.message ?? 'Decision failed');
+        }
 
         await fetchData();
-      } catch {
-        setError(`Failed to ${decision} application.`);
+      } catch (decisionError) {
+        setError(decisionError instanceof Error ? decisionError.message : `Failed to ${decision} application.`);
       } finally {
         setActionLoading(false);
       }
     },
     [accessToken, riderId, rejectionReason, fetchData],
   );
+
+  const verifyTraining = useCallback(async (moduleKey: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/riders/${riderId}/training/${moduleKey}/verify`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) {
+        const json = await res.json().catch((_error: unknown): null => null);
+        throw new Error(json?.error?.message ?? 'Training verification failed');
+      }
+      await fetchData();
+    } catch (trainingError) {
+      setError(trainingError instanceof Error ? trainingError.message : 'Training verification failed');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [accessToken, fetchData, riderId]);
+
+  const classifyLegacyChannel = useCallback(async (channel: 'GUEST' | 'IN_HOUSE') => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/riders/${riderId}/channel`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ channel }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch((_error: unknown): null => null);
+        throw new Error(json?.error?.message ?? 'Channel classification failed');
+      }
+      await fetchData();
+    } catch (classificationError) {
+      setError(classificationError instanceof Error
+        ? classificationError.message
+        : 'Channel classification failed');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [accessToken, fetchData, riderId]);
 
   // ── Loading state ─────────────────────────────────────────
   if (loading) {
@@ -268,6 +326,56 @@ export default function RiderReviewPage() {
                     {profile.onboardingStatus.replace(/_/g, ' ')}
                   </Badge>
                 </div>
+                {!profile.riderChannel ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="mb-2 text-xs text-amber-800">
+                      Legacy Rider channel requires an explicit admin classification. This does not create training records.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={actionLoading}
+                        onClick={() => void classifyLegacyChannel('GUEST')}
+                      >
+                        Classify Guest
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={actionLoading}
+                        onClick={() => void classifyLegacyChannel('IN_HOUSE')}
+                      >
+                        Classify In-House
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">Rider channel</span>
+                  <Badge className={profile.riderChannel === 'IN_HOUSE'
+                    ? 'bg-purple-100 text-purple-800 hover:bg-purple-100'
+                    : profile.riderChannel === 'GUEST'
+                      ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
+                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100'}>
+                    {profile.riderChannel === 'IN_HOUSE'
+                      ? 'In-House (Authorized)'
+                      : profile.riderChannel === 'GUEST'
+                        ? 'Guest'
+                        : profile.requestedRiderChannel === 'IN_HOUSE'
+                          ? 'In-House Invite Needed'
+                          : 'Not Selected'}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-gray-500">Referral code</span>
+                  <code className="text-xs font-bold text-gray-800">{profile.referralCode}</code>
+                </div>
+                {profile.applicationRejectionReason ? (
+                  <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">
+                    Previous decision: {profile.applicationRejectionReason}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           )}
@@ -319,8 +427,42 @@ export default function RiderReviewPage() {
             </Card>
           )}
 
+          {profile?.riderChannel === 'IN_HOUSE' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm text-gray-500">In-House Training Verification</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {['SAFETY_BASICS', 'SERVICE_STANDARDS', 'DELIVERY_OPERATIONS'].map((moduleKey) => {
+                  const completion = profile.trainingCompletions.find((item) => item.moduleKey === moduleKey);
+                  return (
+                    <div key={moduleKey} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{friendlyDocType(moduleKey)}</p>
+                          <p className="text-xs text-gray-500">
+                            {!completion ? 'Not completed' : completion.verifiedAt ? 'Admin verified' : 'Completed — verification required'}
+                          </p>
+                        </div>
+                        {completion?.verifiedAt ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Verified</Badge>
+                        ) : completion ? (
+                          <Button size="sm" variant="outline" disabled={actionLoading} onClick={() => void verifyTraining(moduleKey)}>
+                            Verify
+                          </Button>
+                        ) : (
+                          <Badge variant="outline">Pending</Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Application actions */}
-          {profile && ['DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW'].includes(profile.onboardingStatus) && (
+          {profile && profile.onboardingStatus !== 'ACTIVATED' && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm text-gray-500">Application Decision</CardTitle>
@@ -329,10 +471,19 @@ export default function RiderReviewPage() {
                 <Button
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={() => void handleApplicationDecision('approve')}
-                  disabled={actionLoading}
+                  disabled={actionLoading || !profile.approvalReadiness.ready}
                 >
                   ✅ Approve Application
                 </Button>
+
+                {!profile.approvalReadiness.ready ? (
+                  <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                    <p className="font-semibold">Approval is locked:</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      {profile.approvalReadiness.missing.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
 
                 <Dialog>
                   <DialogTrigger asChild>
@@ -361,7 +512,7 @@ export default function RiderReviewPage() {
                         variant="default"
                         className="bg-red-600 hover:bg-red-700"
                         onClick={() => void handleApplicationDecision('reject')}
-                        disabled={actionLoading}
+                        disabled={actionLoading || rejectionReason.trim().length < 5}
                       >
                         Reject
                       </Button>
@@ -449,7 +600,6 @@ export default function RiderReviewPage() {
                                   size="sm"
                                   variant="outline"
                                   className="text-red-600 border-red-200"
-                                  onClick={() => setReviewingDoc(doc.id)}
                                 >
                                   Reject
                                 </Button>

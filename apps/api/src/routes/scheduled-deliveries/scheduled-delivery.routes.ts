@@ -5,6 +5,11 @@ import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { StatusCodes } from 'http-status-codes';
 import { prisma } from '@riderguy/database';
+import {
+  ghanaOrderLatitudeSchema,
+  ghanaOrderLongitudeSchema,
+  phoneSchema,
+} from '@riderguy/validators';
 
 // ============================================================
 // Scheduled Deliveries — CRUD for recurring / future deliveries
@@ -31,18 +36,18 @@ const createScheduledDeliverySchema = z.object({
 
   // Pickup
   pickupAddress: z.string().min(1).max(500),
-  pickupLatitude: z.number().min(-90).max(90),
-  pickupLongitude: z.number().min(-180).max(180),
+  pickupLatitude: ghanaOrderLatitudeSchema,
+  pickupLongitude: ghanaOrderLongitudeSchema,
   pickupContactName: z.string().max(100).optional(),
-  pickupContactPhone: z.string().max(20).optional(),
+  pickupContactPhone: phoneSchema.optional(),
   pickupInstructions: z.string().max(500).optional(),
 
   // Dropoff
   dropoffAddress: z.string().min(1).max(500),
-  dropoffLatitude: z.number().min(-90).max(90),
-  dropoffLongitude: z.number().min(-180).max(180),
+  dropoffLatitude: ghanaOrderLatitudeSchema,
+  dropoffLongitude: ghanaOrderLongitudeSchema,
   dropoffContactName: z.string().max(100).optional(),
-  dropoffContactPhone: z.string().max(20).optional(),
+  dropoffContactPhone: phoneSchema.optional(),
   dropoffInstructions: z.string().max(500).optional(),
 
   // Package & payment

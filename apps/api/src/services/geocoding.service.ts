@@ -2,6 +2,7 @@ import { config } from '../config';
 import { ApiError } from '../lib/api-error';
 import { formatPlusCode } from '@riderguy/utils';
 import { prisma } from '@riderguy/database';
+import { GHANA_ORDER_BOUNDS } from '@riderguy/validators';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -101,10 +102,31 @@ const GHANA_BBOX = '-3.26,4.74,1.19,11.17';
 /** Accra center for proximity bias */
 const ACCRA_CENTER = { lng: -0.187, lat: 5.603 };
 
-function warnMockFallback(method: string) {
+/** Coarse operational boundary used consistently across Ghana-only launch flows. */
+export function isWithinGhanaBounds(latitude: number, longitude: number): boolean {
+  return Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= GHANA_ORDER_BOUNDS.minLatitude
+    && latitude <= GHANA_ORDER_BOUNDS.maxLatitude
+    && longitude >= GHANA_ORDER_BOUNDS.minLongitude
+    && longitude <= GHANA_ORDER_BOUNDS.maxLongitude;
+}
+
+function assertWithinGhanaBounds(latitude: number, longitude: number): void {
+  if (!isWithinGhanaBounds(latitude, longitude)) {
+    throw ApiError.badRequest('Location must be within Ghana');
+  }
+}
+
+function warnProviderFallback(method: string, fallback: string) {
   console.warn(
-    `[GeocodingService] ${method}: GOOGLE_MAPS_API_KEY not set — using mock data. Set the key in .env for real geocoding.`
+    `[GeocodingService] ${method}: GOOGLE_MAPS_API_KEY not set — using ${fallback}.`
   );
+}
+
+function throwMissingGoogleMapsKey(method: string): never {
+  console.error(`[GeocodingService] ${method}: GOOGLE_MAPS_API_KEY is required in production.`);
+  throw ApiError.internal('Geocoding service unavailable');
 }
 
 function coordinateFallbackResult(latitude: number, longitude: number): GeocodingResult {
@@ -516,8 +538,9 @@ export async function forwardGeocode(
   const apiKey = config.google?.mapsApiKey;
 
   if (!apiKey) {
-    warnMockFallback('forwardGeocode');
-    return mockForwardGeocode(address);
+    if (config.isProduction) throwMissingGoogleMapsKey('forwardGeocode');
+    warnProviderFallback('forwardGeocode', 'the local Ghana gazetteer');
+    return localForwardGeocode(address, options.limit ?? 5);
   }
 
   const limit = options.limit ?? 5;
@@ -526,6 +549,7 @@ export async function forwardGeocode(
     address,
     key: apiKey,
     region: 'gh',
+    components: 'country:GH',
     language: 'en',
   });
 
@@ -540,7 +564,10 @@ export async function forwardGeocode(
 
   if (data.status !== 'OK' || !data.results?.length) return [];
 
-  return data.results.slice(0, limit).map((r) => {
+  return data.results.filter((r) => isWithinGhanaBounds(
+    r.geometry.location.lat,
+    r.geometry.location.lng,
+  )).slice(0, limit).map((r) => {
     const lat = r.geometry.location.lat;
     const lng = r.geometry.location.lng;
     return {
@@ -561,10 +588,11 @@ export async function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<GeocodingResult | null> {
+  assertWithinGhanaBounds(latitude, longitude);
   const apiKey = config.google?.mapsApiKey;
 
   if (!apiKey) {
-    warnMockFallback('reverseGeocode');
+    warnProviderFallback('reverseGeocode', 'the supplied coordinates and generated GhanaPost GPS code');
     return coordinateFallbackResult(latitude, longitude);
   }
 
@@ -591,6 +619,10 @@ export async function reverseGeocode(
 
   const result = data.results?.[0];
   if (!result) return coordinateFallbackResult(latitude, longitude);
+
+  if (!isWithinGhanaBounds(result.geometry.location.lat, result.geometry.location.lng)) {
+    return coordinateFallbackResult(latitude, longitude);
+  }
 
   return {
     address: result.formatted_address,
@@ -625,15 +657,21 @@ export async function autocomplete(
   } = {},
 ): Promise<AutocompleteSuggestion[]> {
   const apiKey = config.google?.mapsApiKey;
+  const requestedProximity = options.proximity ?? ACCRA_CENTER;
+  const prox = isWithinGhanaBounds(requestedProximity.lat, requestedProximity.lng)
+    ? requestedProximity
+    : ACCRA_CENTER;
 
   if (!apiKey) {
-    warnMockFallback('autocomplete');
-    return mockAutocomplete(query);
+    warnProviderFallback('autocomplete', 'the local Ghana gazetteer');
+    return localAutocomplete(
+      query,
+      options.limit ?? 8,
+      prox,
+    );
   }
 
   const limit = options.limit ?? 8;
-  const prox = options.proximity ?? ACCRA_CENTER;
-
   // ── 0. Natural language parsing ──────────────────────────
   let searchQueries = [query];
   if (isNaturalLanguageQuery(query)) {
@@ -693,7 +731,10 @@ export async function autocomplete(
 
   // Merge: gazetteer first (instant + fuzzy), then community,
   // then Google (API), then Nominatim (supplementary)
-  const merged = deduplicateSuggestions([...google, ...gazetteerResults, ...community, ...nominatim]);
+  const merged = deduplicateSuggestions([...google, ...gazetteerResults, ...community, ...nominatim])
+    .filter((suggestion) => suggestion.latitude == null
+      || suggestion.longitude == null
+      || isWithinGhanaBounds(suggestion.latitude, suggestion.longitude));
 
   return merged.slice(0, limit);
 }
@@ -777,6 +818,14 @@ async function searchCommunityPlaces(
 
     const places = await prisma.communityPlace.findMany({
       where: {
+        latitude: {
+          gte: GHANA_ORDER_BOUNDS.minLatitude,
+          lte: GHANA_ORDER_BOUNDS.maxLatitude,
+        },
+        longitude: {
+          gte: GHANA_ORDER_BOUNDS.minLongitude,
+          lte: GHANA_ORDER_BOUNDS.maxLongitude,
+        },
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { address: { contains: query, mode: 'insensitive' } },
@@ -820,7 +869,7 @@ async function searchCommunityPlaces(
 
     scored.sort((a, b) => b.score - a.score);
 
-    return scored.slice(0, limit).map((s, i) => ({
+    return scored.slice(0, limit).map((s) => ({
       id: `com-${s.place.id}`,
       text: s.place.name,
       placeName: s.place.address
@@ -950,11 +999,6 @@ export async function retrievePlace(
 ): Promise<RetrievedPlace | null> {
   const apiKey = config.google?.mapsApiKey;
 
-  if (!apiKey) {
-    warnMockFallback('retrievePlace');
-    return null;
-  }
-
   // Gazetteer entries — search landmarks + GeoNames by name
   if (placeId.startsWith('gaz-')) {
     const namePart = placeId.replace(/^gaz-\d+-/, '').replace(/-/g, ' ');
@@ -1003,8 +1047,22 @@ export async function retrievePlace(
   if (placeId.startsWith('com-')) {
     const dbId = placeId.replace('com-', '');
     try {
+      const existing = await prisma.communityPlace.findFirst({
+        where: {
+          id: dbId,
+          latitude: {
+            gte: GHANA_ORDER_BOUNDS.minLatitude,
+            lte: GHANA_ORDER_BOUNDS.maxLatitude,
+          },
+          longitude: {
+            gte: GHANA_ORDER_BOUNDS.minLongitude,
+            lte: GHANA_ORDER_BOUNDS.maxLongitude,
+          },
+        },
+      });
+      if (!existing) return null;
       const place = await prisma.communityPlace.update({
-        where: { id: dbId },
+        where: { id: existing.id },
         data: { usageCount: { increment: 1 } },
       });
       return {
@@ -1022,9 +1080,17 @@ export async function retrievePlace(
   }
 
   // Google place IDs — use Google Geocoding to retrieve by place_id
+  if ((placeId.startsWith('googleplaces-') || placeId.startsWith('google-')) && !apiKey) {
+    if (config.isProduction) throwMissingGoogleMapsKey('retrievePlace');
+    warnProviderFallback('retrievePlace', 'no external lookup');
+    return null;
+  }
+
   if (placeId.startsWith('googleplaces-')) {
     const googlePlaceId = placeId.replace('googleplaces-', '');
-    const response = await fetch(`${GOOGLE_PLACES_DETAILS}/${encodeURIComponent(googlePlaceId)}`, {
+    const detailsUrl = new URL(`${GOOGLE_PLACES_DETAILS}/${encodeURIComponent(googlePlaceId)}`);
+    if (sessionToken) detailsUrl.searchParams.set('sessionToken', sessionToken);
+    const response = await fetch(detailsUrl, {
       headers: {
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': 'id,displayName,formattedAddress,location,types',
@@ -1035,6 +1101,7 @@ export async function retrievePlace(
 
     const place = (await response.json()) as GooglePlaceDetailsResponse;
     if (!place.location) return null;
+    if (!isWithinGhanaBounds(place.location.latitude, place.location.longitude)) return null;
 
     const name = place.displayName?.text ?? place.formattedAddress?.split(',')[0] ?? '';
     return {
@@ -1063,6 +1130,7 @@ export async function retrievePlace(
     const data = (await response.json()) as GoogleGeocodingResponse;
     const result = data.results?.[0];
     if (!result) return null;
+    if (!isWithinGhanaBounds(result.geometry.location.lat, result.geometry.location.lng)) return null;
 
     return {
       id: placeId,
@@ -1150,9 +1218,9 @@ interface NominatimResult {
   };
 }
 
-// ---- Mock implementations for local dev ----
+// ---- Deterministic local-data fallbacks ----
 
-function mockForwardGeocode(address: string): GeocodingResult[] {
+function localForwardGeocode(address: string, limit: number): GeocodingResult[] {
   const lower = address.toLowerCase();
 
   // Search landmarks first
@@ -1160,7 +1228,7 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
     (a) => a.name.toLowerCase().includes(lower) || a.area.toLowerCase().includes(lower)
   );
   if (landmarkMatches.length > 0) {
-    return landmarkMatches.slice(0, 5).map((m) => ({
+    return landmarkMatches.slice(0, limit).map((m) => ({
       address: `${m.name}, ${m.area}`,
       latitude: m.lat,
       longitude: m.lng,
@@ -1173,7 +1241,7 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
     (p) => p.n.toLowerCase().includes(lower) || (p.a && p.a.toLowerCase().includes(lower))
   );
   if (geoMatches.length > 0) {
-    return geoMatches.slice(0, 5).map((m) => ({
+    return geoMatches.slice(0, limit).map((m) => ({
       address: m.r ? `${m.n}, ${m.r}, Ghana` : `${m.n}, Ghana`,
       latitude: m.lat,
       longitude: m.lon,
@@ -1181,20 +1249,16 @@ function mockForwardGeocode(address: string): GeocodingResult[] {
     }));
   }
 
-  // Fallback with a random landmark
-  const fallback = LANDMARKS[Math.floor(Math.random() * LANDMARKS.length)]!;
-  return [
-    {
-      address: `${address} (${fallback.name}, ${fallback.area})`,
-      latitude: fallback.lat + (Math.random() - 0.5) * 0.01,
-      longitude: fallback.lng + (Math.random() - 0.5) * 0.01,
-      placeType: 'address',
-    },
-  ];
+  // Never invent coordinates for an address we cannot match.
+  return [];
 }
 
-function mockAutocomplete(query: string): AutocompleteSuggestion[] {
-  return searchGazetteer(query, 5);
+function localAutocomplete(
+  query: string,
+  limit: number,
+  proximity?: { lat: number; lng: number },
+): AutocompleteSuggestion[] {
+  return searchGazetteer(query, limit, proximity);
 }
 
 // ── Selection recording (usage-based learning) ─────────────

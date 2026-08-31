@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, getApiClient } from '@riderguy/auth';
+import { getApiClient } from '@riderguy/auth';
 import { ProtectedRoute } from '@riderguy/auth';
 import { UserRole, JobPosting, JOB_TYPE_LABELS } from '@riderguy/types';
 import type { JobType, JobPostStatus } from '@riderguy/types';

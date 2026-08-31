@@ -46,6 +46,65 @@ function getUserRoles(user: { role: string; roles?: string[] }): UserRole[] {
   return rolesArr;
 }
 
+type RiderChannelInput = 'GUEST' | 'IN_HOUSE';
+
+interface RiderRegistrationOptions {
+  riderChannel?: RiderChannelInput;
+  referralCode?: string;
+}
+
+/**
+ * Resolve a public referral code before creating a RiderProfile. Partner
+ * codes and activated Rider codes are both supported; an unknown code is a
+ * validation error instead of being silently discarded.
+ */
+async function resolveRiderReferral(referralCode?: string) {
+  const normalized = referralCode?.trim().toUpperCase();
+  if (!normalized) return {};
+
+  const [partner, rider] = await Promise.all([
+    prisma.partnerProfile.findUnique({
+      where: { referralCode: normalized },
+      select: { id: true, isActive: true },
+    }),
+    prisma.riderProfile.findUnique({
+      where: { referralCode: normalized },
+      select: { id: true, isVerified: true, onboardingStatus: true },
+    }),
+  ]);
+
+  if (partner?.isActive) return { referredByPartnerId: partner.id };
+  if (rider?.isVerified && rider.onboardingStatus === 'ACTIVATED') {
+    return { referredByRiderId: rider.id };
+  }
+
+  throw ApiError.badRequest('Referral code is invalid or is not active.', 'INVALID_REFERRAL_CODE');
+}
+
+/** Build secure defaults for a newly-created RiderProfile. */
+async function buildRiderProfileData(options: RiderRegistrationOptions = {}) {
+  const referral = await resolveRiderReferral(options.referralCode);
+  const selectedChannel = options.riderChannel;
+  const isGuest = selectedChannel === 'GUEST';
+
+  return {
+    referralCode: `RGR-${crypto.randomBytes(5).toString('hex').toUpperCase()}`,
+    onboardingStatus: isGuest ? 'DOCUMENTS_PENDING' as const : 'REGISTERED' as const,
+    riderChannel: isGuest ? 'GUEST' as const : null,
+    requestedRiderChannel: selectedChannel ?? null,
+    channelVerifiedAt: isGuest ? new Date() : null,
+    isVerified: false,
+    activatedAt: null,
+    ...referral,
+  };
+}
+
+function assertRiderRegistrationOptions(role: UserRole, options: RiderRegistrationOptions) {
+  if (role !== ('RIDER' as UserRole) && (options.riderChannel || options.referralCode?.trim())) {
+    throw ApiError.badRequest('Rider channel and referral code fields can only be used for Rider registration.');
+  }
+}
+
 // ============================================================
 // Auth Service — handles registration, OTP, JWT tokens, and
 // password management.
@@ -162,6 +221,18 @@ export class AuthService {
     const smsSent = await SmsService.sendOtp(phone, code);
     if (!smsSent) {
       logger.error({ phone, purpose }, 'Failed to send OTP SMS via mNotify');
+      if (config.isProduction) {
+        // Do not leave an undelivered OTP valid, and do not tell the native
+        // app that the code was sent when the provider failed.
+        await prisma.otp.update({
+          where: { id: otp.id },
+          data: { verified: true },
+        }).catch(() => {});
+        throw ApiError.serviceUnavailable(
+          'Unable to send the verification code right now. Please try again.',
+          'OTP_DELIVERY_FAILED',
+        );
+      }
     }
 
     if (config.nodeEnv === 'development') {
@@ -243,7 +314,10 @@ export class AuthService {
     password?: string;
     pin?: string;
     role: UserRole;
+    riderChannel?: 'GUEST' | 'IN_HOUSE';
+    referralCode?: string;
   }, deviceInfo?: string, ipAddress?: string) {
+    assertRiderRegistrationOptions(input.role, input);
     // ---- 1. Verify that the phone was OTP-verified for REGISTRATION ----
     const verifiedOtp = await prisma.otp.findFirst({
       where: { phone: input.phone, purpose: 'REGISTRATION', verified: true },
@@ -321,7 +395,7 @@ export class AuthService {
             role: input.role as PrismaUserRole,
             roles: [input.role as PrismaUserRole],
             phoneVerified: true,
-            status: 'ACTIVE',
+            status: input.role === 'RIDER' ? 'PENDING_VERIFICATION' : 'ACTIVE',
           },
         });
       }
@@ -339,13 +413,10 @@ export class AuthService {
         // Check if rider profile already exists (shouldn't, but be safe)
         const existingProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
         if (!existingProfile) {
-          // TODO: Remove full-access default when onboarding/admin approval is restored.
           await prisma.riderProfile.create({
             data: {
               userId: user.id,
-              onboardingStatus: 'ACTIVATED',
-              isVerified: true,
-              activatedAt: new Date(),
+              ...(await buildRiderProfileData(input)),
             },
           });
         }
@@ -433,6 +504,12 @@ export class AuthService {
       },
       accessToken,
       refreshToken,
+      ...(input.role === 'RIDER'
+        ? { riderProfile: await prisma.riderProfile.findUnique({
+            where: { userId: user.id },
+            select: { onboardingStatus: true, riderChannel: true, requestedRiderChannel: true, referralCode: true, isVerified: true },
+          }) }
+        : {}),
     };
   }
 
@@ -444,7 +521,10 @@ export class AuthService {
     firstName: string;
     lastName: string;
     role: UserRole;
+    riderChannel?: 'GUEST' | 'IN_HOUSE';
+    referralCode?: string;
   }, deviceInfo?: string, ipAddress?: string) {
+    assertRiderRegistrationOptions(input.role, input);
     // ---- 1. Uniqueness check ----
     const existingEmail = await prisma.user.findUnique({ where: { email: input.email } });
     if (existingEmail) {
@@ -471,7 +551,7 @@ export class AuthService {
           role: input.role as PrismaUserRole,
           roles: [input.role as PrismaUserRole],
           emailVerified: false,
-          status: 'ACTIVE',
+          status: input.role === 'RIDER' ? 'PENDING_VERIFICATION' : 'ACTIVE',
         },
       });
     } catch (err: any) {
@@ -487,9 +567,7 @@ export class AuthService {
         await prisma.riderProfile.create({
           data: {
             userId: user.id,
-            onboardingStatus: 'ACTIVATED',
-            isVerified: true,
-            activatedAt: new Date(),
+            ...(await buildRiderProfileData(input)),
           },
         });
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
@@ -554,6 +632,12 @@ export class AuthService {
       },
       accessToken,
       refreshToken,
+      ...(input.role === 'RIDER'
+        ? { riderProfile: await prisma.riderProfile.findUnique({
+            where: { userId: user.id },
+            select: { onboardingStatus: true, riderChannel: true, requestedRiderChannel: true, referralCode: true, isVerified: true },
+          }) }
+        : {}),
     };
   }
 
@@ -565,9 +649,12 @@ export class AuthService {
     firstName: string;
     lastName: string;
     role: UserRole;
+    riderChannel?: 'GUEST' | 'IN_HOUSE';
+    referralCode?: string;
     securityQuestion: string;
     securityAnswer: string;
   }, deviceInfo?: string, ipAddress?: string) {
+    assertRiderRegistrationOptions(input.role, input);
     // 1. Uniqueness check
     const existingGhanaCard = await prisma.user.findUnique({
       where: { ghanaCardNumber: input.ghanaCard },
@@ -598,7 +685,7 @@ export class AuthService {
           securityAnswerHash,
           role: input.role as PrismaUserRole,
           roles: [input.role as PrismaUserRole],
-          status: 'ACTIVE',
+          status: input.role === 'RIDER' ? 'PENDING_VERIFICATION' : 'ACTIVE',
         },
       });
     } catch (err: any) {
@@ -617,9 +704,7 @@ export class AuthService {
         await prisma.riderProfile.create({
           data: {
             userId: user.id,
-            onboardingStatus: 'ACTIVATED',
-            isVerified: true,
-            activatedAt: new Date(),
+            ...(await buildRiderProfileData(input)),
           },
         });
       } else if (input.role === 'CLIENT' || input.role === 'BUSINESS_CLIENT') {
@@ -677,6 +762,12 @@ export class AuthService {
       },
       accessToken,
       refreshToken,
+      ...(input.role === 'RIDER'
+        ? { riderProfile: await prisma.riderProfile.findUnique({
+            where: { userId: user.id },
+            select: { onboardingStatus: true, riderChannel: true, requestedRiderChannel: true, referralCode: true, isVerified: true },
+          }) }
+        : {}),
     };
   }
 
@@ -866,20 +957,50 @@ export class AuthService {
     deviceInfo?: string,
     ipAddress?: string,
   ) {
+    // Defense in depth: validation already limits the public endpoint, but the
+    // service must remain safe when called directly from another code path.
+    if (role !== 'RIDER' && role !== 'CLIENT') {
+      throw ApiError.badRequest('Google Sign-In supports only Client or Rider accounts');
+    }
+
     // 1. Verify Google credential (supports both access tokens and ID tokens)
-    const clientId = config.google.clientId;
+    const googleConfig = (config as typeof config & { google?: { clientId?: string; clientIds?: readonly string[] } }).google;
+    const allowedClientIds = googleConfig?.clientIds?.length
+      ? [...googleConfig.clientIds]
+      : googleConfig?.clientId
+        ? [googleConfig.clientId]
+        : [];
     let email: string;
     let given_name: string | undefined;
     let family_name: string | undefined;
     let email_verified: boolean | undefined;
 
     try {
-      // Try as access token first (implicit flow) — call Google userinfo endpoint
-      const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${credential}` },
-      });
+      if (allowedClientIds.length === 0) throw new Error('Google OAuth audience allowlist is empty');
 
-      if (userinfoRes.ok) {
+      if (credential.split('.').length === 3) {
+        const client = new OAuth2Client(allowedClientIds[0]);
+        const ticket = await client.verifyIdToken({ idToken: credential, audience: allowedClientIds });
+        const payload = ticket.getPayload();
+        if (!payload?.email) throw new Error('no email');
+        email = payload.email;
+        given_name = payload.given_name;
+        family_name = payload.family_name;
+        email_verified = payload.email_verified;
+      } else {
+        // Legacy access-token callers remain supported, but tokeninfo must
+        // first prove the token audience belongs to this deployment.
+        const tokenInfoRes = await fetch(
+          `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(credential)}`,
+        );
+        if (!tokenInfoRes.ok) throw new Error('invalid access token');
+        const tokenInfo = await tokenInfoRes.json() as { aud?: string };
+        if (!tokenInfo.aud || !allowedClientIds.includes(tokenInfo.aud)) throw new Error('invalid audience');
+
+        const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${credential}` },
+        });
+        if (!userinfoRes.ok) throw new Error('userinfo failed');
         const info = await userinfoRes.json() as {
           email: string;
           given_name?: string;
@@ -890,33 +1011,31 @@ export class AuthService {
         given_name = info.given_name;
         family_name = info.family_name;
         email_verified = info.email_verified;
-      } else if (clientId) {
-        // Fall back to ID token verification
-        const client = new OAuth2Client(clientId);
-        const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
-        const payload = ticket.getPayload();
-        if (!payload?.email) throw new Error('no email');
-        email = payload.email;
-        given_name = payload.given_name;
-        family_name = payload.family_name;
-        email_verified = payload.email_verified;
-      } else {
-        throw new Error('invalid credential');
       }
     } catch {
       throw ApiError.unauthorized('Invalid Google credential');
     }
 
+    email = email.trim().toLowerCase();
     if (!email) {
       throw ApiError.unauthorized('Google account has no email');
+    }
+    if (email_verified !== true) {
+      throw ApiError.unauthorized('Google account email is not verified');
     }
 
     // 2. Find or create user
     let user = await prisma.user.findUnique({ where: { email } });
     let isNewUser = false;
+    let createdUserByThisRequest = false;
+
+    if (user && (user.deletedAt || user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED')) {
+      throw ApiError.forbidden('Your account is not active');
+    }
 
     if (!user) {
       isNewUser = true;
+      createdUserByThisRequest = true;
       // phone is required in the schema; generate a unique placeholder for Google signups
       const placeholderPhone = `google_${crypto.randomUUID()}`;
       try {
@@ -929,7 +1048,7 @@ export class AuthService {
             emailVerified: email_verified ?? false,
             role: role as PrismaUserRole,
             roles: [role as PrismaUserRole],
-            status: 'ACTIVE',
+            status: role === 'RIDER' ? 'PENDING_VERIFICATION' : 'ACTIVE',
           },
         });
       } catch (err: any) {
@@ -937,20 +1056,20 @@ export class AuthService {
           // Race condition — another request created the same user
           user = await prisma.user.findUnique({ where: { email } });
           if (!user) throw err;
+          isNewUser = false;
+          createdUserByThisRequest = false;
         } else {
           throw err;
         }
       }
 
       // Create profile + wallet for new user
-      try {
+      if (createdUserByThisRequest) try {
         if (role === 'RIDER') {
           await prisma.riderProfile.create({
             data: {
               userId: user.id,
-              onboardingStatus: 'ACTIVATED',
-              isVerified: true,
-              activatedAt: new Date(),
+              ...(await buildRiderProfileData()),
             },
           });
         } else if (role === 'CLIENT' || role === 'BUSINESS_CLIENT') {
@@ -966,6 +1085,66 @@ export class AuthService {
         logger.error({ err: profileOrWalletErr, userId: user.id }, 'Google auth failed after user.create — cleaning up');
         await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
         throw profileOrWalletErr;
+      }
+    }
+
+    if (user.deletedAt || user.status === 'BANNED' || user.status === 'DEACTIVATED' || user.status === 'SUSPENDED') {
+      throw ApiError.forbidden('Your account is not active');
+    }
+
+    // Do not silently link Google to an existing account whose email has not
+    // already been verified through RiderGuy. Otherwise an attacker could
+    // pre-register a victim's email with an attacker-controlled password and
+    // wait for the victim's first Google login to validate that shared account.
+    // A verified existing account is safe to match by Google's verified email;
+    // an unverified one must complete RiderGuy's email verification/recovery
+    // flow before Google Sign-In can be used.
+    if (!createdUserByThisRequest && !user.emailVerified) {
+      throw ApiError.conflict(
+        'An unverified RiderGuy account already uses this email. Verify that account first, then try Google Sign-In again.',
+        'GOOGLE_ACCOUNT_LINK_REQUIRED',
+      );
+    }
+
+    // Google can add the Rider role to an existing Client account. Public
+    // roles are validator-restricted, and the new Rider profile is still
+    // locked behind channel selection and admin approval.
+    const currentRoles = getUserRoles(user);
+    const shouldAddRole = !currentRoles.includes(role);
+    if (shouldAddRole) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          roles: [...currentRoles, role as PrismaUserRole],
+        },
+      });
+    }
+    if (shouldAddRole) {
+      isNewUser = true;
+    }
+
+    if (!createdUserByThisRequest) {
+      if (role === 'RIDER') {
+        const existingProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
+        if (!existingProfile) {
+          await prisma.riderProfile.create({
+            data: { userId: user.id, ...(await buildRiderProfileData()) },
+          });
+          isNewUser = true;
+        }
+      } else if (role === 'CLIENT' || role === 'BUSINESS_CLIENT') {
+        const existingProfile = await prisma.clientProfile.findUnique({ where: { userId: user.id } });
+        if (!existingProfile) {
+          await prisma.clientProfile.create({ data: { userId: user.id } });
+          isNewUser = true;
+        }
+      } else if (role === 'PARTNER') {
+        const existingProfile = await prisma.partnerProfile.findUnique({ where: { userId: user.id } });
+        if (!existingProfile) {
+          const { generateReferralCode } = await import('@riderguy/utils');
+          await prisma.partnerProfile.create({ data: { userId: user.id, referralCode: generateReferralCode() } });
+          isNewUser = true;
+        }
       }
     }
 
@@ -1014,6 +1193,12 @@ export class AuthService {
       accessToken,
       refreshToken,
       isNewUser,
+      ...(role === 'RIDER'
+        ? { riderProfile: await prisma.riderProfile.findUnique({
+            where: { userId: user.id },
+            select: { onboardingStatus: true, riderChannel: true, requestedRiderChannel: true, referralCode: true, isVerified: true },
+          }) }
+        : {}),
     };
   }
 
@@ -1541,7 +1726,8 @@ export class AuthService {
     });
 
     // Fire-and-forget — don't block the caller
-    EmailService.sendVerificationEmail(user.email, user.firstName, token).catch((err) => {
+    const audience = user.role === 'RIDER' || user.roles.includes('RIDER') ? 'RIDER' : 'CLIENT';
+    EmailService.sendVerificationEmail(user.email, user.firstName, token, audience).catch((err) => {
       logger.error({ err, userId }, 'Failed to send verification email');
     });
   }
@@ -1646,7 +1832,8 @@ export class AuthService {
       },
     });
 
-    EmailService.sendPasswordReset(user.email!, user.firstName, token).catch((err) => {
+    const audience = user.role === 'RIDER' || user.roles.includes('RIDER') ? 'RIDER' : 'CLIENT';
+    EmailService.sendPasswordReset(user.email!, user.firstName, token, audience).catch((err) => {
       logger.error({ err, userId: user.id }, 'Failed to send password reset email');
     });
 

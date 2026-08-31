@@ -319,7 +319,8 @@ export default function JobDetailScreen() {
       </View>
 
       <BottomSheetModal ref={bottomSheetRef} snapPoints={['42%', '72%']} enablePanDownToClose={false}>
-        <BottomSheetView style={{ padding: 18, gap: 14 }}>
+        <BottomSheetView>
+          <View style={{ padding: 18, gap: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900' }}>{order.orderNumber ?? 'Delivery'}</Text>
@@ -371,6 +372,7 @@ export default function JobDetailScreen() {
             disabled={!cancellationMode}
             onPress={() => setCancelVisible(true)}
           />
+          </View>
         </BottomSheetView>
       </BottomSheetModal>
 

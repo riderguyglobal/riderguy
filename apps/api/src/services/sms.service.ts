@@ -66,8 +66,17 @@ export class SmsService {
     const { to, message } = input;
     const recipient = normalizePhone(to);
 
-    // ── Development / unconfigured — log only ──
+    // ── Development / unconfigured ──
     if (!this.isConfigured) {
+      if (config.isProduction) {
+        // Never put OTP-bearing messages in production logs or pretend a
+        // verification code was delivered when the provider is unavailable.
+        logger.error(
+          { to: recipient, provider: 'mnotify' },
+          '[SMS] mNotify is not configured in production',
+        );
+        return false;
+      }
       logger.info(
         { to: recipient, message, provider: 'mnotify' },
         '[SMS] mNotify not configured — message logged instead of sent',
