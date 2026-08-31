@@ -107,17 +107,85 @@ log 'checking PostgreSQL and applying migrations'
 pg_isready -q -h 127.0.0.1 -p 5432 || fail 'PostgreSQL is not ready'
 npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
 
+# startOrReload can retain the executable path from an existing named process.
+# Remove only definitions whose cwd or script has drifted so PM2 recreates them
+# from the checked-in ecosystem file while ordinary deploys still reload in place.
+stale_pm2_apps="$(
+  pm2 jlist | node -e '
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    const current = JSON.parse(fs.readFileSync(0, "utf8"));
+    const ecosystemPath = path.resolve(process.argv[1]);
+    const desired = require(ecosystemPath).apps || [];
+
+    for (const app of desired) {
+      const running = current.filter((process) => process.name === app.name);
+      if (running.length === 0) continue;
+
+      const desiredCwd = path.resolve(app.cwd || process.cwd());
+      const desiredScript = path.resolve(desiredCwd, app.script);
+      const hasDrift = running.some((process) => {
+        const environment = process.pm2_env || {};
+        const currentCwd = environment.pm_cwd
+          ? path.resolve(environment.pm_cwd)
+          : null;
+        const currentScript = environment.pm_exec_path
+          ? path.resolve(environment.pm_exec_path)
+          : null;
+        return currentCwd !== desiredCwd || currentScript !== desiredScript;
+      });
+
+      if (hasDrift) process.stdout.write(`${app.name}\n`);
+    }
+  ' "$ECOSYSTEM_FILE"
+)"
+
+if [ -n "$stale_pm2_apps" ]; then
+  while IFS= read -r app_name; do
+    [ -n "$app_name" ] || continue
+    log "removing stale PM2 definition for $app_name"
+    pm2 delete "$app_name"
+  done <<<"$stale_pm2_apps"
+fi
+
 log 'starting or reloading API, marketing, and admin services'
 pm2 startOrReload "$ECOSYSTEM_FILE" --update-env
 pm2 save
 
 log 'checking local services'
+healthcheck_attempts="${RIDERGUY_HEALTHCHECK_ATTEMPTS:-30}"
+healthcheck_delay_seconds="${RIDERGUY_HEALTHCHECK_DELAY_SECONDS:-2}"
+[[ "$healthcheck_attempts" =~ ^[1-9][0-9]*$ ]] \
+  || fail 'RIDERGUY_HEALTHCHECK_ATTEMPTS must be a positive integer'
+[[ "$healthcheck_delay_seconds" =~ ^[0-9]+$ ]] \
+  || fail 'RIDERGUY_HEALTHCHECK_DELAY_SECONDS must be a non-negative integer'
+
+wait_for_service() {
+  local check_url="$1"
+  local attempt=1
+
+  while (( attempt <= healthcheck_attempts )); do
+    if curl --fail --silent --max-time 5 "$check_url" >/dev/null; then
+      log "health check passed: $check_url (attempt $attempt/$healthcheck_attempts)"
+      return 0
+    fi
+
+    if (( attempt < healthcheck_attempts )); then
+      sleep "$healthcheck_delay_seconds"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  curl --fail --silent --show-error --max-time 15 "$check_url" >/dev/null || true
+  fail "health check failed after $healthcheck_attempts attempts: $check_url"
+}
+
 for check_url in \
   http://127.0.0.1:4000/health \
   http://127.0.0.1:3000/ \
   http://127.0.0.1:3003/; do
-  curl --fail --silent --show-error --max-time 15 "$check_url" >/dev/null \
-    || fail "health check failed: $check_url"
+  wait_for_service "$check_url"
 done
 
 pm2 status

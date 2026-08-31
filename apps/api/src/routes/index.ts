@@ -27,6 +27,7 @@ import { jobPostingRouter } from './job-postings/job-postings.routes';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../lib/async-handler';
 import { ApiError } from '../lib/api-error';
+import { AUTHENTICATED_UPLOAD_ROUTE } from './route-paths';
 
 const router = Router();
 
@@ -56,21 +57,39 @@ router.use('/job-postings', jobPostingRouter);
 
 // ────── Authenticated file serving (protects PII uploads) ──────
 router.get(
-  '/uploads/*',
+  AUTHENTICATED_UPLOAD_ROUTE,
   authenticate,
   asyncHandler(async (req, res) => {
-    // Decode the path after /uploads/
-    const filePath = (req.params as Record<string, string>)[0];
-    if (!filePath) throw ApiError.badRequest('No file path provided');
+    // Express 5 requires named wildcards and returns their segments as an
+    // array. Joining with the platform separator also keeps the route
+    // portable between local Windows development and Linux production.
+    const fileSegments = (req.params as { filePath?: string[] }).filePath;
+    if (!Array.isArray(fileSegments) || fileSegments.length === 0) {
+      throw ApiError.badRequest('No file path provided');
+    }
+    const filePath = fileSegments.join(path.sep);
 
-    // Prevent path traversal
+    // Prevent both lexical path traversal and symlink escapes. The production
+    // uploads directory is itself a symlink to persistent storage, so compare
+    // against both its configured path and its canonical path.
     const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-    const fullPath = path.resolve(uploadsRoot, filePath);
-    if (!fullPath.startsWith(uploadsRoot)) {
+    const candidatePath = path.resolve(uploadsRoot, filePath);
+    const uploadsPrefix = `${uploadsRoot}${path.sep}`;
+    if (!candidatePath.startsWith(uploadsPrefix)) {
       throw ApiError.forbidden('Invalid file path');
     }
 
-    if (!fs.existsSync(fullPath)) {
+    if (!fs.existsSync(candidatePath)) {
+      throw ApiError.notFound('File not found');
+    }
+
+    const canonicalRoot = fs.realpathSync(uploadsRoot);
+    const fullPath = fs.realpathSync(candidatePath);
+    if (!fullPath.startsWith(`${canonicalRoot}${path.sep}`)) {
+      throw ApiError.forbidden('Invalid file path');
+    }
+
+    if (!fs.statSync(fullPath).isFile()) {
       throw ApiError.notFound('File not found');
     }
 
