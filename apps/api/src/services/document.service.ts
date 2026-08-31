@@ -56,7 +56,7 @@ export class DocumentService {
       input.buffer,
       input.originalName,
       input.mimeType,
-      'documents',
+      StorageService.ownerFolder('documents', input.userId),
     );
 
     // If replacing, delete old file & record first, then create new

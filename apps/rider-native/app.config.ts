@@ -31,9 +31,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.riderguy.rider',
     associatedDomains: ['applinks:rider.myriderguy.com'],
     ...(existsSync(iosGoogleServicesFile) ? { googleServicesFile: iosGoogleServicesFile } : {}),
-    config: {
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY_IOS ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-    },
     infoPlist: {
       NSLocationWhenInUseUsageDescription:
         'RiderGuy Rider uses your location to show your position to customers.',
@@ -56,11 +53,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     package: 'com.riderguy.rider',
     googleServicesFile: androidGoogleServicesFile,
-    config: {
-      googleMaps: {
-        apiKey: process.env.GOOGLE_MAPS_API_KEY_ANDROID ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-      },
-    },
     permissions: [
       'android.permission.ACCESS_FINE_LOCATION',
       'android.permission.ACCESS_BACKGROUND_LOCATION',

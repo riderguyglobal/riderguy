@@ -578,7 +578,7 @@ export async function fetchRouteDistance(
 ): Promise<{ distanceKm: number; durationMinutes: number } | null> {
   try {
     const { config } = await import('../config/index');
-    const apiKey = config.google?.mapsApiKey;
+    const apiKey = config.google?.mapsEnabled ? config.google.mapsApiKey : '';
     if (!apiKey) return null;
 
     const body = {

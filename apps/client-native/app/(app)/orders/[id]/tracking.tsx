@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type LatLng } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { io, type Socket } from 'socket.io-client';
@@ -13,7 +12,7 @@ import { getOrderStatus } from '@/lib/client-design';
 const SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com')
   .replace('api.riderguy.com', 'api.myriderguy.com')
   .replace(/\/+$/, '');
-const FALLBACK_PICKUP = { latitude: 5.6037, longitude: -0.1870 };
+type LatLng = { latitude: number; longitude: number };
 
 function coord(lat?: number, lng?: number): LatLng | null {
   if (typeof lat === 'number' && typeof lng === 'number') return { latitude: lat, longitude: lng };
@@ -52,10 +51,63 @@ function StepRail({ step }: { step: number }) {
   );
 }
 
+function TrackingRouteCanvas({
+  pickupAddress,
+  dropoffAddress,
+  riderConnected,
+}: {
+  pickupAddress: string;
+  dropoffAddress: string;
+  riderConnected: boolean;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Delivery tracking from ${pickupAddress} to ${dropoffAddress}. ${riderConnected ? 'Rider location is active.' : 'Waiting for rider location.'}`}
+      style={{ flex: 1, overflow: 'hidden', backgroundColor: '#ECF8F2', paddingHorizontal: 22, paddingTop: 122, paddingBottom: 288 }}
+    >
+      <View style={{ position: 'absolute', width: '150%', height: 34, top: 98, left: '-24%', backgroundColor: 'rgba(255,255,255,0.76)', transform: [{ rotate: '-13deg' }] }} />
+      <View style={{ position: 'absolute', width: '145%', height: 24, top: 266, left: '-18%', backgroundColor: 'rgba(64,190,137,0.12)', transform: [{ rotate: '19deg' }] }} />
+
+      <View style={{ flex: 1, minHeight: 240, borderRadius: 30, borderWidth: 1, borderColor: '#CDE8DB', backgroundColor: 'rgba(255,255,255,0.96)', padding: 20, justifyContent: 'center', ...shadow.card }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 20 }}>
+          <View style={{ width: 44, height: 44, borderRadius: 17, backgroundColor: riderConnected ? colors.brandSoft : '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={riderConnected ? 'bicycle' : 'time-outline'} size={22} color={riderConnected ? colors.brandDark : colors.subtle} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '900' }}>Live delivery route</Text>
+            <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>
+              {riderConnected ? 'Your rider position is updating live.' : 'Waiting for your rider location signal.'}
+            </Text>
+          </View>
+          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: riderConnected ? colors.brand : colors.amber }} />
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+          <View style={{ width: 34, alignItems: 'center' }}>
+            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: colors.brand, borderWidth: 4, borderColor: '#fff' }} />
+            <View style={{ width: 3, flex: 1, minHeight: 58, marginVertical: 5, borderRadius: 2, backgroundColor: '#B8DCCA' }} />
+            <View style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: colors.ink, borderWidth: 4, borderColor: '#fff' }} />
+          </View>
+          <View style={{ flex: 1, gap: 20 }}>
+            <View>
+              <Text style={{ color: colors.brandDark, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>Pickup</Text>
+              <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 3 }} numberOfLines={2}>{pickupAddress}</Text>
+            </View>
+            <View>
+              <Text style={{ color: colors.subtle, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>Dropoff</Text>
+              <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 3 }} numberOfLines={2}>{dropoffAddress}</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function TrackingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api } = useAuth();
-  const mapRef = useRef<MapView>(null);
   const socketRef = useRef<Socket | null>(null);
   const [riderLocation, setRiderLocation] = useState<LatLng | null>(null);
 
@@ -69,16 +121,6 @@ export default function TrackingScreen() {
   });
 
   const order = orderQuery.data;
-  const pickup = useMemo(() => (
-    coord(order?.pickupLatitude, order?.pickupLongitude) ??
-    coord(order?.pickupLat, order?.pickupLng) ??
-    FALLBACK_PICKUP
-  ), [order]);
-  const dropoff = useMemo(() => (
-    coord(order?.dropoffLatitude, order?.dropoffLongitude) ??
-    coord(order?.dropoffLat, order?.dropoffLng) ??
-    { latitude: pickup.latitude + 0.018, longitude: pickup.longitude - 0.016 }
-  ), [order, pickup]);
   const status = getOrderStatus(order?.status);
   const rider = normalizeRider(order?.rider ?? order?.assignedRider);
   const riderName = rider ? `${rider.firstName} ${rider.lastName}`.trim() || 'Your rider' : '';
@@ -103,7 +145,6 @@ export default function TrackingScreen() {
         if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
         const next = { latitude, longitude };
         setRiderLocation(next);
-        mapRef.current?.animateCamera({ center: next, zoom: 15 }, { duration: 550 });
       };
       socket.on('rider:location', handleLocation);
       socket.on('rider:location:update', handleLocation);
@@ -116,18 +157,6 @@ export default function TrackingScreen() {
       socketRef.current?.disconnect();
     };
   }, [id]);
-
-  useEffect(() => {
-    if (!mapRef.current || !pickup || !dropoff) return;
-    const coordinates = [pickup, dropoff, riderLocation].filter(Boolean) as LatLng[];
-    if (coordinates.length < 2) return;
-    setTimeout(() => {
-      mapRef.current?.fitToCoordinates(coordinates, {
-        edgePadding: { top: 150, right: 60, bottom: 260, left: 60 },
-        animated: true,
-      });
-    }, 450);
-  }, [pickup, dropoff, riderLocation]);
 
   if (!order && orderQuery.isLoading) {
     return (
@@ -148,35 +177,11 @@ export default function TrackingScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#E5E7EB' }}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={{ flex: 1 }}
-        initialRegion={{ ...pickup, latitudeDelta: 0.055, longitudeDelta: 0.055 }}
-        showsCompass={false}
-        showsMyLocationButton={false}
-        toolbarEnabled={false}
-      >
-        <Marker coordinate={pickup} title="Pickup">
-          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.brand }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand }} />
-          </View>
-        </Marker>
-        <Marker coordinate={dropoff} title="Dropoff">
-          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff' }}>
-            <Ionicons name="flag" size={13} color="#fff" />
-          </View>
-        </Marker>
-        {visibleRider && (
-          <Marker coordinate={visibleRider} title="Rider">
-            <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: '#fff' }}>
-              <Ionicons name="bicycle" size={18} color="#fff" />
-            </View>
-          </Marker>
-        )}
-        <Polyline coordinates={[pickup, dropoff]} strokeColor="#111827" strokeWidth={4} />
-        {visibleRider && <Polyline coordinates={[visibleRider, dropoff]} strokeColor={colors.brand} strokeWidth={4} lineDashPattern={[8, 5]} />}
-      </MapView>
+      <TrackingRouteCanvas
+        pickupAddress={order?.pickupAddress ?? 'Pickup location'}
+        dropoffAddress={order?.dropoffAddress ?? 'Dropoff location'}
+        riderConnected={Boolean(visibleRider)}
+      />
 
       <SafeAreaView style={{ position: 'absolute', left: 0, right: 0, top: 0 }} pointerEvents="box-none">
         <View style={{ marginHorizontal: 16, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}>

@@ -11,12 +11,13 @@ As of May 31, 2026, Riderguy's active mobile build target is the native app pair
 
 The legacy rider/client PWAs remain in the repository, but they are not the current lifecycle audit target. The live-device audit for this document should be run against the native apps connected through ADB or local Android builds, then later repeated through cloud/EAS builds once native configuration is complete.
 
-Maps, address parsing, route distance, ETA, and native map rendering are standardized on **Google Maps Platform**:
+The August 31, 2026 internal release uses a **billing-independent Ghana location stack**:
 
-- Native map UI uses `react-native-maps` with Google Maps configuration in each native app.
-- Server-side route/ETA calculations use the Google Routes API, with haversine/road-factor fallback when Google routing is unavailable.
-- Address and shared-location inputs support Google Maps links, Plus Codes, raw coordinates, and Ghana place search.
-- Android native builds require a real Maps SDK for Android key via `GOOGLE_MAPS_API_KEY_ANDROID`, `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`, or `GOOGLE_MAPS_API_KEY`; Firebase `google-services.json` keys are not valid map-tile fallbacks.
+- Native screens show RiderGuy route/location status canvases; device GPS continues to power rider tracking.
+- Server-side distance and ETA use deterministic haversine, road-factor, and configured average-speed estimates.
+- Address and shared-location inputs support Google Maps links, Plus Codes, raw coordinates, RiderGuy community places, and the bundled Ghana gazetteer.
+- Turn-by-turn navigation is handed off to the user's installed navigation app. The handoff does not use a RiderGuy Maps Platform key.
+- `GOOGLE_MAPS_ENABLED=false` is the release default. Native builds do not require or embed Maps SDK keys.
 
 ---
 
@@ -70,7 +71,7 @@ PENDING ──────────────> SEARCHING_RIDER ────
 
 ### What the Client Does
 
-- Opens the client native app, enters **pickup address** and **dropoff address** (geocoded via Google Maps Platform and supported Ghana place data).
+- Opens the client native app and enters **pickup address** and **dropoff address** using RiderGuy's Ghana place data, community places, Plus Codes, coordinates, or a shared map link.
 - Optionally adds **up to 5 stops** (multi-stop delivery).
 - Selects **package type**: Document, Small Parcel, Medium Parcel, Large Parcel, Fragile, Food, High-Value.
 - Enters **estimated weight** (if relevant).
@@ -83,7 +84,7 @@ PENDING ──────────────> SEARCHING_RIDER ────
 
 #### 1. Price Estimate (`POST /orders/estimate`)
 
-The system calculates the route via the **Google Routes API** to get actual road distance and estimated duration. If Google routing fails, it falls back to **haversine distance × road factor** (1.15–1.4 depending on zone road conditions).
+The system calculates an estimated route from **haversine distance × road factor** (1.15–1.4 depending on zone road conditions) and the configured zone speed. The UI labels this as an estimate; the rider's installed navigation app supplies live road guidance.
 
 **15-Factor Pricing Engine applied:**
 
@@ -226,7 +227,7 @@ Auto-dispatch kicks in immediately (or at scheduled time).
   - **Client app** (live map pin movement).
   - **Redis** (for fast lookups).
   - **Database** (periodic snapshots for audit trail).
-- **ETA calculated** dynamically using Google Routes from rider's current position to pickup.
+- **ETA calculated** dynamically from the rider's current GPS position using the local distance/speed estimate.
 
 ### 2. Client Sees on Their Screen
 
@@ -239,7 +240,7 @@ Auto-dispatch kicks in immediately (or at scheduled time).
 
 ### 3. Rider Sees on Their Screen
 
-- Turn-by-turn navigation to pickup through native Google Maps routing/deep links.
+- Turn-by-turn navigation to pickup through the rider's installed navigation app/deep link.
 - Pickup address + any special instructions.
 - Client's name + phone.
 - Package details.
@@ -468,7 +469,7 @@ Cancellation can happen at multiple stages.
 | **Redis** | Session cache, rider location cache, surge calculation, Socket.IO Pub/Sub (multi-instance). |
 | **BullMQ** | Background jobs: payout batches, scheduled delivery triggers, notification queues, stale connection cleanup. |
 | **PostgreSQL (Neon)** | All persistent data, order history, transactions, full audit trail. |
-| **Google Maps Platform** | Native maps, geocoding, shared-location parsing, routing, ETAs, and distance calculations. |
+| **RiderGuy Ghana location stack** | Bundled/community Ghana place search, shared-link/Plus Code parsing, device GPS, and local distance/ETA estimates. External navigation is user-selected. |
 | **Paystack** | Payment processing (cards, mobile money, USSD), rider payouts/transfers. |
 | **Firebase FCM** | Push notifications to all 4 app frontends. |
 | **S3 / R2** | Photo storage: POD photos, package photos, rider documents, signatures. |

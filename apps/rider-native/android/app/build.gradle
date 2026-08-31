@@ -32,26 +32,6 @@ def loadEnvFile = { File envFile ->
     return env
 }
 
-def isPlaceholderMapKey = { Object value ->
-    def text = value?.toString()?.trim()
-    if (!text) {
-        return true
-    }
-
-    def lower = text.toLowerCase()
-    return !(text ==~ /^AIza[0-9A-Za-z_-]{35}$/) ||
-        text == "YOUR_GOOGLE_MAPS_KEY_HERE" ||
-        lower.contains("your_google_maps") ||
-        lower.contains("your-google-maps") ||
-        lower.contains("maps_key_here") ||
-        lower.contains("replace-with") ||
-        lower.contains("placeholder")
-}
-
-def firstUsableMapKey = { Object... values ->
-    values.find { value -> !isPlaceholderMapKey(value) }
-}
-
 def firstPresent = { Object... values ->
     values.find { value ->
         def text = value?.toString()?.trim()
@@ -70,22 +50,6 @@ def resolveProjectFile = { Object value ->
 }
 
 def appEnv = loadEnvFile(new File(projectRoot, ".env"))
-def googleMapsApiKey = firstUsableMapKey(
-    findProperty("GOOGLE_MAPS_API_KEY_ANDROID"),
-    findProperty("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"),
-    findProperty("GOOGLE_MAPS_API_KEY"),
-    System.getenv("GOOGLE_MAPS_API_KEY_ANDROID"),
-    System.getenv("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"),
-    System.getenv("GOOGLE_MAPS_API_KEY"),
-    appEnv["GOOGLE_MAPS_API_KEY_ANDROID"],
-    appEnv["EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"],
-    appEnv["GOOGLE_MAPS_API_KEY"]
-)?.toString()?.trim()
-
-if (isPlaceholderMapKey(googleMapsApiKey)) {
-    throw new GradleException("A valid Google Maps API key is required. Set GOOGLE_MAPS_API_KEY_ANDROID or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY for the rider native Android build.")
-}
-
 def releaseStoreFile = resolveProjectFile(firstPresent(
     findProperty("RIDER_ANDROID_KEYSTORE_PATH"),
     findProperty("RIDER_ANDROID_UPLOAD_STORE_FILE"),
@@ -257,7 +221,6 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.1"
-        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {

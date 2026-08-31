@@ -12,6 +12,7 @@ import { logger } from '../lib/logger';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
 import { learnFromDelivery } from './eta-learning.service';
 import { assertRiderWorkEligible } from './rider-work-eligibility';
+import { StorageService } from './storage.service';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
 
 // ============================================================
@@ -204,6 +205,16 @@ export async function createOrder(
     }>;
   },
 ) {
+  if (
+    input.packagePhotoUrl
+    && !StorageService.privateReferencesBelongTo(input.packagePhotoUrl, 'packages', clientId)
+  ) {
+    throw ApiError.forbidden(
+      'Package photos must be uploaded by the account creating the order',
+      'INVALID_PACKAGE_PHOTO',
+    );
+  }
+
   // Client sends only *extra* stops (primary pickup/dropoff are separate fields),
   // so stops.length IS the additional stop count — no subtraction needed.
   const additionalStops = input.stops ? input.stops.length : 0;

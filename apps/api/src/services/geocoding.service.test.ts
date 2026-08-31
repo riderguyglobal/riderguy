@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockConfig = vi.hoisted(() => ({
   isProduction: false,
-  google: { mapsApiKey: '' },
+  google: { mapsEnabled: false, mapsApiKey: '' },
 }));
 
 vi.mock('../config', () => ({ config: mockConfig }));
@@ -17,6 +17,7 @@ import { forwardGeocode, retrievePlace, reverseGeocode } from './geocoding.servi
 describe('geocoding provider safety', () => {
   beforeEach(() => {
     mockConfig.isProduction = false;
+    mockConfig.google.mapsEnabled = false;
     mockConfig.google.mapsApiKey = '';
   });
 
@@ -24,11 +25,12 @@ describe('geocoding provider safety', () => {
     vi.unstubAllGlobals();
   });
 
-  it('fails closed in production when Google Maps is not configured', async () => {
+  it('uses verified local Ghana data in production when paid maps are disabled', async () => {
     mockConfig.isProduction = true;
 
-    await expect(forwardGeocode('1 High Street, Accra'))
-      .rejects.toMatchObject({ statusCode: 500, message: 'Geocoding service unavailable' });
+    await expect(forwardGeocode('Accra')).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ latitude: expect.any(Number), longitude: expect.any(Number) }),
+    ]));
   });
 
   it('does not invent coordinates for an unmatched local-development address', async () => {
@@ -47,11 +49,10 @@ describe('geocoding provider safety', () => {
     });
   });
 
-  it('fails closed for Google place details when production has no key', async () => {
+  it('ignores old Google place IDs when paid maps are disabled', async () => {
     mockConfig.isProduction = true;
 
-    await expect(retrievePlace('google-unconfigured-place'))
-      .rejects.toMatchObject({ statusCode: 500, message: 'Geocoding service unavailable' });
+    await expect(retrievePlace('google-unconfigured-place')).resolves.toBeNull();
   });
 
   it('rejects reverse-geocoding coordinates outside the Ghana launch boundary', async () => {
@@ -60,6 +61,7 @@ describe('geocoding provider safety', () => {
   });
 
   it('filters out-of-country results returned by the upstream geocoder', async () => {
+    mockConfig.google.mapsEnabled = true;
     mockConfig.google.mapsApiKey = 'configured-test-key';
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -88,6 +90,7 @@ describe('geocoding provider safety', () => {
   });
 
   it('does not retrieve a Google place outside Ghana', async () => {
+    mockConfig.google.mapsEnabled = true;
     mockConfig.google.mapsApiKey = 'configured-test-key';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

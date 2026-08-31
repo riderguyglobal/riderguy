@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +10,7 @@ import { tokenStorage, useAuth } from '@riderguy/auth-native';
 import { formatCurrency } from '@riderguy/utils';
 import Toast from 'react-native-toast-message';
 import { RiderButton, RouteSummary, StatusPill } from '@/components/rider-ui';
-import { cleanLabel, riderColors } from '@/lib/rider-design';
+import { cleanLabel, riderColors, riderShadow } from '@/lib/rider-design';
 
 const SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com')
   .replace('api.riderguy.com', 'api.myriderguy.com')
@@ -75,6 +74,54 @@ function JobLoadState({
   );
 }
 
+function DeliveryRouteCanvas({
+  pickupAddress,
+  dropoffAddress,
+}: {
+  pickupAddress: string;
+  dropoffAddress: string;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Delivery route from ${pickupAddress} to ${dropoffAddress}`}
+      style={{ flex: 1, overflow: 'hidden', backgroundColor: '#EAF6F0', paddingHorizontal: 22, paddingTop: 126, paddingBottom: 250 }}
+    >
+      <View style={{ position: 'absolute', width: '150%', height: 34, top: 110, left: '-24%', backgroundColor: 'rgba(255,255,255,0.72)', transform: [{ rotate: '-14deg' }] }} />
+      <View style={{ position: 'absolute', width: '145%', height: 22, top: 270, left: '-20%', backgroundColor: 'rgba(64,190,137,0.10)', transform: [{ rotate: '18deg' }] }} />
+      <View style={{ flex: 1, minHeight: 230, borderRadius: 28, borderWidth: 1, borderColor: '#CFE8DC', backgroundColor: 'rgba(255,255,255,0.96)', padding: 20, justifyContent: 'center', ...riderShadow }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <View style={{ width: 42, height: 42, borderRadius: 16, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="navigate" size={21} color={riderColors.greenDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>Delivery route</Text>
+            <Text style={{ color: riderColors.muted, fontSize: 11, marginTop: 2 }}>Tap Navigate for live turn-by-turn directions.</Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+          <View style={{ width: 34, alignItems: 'center' }}>
+            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: riderColors.green, borderWidth: 4, borderColor: riderColors.white }} />
+            <View style={{ width: 3, flex: 1, minHeight: 54, marginVertical: 5, borderRadius: 2, backgroundColor: '#B9DDCC' }} />
+            <View style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: riderColors.red, borderWidth: 4, borderColor: riderColors.white }} />
+          </View>
+          <View style={{ flex: 1, gap: 20 }}>
+            <View>
+              <Text style={{ color: riderColors.greenDark, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>Pickup</Text>
+              <Text style={{ color: riderColors.ink, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 3 }} numberOfLines={2}>{pickupAddress}</Text>
+            </View>
+            <View>
+              <Text style={{ color: riderColors.red, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>Dropoff</Text>
+              <Text style={{ color: riderColors.ink, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 3 }} numberOfLines={2}>{dropoffAddress}</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 async function getUsablePosition() {
   const current = await Promise.race([
     Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
@@ -93,7 +140,6 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api } = useAuth();
   const qc = useQueryClient();
-  const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const socketRef = useRef<Socket | null>(null);
   const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
@@ -286,24 +332,10 @@ export default function JobDetailScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={{ flex: 1 }}
-        initialRegion={{ ...pickup, latitudeDelta: 0.045, longitudeDelta: 0.045 }}
-      >
-        <Marker coordinate={pickup} title="Pickup">
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: riderColors.green, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: riderColors.white }}>
-            <Ionicons name="radio-button-on" size={14} color={riderColors.white} />
-          </View>
-        </Marker>
-        <Marker coordinate={dropoff} title="Dropoff">
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: riderColors.red, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: riderColors.white }}>
-            <Ionicons name="location" size={15} color={riderColors.white} />
-          </View>
-        </Marker>
-        <Polyline coordinates={[pickup, dropoff]} strokeColor={riderColors.green} strokeWidth={4} lineDashPattern={[8, 5]} />
-      </MapView>
+      <DeliveryRouteCanvas
+        pickupAddress={order.pickupAddress ?? 'Pickup location'}
+        dropoffAddress={order.dropoffAddress ?? 'Dropoff location'}
+      />
 
       <View style={{ position: 'absolute', top: 50, left: 16, right: 16, backgroundColor: riderColors.white, borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: riderColors.line }}>
         <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>

@@ -32,9 +32,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.riderguy.client',
     associatedDomains: ['applinks:app.myriderguy.com'],
     ...(existsSync(iosGoogleServicesFile) ? { googleServicesFile: iosGoogleServicesFile } : {}),
-    config: {
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY_IOS ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-    },
     infoPlist: {
       NSLocationWhenInUseUsageDescription:
         'RiderGuy uses your location to detect your pickup address automatically.',
@@ -54,11 +51,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     package: 'com.riderguy.client',
     googleServicesFile: androidGoogleServicesFile,
-    config: {
-      googleMaps: {
-        apiKey: process.env.GOOGLE_MAPS_API_KEY_ANDROID ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-      },
-    },
     permissions: [
       'android.permission.ACCESS_FINE_LOCATION',
       'android.permission.CAMERA',

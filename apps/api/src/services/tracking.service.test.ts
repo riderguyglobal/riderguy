@@ -8,7 +8,7 @@ const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
 vi.mock('../config', () => ({
   config: {
     nodeEnv: 'test',
-    google: { mapsApiKey: '' }, // no Google Maps in tests — will use haversine fallback
+    google: { mapsEnabled: false, mapsApiKey: '' }, // local haversine ETA
   },
 }));
 

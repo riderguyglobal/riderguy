@@ -410,6 +410,44 @@ describe('OrderService', () => {
 
       expect(result).toBeDefined();
     });
+
+    it('accepts only owner-scoped package photos uploaded by the creating client', async () => {
+      const order = mockOrder({
+        packagePhotoUrl: '/uploads/packages/client-1/photo-a.jpg,/uploads/packages/client-1/photo-b.jpg',
+      });
+      asMock(prisma.order.create).mockResolvedValue(order);
+
+      await expect(createOrder('client-1', {
+        pickupAddress: 'Osu Mall',
+        pickupLatitude: 5.56,
+        pickupLongitude: -0.187,
+        dropoffAddress: 'Legon',
+        dropoffLatitude: 5.65,
+        dropoffLongitude: -0.186,
+        packageType: 'SMALL' as any,
+        packagePhotoUrl: '/uploads/packages/client-1/photo-a.jpg,/uploads/packages/client-1/photo-b.jpg',
+        paymentMethod: 'CASH' as any,
+      })).resolves.toBe(order);
+    });
+
+    it('rejects a package photo from another account before creating an order', async () => {
+      await expect(createOrder('client-1', {
+        pickupAddress: 'Osu Mall',
+        pickupLatitude: 5.56,
+        pickupLongitude: -0.187,
+        dropoffAddress: 'Legon',
+        dropoffLatitude: 5.65,
+        dropoffLongitude: -0.186,
+        packageType: 'SMALL' as any,
+        packagePhotoUrl: '/uploads/packages/client-2/private.jpg',
+        paymentMethod: 'CASH' as any,
+      })).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'INVALID_PACKAGE_PHOTO',
+      });
+
+      expect(prisma.order.create).not.toHaveBeenCalled();
+    });
   });
 
   // ────────────────────────────────────────────────────────────

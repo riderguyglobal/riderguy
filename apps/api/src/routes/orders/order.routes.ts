@@ -72,6 +72,55 @@ function parseDuration(d: string): number {
   const match = d.match(/^([\d.]+)s?$/);
   return match ? parseFloat(match[1]!) : 0;
 }
+
+type RoutePoint = { latitude: number; longitude: number };
+
+/**
+ * Deterministic no-provider route used when paid routing is disabled.
+ * It intentionally describes the geometry as an estimate; rider navigation
+ * is handed off to the installed navigation app for real road guidance.
+ */
+function buildEstimatedRoutes(points: RoutePoint[], travelMode: 'DRIVE' | 'BICYCLE' | 'WALK') {
+  const speedKmh = travelMode === 'WALK' ? 5 : travelMode === 'BICYCLE' ? 15 : 25;
+  const legs = points.slice(0, -1).map((origin, index) => {
+    const destination = points[index + 1]!;
+    const distance = Math.round(TrackingService.haversineKm(
+      origin.latitude,
+      origin.longitude,
+      destination.latitude,
+      destination.longitude,
+    ) * 1000);
+    const duration = Math.max(60, Math.round((distance / 1000 / speedKmh) * 3600));
+    return {
+      duration,
+      distance,
+      summary: 'Estimated direct route',
+      steps: [],
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [origin.longitude, origin.latitude],
+          [destination.longitude, destination.latitude],
+        ] as [number, number][],
+      },
+    };
+  });
+  const distance = legs.reduce((total, leg) => total + leg.distance, 0);
+  const duration = legs.reduce((total, leg) => total + leg.duration, 0);
+
+  return [{
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: points.map((point) => [point.longitude, point.latitude] as [number, number]),
+    },
+    duration,
+    distance,
+    weight: duration,
+    weight_name: 'estimated',
+    legs,
+    estimated: true,
+  }];
+}
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
@@ -167,7 +216,7 @@ router.post(
       file.path,
       file.originalname,
       file.mimetype,
-      'packages',
+      StorageService.ownerFolder('packages', req.user!.userId),
     );
 
     res.status(StatusCodes.OK).json({ success: true, data: { url: result.url } });
@@ -403,8 +452,8 @@ router.get(
       throw ApiError.badRequest('coordinates query parameter is required (format: lng,lat;lng,lat;...)');
     }
 
-    const googleApiKey = (await import('../../config')).config.google?.mapsApiKey;
-    if (!googleApiKey) throw ApiError.internal('Map service not configured');
+    const googleConfig = (await import('../../config')).config.google;
+    const googleApiKey = googleConfig.mapsEnabled ? googleConfig.mapsApiKey : '';
 
     // Parse coordinate pairs: "lng,lat;lng,lat;..."
     const pairs = coordinates.split(';').map(p => {
@@ -424,6 +473,18 @@ router.get(
     }
 
     const travelMode = driveProfile === 'cycling' ? 'BICYCLE' : driveProfile === 'walking' ? 'WALK' : 'DRIVE';
+
+    if (!googleApiKey) {
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: {
+          routes: buildEstimatedRoutes(pairs as RoutePoint[], travelMode),
+          waypoints: [],
+          provider: 'local-estimate',
+        },
+      });
+      return;
+    }
 
     // Build intermediates (waypoints between origin and destination)
     const intermediates = pairs.length > 2
@@ -1226,7 +1287,7 @@ router.post(
         req.file.path,
         req.file.originalname,
         req.file.mimetype,
-        'proofs',
+        StorageService.ownerFolder('proofs', req.user!.userId),
       );
       // Clean up temp file after upload
       fs.unlink(req.file.path).catch(() => {});
@@ -1241,7 +1302,7 @@ router.post(
         Buffer.from(base64Data, 'base64'),
         `proof-${orderId}.png`,
         'image/png',
-        'proofs',
+        StorageService.ownerFolder('proofs', req.user!.userId),
       );
       proofUrl = result.url;
     } else {
@@ -1359,7 +1420,7 @@ router.post(
         req.file.path,
         req.file.originalname,
         req.file.mimetype,
-        'proofs',
+        StorageService.ownerFolder('proofs', req.user!.userId),
       );
       // Clean up temp file after upload
       fs.unlink(req.file.path).catch(() => {});
@@ -1373,7 +1434,7 @@ router.post(
         Buffer.from(base64Data, 'base64'),
         `stop-proof-${stopId}.png`,
         'image/png',
-        'proofs',
+        StorageService.ownerFolder('proofs', req.user!.userId),
       );
       proofUrl = result.url;
     }
@@ -1433,7 +1494,7 @@ router.post(
         Buffer.from(base64Data, 'base64'),
         fileName,
         'image/png',
-        'failures',
+        StorageService.ownerFolder('failures', req.user!.userId),
       );
       failurePhotoUrl = result.url;
     }

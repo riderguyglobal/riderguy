@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { authRouter } from './auth/auth.routes';
@@ -27,9 +27,20 @@ import { jobPostingRouter } from './job-postings/job-postings.routes';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../lib/async-handler';
 import { ApiError } from '../lib/api-error';
-import { AUTHENTICATED_UPLOAD_ROUTE } from './route-paths';
+import { AUTHENTICATED_UPLOAD_ROUTE, isPublicAvatarUploadPath } from './route-paths';
+import { MediaAccessService } from '../services/media-access.service';
+import { StorageService } from '../services/storage.service';
 
 const router = Router();
+
+const authenticatePrivateUpload: RequestHandler = (req, res, next) => {
+  const fileSegments = (req.params as { filePath?: string[] }).filePath;
+  if (isPublicAvatarUploadPath(fileSegments)) {
+    next();
+    return;
+  }
+  return authenticate(req, res, next);
+};
 
 router.use('/auth', authRouter);
 router.use('/users', userRouter);
@@ -58,7 +69,7 @@ router.use('/job-postings', jobPostingRouter);
 // ────── Authenticated file serving (protects PII uploads) ──────
 router.get(
   AUTHENTICATED_UPLOAD_ROUTE,
-  authenticate,
+  authenticatePrivateUpload,
   asyncHandler(async (req, res) => {
     // Express 5 requires named wildcards and returns their segments as an
     // array. Joining with the platform separator also keeps the route
@@ -67,20 +78,36 @@ router.get(
     if (!Array.isArray(fileSegments) || fileSegments.length === 0) {
       throw ApiError.badRequest('No file path provided');
     }
-    const filePath = fileSegments.join(path.sep);
+    const fileKey = fileSegments.join('/');
+    const isPublicAvatar = isPublicAvatarUploadPath(fileSegments);
+    if (!isPublicAvatar) {
+      if (!req.user) throw ApiError.unauthorized();
+      await MediaAccessService.assertCanRead(fileKey, req.user);
+    }
 
     // Prevent both lexical path traversal and symlink escapes. The production
     // uploads directory is itself a symlink to persistent storage, so compare
     // against both its configured path and its canonical path.
     const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-    const candidatePath = path.resolve(uploadsRoot, filePath);
+    const candidatePath = path.resolve(uploadsRoot, ...fileSegments);
     const uploadsPrefix = `${uploadsRoot}${path.sep}`;
     if (!candidatePath.startsWith(uploadsPrefix)) {
       throw ApiError.forbidden('Invalid file path');
     }
 
     if (!fs.existsSync(candidatePath)) {
-      throw ApiError.notFound('File not found');
+      const storedObject = await StorageService.downloadFromS3(fileKey);
+      if (!storedObject) {
+        throw ApiError.notFound('File not found');
+      }
+
+      res.setHeader(
+        'Cache-Control',
+        isPublicAvatar ? 'public, max-age=86400' : 'private, max-age=300',
+      );
+      if (storedObject.contentType) res.type(storedObject.contentType);
+      res.send(storedObject.buffer);
+      return;
     }
 
     const canonicalRoot = fs.realpathSync(uploadsRoot);
@@ -93,6 +120,10 @@ router.get(
       throw ApiError.notFound('File not found');
     }
 
+    res.setHeader(
+      'Cache-Control',
+      isPublicAvatar ? 'public, max-age=86400' : 'private, max-age=300',
+    );
     res.sendFile(fullPath);
   }),
 );

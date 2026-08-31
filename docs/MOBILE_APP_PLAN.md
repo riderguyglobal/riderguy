@@ -6,6 +6,12 @@
 > AABs, `preview` for direct-install QA APKs, and `internal` for Play internal
 > submission. No EAS production profile exists; closed/production promotion
 > requires a separate decision and explicit approval.
+>
+> **No-billing override (2026-08-31):** the active native apps no longer use
+> `react-native-maps` or embed Google Maps SDK keys. They use device GPS,
+> RiderGuy's Ghana place data, local distance/ETA estimates, status canvases,
+> and external navigation-app handoff. Older Maps sections below are retained
+> only as historical implementation notes.
 
 ---
 

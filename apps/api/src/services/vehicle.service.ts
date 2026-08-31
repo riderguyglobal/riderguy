@@ -83,6 +83,7 @@ export class VehicleService {
 
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: input.vehicleId },
+      include: { rider: { select: { userId: true } } },
     });
 
     if (!vehicle) {
@@ -98,7 +99,7 @@ export class VehicleService {
       input.buffer,
       input.originalName,
       input.mimeType,
-      'vehicles',
+      StorageService.ownerFolder('vehicles', vehicle.rider.userId),
     );
 
     // Map position to field

@@ -153,8 +153,10 @@ export default function PrivacyPolicyPage() {
             and payouts.
           </li>
           <li>
-            <strong>Maps &amp; location:</strong> Google Maps Platform, to render maps, geocode
-            addresses, and calculate routes.
+            <strong>Location &amp; navigation:</strong> device location services and the navigation
+            provider you choose to open for turn-by-turn directions. RiderGuy&apos;s Ghana address
+            search also uses licensed local place datasets, including data from OpenStreetMap
+            contributors and GeoNames under their applicable attribution licences.
           </li>
           <li>
             <strong>Messaging &amp; notifications:</strong> Google Firebase Cloud Messaging and

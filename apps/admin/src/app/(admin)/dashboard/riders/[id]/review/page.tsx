@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Image from 'next/image';
 import { useAuth } from '@riderguy/auth';
 import {
   Card,
@@ -24,6 +23,7 @@ import {
   DialogTrigger,
 } from '@riderguy/ui';
 import { API_BASE_URL } from '@/lib/constants';
+import { AuthenticatedImage, openAuthenticatedMedia } from '@/components/authenticated-media';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ export default function RiderReviewPage() {
   const router = useRouter();
   const params = useParams();
   const riderId = params.id as string;
-  const { accessToken } = useAuth();
+  const { accessToken, api } = useAuth();
 
   const [profile, setProfile] = useState<RiderProfile | null>(null);
   const [documents, setDocuments] = useState<DocumentData[]>([]);
@@ -115,6 +115,14 @@ export default function RiderReviewPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
+  const handleOpenMedia = useCallback(async (url: string) => {
+    try {
+      await openAuthenticatedMedia(api, url);
+    } catch {
+      setError('Failed to open the protected media file. Please try again.');
+    }
+  }, [api]);
 
   // ── Fetch rider data ──────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -412,7 +420,8 @@ export default function RiderReviewPage() {
                             onClick={() => setFullscreenImage(url!)}
                             className="relative h-12 w-12 overflow-hidden rounded border"
                           >
-                            <Image
+                            <AuthenticatedImage
+                              api={api}
                               src={url!}
                               alt="Vehicle photo"
                               fill
@@ -551,7 +560,8 @@ export default function RiderReviewPage() {
                             onClick={() => setFullscreenImage(doc.fileUrl)}
                             className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border bg-gray-50"
                           >
-                            <Image
+                            <AuthenticatedImage
+                              api={api}
                               src={doc.fileUrl}
                               alt={doc.type}
                               fill
@@ -653,7 +663,7 @@ export default function RiderReviewPage() {
                           size="sm"
                           variant="ghost"
                           className="text-xs"
-                          onClick={() => window.open(doc.fileUrl, '_blank')}
+                          onClick={() => void handleOpenMedia(doc.fileUrl)}
                         >
                           ↗ Open in New Tab
                         </Button>
@@ -675,7 +685,8 @@ export default function RiderReviewPage() {
               <DialogTitle>Document Viewer</DialogTitle>
             </DialogHeader>
             <div className="relative aspect-[4/3] w-full">
-              <Image
+              <AuthenticatedImage
+                api={api}
                 src={fullscreenImage}
                 alt="Document full view"
                 fill
@@ -685,7 +696,7 @@ export default function RiderReviewPage() {
             <DialogFooter className="p-4 pt-0">
               <Button
                 variant="outline"
-                onClick={() => window.open(fullscreenImage, '_blank')}
+                onClick={() => void handleOpenMedia(fullscreenImage)}
               >
                 Open in New Tab
               </Button>

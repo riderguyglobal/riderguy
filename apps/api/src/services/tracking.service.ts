@@ -39,7 +39,7 @@ export async function getETA(
   destLat: number,
   destLng: number,
 ): Promise<{ durationSeconds: number; distanceKm: number }> {
-  const apiKey = config.google.mapsApiKey;
+  const apiKey = config.google.mapsEnabled ? config.google.mapsApiKey : '';
 
   if (apiKey) {
     try {

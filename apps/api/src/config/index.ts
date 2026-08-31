@@ -111,6 +111,9 @@ export const config = {
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean),
+    // Paid Maps Platform calls are opt-in. Keeping this false makes stale keys
+    // harmless and guarantees the local Ghana location stack is used.
+    mapsEnabled: optionalEnv('GOOGLE_MAPS_ENABLED', 'false').toLowerCase() === 'true',
     mapsApiKey: optionalEnv('GOOGLE_MAPS_API_KEY', ''),
   },
 
@@ -149,9 +152,11 @@ if (process.env.NODE_ENV === 'production') {
     ['FIREBASE_CLIENT_PRIVATE_KEY', config.firebase.client.privateKey, 'Client push notifications'],
     ['REDIS_URL', process.env.REDIS_URL ?? '', 'Session store / rate limiting / queues'],
     ['S3_ENDPOINT', config.s3.endpoint, 'File uploads (S3/R2)'],
-    ['GOOGLE_MAPS_API_KEY', config.google.mapsApiKey, 'Maps / geocoding'],
     ['GOOGLE_CLIENT_IDS', config.google.clientIds.join(','), 'Google Sign-In'],
   ];
+  if (config.google.mapsEnabled && !config.google.mapsApiKey) {
+    criticalServices.push(['GOOGLE_MAPS_API_KEY', '', 'Optional paid Maps / geocoding']);
+  }
   const missing = criticalServices.filter(([, val]) => !val);
   if (missing.length > 0) {
     console.warn('[CONFIG] WARNING: The following production services are UNCONFIGURED:');

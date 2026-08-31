@@ -27,14 +27,7 @@ import {
 //
 // Strategy for Ghana / West Africa:
 //
-// 1. **Google Geocoding API** is the PRIMARY geocoding provider
-//    for forward and reverse geocoding.
-//
-// 2. **Nominatim (OpenStreetMap)** is queried in parallel as a
-//    SUPPLEMENTARY provider — OSM has excellent community-mapped
-//    data for Ghana (neighborhoods, markets, landmarks).
-//
-// 3. A **comprehensive local Ghana gazetteer** of 42,000+
+// 1. A **comprehensive local Ghana gazetteer** of 80,000+
 //    locations provides instant offline matching. Sources:
 //    • GeoNames.org (CC BY 4.0) — 15,997 populated places
 //    • HOT/OSM Populated Places (CC BY 4.0) — 6,300+ settlements
@@ -42,6 +35,16 @@ import {
 //      (restaurants, hotels, fuel stations, hospitals, schools,
 //      banks, shops, markets, places of worship, etc.)
 //    An additional set of curated landmarks supplements the dataset.
+//
+// 2. **Community places** add verified RiderGuy locations without a
+//    third-party request-time dependency.
+//
+// 3. **Google Maps Platform** is an explicit, disabled-by-default
+//    supplement. It is called only when GOOGLE_MAPS_ENABLED=true and a
+//    key is configured. The no-billing launch path never calls it.
+//
+// Public Nominatim is deliberately not queried because its usage policy
+// forbids autocomplete traffic. OSM-derived records above are local data.
 //
 // Results are merged, deduplicated, and the gazetteer results
 // appear first when matched.
@@ -94,11 +97,6 @@ const GOOGLE_PLACES_AUTOCOMPLETE = 'https://places.googleapis.com/v1/places:auto
 const GOOGLE_PLACES_DETAILS = 'https://places.googleapis.com/v1/places';
 
 // ── Nominatim (OpenStreetMap) endpoint ────────────────────
-const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
-
-/** Ghana bounding box: [minLng, minLat, maxLng, maxLat] */
-const GHANA_BBOX = '-3.26,4.74,1.19,11.17';
-
 /** Accra center for proximity bias */
 const ACCRA_CENTER = { lng: -0.187, lat: 5.603 };
 
@@ -124,9 +122,8 @@ function warnProviderFallback(method: string, fallback: string) {
   );
 }
 
-function throwMissingGoogleMapsKey(method: string): never {
-  console.error(`[GeocodingService] ${method}: GOOGLE_MAPS_API_KEY is required in production.`);
-  throw ApiError.internal('Geocoding service unavailable');
+function enabledMapsApiKey(): string {
+  return config.google?.mapsEnabled ? config.google.mapsApiKey : '';
 }
 
 function coordinateFallbackResult(latitude: number, longitude: number): GeocodingResult {
@@ -528,17 +525,16 @@ function searchGazetteer(
 
 /**
  * Forward geocode: address text → coordinates.
- * Uses Google Geocoding API.
- * Biased towards Ghana by default.
+ * Uses deterministic local Ghana data by default. An explicitly enabled
+ * paid provider may supplement results, always bounded to Ghana.
  */
 export async function forwardGeocode(
   address: string,
   options: { country?: string; limit?: number; proximity?: { lat: number; lng: number } } = {},
 ): Promise<GeocodingResult[]> {
-  const apiKey = config.google?.mapsApiKey;
+  const apiKey = enabledMapsApiKey();
 
   if (!apiKey) {
-    if (config.isProduction) throwMissingGoogleMapsKey('forwardGeocode');
     warnProviderFallback('forwardGeocode', 'the local Ghana gazetteer');
     return localForwardGeocode(address, options.limit ?? 5);
   }
@@ -582,14 +578,15 @@ export async function forwardGeocode(
 
 /**
  * Reverse geocode: coordinates → address.
- * Uses Google Geocoding API.
+ * Uses a GhanaPost/Plus Code coordinate label by default and can optionally
+ * enrich it through an explicitly enabled paid provider.
  */
 export async function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<GeocodingResult | null> {
   assertWithinGhanaBounds(latitude, longitude);
-  const apiKey = config.google?.mapsApiKey;
+  const apiKey = enabledMapsApiKey();
 
   if (!apiKey) {
     warnProviderFallback('reverseGeocode', 'the supplied coordinates and generated GhanaPost GPS code');
@@ -640,9 +637,8 @@ export async function reverseGeocode(
  * 1. Natural language parsing (if query looks like a description)
  * 2. Local Ghana gazetteer with fuzzy trigram search (instant)
  * 3. Community places from database (user-contributed)
- * 4. Google Geocoding API with autocomplete (global)
- * 5. Nominatim / OpenStreetMap (supplementary)
- * 6. Popularity boosts from learned user selections
+ * 4. Popularity boosts from learned user selections
+ * 5. Optional Google Places supplement when explicitly enabled
  *
  * Results are merged, deduplicated, and returned with coordinates
  * already included — no separate retrieve step needed.
@@ -656,20 +652,13 @@ export async function autocomplete(
     sessionToken?: string;
   } = {},
 ): Promise<AutocompleteSuggestion[]> {
-  const apiKey = config.google?.mapsApiKey;
+  const apiKey = enabledMapsApiKey();
   const requestedProximity = options.proximity ?? ACCRA_CENTER;
   const prox = isWithinGhanaBounds(requestedProximity.lat, requestedProximity.lng)
     ? requestedProximity
     : ACCRA_CENTER;
 
-  if (!apiKey) {
-    warnProviderFallback('autocomplete', 'the local Ghana gazetteer');
-    return localAutocomplete(
-      query,
-      options.limit ?? 8,
-      prox,
-    );
-  }
+  if (!apiKey) warnProviderFallback('autocomplete', 'local Ghana and community places');
 
   const limit = options.limit ?? 8;
   // ── 0. Natural language parsing ──────────────────────────
@@ -706,18 +695,16 @@ export async function autocomplete(
   });
 
   // ── 5. Nominatim / OpenStreetMap (supplementary) ──
-  const nominatimPromise = nominatimAutocomplete(query, { proximity: prox, limit: 5 });
-
-  // Wait for all API providers in parallel
-  const [communityResults, googleResults, nominatimResults] = await Promise.allSettled([
+  // Wait for the community database and optional paid provider in parallel.
+  // Public Nominatim forbids autocomplete traffic, so it is intentionally
+  // excluded from RiderGuy's runtime request path.
+  const [communityResults, googleResults] = await Promise.allSettled([
     communityPromise,
     googlePromise,
-    nominatimPromise,
   ]);
 
   const community = communityResults.status === 'fulfilled' ? communityResults.value : [];
   const google = googleResults.status === 'fulfilled' ? googleResults.value : [];
-  const nominatim = nominatimResults.status === 'fulfilled' ? nominatimResults.value : [];
 
   if (communityResults.status === 'rejected') {
     console.warn('[GeocodingService] Community places search failed:', communityResults.reason);
@@ -725,13 +712,9 @@ export async function autocomplete(
   if (googleResults.status === 'rejected') {
     console.warn('[GeocodingService] Google Places autocomplete failed:', googleResults.reason);
   }
-  if (nominatimResults.status === 'rejected') {
-    console.warn('[GeocodingService] Nominatim autocomplete failed:', nominatimResults.reason);
-  }
-
-  // Merge: gazetteer first (instant + fuzzy), then community,
-  // then Google (API), then Nominatim (supplementary)
-  const merged = deduplicateSuggestions([...google, ...gazetteerResults, ...community, ...nominatim])
+  // Local data remains authoritative so core Ghana search never depends on a
+  // remote maps provider. Optional Google results only supplement it.
+  const merged = deduplicateSuggestions([...gazetteerResults, ...community, ...google])
     .filter((suggestion) => suggestion.latitude == null
       || suggestion.longitude == null
       || isWithinGhanaBounds(suggestion.latitude, suggestion.longitude));
@@ -747,7 +730,7 @@ async function googlePlacesAutocomplete(
   query: string,
   options: { proximity: { lat: number; lng: number }; limit: number; sessionToken?: string },
 ): Promise<AutocompleteSuggestion[]> {
-  const apiKey = config.google?.mapsApiKey;
+  const apiKey = enabledMapsApiKey();
   if (!apiKey) return [];
 
   const body: Record<string, unknown> = {
@@ -888,66 +871,6 @@ async function searchCommunityPlaces(
 }
 
 /**
- * Nominatim (OpenStreetMap) autocomplete.
- * Free, no API key needed, excellent Ghana community data.
- * Rate limit: 1 req/s — the 250ms client debounce handles this.
- */
-async function nominatimAutocomplete(
-  query: string,
-  options: { proximity: { lat: number; lng: number }; limit: number },
-): Promise<AutocompleteSuggestion[]> {
-  try {
-    const params = new URLSearchParams({
-      q: `${query}, Ghana`,
-      format: 'json',
-      addressdetails: '1',
-      limit: String(options.limit),
-      countrycodes: 'gh',
-      viewbox: GHANA_BBOX,
-      bounded: '1',
-    });
-
-    const url = `${NOMINATIM_SEARCH}?${params.toString()}`;
-
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'RiderGuy-Delivery-App/1.0 (support@myriderguy.com)',
-        Accept: 'application/json',
-      },
-      signal: AbortSignal.timeout(3000), // 3s timeout to avoid blocking
-    });
-
-    if (!response.ok) return [];
-
-    const data = (await response.json()) as NominatimResult[];
-
-    return data.map((r) => {
-      const parts: string[] = [];
-      if (r.address?.suburb) parts.push(r.address.suburb);
-      if (r.address?.city || r.address?.town || r.address?.village) {
-        parts.push(r.address.city ?? r.address.town ?? r.address.village ?? '');
-      }
-
-      // Derive a short display name
-      const shortName = r.address?.suburb ?? r.address?.neighbourhood ?? r.name ?? r.display_name.split(',')[0] ?? '';
-
-      return {
-        id: `nom-${r.place_id}`,
-        text: shortName,
-        placeName: r.display_name,
-        latitude: parseFloat(r.lat),
-        longitude: parseFloat(r.lon),
-        placeType: r.type ?? 'place',
-        source: 'nominatim' as const,
-      };
-    });
-  } catch {
-    // Nominatim is supplementary — silently fail
-    return [];
-  }
-}
-
-/**
  * Deduplicate suggestions by comparing coordinates (within ~200m)
  * and name similarity. Earlier items in the array take priority.
  */
@@ -986,18 +909,18 @@ function deduplicateSuggestions(suggestions: AutocompleteSuggestion[]): Autocomp
  * Retrieve full place details (including coordinates) for a
  * suggestion selected by the user.
  *
- * For Google, Nominatim, and gazetteer results, coordinates are
+ * For Google, community, and gazetteer results, coordinates are
  * already included in the suggestion — this builds a RetrievedPlace directly.
  *
  * For gazetteer IDs (gaz- prefix), looks up the gazetteer.
- * For Nominatim IDs (nom- prefix), data is already in the suggestion.
+ * Historical Nominatim IDs (nom- prefix) are safely ignored.
  * For Google IDs (google- prefix), uses Google Geocoding by place_id.
  */
 export async function retrievePlace(
   placeId: string,
   sessionToken?: string,
 ): Promise<RetrievedPlace | null> {
-  const apiKey = config.google?.mapsApiKey;
+  const apiKey = enabledMapsApiKey();
 
   // Gazetteer entries — search landmarks + GeoNames by name
   if (placeId.startsWith('gaz-')) {
@@ -1081,7 +1004,6 @@ export async function retrievePlace(
 
   // Google place IDs — use Google Geocoding to retrieve by place_id
   if ((placeId.startsWith('googleplaces-') || placeId.startsWith('google-')) && !apiKey) {
-    if (config.isProduction) throwMissingGoogleMapsKey('retrievePlace');
     warnProviderFallback('retrievePlace', 'no external lookup');
     return null;
   }
@@ -1196,28 +1118,6 @@ interface GooglePlaceDetailsResponse {
   types?: string[];
 }
 
-interface NominatimResult {
-  place_id: number;
-  licence: string;
-  osm_type: string;
-  osm_id: number;
-  lat: string;
-  lon: string;
-  type: string;
-  display_name: string;
-  name?: string;
-  address?: {
-    suburb?: string;
-    neighbourhood?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    state?: string;
-    country?: string;
-    road?: string;
-  };
-}
-
 // ---- Deterministic local-data fallbacks ----
 
 function localForwardGeocode(address: string, limit: number): GeocodingResult[] {
@@ -1251,14 +1151,6 @@ function localForwardGeocode(address: string, limit: number): GeocodingResult[] 
 
   // Never invent coordinates for an address we cannot match.
   return [];
-}
-
-function localAutocomplete(
-  query: string,
-  limit: number,
-  proximity?: { lat: number; lng: number },
-): AutocompleteSuggestion[] {
-  return searchGazetteer(query, limit, proximity);
 }
 
 // ── Selection recording (usage-based learning) ─────────────

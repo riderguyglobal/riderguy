@@ -18,7 +18,6 @@ import { router, useNavigation } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_GOOGLE, type LatLng } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Haptics from 'expo-haptics';
@@ -44,6 +43,8 @@ type IncomingOffer = Record<string, any> & {
   packageType?: string;
 };
 
+type LatLng = { latitude: number; longitude: number };
+
 const BACKGROUND_LOCATION_TASK = 'background-location-task';
 const SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com')
   .replace('api.riderguy.com', 'api.myriderguy.com')
@@ -55,22 +56,8 @@ const LOCATION_TIMEOUT_MS = 8000;
 const LAST_KNOWN_MAX_AGE_MS = 5 * 60 * 1000;
 const MAX_LAST_KNOWN_ACCURACY_METERS = 250;
 const OFFER_TIMEOUT = parseInt(process.env.EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN ?? '30', 10);
-const ACCRA_CENTER = { latitude: 5.6037, longitude: -0.1870 };
 const dashboardHero = require('../../assets/images/illustrations/rider-dashboard-hero-v4.png');
 const dashboardWallet = require('../../assets/images/illustrations/rider-dashboard-wallet-v1.png');
-
-const RIDER_MAP_STYLE = [
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#F3F6F5' }] },
-  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#D8E0E5' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#CBD7E5' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8E9894' }] },
-  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#F8FAF9' }] },
-  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#E8F6EC' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#D8EEF8' }] },
-  { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#7B8580' }] },
-];
 
 async function getUsablePosition() {
   const current = await Promise.race([
@@ -123,15 +110,6 @@ function emitOfferResponse(socket: Socket | null, orderId: string, response: 'ac
       resolve(ack);
     });
   });
-}
-
-function waitingRegion(position: LatLng) {
-  return {
-    latitude: position.latitude - 0.01,
-    longitude: position.longitude,
-    latitudeDelta: 0.058,
-    longitudeDelta: 0.058,
-  };
 }
 
 function formatOnlineDuration(startedAt: number | null, now: number) {
@@ -1766,58 +1744,66 @@ function OnlineDashboard({
   toggling: boolean;
   unread: boolean;
 }) {
-  const mapRef = useRef<MapView | null>(null);
-  const initialRegion = useMemo(() => waitingRegion(riderPosition ?? ACCRA_CENTER), [riderPosition]);
-  const regionRef = useRef(initialRegion);
-
-  const animateMap = (nextRegion: typeof initialRegion) => {
-    regionRef.current = nextRegion;
-    mapRef.current?.animateToRegion(nextRegion, 320);
-  };
-
-  useEffect(() => {
-    if (!riderPosition) return;
-    const nextRegion = waitingRegion(riderPosition);
-    regionRef.current = nextRegion;
-    mapRef.current?.animateToRegion(nextRegion, 320);
-  }, [riderPosition]);
-
   return (
     <View style={{ flex: 1, backgroundColor: riderColors.white }}>
       <OnlineTopBar onAvailability={onAvailability} onBack={onBack} onNotifications={onNotifications} unread={unread} />
 
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: '#EAF1EF' }}>
-        <MapView
-          ref={mapRef}
-          provider={PROVIDER_GOOGLE}
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
-          initialRegion={initialRegion}
-          customMapStyle={RIDER_MAP_STYLE}
-          onRegionChangeComplete={(region) => {
-            regionRef.current = region;
-          }}
-          showsCompass={false}
-          showsMyLocationButton={false}
-          toolbarEnabled={false}
-        >
-          {riderPosition ? (
-            <Marker coordinate={riderPosition} anchor={{ x: 0.5, y: 0.58 }} title="You">
-              <RiderPulseMarker />
-            </Marker>
-          ) : null}
-        </MapView>
+        <LiveLocationCanvas areaName={areaName} position={riderPosition} />
 
         <OnlineReadySheet
           areaName={areaName}
           bottomInset={bottomInset}
-          onCenterMap={() => {
-            if (riderPosition) animateMap(waitingRegion(riderPosition));
-          }}
+          onStayOnline={() => Toast.show({
+            type: 'success',
+            text1: 'You are online',
+            text2: 'Live location sharing is active for new requests.',
+          })}
           onGoOffline={onGoOffline}
           onlineFor={onlineFor}
           todayAmount={todayAmount}
           toggling={toggling}
         />
+      </View>
+    </View>
+  );
+}
+
+function LiveLocationCanvas({
+  areaName,
+  position,
+}: {
+  areaName: string;
+  position: LatLng | null;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Live location sharing ${position ? 'active' : 'starting'} in ${areaName}`}
+      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden', backgroundColor: '#EFF8F3' }}
+    >
+      <View style={{ position: 'absolute', width: '150%', height: 36, top: 70, left: '-25%', backgroundColor: '#FFFFFF', transform: [{ rotate: '-12deg' }] }} />
+      <View style={{ position: 'absolute', width: '150%', height: 22, top: 175, left: '-20%', backgroundColor: '#DCEDE5', transform: [{ rotate: '22deg' }] }} />
+      <View style={{ position: 'absolute', width: 220, height: 220, borderRadius: 110, top: 58, right: -70, backgroundColor: 'rgba(64,190,137,0.08)' }} />
+      <View style={{ position: 'absolute', width: 160, height: 160, borderRadius: 80, top: 120, left: -58, backgroundColor: 'rgba(64,190,137,0.10)' }} />
+
+      <View style={{ alignSelf: 'center', marginTop: 24, borderRadius: 999, borderWidth: 1, borderColor: '#CDE8DB', backgroundColor: 'rgba(255,255,255,0.94)', paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 7, ...riderShadow }}>
+        <Ionicons name="location" size={15} color={riderColors.greenDark} />
+        <Text style={{ color: riderColors.ink, fontSize: 12, fontWeight: '900' }} numberOfLines={1}>{areaName}</Text>
+      </View>
+
+      <View style={{ alignItems: 'center', marginTop: 28 }}>
+        <RiderPulseMarker />
+        <View style={{ marginTop: -8, borderRadius: 14, backgroundColor: riderColors.white, borderWidth: 1, borderColor: riderColors.line, paddingHorizontal: 13, paddingVertical: 8, alignItems: 'center', ...riderShadow }}>
+          <Text style={{ color: riderColors.greenDark, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }}>
+            {position ? 'Location active' : 'Finding location'}
+          </Text>
+          <Text style={{ color: riderColors.muted, fontSize: 10, fontWeight: '700', marginTop: 2 }}>
+            {position
+              ? `${position.latitude.toFixed(4)}, ${position.longitude.toFixed(4)}`
+              : 'Keep location services turned on'}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -1871,7 +1857,7 @@ function RiderPulseMarker() {
 function OnlineReadySheet({
   areaName,
   bottomInset,
-  onCenterMap,
+  onStayOnline,
   onGoOffline,
   onlineFor,
   todayAmount,
@@ -1879,7 +1865,7 @@ function OnlineReadySheet({
 }: {
   areaName: string;
   bottomInset: number;
-  onCenterMap: () => void;
+  onStayOnline: () => void;
   onGoOffline: () => void;
   onlineFor: string;
   todayAmount: string;
@@ -1908,7 +1894,7 @@ function OnlineReadySheet({
         <ReadyStat icon="location" label="Area" value={areaName} />
       </View>
 
-      <TouchableOpacity activeOpacity={0.88} onPress={onCenterMap} style={{ height: 50, borderRadius: 15, backgroundColor: riderColors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 }}>
+      <TouchableOpacity activeOpacity={0.88} onPress={onStayOnline} style={{ height: 50, borderRadius: 15, backgroundColor: riderColors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 }}>
         <Ionicons name="radio" size={20} color={riderColors.greenDark} />
         <Text style={{ color: riderColors.white, fontSize: 16, fontWeight: '900' }}>Stay Online</Text>
       </TouchableOpacity>
