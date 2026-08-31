@@ -3,6 +3,7 @@
 # archived apps, web-only assets, and every credential that EAS does not need.
 
 # Dependencies and build caches
+.git
 node_modules/
 .pnp
 .pnp.js
