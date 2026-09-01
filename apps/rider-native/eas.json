@@ -64,6 +64,12 @@
       "android": {
         "track": "internal"
       }
+    },
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed"
+      }
     }
   }
 }
