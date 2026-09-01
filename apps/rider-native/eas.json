@@ -57,6 +57,24 @@
         "EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN": "30",
         "EAS_SKIP_AUTO_FINGERPRINT": "1"
       }
+    },
+    "production": {
+      "node": "22.14.0",
+      "environment": "production",
+      "autoIncrement": true,
+      "credentialsSource": "remote",
+      "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.myriderguy.com/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api.myriderguy.com",
+        "EXPO_PUBLIC_RIDER_LOCATION_INTERVAL_MS": "10000",
+        "EXPO_PUBLIC_RIDER_HEARTBEAT_MS": "30000",
+        "EXPO_PUBLIC_RIDER_OFFER_COUNTDOWN": "30",
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
+      }
     }
   },
   "submit": {
