@@ -52,6 +52,16 @@ interface VehicleData {
   photoLeftUrl: string | null;
   photoRightUrl: string | null;
   isApproved: boolean;
+  reviewStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejectionReason: string | null;
+  reviewedById: string | null;
+  reviewedBy: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  } | null;
+  reviewedAt: string | null;
 }
 
 interface RiderProfile {
@@ -100,6 +110,25 @@ function friendlyDocType(type: string) {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function vehicleStatusBadge(status: VehicleData['reviewStatus']) {
+  if (status === 'APPROVED') {
+    return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>;
+  }
+  if (status === 'REJECTED') {
+    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Rejected</Badge>;
+  }
+  return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Pending review</Badge>;
+}
+
+function vehiclePhotos(vehicle: VehicleData) {
+  return [
+    { label: 'Front', url: vehicle.photoFrontUrl },
+    { label: 'Back', url: vehicle.photoBackUrl },
+    { label: 'Left side', url: vehicle.photoLeftUrl },
+    { label: 'Right side', url: vehicle.photoRightUrl },
+  ];
+}
+
 // ─── Component ──────────────────────────────────────────────
 
 export default function RiderReviewPage() {
@@ -113,6 +142,8 @@ export default function RiderReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [vehicleRejectionReason, setVehicleRejectionReason] = useState('');
+  const [vehicleReviewDialogId, setVehicleReviewDialogId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
@@ -189,6 +220,46 @@ export default function RiderReviewPage() {
       }
     },
     [accessToken, rejectionReason, fetchData],
+  );
+
+  // Review the registered vehicle evidence used by the Rider activation gate.
+  const handleVehicleReview = useCallback(
+    async (vehicleId: string, status: 'APPROVED' | 'REJECTED') => {
+      setActionLoading(true);
+      setError(null);
+      try {
+        const body = status === 'REJECTED'
+          ? { status, rejectionReason: vehicleRejectionReason.trim() }
+          : { status };
+        const res = await fetch(`${API_BASE_URL}/riders/${riderId}/vehicles/${vehicleId}/review`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const json = await res.json().catch((_error: unknown): null => null);
+          const missingPhotos = json?.error?.details?.missingPhotos as string[] | undefined;
+          throw new Error(
+            missingPhotos?.length
+              ? `Missing vehicle photos: ${missingPhotos.join(', ')}`
+              : json?.error?.message ?? 'Vehicle review failed',
+          );
+        }
+
+        setVehicleRejectionReason('');
+        setVehicleReviewDialogId(null);
+        await fetchData();
+      } catch (vehicleError) {
+        setError(vehicleError instanceof Error ? vehicleError.message : 'Failed to review vehicle.');
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [accessToken, fetchData, riderId, vehicleRejectionReason],
   );
 
   // ── Approve / Reject rider application ────────────────────
@@ -397,38 +468,123 @@ export default function RiderReviewPage() {
               <CardContent className="space-y-3">
                 {profile.vehicles.map((v) => (
                   <div key={v.id} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium text-gray-900">
                         {v.make} {v.model}
                       </p>
-                      <Badge variant="outline" className="text-xs">
-                        {v.type}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {v.type}
+                        </Badge>
+                        {vehicleStatusBadge(v.reviewStatus)}
+                      </div>
                     </div>
                     <p className="text-sm text-gray-500">
                       Plate: {v.plateNumber}
                       {v.year && ` • ${v.year}`}
                       {v.color && ` • ${v.color}`}
                     </p>
-                    {/* Vehicle photos thumbnails */}
-                    <div className="mt-2 flex gap-1">
-                      {[v.photoFrontUrl, v.photoBackUrl, v.photoLeftUrl, v.photoRightUrl]
-                        .filter(Boolean)
-                        .map((url, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setFullscreenImage(url!)}
-                            className="relative h-12 w-12 overflow-hidden rounded border"
-                          >
-                            <AuthenticatedImage
-                              api={api}
-                              src={url!}
-                              alt="Vehicle photo"
-                              fill
-                              className="object-cover"
-                            />
-                          </button>
-                        ))}
+                    {v.reviewStatus === 'REJECTED' && v.rejectionReason ? (
+                      <div className="mt-2 rounded-md bg-red-50 p-2 text-xs text-red-700">
+                        <p><span className="font-semibold">Reason:</span> {v.rejectionReason}</p>
+                        {v.reviewedAt ? (
+                          <p className="mt-1 text-red-600">
+                            Reviewed {new Date(v.reviewedAt).toLocaleString()}
+                            {v.reviewedBy ? ` by ${v.reviewedBy.firstName} ${v.reviewedBy.lastName}` : v.reviewedById ? ' by a legacy reviewer' : ''}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : v.reviewStatus === 'APPROVED' && v.reviewedAt ? (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Approved {new Date(v.reviewedAt).toLocaleString()}
+                        {v.reviewedBy ? ` by ${v.reviewedBy.firstName} ${v.reviewedBy.lastName}` : v.reviewedById ? ' by a legacy reviewer' : ''}
+                      </p>
+                    ) : null}
+                    {/* Keep every required angle visible and explicitly labelled. */}
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {vehiclePhotos(v).map(({ label, url }) => (
+                        <div key={label}>
+                          <p className="mb-1 text-xs font-medium text-gray-600">{label}</p>
+                          {url ? (
+                            <button
+                              type="button"
+                              aria-label={`Open ${label.toLowerCase()} vehicle photo`}
+                              onClick={() => setFullscreenImage(url)}
+                              className="relative h-20 w-full overflow-hidden rounded border"
+                            >
+                              <AuthenticatedImage
+                                api={api}
+                                src={url}
+                                alt={`${label} vehicle photo`}
+                                fill
+                                className="object-cover"
+                              />
+                            </button>
+                          ) : (
+                            <div className="flex h-20 items-center justify-center rounded border border-dashed bg-gray-50 text-xs text-gray-400">
+                              Missing
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {!vehiclePhotos(v).every((photo) => Boolean(photo.url)) ? (
+                      <p className="mt-2 text-xs text-amber-700">
+                        Approval is locked until front, back, left, and right photos are uploaded.
+                      </p>
+                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        disabled={
+                          actionLoading
+                          || v.reviewStatus === 'APPROVED'
+                          || !vehiclePhotos(v).every((photo) => Boolean(photo.url))
+                        }
+                        onClick={() => void handleVehicleReview(v.id, 'APPROVED')}
+                      >
+                        Approve vehicle
+                      </Button>
+                      <Dialog
+                        open={vehicleReviewDialogId === v.id}
+                        onOpenChange={(open) => {
+                          setVehicleReviewDialogId(open ? v.id : null);
+                          if (!open) setVehicleRejectionReason('');
+                        }}
+                      >
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+                            {v.reviewStatus === 'APPROVED' ? 'Revoke approval' : v.reviewStatus === 'REJECTED' ? 'Update rejection' : 'Reject vehicle'}
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>{v.reviewStatus === 'APPROVED' ? 'Revoke Vehicle Approval' : v.reviewStatus === 'REJECTED' ? 'Update Vehicle Rejection' : 'Reject Vehicle'}</DialogTitle>
+                            <DialogDescription>
+                              The Rider will be notified and must correct the vehicle details or photos before approval.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <Textarea
+                            placeholder="Explain what the Rider needs to correct..."
+                            value={vehicleRejectionReason}
+                            onChange={(event) => setVehicleRejectionReason(event.target.value)}
+                            rows={3}
+                          />
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button
+                              className="bg-red-600 hover:bg-red-700"
+                              disabled={actionLoading || vehicleRejectionReason.trim().length < 5}
+                              onClick={() => void handleVehicleReview(v.id, 'REJECTED')}
+                            >
+                              {v.reviewStatus === 'APPROVED' ? 'Revoke approval' : v.reviewStatus === 'REJECTED' ? 'Update rejection' : 'Reject vehicle'}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </div>
                 ))}

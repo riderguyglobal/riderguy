@@ -41,6 +41,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             {[
               { label: 'Dashboard', href: '/dashboard' },
               { label: 'Riders', href: '/dashboard/riders' },
+              { label: 'Asset Financing', href: '/dashboard/asset-financing' },
               { label: 'Orders', href: '/dashboard/orders' },
               { label: 'Users', href: '/dashboard/users' },
               { label: 'Zones', href: '/dashboard/zones' },

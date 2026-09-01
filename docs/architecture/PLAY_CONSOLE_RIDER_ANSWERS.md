@@ -168,16 +168,41 @@ Expected rating: Everyone / PEGI 3 (with "Users interact" + "Shares location" in
 
 ## 9. Financial features
 
-- **Does your app provide any financial features?** → select **My app doesn't provide any of these financial features** *if the form's listed categories are only loans/crypto/investments/banking* — the rider wallet is a stored-value account for service earnings, not a consumer financial product.
-- If the form version includes a broader "digital wallets / money transfer" option, instead declare: **Digital wallet** with description:
+- **Do not select "My app doesn't provide any financial features."** The Rider app now promotes a reviewed 12-month bike/EV lease program and collects Rider interest requests.
+- Select **Support services → Other** for the current interest-only lease flow, using this description:
+
+```
+The Rider app provides information about an eligibility-reviewed 12-month
+delivery bike or electric-vehicle lease program for trained In-House Riders.
+The current app only registers interest for manual review. It does not make a
+credit decision, approve financing, reserve a vehicle, execute an agreement, or
+collect lease payments. Pricing, deposits, provider identity, and final terms
+are disclosed separately before a Rider agrees to anything.
+```
+
+- If the final commercial structure transfers ownership, extends credit, or connects Riders to a lender, reclassify it accurately (for example **Buy now, pay later** or **Loan facilitator**) and supply every licence/provider document requested by Play. Do not ship that expanded flow under the interest-only declaration.
+- If the form includes **digital wallets / money transfer**, also declare **Digital wallet** for the Rider earnings wallet with this description:
 
 ```
 The app includes an earnings wallet for approved delivery partners. Delivery
 earnings accumulate in the wallet and can be withdrawn to the partner's own
 mobile-money or bank account via the licensed payment processor Paystack.
-The app does not offer loans, credit, cryptocurrency, investments, gambling,
-or person-to-person transfers.
+The wallet does not support cryptocurrency, investments, gambling, or
+person-to-person transfers.
 ```
+
+- Because the sign-in page promotes **Insurance**, also select **Support services → Insurance** and describe it accurately:
+
+```
+The Rider app describes insurance as part of Rider welfare support. The current
+app does not quote, sell, underwrite, bind, or collect payment for insurance.
+Any eligible coverage option, provider identity, and terms are confirmed
+separately before activation.
+```
+
+- **Production gate:** Google Play requires an **Organization** developer account for apps providing financial products or services. Confirm/convert the account and complete organization verification before Production.
+- **Ghana compliance gate:** before making offers, approvals, payments, or lease agreements available, have Ghana-qualified counsel confirm the program structure and the applicable Bank of Ghana leasing/credit licence or regulated-provider requirements. The current build must remain an information and interest-registration flow only.
+- Official references: https://support.google.com/googleplay/android-developer/answer/13849271, https://support.google.com/googleplay/android-developer/answer/9876821, https://support.google.com/googleplay/android-developer/answer/10788890, https://www.bog.gov.gh/lic_appr_req/requirements-for-mortgage-finance-or-leasing-operation-licence/
 
 ---
 

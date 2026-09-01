@@ -1,20 +1,29 @@
 import { Router } from 'express';
-import { authenticate, requireRole, validate } from '../../middleware';
+import { authenticate, requireRole, sensitiveUserRateLimit, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
+import { logger } from '../../lib/logger';
+import { acquireTransactionAdvisoryLock } from '../../lib/postgres-advisory-lock';
 import { prisma } from '@riderguy/database';
 import { UserRole } from '@riderguy/types';
 import {
   updateAvailabilitySchema,
   updateLocationSchema,
   registerVehicleSchema,
+  updateVehicleSchema,
+  reviewVehicleSchema,
   selectRiderChannelSchema,
   createInHouseInvitationSchema,
   rejectRiderApplicationSchema,
   adminClassifyRiderChannelSchema,
+  createAssetFinancingInterestSchema,
+  listAssetFinancingInterestsQuerySchema,
+  updateAssetFinancingInterestStatusSchema,
 } from '@riderguy/validators';
+import type { ListAssetFinancingInterestsQuery } from '@riderguy/validators';
 import { VehicleService } from '../../services/vehicle.service';
 import { OnboardingService } from '../../services/onboarding.service';
+import { AssetFinancingService } from '../../services/asset-financing.service';
 import { NotificationService } from '../../services/notification.service';
 import {
   recordHeartbeat,
@@ -27,10 +36,11 @@ import {
 } from '../../services/rider-work-eligibility';
 import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Multer config for vehicle photo uploads
@@ -68,6 +78,123 @@ const router = Router();
 
 router.use(authenticate);
 
+/** Resolve User.id and lock the canonical RiderProfile identity used by Vehicle.riderId. */
+export async function lockRiderVehicleStateForUser(
+  tx: Prisma.TransactionClient,
+  riderUserId: string,
+): Promise<string> {
+  const identity = await tx.riderProfile.findUnique({
+    where: { userId: riderUserId },
+    select: { id: true },
+  });
+  if (!identity) throw ApiError.notFound('Rider profile not found');
+
+  await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', identity.id);
+  return identity.id;
+}
+
+/** Exported for a focused authorization regression test; this exact middleware guards the route below. */
+export const requireVehicleReviewAdmin = requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN);
+export const requireAssetFinancingAdmin = requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN);
+
+export async function getCurrentAssetFinancingInterestHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const state = await AssetFinancingService.getCurrentState(req.user!.userId);
+  res.status(StatusCodes.OK).json({ success: true, data: state });
+}
+
+export async function registerAssetFinancingInterestHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const result = await AssetFinancingService.registerInterest(req.user!.userId, {
+    assetType: req.body.assetType,
+    ...(req.body.notes !== undefined ? { notes: req.body.notes } : {}),
+  });
+  const statusCode = result.outcome === 'CREATED' ? StatusCodes.CREATED : StatusCodes.OK;
+  res.status(statusCode).json({
+    success: true,
+    data: {
+      ...result,
+      message: result.outcome === 'UNCHANGED'
+        ? 'Your existing asset-financing interest is already registered.'
+        : 'Your interest has been registered for eligibility review.',
+    },
+  });
+}
+
+export async function listAssetFinancingInterestsForAdminHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const result = await AssetFinancingService.listForAdmin(
+    req.query as unknown as ListAssetFinancingInterestsQuery,
+  );
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: result.items,
+    pagination: result.pagination,
+  });
+}
+
+export async function updateAssetFinancingInterestStatusHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const interest = await AssetFinancingService.updateStatus(
+    String(req.params.interestId),
+    req.user!.userId,
+    req.body,
+  );
+  res.status(StatusCodes.OK).json({ success: true, data: interest });
+}
+
+export async function reviewVehicleHandler(req: Request, res: Response): Promise<void> {
+  const riderUserId = String(req.params.riderId);
+  const vehicleId = String(req.params.vehicleId);
+  const { status, rejectionReason } = req.body as {
+    status: 'APPROVED' | 'REJECTED';
+    rejectionReason?: string;
+  };
+
+  const vehicle = await VehicleService.review({
+    vehicleId,
+    riderUserId,
+    reviewerUserId: req.user!.userId,
+    status,
+    rejectionReason,
+  });
+
+  const approved = status === 'APPROVED';
+  try {
+    await NotificationService.create({
+      userId: riderUserId,
+      title: approved ? 'Vehicle Approved' : 'Vehicle Not Approved',
+      body: approved
+        ? 'Your delivery vehicle has been approved by RiderGuy.'
+        : `Your delivery vehicle was not approved: ${rejectionReason}`,
+      type: 'SYSTEM',
+      data: {
+        vehicleId,
+        status,
+        ...(rejectionReason ? { rejectionReason } : {}),
+      },
+    });
+  } catch (error) {
+    // The vehicle decision is already persisted. A transient notification
+    // failure must not produce a misleading 500 that invites a duplicate
+    // review; log it for operational retry instead.
+    logger.error(
+      { error, riderUserId, vehicleId, status },
+      'Vehicle review notification failed after the decision was persisted',
+    );
+  }
+
+  res.status(StatusCodes.OK).json({ success: true, data: vehicle });
+}
+
 /** GET /riders/profile — get own rider profile */
 router.get(
   '/profile',
@@ -92,51 +219,52 @@ router.patch(
   validate(updateAvailabilitySchema),
   asyncHandler(async (req, res) => {
     const { availability, latitude, longitude } = req.body;
-    let existingSessionStartedAt: Date | null = null;
+    const profile = await prisma.$transaction(async (tx) => {
+      const riderProfileId = await lockRiderVehicleStateForUser(tx, req.user!.userId);
 
-    // Gate: only fully approved riders with an active account can go ONLINE.
-    if (availability === 'ONLINE') {
-      const currentProfile = await prisma.riderProfile.findUnique({
-        where: { userId: req.user!.userId },
-        select: {
-          onboardingStatus: true,
-          isVerified: true,
-          suspendedUntil: true,
-          availability: true,
-          sessionStartedAt: true,
-          user: { select: { status: true } },
-        },
+      let existingSessionStartedAt: Date | null = null;
+      // Re-read the complete gate after taking the same RiderProfile-scoped
+      // lock used by vehicle review and dispatch.
+      if (availability === 'ONLINE') {
+        const currentProfile = await tx.riderProfile.findUnique({
+          where: { id: riderProfileId },
+          select: {
+            onboardingStatus: true,
+            isVerified: true,
+            suspendedUntil: true,
+            availability: true,
+            sessionStartedAt: true,
+            user: { select: { status: true } },
+            vehicles: { select: { reviewStatus: true } },
+          },
+        });
+        if (!currentProfile) throw ApiError.notFound('Rider profile not found');
+
+        assertRiderWorkEligible(currentProfile);
+        if (currentProfile.suspendedUntil && currentProfile.suspendedUntil > new Date()) {
+          throw ApiError.forbidden(
+            `Your account is suspended until ${currentProfile.suspendedUntil.toISOString()}. You cannot go online during a suspension.`,
+          );
+        }
+        if (currentProfile.availability === 'ONLINE' || currentProfile.availability === 'ON_DELIVERY') {
+          existingSessionStartedAt = currentProfile.sessionStartedAt;
+        }
+      }
+
+      const updateData: Record<string, unknown> = { availability };
+      if (availability === 'ONLINE') {
+        updateData.sessionStartedAt = resolveOnlineSessionStartedAt(existingSessionStartedAt);
+      }
+      if (typeof latitude === 'number' && typeof longitude === 'number') {
+        updateData.currentLatitude = latitude;
+        updateData.currentLongitude = longitude;
+        updateData.lastLocationUpdate = new Date();
+      }
+
+      return tx.riderProfile.update({
+        where: { id: riderProfileId },
+        data: updateData,
       });
-      if (!currentProfile) {
-        throw ApiError.notFound('Rider profile not found');
-      }
-      assertRiderWorkEligible(currentProfile);
-      if (currentProfile.suspendedUntil && currentProfile.suspendedUntil > new Date()) {
-        throw ApiError.forbidden(
-          `Your account is suspended until ${currentProfile.suspendedUntil.toISOString()}. You cannot go online during a suspension.`,
-        );
-      }
-      if (currentProfile.availability === 'ONLINE' || currentProfile.availability === 'ON_DELIVERY') {
-        existingSessionStartedAt = currentProfile.sessionStartedAt;
-      }
-    }
-
-    // Build update data — always set availability
-    const updateData: Record<string, unknown> = { availability };
-    if (availability === 'ONLINE') {
-      updateData.sessionStartedAt = resolveOnlineSessionStartedAt(existingSessionStartedAt);
-    }
-
-    // If coordinates provided (rider going ONLINE), persist initial GPS immediately
-    if (typeof latitude === 'number' && typeof longitude === 'number') {
-      updateData.currentLatitude = latitude;
-      updateData.currentLongitude = longitude;
-      updateData.lastLocationUpdate = new Date();
-    }
-
-    const profile = await prisma.riderProfile.update({
-      where: { userId: req.user!.userId },
-      data: updateData,
     });
 
     // Sync presence manager when rider toggles availability
@@ -317,6 +445,40 @@ router.get(
   }),
 );
 
+/** GET /riders/asset-financing/interests — get the signed-in Rider's current interest state */
+router.get(
+  '/asset-financing/interests',
+  requireRole(UserRole.RIDER),
+  asyncHandler(getCurrentAssetFinancingInterestHandler),
+);
+
+/** POST /riders/asset-financing/interests — idempotently register verified In-House Rider interest */
+router.post(
+  '/asset-financing/interests',
+  requireRole(UserRole.RIDER),
+  // The app-level global limiter remains IP-based; this second budget follows
+  // the authenticated Rider so shared mobile-carrier IPs do not block peers.
+  sensitiveUserRateLimit,
+  validate(createAssetFinancingInterestSchema),
+  asyncHandler(registerAssetFinancingInterestHandler),
+);
+
+/** GET /riders/asset-financing/interests/admin — discoverable admin review queue */
+router.get(
+  '/asset-financing/interests/admin',
+  requireAssetFinancingAdmin,
+  validate(listAssetFinancingInterestsQuerySchema, 'query'),
+  asyncHandler(listAssetFinancingInterestsForAdminHandler),
+);
+
+/** PATCH /riders/asset-financing/interests/:interestId/status — manage an interest (admin) */
+router.patch(
+  '/asset-financing/interests/:interestId/status',
+  requireAssetFinancingAdmin,
+  validate(updateAssetFinancingInterestStatusSchema),
+  asyncHandler(updateAssetFinancingInterestStatusHandler),
+);
+
 /** POST /riders/training/:moduleKey/complete — idempotently record completion */
 router.post(
   '/training/:moduleKey/complete',
@@ -381,6 +543,7 @@ router.get(
 router.patch(
   '/vehicles/:vehicleId',
   requireRole(UserRole.RIDER),
+  validate(updateVehicleSchema),
   asyncHandler(async (req, res) => {
     const vehicleId = req.params.vehicleId as string;
 
@@ -523,7 +686,11 @@ router.get(
             createdAt: true,
           },
         },
-        vehicles: true,
+        vehicles: {
+          include: {
+            reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          },
+        },
         trainingCompletions: { orderBy: { moduleKey: 'asc' } },
         channelInvitation: {
           select: { id: true, targetEmail: true, targetPhone: true, expiresAt: true, usedAt: true },
@@ -541,6 +708,14 @@ router.get(
       data: { ...profile, approvalReadiness: { ready: readiness.ready, missing: readiness.missing } },
     });
   }),
+);
+
+/** PATCH /riders/:riderId/vehicles/:vehicleId/review — approve or reject a Rider's vehicle (admin) */
+router.patch(
+  '/:riderId/vehicles/:vehicleId/review',
+  requireVehicleReviewAdmin,
+  validate(reviewVehicleSchema),
+  asyncHandler(reviewVehicleHandler),
 );
 
 /** GET /riders/applications — list riders with pending onboarding (admin) */
@@ -658,17 +833,20 @@ router.patch(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const riderId = req.params.riderId as string;
-    const readiness = await OnboardingService.getApprovalReadiness(riderId);
-    if (!readiness.ready) {
-      throw ApiError.badRequest(
-        'This Rider cannot be activated until all required checks are complete.',
-        'RIDER_ONBOARDING_INCOMPLETE',
-        { missing: readiness.missing },
-      );
-    }
-
     const now = new Date();
     const profile = await prisma.$transaction(async (tx) => {
+      // Vehicle writes lock RiderProfile.id (the Vehicle FK), so activation
+      // must use that exact identity rather than User.id.
+      await lockRiderVehicleStateForUser(tx, riderId);
+      const readiness = await OnboardingService.getApprovalReadiness(riderId, tx);
+      if (!readiness.ready) {
+        throw ApiError.badRequest(
+          'This Rider cannot be activated until all required checks are complete.',
+          'RIDER_ONBOARDING_INCOMPLETE',
+          { missing: readiness.missing },
+        );
+      }
+
       const activated = await tx.riderProfile.update({
         where: { userId: riderId },
         data: {

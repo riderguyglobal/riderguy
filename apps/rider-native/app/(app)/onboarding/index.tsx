@@ -157,6 +157,29 @@ export default function OnboardingIndexScreen() {
           </Text>
         </RiderCard>
 
+        {progress?.riderChannel === 'IN_HOUSE' ? (
+          <RiderCard style={{ marginBottom: 14, padding: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 17, backgroundColor: '#F0EBFF', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="bicycle-outline" size={25} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>12-Month Asset Lease</Text>
+                <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 }}>
+                  Finish verified training, then register interest in a reviewed bike or EV lease program.
+                </Text>
+              </View>
+            </View>
+            <RiderButton
+              label="Explore Asset Financing"
+              icon="arrow-forward"
+              variant="light"
+              onPress={() => router.push('/(app)/asset-financing')}
+              style={{ marginTop: 12 }}
+            />
+          </RiderCard>
+        ) : null}
+
         {steps.length === 0 && !isLoading ? (
           <EmptyState
             icon="document-text-outline"

@@ -10,7 +10,7 @@ export default function TermsPage() {
     <section className="px-5 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
       <div className="prose prose-gray prose-headings:font-bold mx-auto max-w-3xl">
         <h1>Terms of Service</h1>
-        <p className="lead">Last updated: 3 June 2026</p>
+        <p className="lead">Last updated: 1 September 2026</p>
         <p>
           Welcome to RiderGuy. These Terms of Service (&ldquo;Terms&rdquo;) govern your access
           to and use of the RiderGuy platform, mobile applications (RiderGuy and RiderGuy
@@ -22,7 +22,7 @@ export default function TermsPage() {
         <h2>1. Definitions</h2>
         <ul>
           <li><strong>&ldquo;Client&rdquo;</strong>: any user who requests a delivery through the Platform.</li>
-          <li><strong>&ldquo;Rider&rdquo;</strong>: any independent contractor who fulfils deliveries through the Platform.</li>
+          <li><strong>&ldquo;Rider&rdquo;</strong>: any delivery partner who fulfils deliveries through the Platform.</li>
           <li><strong>&ldquo;Partner&rdquo;</strong>: any business that uses the Platform for commercial deliveries.</li>
           <li><strong>&ldquo;Order&rdquo;</strong>: a delivery request placed through the Platform.</li>
         </ul>
@@ -30,8 +30,9 @@ export default function TermsPage() {
         <h2>2. Eligibility</h2>
         <p>
           You must be at least 18 years old to use the Platform. Riders must additionally hold
-          valid identification, possess a roadworthy vehicle, and successfully complete the
-          onboarding verification process.
+          valid identification, have access to an eligible roadworthy vehicle before activation,
+          and successfully complete the applicable onboarding verification process. Access may
+          be through a Rider&apos;s own vehicle or a separately approved asset program.
         </p>
 
         <h2>3. Account Registration</h2>
@@ -43,9 +44,12 @@ export default function TermsPage() {
 
         <h2>4. Platform Services</h2>
         <p>
-          RiderGuy acts as a technology intermediary connecting Clients with independent Riders.
-          We do not directly provide delivery services. Riders are independent contractors and
-          not employees, agents, or representatives of RiderGuy.
+          RiderGuy acts as a technology intermediary connecting Clients with Riders.
+          We do not directly provide delivery services. Except where a separate written
+          employment or engagement agreement states otherwise, Riders use the Platform as
+          independent contractors and not as employees, agents, or representatives of RiderGuy.
+          The &ldquo;In-House Rider&rdquo; label describes a training and onboarding channel; it
+          does not override the legal relationship stated in the Rider&apos;s separate agreement.
         </p>
 
         <h2>5. Licence to Use the Apps</h2>
@@ -71,7 +75,16 @@ export default function TermsPage() {
           </li>
         </ul>
 
-        <h2>7. Rider Obligations</h2>
+        <h2>7. Asset Lease Interest Program</h2>
+        <ul>
+          <li>The in-app 12-month lease page lets eligible RiderGuy-trained Riders register interest in a bike or electric vehicle.</li>
+          <li>Registering interest is not approval, an offer of credit, a vehicle reservation, or a lease agreement.</li>
+          <li>Eligibility, vehicle availability, pricing, deposits, payment dates, insurance, maintenance, ownership, default, and termination terms will be disclosed in a separate agreement before a Rider accepts anything.</li>
+          <li>No lease payment or credit decision is currently completed through the interest form in the Rider app.</li>
+          <li>Where a regulated or third-party provider is involved, its identity and applicable terms will be provided before the Rider&apos;s information is shared or an agreement is made.</li>
+        </ul>
+
+        <h2>8. Rider Obligations</h2>
         <p>As a Rider, you agree to:</p>
         <ul>
           <li>Maintain valid identification and vehicle registration</li>
@@ -82,7 +95,7 @@ export default function TermsPage() {
           <li>Complete deliveries in a timely manner</li>
         </ul>
 
-        <h2>8. Rider Location &amp; Tracking Consent</h2>
+        <h2>9. Rider Location &amp; Tracking Consent</h2>
         <p>
           To match you with nearby jobs and let Clients and support follow active deliveries, the
           RiderGuy Rider app collects your location while the app is in use and, when you are
@@ -94,7 +107,7 @@ export default function TermsPage() {
           ability to receive jobs.
         </p>
 
-        <h2>9. Client Obligations</h2>
+        <h2>10. Client Obligations</h2>
         <p>As a Client, you agree to:</p>
         <ul>
           <li>Provide accurate pickup and delivery information</li>
@@ -103,7 +116,7 @@ export default function TermsPage() {
           <li>Pay the quoted delivery fee and any applicable charges</li>
         </ul>
 
-        <h2>10. Prohibited Items</h2>
+        <h2>11. Prohibited Items</h2>
         <p>The following items may not be sent through the Platform:</p>
         <ul>
           <li>Illegal substances or contraband</li>
@@ -114,14 +127,14 @@ export default function TermsPage() {
           <li>Items requiring special licensing or permits</li>
         </ul>
 
-        <h2>11. Cancellation Policy</h2>
+        <h2>12. Cancellation Policy</h2>
         <p>
           Clients may cancel an order before a rider accepts it at no charge. Once a rider has
           accepted and is en route, a cancellation fee may apply. RiderGuy reserves the right to
           cancel orders that violate these Terms.
         </p>
 
-        <h2>12. Limitation of Liability</h2>
+        <h2>13. Limitation of Liability</h2>
         <p>
           To the maximum extent permitted by law, RiderGuy shall not be liable for any indirect,
           incidental, special, consequential, or punitive damages. Our total liability for any
@@ -129,14 +142,14 @@ export default function TermsPage() {
           preceding the claim.
         </p>
 
-        <h2>13. Indemnification</h2>
+        <h2>14. Indemnification</h2>
         <p>
           You agree to indemnify and hold harmless RiderGuy, its officers, directors, employees,
           and agents from any claims, damages, or expenses arising from your use of the Platform
           or violation of these Terms.
         </p>
 
-        <h2>14. Account Suspension and Termination</h2>
+        <h2>15. Account Suspension and Termination</h2>
         <p>
           We may suspend or terminate your account at our discretion if we believe you have
           violated these Terms, engaged in fraudulent activity, or pose a risk to the safety of
@@ -144,7 +157,7 @@ export default function TermsPage() {
           the in-app option or our <a href="/delete-account">Account Deletion page</a>.
         </p>
 
-        <h2>15. Mobile Apps &amp; App Stores</h2>
+        <h2>16. Mobile Apps &amp; App Stores</h2>
         <p>
           Your use of the apps is also subject to the rules of the app store from which you
           obtained them, including Google Play. Where you obtain the app through Google Play, you
@@ -154,33 +167,33 @@ export default function TermsPage() {
           settings.
         </p>
 
-        <h2>16. Dispute Resolution</h2>
+        <h2>17. Dispute Resolution</h2>
         <p>
           Any disputes arising from these Terms or your use of the Platform shall be resolved
           through binding arbitration in Accra, Ghana, in accordance with applicable Ghanaian
           arbitration laws.
         </p>
 
-        <h2>17. Governing Law</h2>
+        <h2>18. Governing Law</h2>
         <p>
           These Terms shall be governed by and construed in accordance with the laws of the
           Republic of Ghana.
         </p>
 
-        <h2>18. Severability &amp; Entire Agreement</h2>
+        <h2>19. Severability &amp; Entire Agreement</h2>
         <p>
           If any provision of these Terms is found unenforceable, the remaining provisions stay
           in full effect. These Terms, together with the Privacy Policy, constitute the entire
           agreement between you and RiderGuy regarding the Platform.
         </p>
 
-        <h2>19. Changes to Terms</h2>
+        <h2>20. Changes to Terms</h2>
         <p>
           We reserve the right to modify these Terms at any time. Material changes will be
           communicated through the Platform. Continued use constitutes acceptance.
         </p>
 
-        <h2>20. Contact</h2>
+        <h2>21. Contact</h2>
         <p>
           Questions about these Terms may be directed to{' '}
           <a href="mailto:legal@myriderguy.com">legal@myriderguy.com</a> or through our{' '}

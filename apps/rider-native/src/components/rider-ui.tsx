@@ -34,7 +34,7 @@ export function RiderHeader({
   return (
     <View style={styles.header}>
       {canGoBack ? (
-        <IconButton icon="arrow-back" onPress={() => router.back()} style={{ marginRight: 10 }} />
+        <IconButton accessibilityLabel="Go back" icon="arrow-back" onPress={() => router.back()} style={{ marginRight: 10 }} />
       ) : null}
       <View style={{ flex: 1 }}>
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
@@ -90,12 +90,14 @@ export function BrandHeader({
 }
 
 export function IconButton({
+  accessibilityLabel,
   icon,
   onPress,
   style,
   color = riderColors.ink,
   disabled,
 }: {
+  accessibilityLabel?: string;
   icon: IconName;
   onPress?: (event: GestureResponderEvent) => void;
   style?: StyleProp<ViewStyle>;
@@ -106,6 +108,9 @@ export function IconButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? cleanLabel(icon)}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       activeOpacity={0.8}
       style={[styles.iconButton, disabled ? { opacity: 0.45 } : null, style]}
     >
@@ -218,6 +223,9 @@ export function RiderButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
       activeOpacity={0.86}
       style={[styles.button, variantStyle, disabled || loading ? styles.disabled : null, style]}
     >

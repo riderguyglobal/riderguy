@@ -22,15 +22,15 @@ import { Counter } from '@/components/counter';
 export const metadata: Metadata = {
   title: 'For Riders | RiderGuy',
   description:
-    'Join RiderGuy and turn delivery riding into a real career. Earn the industry-leading rider share, get free training, insurance, and a clear path to grow.',
+    'Join RiderGuy and turn delivery riding into a real career with training, insurance, fast payouts, and an eligibility-reviewed 12-month vehicle lease program.',
 };
 
 const BENEFITS = [
   { icon: DollarSign,    title: 'Top Earnings',    desc: 'The highest rider earnings share in the industry. Your work, your money.' },
   { icon: GraduationCap, title: 'Free Training',   desc: 'Customer service, delivery best practices, and road safety training — all completely free.' },
   { icon: ShieldCheck,   title: 'Safety First',    desc: 'Professional road safety standards and accident prevention on every ride.' },
-  { icon: Umbrella,      title: 'Insurance',       desc: 'Accident and liability coverage for every active rider. Ride with peace of mind.' },
-  { icon: Wrench,        title: 'Asset Support',   desc: 'Access our partner repair shops and maintenance support to keep you on the road.' },
+  { icon: Umbrella,      title: 'Insurance Support', desc: 'Insurance guidance and any eligible coverage options are confirmed separately before activation.' },
+  { icon: Wrench,        title: 'Asset Financing', desc: 'Eligible RiderGuy-trained riders can register interest in a reviewed 12-month bike or EV lease program.' },
   { icon: Wallet,        title: 'Instant Payout',  desc: 'Earnings go straight to your in-app wallet. Withdraw anytime to mobile money or bank.' },
   { icon: TrendingUp,    title: 'Career Growth',   desc: 'Progress from Rookie to Legend across 7 levels. Higher levels unlock bonuses and priority jobs.' },
   { icon: Clock,         title: 'Flexible Hours',  desc: 'Go online when you want, offline when you need to. You control your schedule.' },
@@ -49,7 +49,7 @@ const LEVELS = [
 
 const REQUIREMENTS = [
   'Be at least 18 years old',
-  'Own a motorcycle, bicycle, or vehicle in good condition',
+  'Use an eligible vehicle, or complete RiderGuy training and qualify for the 12-month lease program',
   'Have a valid national ID or driver\'s license',
   'Own a smartphone with data access',
   'Pass our background and vehicle check',
@@ -61,8 +61,8 @@ const FAQS = [
   { q: 'Is there a joining fee?', a: 'No. Signing up and training are completely free. You will never pay to join RiderGuy.' },
   { q: 'What areas do you cover?', a: 'We are live across multiple cities, with new locations launching regularly. Check the app for coverage in your area.' },
   { q: 'How do I get paid?', a: 'Earnings land in your RiderGuy wallet after each delivery. Withdraw instantly to mobile money or bank transfer.' },
-  { q: 'Do I need my own motorcycle?', a: 'Yes, riders must have their own vehicle. We support motorcycles, bicycles, cars, and vans.' },
-  { q: 'What about insurance?', a: 'Every active rider is covered by our accident and third-party liability insurance at no cost.' },
+  { q: 'Do I need my own motorcycle?', a: 'Not necessarily. You can use an eligible vehicle you already have. RiderGuy-trained In-House Riders may also register interest in our reviewed 12-month bike or EV lease program. Eligibility, availability, pricing, deposits, and final terms are confirmed separately.' },
+  { q: 'What about insurance?', a: 'RiderGuy provides insurance guidance and confirms any eligible coverage options and terms separately. The app does not quote, sell, underwrite, or bind insurance.' },
 ];
 
 export default function ForRidersPage() {

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Remove "wallet" phrasing from both store listings (personal dev accounts
- * cannot distribute apps that present financial features; the client balance
- * is closed-loop so "in-app payments" is the accurate description).
+ * Normalize outdated "wallet" phrasing in both store listings where "in-app
+ * payments" or "earnings and cash out" is more precise. This script must never
+ * be used to conceal a real financial feature or replace an accurate Play
+ * Financial features declaration.
  * Defaults to preview-only. Listings are global metadata, so committing needs:
  *   --apply-live-listing --confirm-live-metadata=ALL_RIDERGUY_APPS
  */

@@ -19,7 +19,9 @@ export default function AppLayout() {
 
   if (!isAuthenticated) return <Redirect href="/(auth)" />;
 
-  const isOnboardingRoute = pathname.includes('/onboarding') || pathname.includes('/training');
+  const isOnboardingRoute = pathname.includes('/onboarding')
+    || pathname.includes('/training')
+    || pathname.includes('/asset-financing');
   const isVehicleManagementRoute = pathname.endsWith('/onboarding/vehicle')
     || pathname.endsWith('/onboarding/vehicle-photos');
   if (!onboarding.isActivated && !isOnboardingRoute) {
@@ -38,6 +40,7 @@ export default function AppLayout() {
       <Stack.Screen name="gamification" />
       <Stack.Screen name="training" />
       <Stack.Screen name="safety" />
+      <Stack.Screen name="asset-financing" />
       <Stack.Screen name="cancellations" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="wallet/add-funds" />

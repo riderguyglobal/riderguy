@@ -34,6 +34,7 @@ vi.mock('@riderguy/database', () => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     clientProfile: {
       updateMany: vi.fn(),
@@ -242,6 +243,7 @@ function mockRiderProfile(overrides: Record<string, unknown> = {}) {
     onboardingStatus: 'ACTIVATED',
     isVerified: true,
     user: { status: 'ACTIVE' },
+    vehicles: [{ reviewStatus: 'APPROVED' }],
     totalDeliveries: 50,
     averageRating: 4.8,
     totalRatings: 45,
@@ -261,6 +263,14 @@ function mockRiderProfile(overrides: Record<string, unknown> = {}) {
 describe('OrderService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    asMock(prisma.$executeRaw).mockResolvedValue(1);
+    asMock(prisma.riderProfile.updateMany).mockResolvedValue({ count: 1 });
+    asMock(prisma.$transaction).mockImplementation(async (operation: unknown) => {
+      if (typeof operation === 'function') {
+        return (operation as (tx: typeof prisma) => unknown)(prisma);
+      }
+      return Promise.all(operation as Promise<unknown>[]);
+    });
   });
 
   // ────────────────────────────────────────────────────────────
@@ -542,13 +552,17 @@ describe('OrderService', () => {
         'order',
       );
 
-      // Should update rider stats (increment totalDeliveries, set ONLINE)
+      // Stats and post-work eligibility are evaluated under the Rider lock.
       expect(prisma.riderProfile.update).toHaveBeenCalledWith({
         where: { id: 'rider-1' },
-        data: {
-          totalDeliveries: { increment: 1 },
-          availability: 'ONLINE',
-        },
+        data: { totalDeliveries: { increment: 1 } },
+      });
+      expect(prisma.riderProfile.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          id: 'rider-1',
+          vehicles: { some: { reviewStatus: 'APPROVED' } },
+        }),
+        data: { availability: 'ONLINE' },
       });
 
       // Should update client stats
@@ -1016,8 +1030,8 @@ describe('OrderService', () => {
 
       await transitionStatus('order-1', 'CANCELLED_BY_CLIENT' as any, 'client-1');
 
-      expect(prisma.riderProfile.update).toHaveBeenCalledWith({
-        where: { id: 'rider-1' },
+      expect(prisma.riderProfile.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 'rider-1' }),
         data: { availability: 'ONLINE' },
       });
     });
@@ -1034,10 +1048,33 @@ describe('OrderService', () => {
 
       await transitionStatus('order-1', 'FAILED' as any, 'rider-user-1', 'Recipient unreachable');
 
-      expect(prisma.riderProfile.update).toHaveBeenCalledWith({
-        where: { id: 'rider-1' },
+      expect(prisma.riderProfile.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 'rider-1' }),
         data: { availability: 'ONLINE' },
       });
+    });
+
+    it('leaves a Rider offline after terminal work when vehicle approval was revoked mid-delivery', async () => {
+      const order = mockOrder({ status: 'IN_TRANSIT', riderId: 'rider-1' });
+      const failed = mockOrder({ status: 'FAILED', riderId: 'rider-1' });
+
+      asMock(prisma.order.findUnique).mockResolvedValue(order);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(failed);
+      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
+      asMock(prisma.riderProfile.updateMany).mockResolvedValue({ count: 0 });
+      asMock(prisma.riderProfile.update).mockResolvedValue({});
+
+      await transitionStatus('order-1', 'FAILED' as any, 'rider-user-1', 'Recipient unreachable');
+
+      expect(prisma.riderProfile.update).toHaveBeenCalledWith({
+        where: { id: 'rider-1' },
+        data: { availability: 'OFFLINE' },
+      });
+      expect(prisma.$executeRaw).toHaveBeenCalledOnce();
+      expect(asMock(prisma.$executeRaw).mock.calls[0]?.[1]).toBe(
+        'riderguy:rider-vehicle-state:rider-1',
+      );
     });
   });
 });

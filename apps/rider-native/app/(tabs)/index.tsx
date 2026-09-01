@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   type AppStateStatus,
   Image,
   Modal,
   RefreshControl,
-  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -255,6 +253,19 @@ export default function RiderHomeScreen() {
       return jobs;
     },
     refetchInterval: 15000,
+  });
+
+  const {
+    data: gamificationProfile,
+    isError: gamificationError,
+    isLoading: gamificationLoading,
+    refetch: refetchGamification,
+  } = useQuery({
+    queryKey: ['gamification-profile'],
+    queryFn: async () => {
+      const { data } = await api.get('/gamification/profile');
+      return data.data ?? data;
+    },
   });
 
   useEffect(() => {
@@ -542,6 +553,7 @@ export default function RiderHomeScreen() {
       refetchProfile(),
       refetchAvailableJobs(),
       refetchRecentJobs(),
+      refetchGamification(),
     ]);
   };
 
@@ -556,6 +568,7 @@ export default function RiderHomeScreen() {
   const walletUnavailable = !wallet && !walletLoading;
   const profileUnavailable = !profile && !profileLoading;
   const recentJobsUnavailable = !recentJobs && !recentJobsLoading;
+  const gamificationUnavailable = !gamificationProfile && !gamificationLoading;
   const todayAmount = walletUnavailable
     ? 'Unavailable'
     : walletLoading && !wallet
@@ -578,7 +591,7 @@ export default function RiderHomeScreen() {
     clock,
   );
   const retryDashboardData = async () => {
-    await Promise.allSettled([refetchWallet(), refetchProfile(), refetchRecentJobs()]);
+    await Promise.allSettled([refetchWallet(), refetchProfile(), refetchRecentJobs(), refetchGamification()]);
   };
 
   return (
@@ -611,11 +624,15 @@ export default function RiderHomeScreen() {
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 22 }}
           >
             <HomeDashboard
-              dataError={walletError || profileError || recentJobsError || walletUnavailable || profileUnavailable || recentJobsUnavailable}
+              dataError={walletError || profileError || recentJobsError || gamificationError || walletUnavailable || profileUnavailable || recentJobsUnavailable || gamificationUnavailable}
+              gamification={gamificationProfile}
+              gamificationLoading={gamificationLoading}
+              gamificationUnavailable={gamificationUnavailable}
               isOnline={isOnline}
               onGoOffline={goOffline}
               onGoOnline={goOnline}
               onAvailabilityPress={() => setAvailabilityMenuOpen(true)}
+              onOpenLiveMap={() => setShowLiveMap(true)}
               onRetryData={() => void retryDashboardData()}
               profile={profile}
               profileLoading={profileLoading}
@@ -673,10 +690,14 @@ export default function RiderHomeScreen() {
 
 function HomeDashboard({
   dataError,
+  gamification,
+  gamificationLoading,
+  gamificationUnavailable,
   isOnline,
   onGoOffline,
   onGoOnline,
   onAvailabilityPress,
+  onOpenLiveMap,
   onRetryData,
   profile,
   profileLoading,
@@ -691,10 +712,14 @@ function HomeDashboard({
   walletUnavailable,
 }: {
   dataError: boolean;
+  gamification: any;
+  gamificationLoading: boolean;
+  gamificationUnavailable: boolean;
   isOnline: boolean;
   onGoOffline: () => void;
   onGoOnline: () => void;
   onAvailabilityPress: () => void;
+  onOpenLiveMap: () => void;
   onRetryData: () => void;
   profile: any;
   profileLoading: boolean;
@@ -747,25 +772,17 @@ function HomeDashboard({
         ? rating.toFixed(1)
         : 'New';
   const firstName = String(user?.firstName ?? 'Rider').trim() || 'Rider';
-  const referralCode = String(user?.referralCode ?? profile?.referralCode ?? '').trim();
-
-  const shareReferral = () => {
-    if (!referralCode) {
-      Alert.alert(
-        'Referral code unavailable',
-        'Your personal referral code has not been issued yet. Refresh your profile later or contact RiderGuy support. No placeholder code will be shared.',
-      );
-      return;
-    }
-
-    void Share.share({
-      title: 'Join RiderGuy',
-      message: `Join me on RiderGuy and start earning as a delivery rider. Use my referral code: ${referralCode}. https://myriderguy.com/for-riders`,
-    }).catch(() => {
-      Toast.show({ type: 'error', text1: 'Could not open sharing.' });
-    });
-  };
-
+  const levelName = gamificationUnavailable
+    ? 'Unavailable'
+    : gamificationLoading && !gamification
+      ? 'Checking…'
+      : String(gamification?.levelName ?? 'Rookie');
+  const totalXp = gamificationUnavailable
+    ? '—'
+    : gamificationLoading && !gamification
+      ? '…'
+      : String(gamification?.totalXp ?? gamification?.xp ?? 0);
+  const levelProgress = Math.max(0, Math.min(100, Number(gamification?.progressPercent ?? 0)));
   return (
     <View style={homeStyles.dashboard}>
       <View style={homeStyles.greetingArea}>
@@ -823,30 +840,27 @@ function HomeDashboard({
           loading={toggling || availabilityLoading}
           onToggle={profileUnavailable ? onRetryData : isOnline ? onGoOffline : onGoOnline}
         />
+        {isOnline ? <HomeLiveMapButton onPress={onOpenLiveMap} /> : null}
       </View>
 
       <View style={[homeStyles.section, homeStyles.sectionSpacing]}>
         <Text style={homeStyles.sectionTitle}>Recommended for You</Text>
         <View style={homeStyles.recommendationRow}>
           <HomeRecommendationTile
-            icon="gift-outline"
-            title="Refer & Earn"
-            body={referralCode
-              ? 'Invite friends and earn exciting bonuses.'
-              : profileUnavailable
-                ? 'Referral details are currently unavailable.'
-                : 'Your personal invite code is being prepared.'}
-            iconColor="#08A86B"
-            iconBackground="#E7F7F0"
-            onPress={shareReferral}
-          />
-          <HomeRecommendationTile
             icon="school-outline"
-            title="Learning Center"
-            body="Learn, grow and be a better rider."
+            title="Training"
+            body="Train, certify, and build your rider career."
             iconColor="#277AE7"
             iconBackground="#EAF2FF"
             onPress={() => router.push('/(app)/training')}
+          />
+          <HomeRecommendationTile
+            icon="shield-checkmark-outline"
+            title="Safety Center"
+            body="Safety tools, guidance, and emergency help."
+            iconColor="#08A86B"
+            iconBackground="#E7F7F0"
+            onPress={() => router.push('/(app)/safety')}
           />
           <HomeRecommendationTile
             icon="people-outline"
@@ -856,10 +870,24 @@ function HomeDashboard({
             iconBackground="#FFF4D8"
             onPress={() => router.push('/(tabs)/community')}
           />
+          <HomeRecommendationTile
+            icon="bicycle-outline"
+            title="Asset Financing"
+            body="Explore a 12-month bike or EV lease."
+            iconColor="#7C3AED"
+            iconBackground="#F0EBFF"
+            onPress={() => router.push('/(app)/asset-financing')}
+          />
         </View>
       </View>
 
-      <HomeSafetyBand onPress={() => router.push('/(app)/safety')} />
+      <HomeLevelProgress
+        levelName={levelName}
+        progress={levelProgress}
+        totalXp={totalXp}
+        unavailable={gamificationUnavailable}
+        onPress={() => router.push('/(app)/gamification')}
+      />
     </View>
   );
 }
@@ -1090,32 +1118,72 @@ function HomeRecommendationTile({
   title: string;
 }) {
   return (
-    <TouchableOpacity activeOpacity={0.84} onPress={onPress} style={homeStyles.recommendationTile}>
+    <TouchableOpacity
+      activeOpacity={0.84}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${body}`}
+      onPress={onPress}
+      style={homeStyles.recommendationTile}
+    >
       <View style={[homeStyles.recommendationIcon, { backgroundColor: iconBackground }]}>
         <Ionicons name={icon} size={21} color={iconColor} />
       </View>
-      <Text style={homeStyles.recommendationTitle} numberOfLines={2}>{title}</Text>
-      <Text style={homeStyles.recommendationBody} numberOfLines={3}>{body}</Text>
+      <Text style={homeStyles.recommendationTitle}>{title}</Text>
+      <Text style={homeStyles.recommendationBody}>{body}</Text>
       <Ionicons name="chevron-forward" size={17} color="#777F7B" style={homeStyles.recommendationArrow} />
     </TouchableOpacity>
   );
 }
 
-function HomeSafetyBand({ onPress }: { onPress: () => void }) {
+function HomeLiveMapButton({ onPress }: { onPress: () => void }) {
   return (
-    <TouchableOpacity activeOpacity={0.86} onPress={onPress} style={homeStyles.safetyBand}>
-      <View style={homeStyles.safetyArtwork}>
-        <View style={homeStyles.safetyBubbleOne} />
-        <View style={homeStyles.safetyBubbleTwo} />
-        <MaterialCommunityIcons name="shield-check" size={39} color="#06A565" />
+    <TouchableOpacity
+      activeOpacity={0.84}
+      accessibilityRole="button"
+      accessibilityLabel="Open live delivery map"
+      onPress={onPress}
+      style={homeStyles.liveMapButton}
+    >
+      <Ionicons name="map" size={21} color={riderColors.greenDark} />
+      <Text style={homeStyles.liveMapButtonText}>Open live delivery map</Text>
+    </TouchableOpacity>
+  );
+}
+
+function HomeLevelProgress({
+  levelName,
+  onPress,
+  progress,
+  totalXp,
+  unavailable,
+}: {
+  levelName: string;
+  onPress: () => void;
+  progress: number;
+  totalXp: string;
+  unavailable: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.84}
+      accessibilityRole="button"
+      accessibilityLabel={unavailable ? 'Level progress unavailable. Open progress hub.' : `${levelName}. ${totalXp} XP. Open progress hub.`}
+      onPress={onPress}
+      style={homeStyles.levelCard}
+    >
+      <View style={homeStyles.levelHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={homeStyles.levelTitle}>Level progress</Text>
+          <Text style={homeStyles.levelName}>{levelName}</Text>
+        </View>
+        <View style={[homeStyles.levelXpPill, unavailable ? homeStyles.levelXpPillUnavailable : null]}>
+          <Text style={[homeStyles.levelXpText, unavailable ? homeStyles.levelXpTextUnavailable : null]}>
+            {totalXp} XP
+          </Text>
+        </View>
       </View>
-      <View style={homeStyles.safetyCopy}>
-        <Text style={homeStyles.safetyTitle}>Ride Safe, Deliver Safe</Text>
-        <Text style={homeStyles.safetyBody} numberOfLines={2}>Follow safety guidelines and make every delivery count.</Text>
-      </View>
-      <View style={homeStyles.safetyButton}>
-        <Text style={homeStyles.safetyButtonText}>Safety Center</Text>
-        <Ionicons name="chevron-forward" size={15} color="#08A568" />
+      <View style={{ marginTop: 12 }}>
+        <ProgressBar progress={progress} color={riderColors.greenDark} />
       </View>
     </TouchableOpacity>
   );
@@ -1589,21 +1657,46 @@ const homeStyles = StyleSheet.create({
     fontFamily: riderFonts.semibold,
     fontWeight: '700',
   },
+  liveMapButton: {
+    minHeight: 54,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#E2EAE6',
+    backgroundColor: '#FFFFFF',
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    shadowColor: '#17241E',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  liveMapButtonText: {
+    color: '#07975F',
+    fontSize: 12.5,
+    fontFamily: riderFonts.semibold,
+    fontWeight: '800',
+  },
   recommendationRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   recommendationTile: {
-    flex: 1,
+    flexBasis: '47%',
+    flexGrow: 1,
     minWidth: 0,
-    height: 116,
+    minHeight: 132,
     borderRadius: 11,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EEF2F0',
     paddingHorizontal: 8,
     paddingTop: 8,
-    paddingBottom: 8,
+    paddingBottom: 26,
     alignItems: 'center',
     shadowColor: '#17241E',
     shadowOffset: { width: 0, height: 4 },
@@ -1629,8 +1722,8 @@ const homeStyles = StyleSheet.create({
   },
   recommendationBody: {
     color: '#737A76',
-    fontSize: 9.3,
-    lineHeight: 12.5,
+    fontSize: 10.5,
+    lineHeight: 14,
     fontFamily: riderFonts.regular,
     fontWeight: '500',
     textAlign: 'center',
@@ -1642,80 +1735,57 @@ const homeStyles = StyleSheet.create({
     right: 6,
     bottom: 8,
   },
-  safetyBand: {
-    minHeight: 70,
-    borderRadius: 11,
-    backgroundColor: '#EDF9F3',
+  levelCard: {
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2F2EA',
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
+    borderColor: '#E8EEEB',
+    padding: 15,
+    marginTop: 16,
     marginBottom: 2,
+    shadowColor: '#17241E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  safetyArtwork: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
+  levelHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
-  safetyBubbleOne: {
-    position: 'absolute',
-    width: 45,
-    height: 45,
-    borderRadius: 23,
-    backgroundColor: '#DDF3E8',
-  },
-  safetyBubbleTwo: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    left: 0,
-    bottom: 0,
-    backgroundColor: '#CDEBDE',
-  },
-  safetyCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  safetyTitle: {
+  levelTitle: {
     color: '#171A18',
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: riderFonts.bold,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-  safetyBody: {
-    color: '#727A76',
-    fontSize: 9.5,
-    lineHeight: 13,
+  levelName: {
+    color: '#737A76',
+    fontSize: 11,
     fontFamily: riderFonts.regular,
     marginTop: 3,
-    maxWidth: 165,
   },
-  safetyButton: {
-    height: 32,
-    borderRadius: 7,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    shadowColor: '#1B3227',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 1,
+  levelXpPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#B9EBD4',
+    backgroundColor: '#EAF8F1',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  safetyButtonText: {
-    color: '#08A568',
-    fontSize: 9.5,
+  levelXpPillUnavailable: {
+    borderColor: '#D8DEDB',
+    backgroundColor: '#F3F5F4',
+  },
+  levelXpText: {
+    color: '#07975F',
+    fontSize: 10.5,
     fontFamily: riderFonts.semibold,
-    fontWeight: '700',
+    fontWeight: '900',
+  },
+  levelXpTextUnavailable: {
+    color: '#737A76',
   },
 });
 

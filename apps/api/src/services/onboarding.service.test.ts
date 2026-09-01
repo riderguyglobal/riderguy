@@ -124,6 +124,7 @@ describe('OnboardingService security gates', () => {
       vehicles: [{
         id: 'vehicle-1',
         isApproved: true,
+        reviewStatus: 'APPROVED',
         photoFrontUrl: 'front.jpg',
         photoBackUrl: 'back.jpg',
         photoLeftUrl: 'left.jpg',
@@ -142,7 +143,7 @@ describe('OnboardingService security gates', () => {
     expect(readiness.missing).toContain('Delivery Operations is not admin-verified');
   });
 
-  it('blocks approval unless one approved vehicle has every required photo', async () => {
+  it('treats a rejected or unapproved vehicle as not ready even when all photos exist', async () => {
     asMock(prisma.riderProfile.findUnique).mockResolvedValue({
       ...baseRider,
       riderChannel: 'GUEST',
@@ -156,10 +157,11 @@ describe('OnboardingService security gates', () => {
       vehicles: [{
         id: 'vehicle-1',
         isApproved: false,
+        reviewStatus: 'PENDING',
         photoFrontUrl: 'front.jpg',
         photoBackUrl: 'back.jpg',
         photoLeftUrl: 'left.jpg',
-        photoRightUrl: null,
+        photoRightUrl: 'right.jpg',
       }],
       trainingCompletions: [],
     });
@@ -171,5 +173,94 @@ describe('OnboardingService security gates', () => {
     expect(readiness.missing).toContain(
       'Front, back, left, and right photos are required for an approved vehicle',
     );
+  });
+
+  it('blocks readiness when an approved vehicle is missing any required photo', async () => {
+    asMock(prisma.riderProfile.findUnique).mockResolvedValue({
+      ...baseRider,
+      riderChannel: 'GUEST',
+      user: {
+        documents: [
+          { type: 'NATIONAL_ID', status: 'APPROVED', createdAt: new Date() },
+          { type: 'DRIVERS_LICENSE', status: 'APPROVED', createdAt: new Date() },
+          { type: 'SELFIE', status: 'APPROVED', createdAt: new Date() },
+        ],
+      },
+      vehicles: [{
+        id: 'vehicle-1',
+        isApproved: true,
+        reviewStatus: 'APPROVED',
+        photoFrontUrl: 'front.jpg',
+        photoBackUrl: 'back.jpg',
+        photoLeftUrl: 'left.jpg',
+        photoRightUrl: null,
+      }],
+      trainingCompletions: [],
+    });
+
+    const readiness = await OnboardingService.getApprovalReadiness(baseRider.userId);
+
+    expect(readiness.ready).toBe(false);
+    expect(readiness.missing).not.toContain('No delivery vehicle has been approved');
+    expect(readiness.missing).toContain(
+      'Front, back, left, and right photos are required for an approved vehicle',
+    );
+  });
+
+  it('allows readiness when a Guest Rider has one approved vehicle with all four photos', async () => {
+    asMock(prisma.riderProfile.findUnique).mockResolvedValue({
+      ...baseRider,
+      riderChannel: 'GUEST',
+      user: {
+        documents: [
+          { type: 'NATIONAL_ID', status: 'APPROVED', createdAt: new Date() },
+          { type: 'DRIVERS_LICENSE', status: 'APPROVED', createdAt: new Date() },
+          { type: 'SELFIE', status: 'APPROVED', createdAt: new Date() },
+        ],
+      },
+      vehicles: [{
+        id: 'vehicle-1',
+        isApproved: true,
+        reviewStatus: 'APPROVED',
+        photoFrontUrl: 'front.jpg',
+        photoBackUrl: 'back.jpg',
+        photoLeftUrl: 'left.jpg',
+        photoRightUrl: 'right.jpg',
+      }],
+      trainingCompletions: [],
+    });
+
+    const readiness = await OnboardingService.getApprovalReadiness(baseRider.userId);
+
+    expect(readiness).toMatchObject({ ready: true, missing: [] });
+  });
+
+  it('revokes work access when an activated Rider no longer has an approved vehicle', async () => {
+    asMock(prisma.riderProfile.findUnique).mockResolvedValue({
+      ...baseRider,
+      onboardingStatus: 'ACTIVATED',
+      isVerified: true,
+      riderChannel: 'GUEST',
+      referralCode: 'RG-TEST',
+      user: {
+        email: 'rider@example.com',
+        phone: '+233241234567',
+        status: 'ACTIVE',
+        documents: [],
+      },
+      vehicles: [{
+        id: 'vehicle-1',
+        reviewStatus: 'REJECTED',
+        photoFrontUrl: 'front.jpg',
+        photoBackUrl: 'back.jpg',
+        photoLeftUrl: 'left.jpg',
+        photoRightUrl: 'right.jpg',
+      }],
+      trainingCompletions: [],
+    });
+
+    const progress = await OnboardingService.getProgress(baseRider.userId);
+
+    expect(progress.canAccessWork).toBe(false);
   });
 });

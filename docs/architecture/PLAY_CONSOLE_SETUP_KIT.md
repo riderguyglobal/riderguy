@@ -249,9 +249,12 @@ Expected result: rated for everyone / low maturity. The "users interact + share 
 
 Play Console → App content → Financial features.
 
-- **Answer: "My app doesn't provide any of these financial features."**
-- Why this is the honest answer: the client balance is **closed-loop** — top-ups can only be spent on RiderGuy deliveries; clients cannot withdraw or transfer money (`/wallets/withdraw` is rider/partner-only). Rider payouts are earnings settlement via Paystack, not a consumer financial service. The app offers no loans, credit, crypto, investments, money transfer, or gambling.
-- ⚠️ **2026-06 lesson:** declaring a "wallet"/financial feature on a **personal** developer account triggers an automatic rejection ("some types of apps can only be distributed by organizations" — Play Console Requirements, Aug 2024 rule). The store listings were rewritten to say "secure in-app payments" instead of "wallet" for the same reason. Long-term fix if real financial features are ever added: register a Play **organization** account (D-U-N-S required) and transfer the apps — org accounts are also exempt from the 12-tester/14-day closed-testing rule.
+- **Client app:** keep the closed-loop delivery balance/payment declaration accurate. If the form includes digital wallets or payments, declare the applicable feature rather than selecting "none."
+- **Rider app:** do **not** answer "My app doesn't provide any of these financial features." The app now promotes a reviewed 12-month bike/EV lease program and accepts interest requests. For the current interest-only flow, select **Support services → Other** and explain that no approval, credit decision, vehicle reservation, agreement, or lease payment happens in the app.
+- Also select **Support services → Insurance** because the Rider sign-in page promotes insurance. State that the current app provides guidance only and does not quote, sell, underwrite, bind, or collect payment for coverage; identify any provider and terms before real coverage is offered.
+- If the final commercial structure transfers ownership, extends credit, or connects Riders to a lender, reclassify it accurately (for example **Buy now, pay later** or **Loan facilitator**) and provide all requested provider/licensing documents.
+- ⚠️ **Production blocker:** Google Play requires apps providing financial products/services to use a verified **Organization** developer account. Do not submit the Rider app to Production from a personal account with the lease feature present.
+- ⚠️ **Ghana legal blocker:** keep the current screen to information + interest registration until Ghana-qualified counsel confirms whether RiderGuy or its partner needs a Bank of Ghana leasing or credit licence and approves the commercial disclosures/agreement.
 - **Google Play Billing is not required** here — physical transportation/delivery services use third-party processors (Paystack). Do **not** add in-app digital subscriptions without re-checking Play Billing policy.
 
 ---

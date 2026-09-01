@@ -46,10 +46,10 @@ export default function RiderLandingScreen() {
           <ImageBackground source={hero} resizeMode="cover" style={{ width: '100%', aspectRatio: 1.5 }} />
           <View style={{ paddingHorizontal: 16, paddingVertical: 14, backgroundColor: riderColors.green }}>
             <Text style={{ color: riderColors.ink, fontSize: 29, lineHeight: 33, fontWeight: '900' }}>
-              {'Prioritise Your Safety & Earn -'}
+              {'Deliver Safely & Earn - Prioritise Your Welfare'}
             </Text>
             <Text style={{ color: riderColors.ink2, fontSize: 13, lineHeight: 19, fontWeight: '700', marginTop: 6 }}>
-              Training, Insurance, Fast Pay-outs, 24hr Support
+              {'Training & Certification, Insurance, Asset Financing, Fast Pay-outs, 24hr Support'}
             </Text>
           </View>
         </View>

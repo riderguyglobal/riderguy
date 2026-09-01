@@ -420,8 +420,12 @@ Because RiderGuy includes wallets, payments, rider earnings, payouts, and withdr
 
 Required:
 
-- Declare financial features if Play Console asks.
-- Confirm the app does not offer loans, credit, crypto, investment, gambling, or unrelated financial products unless licensed and compliant.
+- Declare every applicable financial feature; do not use the "none" answer for the Rider app while its 12-month bike/EV lease program is present.
+- For the current information-and-interest-only lease flow, use **Support services → Other** and state clearly that the app makes no approval, credit decision, reservation, agreement, or lease payment.
+- Select **Support services → Insurance** while the Rider sign-in page promotes insurance, with an accurate guidance-only description until a provider and real coverage terms are confirmed.
+- If the commercial model later transfers ownership, extends credit, or connects Riders to a lender, update the declaration to the applicable purchase-agreement/loan category and provide the required licence/provider documents.
+- Use a verified Google Play **Organization** developer account before Production because the Rider app promotes a financial product/service.
+- Obtain Ghana legal/regulatory confirmation for the lease structure and provider before enabling offers, approvals, payments, or agreements.
 - Keep payment/payout wording accurate.
 - Be ready to provide licenses or documentation if Google requests them for target countries.
 

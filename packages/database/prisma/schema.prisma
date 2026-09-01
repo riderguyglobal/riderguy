@@ -68,6 +68,25 @@ enum VehicleType {
   TRUCK
 }
 
+enum VehicleReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AssetFinancingAssetType {
+  MOTORBIKE
+  ELECTRIC_VEHICLE
+}
+
+enum AssetFinancingInterestStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  DECLINED
+  WITHDRAWN
+}
+
 enum DocumentType {
   NATIONAL_ID
   DRIVERS_LICENSE
@@ -240,80 +259,81 @@ enum WebhookEventStatus {
 // ============================================================
 
 model User {
-  id             String        @id @default(cuid())
-  email          String?       @unique
-  phone          String        @unique
-  phoneVerified  Boolean       @default(false)
-  emailVerified  Boolean       @default(false)
-  passwordHash   String?
-  pinHash        String?
-  ghanaCardNumber String?      @unique
-  securityQuestion String?
-  securityAnswerHash String?
-  firstName      String
-  lastName       String
-  avatarUrl      String?
-  role           UserRole        // @deprecated — use `roles` array instead. Kept for backwards compat during migration.
-  roles          UserRole[]      @default([])
-  status         AccountStatus @default(PENDING_VERIFICATION)
-  failedLoginAttempts Int       @default(0)
-  lockedUntil    DateTime?
-  lastLoginAt    DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  deletedAt      DateTime?
+  id                  String        @id @default(cuid())
+  email               String?       @unique
+  phone               String        @unique
+  phoneVerified       Boolean       @default(false)
+  emailVerified       Boolean       @default(false)
+  passwordHash        String?
+  pinHash             String?
+  ghanaCardNumber     String?       @unique
+  securityQuestion    String?
+  securityAnswerHash  String?
+  firstName           String
+  lastName            String
+  avatarUrl           String?
+  role                UserRole // @deprecated — use `roles` array instead. Kept for backwards compat during migration.
+  roles               UserRole[]    @default([])
+  status              AccountStatus @default(PENDING_VERIFICATION)
+  failedLoginAttempts Int           @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
 
   // Relations
-  riderProfile   RiderProfile?
-  clientProfile  ClientProfile?
-  businessAccount BusinessAccount?
-  partnerProfile PartnerProfile?
-  documents      Document[]
-  sessions       Session[]
-  wallet         Wallet?
-  ordersAsClient Order[]       @relation("ClientOrders")
+  riderProfile        RiderProfile?
+  clientProfile       ClientProfile?
+  businessAccount     BusinessAccount?
+  partnerProfile      PartnerProfile?
+  documents           Document[]
+  sessions            Session[]
+  wallet              Wallet?
+  ordersAsClient      Order[]             @relation("ClientOrders")
   scheduledDeliveries ScheduledDelivery[] @relation("ClientScheduledDeliveries")
-  notifications  Notification[]
-  pushTokens     PushToken[]
+  notifications       Notification[]
+  pushTokens          PushToken[]
 
   // Community relations (Sprint 11)
-  chatMembers       ChatMember[]
-  chatMessages      ChatMessage[]
-  forumPosts        ForumPost[]
-  forumComments     ForumComment[]
-  forumVotes        ForumVote[]
-  announcements     Announcement[]     @relation("AnnouncementAuthor")
-  contentReports    ContentReport[]    @relation("ContentReporter")
-  pollVotes         PollVote[]
+  chatMembers    ChatMember[]
+  chatMessages   ChatMessage[]
+  forumPosts     ForumPost[]
+  forumComments  ForumComment[]
+  forumVotes     ForumVote[]
+  announcements  Announcement[]  @relation("AnnouncementAuthor")
+  contentReports ContentReport[] @relation("ContentReporter")
+  pollVotes      PollVote[]
 
   // Sprint 12 relations
-  events                Event[]              @relation("EventCreator")
+  events                Event[]                @relation("EventCreator")
   eventRsvps            EventRsvp[]
-  featureRequests       FeatureRequest[]      @relation("FeatureRequestAuthor")
+  featureRequests       FeatureRequest[]       @relation("FeatureRequestAuthor")
   featureRequestUpvotes FeatureRequestUpvote[]
 
   // Community places (user-contributed locations)
-  communityPlaces       CommunityPlace[]
+  communityPlaces CommunityPlace[]
 
   // Promo code usages
-  promoCodeUsages       PromoCodeUsage[]
+  promoCodeUsages PromoCodeUsage[]
 
   // Job postings created by admin
-  jobPostings           JobPosting[]       @relation("JobPostingsCreatedBy")
+  jobPostings JobPosting[] @relation("JobPostingsCreatedBy")
 
   // Rider onboarding administration
-  riderInvitationsCreated RiderInvitation[] @relation("RiderInvitationCreator")
-  riderApplicationsReviewed RiderProfile[]  @relation("RiderApplicationReviewer")
+  riderInvitationsCreated         RiderInvitation[]        @relation("RiderInvitationCreator")
+  riderApplicationsReviewed       RiderProfile[]           @relation("RiderApplicationReviewer")
+  vehiclesReviewed                Vehicle[]                @relation("VehicleReviewer")
+  assetFinancingInterestsReviewed AssetFinancingInterest[] @relation("AssetFinancingInterestReviewer")
 
-  emailTokens    EmailToken[]
+  emailTokens         EmailToken[]
+  webauthnCredentials WebAuthnCredential[]
 
   @@index([phone])
   @@index([email])
   @@index([ghanaCardNumber])
   @@index([role, status])
   @@index([status])
-  webauthnCredentials WebAuthnCredential[]
-
   @@map("users")
 }
 
@@ -365,17 +385,17 @@ model EmailToken {
 }
 
 model WebAuthnCredential {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  credentialId  String   @unique  // base64url-encoded credential ID
-  publicKey     String             // base64url-encoded public key
-  counter       BigInt   @default(0)
-  deviceType    String?            // "singleDevice" | "multiDevice"
-  transports    String[]           // e.g. ["internal", "hybrid"]
-  backedUp      Boolean  @default(false)
-  friendlyName  String?            // e.g. "iPhone 15", "Pixel 8"
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique // base64url-encoded credential ID
+  publicKey    String // base64url-encoded public key
+  counter      BigInt   @default(0)
+  deviceType   String? // "singleDevice" | "multiDevice"
+  transports   String[] // e.g. ["internal", "hybrid"]
+  backedUp     Boolean  @default(false)
+  friendlyName String? // e.g. "iPhone 15", "Pixel 8"
+  createdAt    DateTime @default(now())
 
   @@index([userId])
   @@map("webauthn_credentials")
@@ -384,9 +404,9 @@ model WebAuthnCredential {
 model WebAuthnChallenge {
   id        String   @id @default(cuid())
   challenge String   @unique
-  userId    String?            // set during registration flow
-  phone     String?            // set during login flow
-  type      String             // "registration" | "authentication"
+  userId    String? // set during registration flow
+  phone     String? // set during login flow
+  type      String // "registration" | "authentication"
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -399,83 +419,84 @@ model WebAuthnChallenge {
 // ============================================================
 
 model RiderProfile {
-  id                 String               @id @default(cuid())
-  userId             String               @unique
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  onboardingStatus   RiderOnboardingStatus @default(REGISTERED)
+  id                         String                @id @default(cuid())
+  userId                     String                @unique
+  user                       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  onboardingStatus           RiderOnboardingStatus @default(REGISTERED)
   // Null until the rider has deliberately selected Guest, or has redeemed a
   // server-issued invitation for the protected In-House channel.
-  riderChannel       RiderChannel?
-  requestedRiderChannel RiderChannel?
-  channelVerifiedAt  DateTime?
-  channelInvitationId String?              @unique
-  channelInvitation  RiderInvitation?      @relation("RiderInvitationConsumption", fields: [channelInvitationId], references: [id], onDelete: SetNull)
-  availability       RiderAvailability     @default(OFFLINE)
-  currentLevel       Int                  @default(1) // 1-7
-  totalXp            Int                  @default(0)
-  totalDeliveries    Int                  @default(0)
-  averageRating      Float                @default(0)
-  totalRatings       Int                  @default(0)
-  completionRate     Float                @default(0)
-  onTimeRate         Float                @default(0)
-  currentZoneId      String?
-  currentZone        Zone?                @relation(fields: [currentZoneId], references: [id], onDelete: SetNull)
-  preferredVehicleType VehicleType?
-  isVerified         Boolean              @default(false)
-  activatedAt        DateTime?
+  riderChannel               RiderChannel?
+  requestedRiderChannel      RiderChannel?
+  channelVerifiedAt          DateTime?
+  channelInvitationId        String?               @unique
+  channelInvitation          RiderInvitation?      @relation("RiderInvitationConsumption", fields: [channelInvitationId], references: [id], onDelete: SetNull)
+  availability               RiderAvailability     @default(OFFLINE)
+  currentLevel               Int                   @default(1) // 1-7
+  totalXp                    Int                   @default(0)
+  totalDeliveries            Int                   @default(0)
+  averageRating              Float                 @default(0)
+  totalRatings               Int                   @default(0)
+  completionRate             Float                 @default(0)
+  onTimeRate                 Float                 @default(0)
+  currentZoneId              String?
+  currentZone                Zone?                 @relation(fields: [currentZoneId], references: [id], onDelete: SetNull)
+  preferredVehicleType       VehicleType?
+  isVerified                 Boolean               @default(false)
+  activatedAt                DateTime?
   applicationRejectionReason String?
-  applicationReviewedAt DateTime?
-  applicationReviewedById String?
-  applicationReviewedBy User?             @relation("RiderApplicationReviewer", fields: [applicationReviewedById], references: [id], onDelete: SetNull)
-  referralCode       String               @unique
-  referredByRiderId  String?
-  referredByRider    RiderProfile?         @relation("RiderReferrals", fields: [referredByRiderId], references: [id], onDelete: SetNull)
-  referredRiders     RiderProfile[]        @relation("RiderReferrals")
-  currentLatitude    Float?
-  currentLongitude   Float?
-  lastLocationUpdate DateTime?
+  applicationReviewedAt      DateTime?
+  applicationReviewedById    String?
+  applicationReviewedBy      User?                 @relation("RiderApplicationReviewer", fields: [applicationReviewedById], references: [id], onDelete: SetNull)
+  referralCode               String                @unique
+  referredByRiderId          String?
+  referredByRider            RiderProfile?         @relation("RiderReferrals", fields: [referredByRiderId], references: [id], onDelete: SetNull)
+  referredRiders             RiderProfile[]        @relation("RiderReferrals")
+  currentLatitude            Float?
+  currentLongitude           Float?
+  lastLocationUpdate         DateTime?
 
   // ── Presence tracking — keeps API gates open while rider is ONLINE ──
-  lastHeartbeat      DateTime?            // Server-side heartbeat timestamp (updated every ping)
-  lastSeenAt         DateTime?            // Last time any activity detected (socket or REST)
-  socketId           String?              // Current Socket.IO connection id
-  isConnected        Boolean              @default(false) // True if socket is currently alive
-  sessionStartedAt   DateTime?            // When the current ONLINE session began
-  totalOnlineSeconds Int                  @default(0)     // Cumulative online time for analytics
-  connectionQuality  String?              // "excellent" | "good" | "poor" | "disconnected"
+  lastHeartbeat      DateTime? // Server-side heartbeat timestamp (updated every ping)
+  lastSeenAt         DateTime? // Last time any activity detected (socket or REST)
+  socketId           String? // Current Socket.IO connection id
+  isConnected        Boolean   @default(false) // True if socket is currently alive
+  sessionStartedAt   DateTime? // When the current ONLINE session began
+  totalOnlineSeconds Int       @default(0) // Cumulative online time for analytics
+  connectionQuality  String? // "excellent" | "good" | "poor" | "disconnected"
 
   referredByPartnerId String?
-  referredByPartner  PartnerProfile?      @relation("ReferredRiders", fields: [referredByPartnerId], references: [id])
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  referredByPartner   PartnerProfile? @relation("ReferredRiders", fields: [referredByPartnerId], references: [id])
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   // Relations
-  vehicles           Vehicle[]
-  ordersAsRider      Order[]              @relation("RiderOrders")
-  partnerRecruitments PartnerRecruitment[] @relation("RecruitedRider")
-  badges             RiderBadge[]
-  xpEvents           XpEvent[]
-  streak             RiderStreak?
+  vehicles                Vehicle[]
+  ordersAsRider           Order[]                   @relation("RiderOrders")
+  partnerRecruitments     PartnerRecruitment[]      @relation("RecruitedRider")
+  badges                  RiderBadge[]
+  xpEvents                XpEvent[]
+  streak                  RiderStreak?
   challengeParticipations ChallengeParticipant[]
-  rewardRedemptions  RewardRedemption[]
-  rewardPoints       Int                  @default(0) // Reward store points balance
-  favoritedByClients FavoriteRider[]
-  locationHistory    LocationHistory[]
-  trainingCompletions RiderTrainingCompletion[]
+  rewardRedemptions       RewardRedemption[]
+  rewardPoints            Int                       @default(0) // Reward store points balance
+  favoritedByClients      FavoriteRider[]
+  locationHistory         LocationHistory[]
+  trainingCompletions     RiderTrainingCompletion[]
+  assetFinancingInterest  AssetFinancingInterest?
 
   // Sprint 12 — Identity & Mentorship
-  bio                String?              @db.Text
-  publicProfileUrl   String?              @unique
-  mentorships        Mentorship[]         @relation("MentorRelation")
-  menteeships        Mentorship[]         @relation("MenteeRelation")
-  spotlights         RiderSpotlight[]
+  bio              String?          @db.Text
+  publicProfileUrl String?          @unique
+  mentorships      Mentorship[]     @relation("MentorRelation")
+  menteeships      Mentorship[]     @relation("MenteeRelation")
+  spotlights       RiderSpotlight[]
 
   // Cancellation tracking
-  cancellationCount  Int                  @default(0)
-  lastCancellationAt DateTime?
-  suspendedUntil     DateTime?            // Non-null = currently suspended from new orders
-  cancellationRecords    CancellationRecord[]
-  cancellationRequests   CancellationRequest[]
+  cancellationCount    Int                   @default(0)
+  lastCancellationAt   DateTime?
+  suspendedUntil       DateTime? // Non-null = currently suspended from new orders
+  cancellationRecords  CancellationRecord[]
+  cancellationRequests CancellationRequest[]
 
   @@index([availability])
   @@index([currentZoneId])
@@ -491,17 +512,17 @@ model RiderProfile {
 /// A one-time, server-issued authorization for joining the protected
 /// RiderGuy In-House channel. Only the hash is stored; plaintext is shown once.
 model RiderInvitation {
-  id             String   @id @default(cuid())
-  codeHash       String   @unique
-  targetEmail    String?
-  targetPhone    String?
-  expiresAt      DateTime
-  usedAt         DateTime?
-  revokedAt      DateTime?
-  createdById    String
-  createdBy      User     @relation("RiderInvitationCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  consumedBy     RiderProfile? @relation("RiderInvitationConsumption")
-  createdAt      DateTime @default(now())
+  id          String        @id @default(cuid())
+  codeHash    String        @unique
+  targetEmail String?
+  targetPhone String?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdById String
+  createdBy   User          @relation("RiderInvitationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  consumedBy  RiderProfile? @relation("RiderInvitationConsumption")
+  createdAt   DateTime      @default(now())
 
   @@index([expiresAt])
   @@index([targetEmail])
@@ -512,41 +533,75 @@ model RiderInvitation {
 /// Persisted training progress. A rider can complete a module, but an admin
 /// must verify it before it satisfies In-House activation requirements.
 model RiderTrainingCompletion {
-  id           String   @id @default(cuid())
+  id           String       @id @default(cuid())
   riderId      String
   rider        RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
   moduleKey    String
-  completedAt  DateTime @default(now())
+  completedAt  DateTime     @default(now())
   verifiedAt   DateTime?
   verifiedById String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@unique([riderId, moduleKey])
   @@index([verifiedAt])
   @@map("rider_training_completions")
 }
 
+/// One durable lease-interest record per Rider. Ownership is linked through
+/// RiderProfile -> User so account deletion cascades without duplicating an
+/// independently mutable userId on this record.
+model AssetFinancingInterest {
+  id           String                       @id @default(cuid())
+  riderId      String                       @unique
+  rider        RiderProfile                 @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  assetType    AssetFinancingAssetType
+  status       AssetFinancingInterestStatus @default(SUBMITTED)
+  contactEmail String
+  notes        String?                      @db.Text
+  reviewNotes  String?                      @db.Text
+  submittedAt  DateTime                     @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?                        @relation("AssetFinancingInterestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+
+  @@index([status, submittedAt])
+  @@index([reviewedById])
+  @@map("asset_financing_interests")
+}
+
 model Vehicle {
-  id            String      @id @default(cuid())
-  riderId       String
-  rider         RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  type          VehicleType
-  make          String
-  model         String
-  year          Int?
-  color         String?
-  plateNumber   String
-  isPrimary     Boolean     @default(false)
-  photoFrontUrl String?
-  photoBackUrl  String?
-  photoLeftUrl  String?
-  photoRightUrl String?
-  isApproved    Boolean     @default(false)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String              @id @default(cuid())
+  riderId         String
+  rider           RiderProfile        @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  type            VehicleType
+  make            String
+  model           String
+  year            Int?
+  color           String?
+  plateNumber     String
+  isPrimary       Boolean             @default(false)
+  photoFrontUrl   String?
+  photoBackUrl    String?
+  photoLeftUrl    String?
+  photoRightUrl   String?
+  /// Legacy compatibility flag. Runtime writes keep this synchronized with
+  /// reviewStatus, which is the authoritative workflow state.
+  isApproved      Boolean             @default(false)
+  reviewStatus    VehicleReviewStatus @default(PENDING)
+  rejectionReason String?
+  reviewedById    String?
+  reviewedBy      User?               @relation("VehicleReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([riderId])
+  @@index([plateNumber])
+  @@index([reviewStatus])
+  @@index([reviewedById])
   @@map("vehicles")
 }
 
@@ -576,7 +631,7 @@ model SavedAddress {
   id           String        @id @default(cuid())
   clientId     String
   client       ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  label        String        // e.g., "Home", "Office"
+  label        String // e.g., "Home", "Office"
   address      String
   latitude     Float
   longitude    Float
@@ -589,12 +644,12 @@ model SavedAddress {
 }
 
 model FavoriteRider {
-  id        String        @id @default(cuid())
-  clientId  String
-  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  clientId       String
+  client         ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
   riderProfileId String
   riderProfile   RiderProfile  @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
-  createdAt DateTime      @default(now())
+  createdAt      DateTime      @default(now())
 
   @@unique([clientId, riderProfileId])
   @@index([riderProfileId])
@@ -676,124 +731,124 @@ model Document {
 // ============================================================
 
 model Order {
-  id                    String              @id @default(cuid())
-  orderNumber           String              @unique
-  clientId              String
-  client                User                @relation("ClientOrders", fields: [clientId], references: [id], onDelete: Restrict)
-  riderId               String?
-  rider                 RiderProfile?       @relation("RiderOrders", fields: [riderId], references: [id], onDelete: SetNull)
-  zoneId                String?
-  zone                  Zone?               @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  id          String        @id @default(cuid())
+  orderNumber String        @unique
+  clientId    String
+  client      User          @relation("ClientOrders", fields: [clientId], references: [id], onDelete: Restrict)
+  riderId     String?
+  rider       RiderProfile? @relation("RiderOrders", fields: [riderId], references: [id], onDelete: SetNull)
+  zoneId      String?
+  zone        Zone?         @relation(fields: [zoneId], references: [id], onDelete: SetNull)
 
   // Pickup
-  pickupAddress         String
-  pickupLatitude        Float
-  pickupLongitude       Float
-  pickupContactName     String?
-  pickupContactPhone    String?
-  pickupInstructions    String?
+  pickupAddress      String
+  pickupLatitude     Float
+  pickupLongitude    Float
+  pickupContactName  String?
+  pickupContactPhone String?
+  pickupInstructions String?
 
   // Dropoff
-  dropoffAddress        String
-  dropoffLatitude       Float
-  dropoffLongitude      Float
-  dropoffContactName    String?
-  dropoffContactPhone   String?
-  dropoffInstructions   String?
+  dropoffAddress      String
+  dropoffLatitude     Float
+  dropoffLongitude    Float
+  dropoffContactName  String?
+  dropoffContactPhone String?
+  dropoffInstructions String?
 
   // Package
-  packageType           PackageType
-  packageDescription    String?
-  packagePhotoUrl       String?
+  packageType        PackageType
+  packageDescription String?
+  packagePhotoUrl    String?
 
   // Pricing
-  distanceKm            Float
-  routeDistanceKm       Float?             // Actual route distance from Google Routes API (null = haversine used)
-  estimatedDurationMinutes  Int
-  baseFare              Decimal            @db.Decimal(12, 2)
-  distanceCharge        Decimal            @db.Decimal(12, 2)
-  surgeMultiplier       Float              @default(1.0)
-  timeOfDayMultiplier   Float              @default(1.0)
-  weatherMultiplier     Float              @default(1.0)
-  crossZoneMultiplier   Float              @default(1.0)
-  expressMultiplier     Float              @default(1.0)
-  weightSurcharge       Decimal            @default(0) @db.Decimal(12, 2)
-  packageWeightKg       Float?             // Declared weight
-  waitTimeCharge        Decimal            @default(0) @db.Decimal(12, 2)
-  waitTimeMinutes       Int                @default(0)
-  businessDiscount      Float              @default(0)   // 0–1 discount rate
-  promoDiscount         Decimal            @default(0) @db.Decimal(12, 2)
-  promoCodeId           String?
-  promoCode             PromoCode?         @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
-  serviceFee            Decimal            @db.Decimal(12, 2)
-  serviceFeeRate        Float              @default(0.10) // Actual rate used (may vary by payment method)
-  totalPrice            Decimal            @db.Decimal(12, 2)
-  currency              String             @default("GHS")
-  isExpress             Boolean            @default(false)
+  distanceKm               Float
+  routeDistanceKm          Float? // Actual route distance from Google Routes API (null = haversine used)
+  estimatedDurationMinutes Int
+  baseFare                 Decimal    @db.Decimal(12, 2)
+  distanceCharge           Decimal    @db.Decimal(12, 2)
+  surgeMultiplier          Float      @default(1.0)
+  timeOfDayMultiplier      Float      @default(1.0)
+  weatherMultiplier        Float      @default(1.0)
+  crossZoneMultiplier      Float      @default(1.0)
+  expressMultiplier        Float      @default(1.0)
+  weightSurcharge          Decimal    @default(0) @db.Decimal(12, 2)
+  packageWeightKg          Float? // Declared weight
+  waitTimeCharge           Decimal    @default(0) @db.Decimal(12, 2)
+  waitTimeMinutes          Int        @default(0)
+  businessDiscount         Float      @default(0) // 0–1 discount rate
+  promoDiscount            Decimal    @default(0) @db.Decimal(12, 2)
+  promoCodeId              String?
+  promoCode                PromoCode? @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  serviceFee               Decimal    @db.Decimal(12, 2)
+  serviceFeeRate           Float      @default(0.10) // Actual rate used (may vary by payment method)
+  totalPrice               Decimal    @db.Decimal(12, 2)
+  currency                 String     @default("GHS")
+  isExpress                Boolean    @default(false)
 
   // Payment
-  paymentMethod         PaymentMethod
-  paymentStatus         PaymentStatus      @default(PENDING)
-  paymentReference      String?
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentReference String?
 
   // Status
-  status                OrderStatus        @default(PENDING)
+  status OrderStatus @default(PENDING)
 
   // Proof of delivery
-  proofOfDeliveryType   ProofOfDeliveryType?
-  proofOfDeliveryUrl    String?
-  deliveryPinCode       String?
+  proofOfDeliveryType ProofOfDeliveryType?
+  proofOfDeliveryUrl  String?
+  deliveryPinCode     String?
 
   // Rider payment confirmation at delivery point
-  riderPaymentConfirmed Boolean            @default(false)
-  actualPaymentMethod   PaymentMethod?     // Method rider actually received (may differ from original)
+  riderPaymentConfirmed Boolean        @default(false)
+  actualPaymentMethod   PaymentMethod? // Method rider actually received (may differ from original)
 
   // Earnings
-  riderEarnings         Decimal?           @db.Decimal(12, 2)
-  platformCommission    Decimal?           @db.Decimal(12, 2)
-  tipAmount             Decimal            @default(0) @db.Decimal(12, 2)
+  riderEarnings      Decimal? @db.Decimal(12, 2)
+  platformCommission Decimal? @db.Decimal(12, 2)
+  tipAmount          Decimal  @default(0) @db.Decimal(12, 2)
 
   // Ratings
-  clientRating          Int?
-  clientReview          String?
-  riderRating           Int?
+  clientRating Int?
+  clientReview String?
+  riderRating  Int?
 
   // Scheduling
-  isScheduled           Boolean            @default(false)
-  scheduledAt           DateTime?
-  scheduleType          String?            // NOW, SAME_DAY, NEXT_DAY, RECURRING
-  scheduleDiscount      Float              @default(1.0)
+  isScheduled      Boolean   @default(false)
+  scheduledAt      DateTime?
+  scheduleType     String? // NOW, SAME_DAY, NEXT_DAY, RECURRING
+  scheduleDiscount Float     @default(1.0)
 
   // Multi-stop support
-  isMultiStop           Boolean            @default(false)
-  stops                 OrderStop[]
-  stopsJson             Json?              // Legacy / denormalized snapshot
+  isMultiStop Boolean     @default(false)
+  stops       OrderStop[]
+  stopsJson   Json? // Legacy / denormalized snapshot
 
   // Scheduled delivery link
-  scheduledDeliveryId   String?
-  scheduledDelivery     ScheduledDelivery? @relation(fields: [scheduledDeliveryId], references: [id], onDelete: SetNull)
+  scheduledDeliveryId String?
+  scheduledDelivery   ScheduledDelivery? @relation(fields: [scheduledDeliveryId], references: [id], onDelete: SetNull)
 
   // Failure
-  failureReason         String?
-  failurePhotoUrl       String?
+  failureReason   String?
+  failurePhotoUrl String?
 
   // Timestamps
-  assignedAt            DateTime?
-  pickedUpAt            DateTime?
-  deliveredAt           DateTime?
-  cancelledAt           DateTime?
+  assignedAt         DateTime?
+  pickedUpAt         DateTime?
+  deliveredAt        DateTime?
+  cancelledAt        DateTime?
   // PAY-07: Track when the delivery receipt email was sent so the receipt
   //         worker is idempotent on retry (no duplicate emails to clients).
-  receiptEmailSentAt    DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  deletedAt             DateTime?
+  receiptEmailSentAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   // Relations
-  statusHistory         OrderStatusHistory[]
-  messages              OrderMessage[]
-  cancellationRecord    CancellationRecord?
-  cancellationRequest   CancellationRequest?
+  statusHistory       OrderStatusHistory[]
+  messages            OrderMessage[]
+  cancellationRecord  CancellationRecord?
+  cancellationRequest CancellationRequest?
 
   @@index([clientId])
   @@index([riderId])
@@ -813,43 +868,43 @@ model Order {
 // ============================================================
 
 model OrderStop {
-  id                String     @id @default(cuid())
-  orderId           String
-  order             Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  type              StopType   // PICKUP or DROPOFF
-  sequence          Int        // Order in the route (1, 2, 3...)
-  status            StopStatus @default(PENDING)
+  type     StopType // PICKUP or DROPOFF
+  sequence Int // Order in the route (1, 2, 3...)
+  status   StopStatus @default(PENDING)
 
   // Location
-  address           String
-  latitude          Float
-  longitude         Float
-  placeId           String?    // Google place ID for precision
+  address   String
+  latitude  Float
+  longitude Float
+  placeId   String? // Google place ID for precision
 
   // Contact
-  contactName       String?
-  contactPhone      String?
-  instructions      String?
+  contactName  String?
+  contactPhone String?
+  instructions String?
 
   // Proof
-  proofType         ProofOfDeliveryType?
-  proofUrl          String?
-  pinCode           String?
+  proofType ProofOfDeliveryType?
+  proofUrl  String?
+  pinCode   String?
 
   // Package info (each stop can have its own package)
-  packageType       PackageType?
+  packageType        PackageType?
   packageDescription String?
-  packagePhotoUrl   String?
+  packagePhotoUrl    String?
 
   // Timestamps
-  arrivedAt         DateTime?
-  completedAt       DateTime?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  arrivedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  @@index([orderId])
   @@unique([orderId, sequence])
+  @@index([orderId])
   @@map("order_stops")
 }
 
@@ -858,31 +913,31 @@ model OrderStop {
 // ============================================================
 
 model ScheduledDelivery {
-  id                  String                   @id @default(cuid())
-  clientId            String
-  client              User                     @relation("ClientScheduledDeliveries", fields: [clientId], references: [id], onDelete: Cascade)
-  zoneId              String?
+  id       String  @id @default(cuid())
+  clientId String
+  client   User    @relation("ClientScheduledDeliveries", fields: [clientId], references: [id], onDelete: Cascade)
+  zoneId   String?
 
   // Schedule configuration
-  title               String?                  // e.g. "Daily office supplies run"
-  frequency           ScheduleFrequency        @default(ONCE)
-  scheduledDate       DateTime?                // For one-time future deliveries
-  scheduledTime       String?                  // HH:mm format for recurring (e.g. "09:00")
-  daysOfWeek          Int[]                    // For WEEKLY: [1,3,5] = Mon/Wed/Fri (ISO day numbers)
-  dayOfMonth          Int?                     // For MONTHLY: 1-31
-  customCronExpression String?                  // For CUSTOM frequency
-  startDate           DateTime?                // When the recurrence begins
-  endDate             DateTime?                // When the recurrence ends (null = indefinite)
-  maxOccurrences      Int?                     // Stop after N deliveries
-  occurrenceCount     Int                      @default(0)
+  title                String? // e.g. "Daily office supplies run"
+  frequency            ScheduleFrequency @default(ONCE)
+  scheduledDate        DateTime? // For one-time future deliveries
+  scheduledTime        String? // HH:mm format for recurring (e.g. "09:00")
+  daysOfWeek           Int[] // For WEEKLY: [1,3,5] = Mon/Wed/Fri (ISO day numbers)
+  dayOfMonth           Int? // For MONTHLY: 1-31
+  customCronExpression String? // For CUSTOM frequency
+  startDate            DateTime? // When the recurrence begins
+  endDate              DateTime? // When the recurrence ends (null = indefinite)
+  maxOccurrences       Int? // Stop after N deliveries
+  occurrenceCount      Int               @default(0)
 
   // Route template (reused for each generated order)
-  pickupAddress       String
-  pickupLatitude      Float
-  pickupLongitude     Float
-  pickupContactName   String?
-  pickupContactPhone  String?
-  pickupInstructions  String?
+  pickupAddress      String
+  pickupLatitude     Float
+  pickupLongitude    Float
+  pickupContactName  String?
+  pickupContactPhone String?
+  pickupInstructions String?
 
   dropoffAddress      String
   dropoffLatitude     Float
@@ -892,29 +947,29 @@ model ScheduledDelivery {
   dropoffInstructions String?
 
   // Multi-stop template
-  isMultiStop         Boolean                  @default(false)
-  stopsTemplate       Json?                    // Array of stop templates for multi-stop scheduled orders
+  isMultiStop   Boolean @default(false)
+  stopsTemplate Json? // Array of stop templates for multi-stop scheduled orders
 
   // Package defaults
-  packageType         PackageType?
-  packageDescription  String?
+  packageType        PackageType?
+  packageDescription String?
 
   // Pricing & payment
-  estimatedPrice      Decimal?             @db.Decimal(12, 2)
-  currency            String                   @default("GHS")
-  paymentMethod       PaymentMethod?
+  estimatedPrice Decimal?       @db.Decimal(12, 2)
+  currency       String         @default("GHS")
+  paymentMethod  PaymentMethod?
 
   // Status
-  status              ScheduledDeliveryStatus  @default(ACTIVE)
-  lastGeneratedAt     DateTime?
-  nextScheduledAt     DateTime?
+  status          ScheduledDeliveryStatus @default(ACTIVE)
+  lastGeneratedAt DateTime?
+  nextScheduledAt DateTime?
 
   // Timestamps
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  generatedOrders     Order[]
+  generatedOrders Order[]
 
   @@index([clientId])
   @@index([status])
@@ -928,7 +983,7 @@ model OrderStatusHistory {
   order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   status    OrderStatus
   note      String?
-  actor     String      // 'system', 'rider', 'client', 'admin', or a user ID
+  actor     String // 'system', 'rider', 'client', 'admin', or a user ID
   createdAt DateTime    @default(now())
 
   @@index([orderId])
@@ -952,7 +1007,7 @@ model OrderMessage {
 // ============================================================
 
 model LocationHistory {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   riderId   String
   rider     RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
   orderId   String?
@@ -960,7 +1015,7 @@ model LocationHistory {
   longitude Float
   heading   Float?
   speed     Float?
-  createdAt DateTime @default(now())
+  createdAt DateTime     @default(now())
 
   @@index([riderId, createdAt])
   @@index([orderId, createdAt])
@@ -972,27 +1027,27 @@ model LocationHistory {
 // ============================================================
 
 model Wallet {
-  id             String        @id @default(cuid())
-  userId         String        @unique
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   // PAY-06: DB-level CHECK (balance >= 0) constraint added via migration
   // 20260427150000_wallet_balance_check. Prisma schema cannot express
   // raw CHECK constraints, so the invariant is documented here and
   // enforced by Postgres directly. Application code MUST still use the
   // optimistic `gte: amount` guard for idempotency / race protection.
-  balance        Decimal       @default(0) @db.Decimal(12, 2)
-  currency       String        @default("GHS")
-  totalEarned    Decimal       @default(0) @db.Decimal(12, 2)
-  totalWithdrawn Decimal       @default(0) @db.Decimal(12, 2)
-  totalTips      Decimal       @default(0) @db.Decimal(12, 2)
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  balance        Decimal   @default(0) @db.Decimal(12, 2)
+  currency       String    @default("GHS")
+  totalEarned    Decimal   @default(0) @db.Decimal(12, 2)
+  totalWithdrawn Decimal   @default(0) @db.Decimal(12, 2)
+  totalTips      Decimal   @default(0) @db.Decimal(12, 2)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
   // Relations
-  transactions   Transaction[]
-  withdrawals    Withdrawal[]
+  transactions Transaction[]
+  withdrawals  Withdrawal[]
 
   @@map("wallets")
 }
@@ -1006,8 +1061,8 @@ model Transaction {
   balanceAfter  Decimal         @db.Decimal(12, 2)
   currency      String          @default("GHS")
   description   String
-  referenceId   String?         // order ID, withdrawal ID, etc.
-  referenceType String?         // 'order', 'withdrawal', 'bonus'
+  referenceId   String? // order ID, withdrawal ID, etc.
+  referenceType String? // 'order', 'withdrawal', 'bonus'
   metadata      Json?
   createdAt     DateTime        @default(now())
   deletedAt     DateTime?
@@ -1021,25 +1076,25 @@ model Transaction {
 }
 
 model Withdrawal {
-  id               String           @id @default(cuid())
-  walletId         String
-  wallet           Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  userId           String
-  amount           Decimal          @db.Decimal(12, 2)
-  currency         String           @default("GHS")
-  method           PaymentMethod
-  destination      String
-  destinationName  String
-  bankCode         String?
-  status           WithdrawalStatus @default(PENDING)
-  processedAt      DateTime?
-  failureReason    String?
-  paymentReference String?
+  id                    String           @id @default(cuid())
+  walletId              String
+  wallet                Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId                String
+  amount                Decimal          @db.Decimal(12, 2)
+  currency              String           @default("GHS")
+  method                PaymentMethod
+  destination           String
+  destinationName       String
+  bankCode              String?
+  status                WithdrawalStatus @default(PENDING)
+  processedAt           DateTime?
+  failureReason         String?
+  paymentReference      String?
   // Persisted Paystack transfer recipient code — reused on retry to prevent
   // duplicate recipient creation when a payout job re-runs after partial failure.
   paystackRecipientCode String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   @@index([walletId])
   @@index([userId])
@@ -1056,29 +1111,29 @@ model Zone {
   name            String     @unique
   description     String?
   status          ZoneStatus @default(ACTIVE)
-  polygon         Json       // GeoJSON polygon: number[][][]
+  polygon         Json // GeoJSON polygon: number[][][]
   centerLatitude  Float
   centerLongitude Float
   baseFare        Float
   perKmRate       Float
   minimumFare     Float
   surgeMultiplier Float      @default(1.0)
-  commissionRate  Float      // percentage 0-100
-  roadFactor      Float      @default(1.3)  // Zone-specific road factor
-  avgSpeedKmh     Float      @default(20)   // Zone-specific avg speed
+  commissionRate  Float // percentage 0-100
+  roadFactor      Float      @default(1.3) // Zone-specific road factor
+  avgSpeedKmh     Float      @default(20) // Zone-specific avg speed
   currency        String     @default("GHS")
   totalRiders     Int        @default(0)
   activeRiders    Int        @default(0)
-  pendingOrders   Int        @default(0)    // For dynamic surge calculation
+  pendingOrders   Int        @default(0) // For dynamic surge calculation
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
   // Relations
-  riders              RiderProfile[]
-  orders              Order[]
-  mentorships         Mentorship[]
-  events              Event[]
-  promoCodes          PromoCode[]
+  riders      RiderProfile[]
+  orders      Order[]
+  mentorships Mentorship[]
+  events      Event[]
+  promoCodes  PromoCode[]
 
   @@index([status])
   @@map("zones")
@@ -1089,30 +1144,30 @@ model Zone {
 // ============================================================
 
 model PromoCode {
-  id              String    @id @default(cuid())
-  code            String    @unique
+  id              String       @id @default(cuid())
+  code            String       @unique
   description     String?
   discountType    DiscountType @default(PERCENTAGE)
-  discountValue   Float        // percentage (0–100) or flat GHS amount
+  discountValue   Float // percentage (0–100) or flat GHS amount
   minOrderAmount  Decimal?     @db.Decimal(12, 2) // Minimum order subtotal to qualify
   maxDiscountGhs  Decimal?     @db.Decimal(12, 2) // Cap for percentage discounts
-  maxUses         Int?         // Total uses allowed (null = unlimited)
+  maxUses         Int? // Total uses allowed (null = unlimited)
   maxUsesPerUser  Int          @default(1)
   usedCount       Int          @default(0)
   validFrom       DateTime     @default(now())
   validUntil      DateTime?
   isActive        Boolean      @default(true)
   // Targeting
-  zoneId          String?      // Restrict to specific zone
+  zoneId          String? // Restrict to specific zone
   zone            Zone?        @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  packageTypes    String[]     // Restrict to specific package types (empty = all)
+  packageTypes    String[] // Restrict to specific package types (empty = all)
   forNewUsersOnly Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
   // Relations
-  orders          Order[]
-  usages          PromoCodeUsage[]
+  orders Order[]
+  usages PromoCodeUsage[]
 
   @@index([code])
   @@index([isActive, validUntil])
@@ -1144,42 +1199,42 @@ enum DiscountType {
 // ============================================================
 
 model PartnerProfile {
-  id                          String     @id @default(cuid())
-  userId                      String     @unique
-  user                        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  referralCode                String     @unique
-  tier                        PartnerTier @default(BRONZE)
-  totalRecruits               Int        @default(0)
-  activeRecruits              Int        @default(0)
-  totalCommissionEarned       Decimal    @default(0) @db.Decimal(12, 2)
-  pendingCommission           Decimal    @default(0) @db.Decimal(12, 2)
-  signUpBonusRate             Float      @default(0)
-  activationBonusRate         Float      @default(0)
-  ongoingCommissionRate       Float      @default(0) // percentage
-  ongoingCommissionDurationDays Int      @default(90)
-  isActive                    Boolean    @default(true)
-  createdAt                   DateTime   @default(now())
-  updatedAt                   DateTime   @updatedAt
+  id                            String      @id @default(cuid())
+  userId                        String      @unique
+  user                          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referralCode                  String      @unique
+  tier                          PartnerTier @default(BRONZE)
+  totalRecruits                 Int         @default(0)
+  activeRecruits                Int         @default(0)
+  totalCommissionEarned         Decimal     @default(0) @db.Decimal(12, 2)
+  pendingCommission             Decimal     @default(0) @db.Decimal(12, 2)
+  signUpBonusRate               Float       @default(0)
+  activationBonusRate           Float       @default(0)
+  ongoingCommissionRate         Float       @default(0) // percentage
+  ongoingCommissionDurationDays Int         @default(90)
+  isActive                      Boolean     @default(true)
+  createdAt                     DateTime    @default(now())
+  updatedAt                     DateTime    @updatedAt
 
   // Relations
-  recruitments    PartnerRecruitment[]
-  referredRiders  RiderProfile[]  @relation("ReferredRiders")
+  recruitments   PartnerRecruitment[]
+  referredRiders RiderProfile[]       @relation("ReferredRiders")
 
   @@index([referralCode])
   @@map("partner_profiles")
 }
 
 model PartnerRecruitment {
-  id                    String         @id @default(cuid())
-  partnerId             String
-  partner               PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  riderId               String
-  rider                 RiderProfile   @relation("RecruitedRider", fields: [riderId], references: [id], onDelete: Cascade)
-  signUpBonusPaid       Boolean        @default(false)
-  activationBonusPaid   Boolean        @default(false)
+  id                      String         @id @default(cuid())
+  partnerId               String
+  partner                 PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  riderId                 String
+  rider                   RiderProfile   @relation("RecruitedRider", fields: [riderId], references: [id], onDelete: Cascade)
+  signUpBonusPaid         Boolean        @default(false)
+  activationBonusPaid     Boolean        @default(false)
   ongoingCommissionEndsAt DateTime?
-  totalCommissionEarned Decimal        @default(0) @db.Decimal(12, 2)
-  createdAt             DateTime       @default(now())
+  totalCommissionEarned   Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt               DateTime       @default(now())
 
   @@unique([partnerId, riderId])
   @@index([partnerId])
@@ -1198,7 +1253,7 @@ model Notification {
   title     String
   body      String
   type      NotificationType // Typed enum instead of plain String
-  data      Json?            // arbitrary payload for deep linking
+  data      Json? // arbitrary payload for deep linking
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
@@ -1214,16 +1269,16 @@ model Notification {
 // ============================================================
 
 model PushToken {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique // FCM registration token; one device token has one current owner
-  platform  String   // 'web', 'android', 'ios'
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String          @unique // FCM registration token; one device token has one current owner
+  platform   String // 'web', 'android', 'ios'
   appProject PushAppProject? // Null only for deactivated rows created before project routing
-  deviceId  String?  // optional device identifier for de-duplication
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  deviceId   String? // optional device identifier for de-duplication
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   @@index([userId, isActive])
   @@index([appProject, isActive])
@@ -1238,12 +1293,12 @@ model PushToken {
 
 model WebhookEvent {
   id          String             @id @default(cuid())
-  provider    String             // 'paystack', 'mnotify', etc.
-  eventId     String             // Provider's unique event identifier
-  eventType   String             // e.g. 'charge.success', 'transfer.failed'
+  provider    String // 'paystack', 'mnotify', etc.
+  eventId     String // Provider's unique event identifier
+  eventType   String // e.g. 'charge.success', 'transfer.failed'
   status      WebhookEventStatus @default(PROCESSED)
-  payload     Json?              // Snapshot of relevant event data (no secrets)
-  error       String?            // Failure detail when status = FAILED
+  payload     Json? // Snapshot of relevant event data (no secrets)
+  error       String? // Failure detail when status = FAILED
   processedAt DateTime           @default(now())
 
   @@unique([provider, eventId])
@@ -1257,13 +1312,13 @@ model WebhookEvent {
 // ============================================================
 
 model XpEvent {
-  id          String       @id @default(cuid())
-  riderId     String
-  rider       RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  action      String       // e.g., "delivery_complete", "five_star_rating", "on_time", "referral", "streak"
-  points      Int
-  metadata    Json?        // arbitrary context (orderId, streak count, etc.)
-  createdAt   DateTime     @default(now())
+  id        String       @id @default(cuid())
+  riderId   String
+  rider     RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  action    String // e.g., "delivery_complete", "five_star_rating", "on_time", "referral", "streak"
+  points    Int
+  metadata  Json? // arbitrary context (orderId, streak count, etc.)
+  createdAt DateTime     @default(now())
 
   @@index([riderId])
   @@index([riderId, action])
@@ -1272,20 +1327,20 @@ model XpEvent {
 }
 
 model Badge {
-  id          String       @id @default(cuid())
-  slug        String       @unique // machine-readable key, e.g., "first_delivery"
-  name        String       // display name
-  description String       // what it means
-  icon        String       // emoji or icon key
-  category    String       @default("achievement") // "achievement", "milestone", "special"
-  criteria    Json?        // rule definition: { action: "delivery_complete", threshold: 1 }
-  xpReward    Int          @default(0) // bonus XP on earning this badge
-  isActive    Boolean      @default(true)
-  sortOrder   Int          @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id          String   @id @default(cuid())
+  slug        String   @unique // machine-readable key, e.g., "first_delivery"
+  name        String // display name
+  description String // what it means
+  icon        String // emoji or icon key
+  category    String   @default("achievement") // "achievement", "milestone", "special"
+  criteria    Json? // rule definition: { action: "delivery_complete", threshold: 1 }
+  xpReward    Int      @default(0) // bonus XP on earning this badge
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  riders      RiderBadge[]
+  riders RiderBadge[]
 
   @@index([category])
   @@index([isActive])
@@ -1299,7 +1354,7 @@ model RiderBadge {
   badgeId   String
   badge     Badge        @relation(fields: [badgeId], references: [id], onDelete: Cascade)
   awardedAt DateTime     @default(now())
-  seenAt    DateTime?    // null until rider dismisses the celebration
+  seenAt    DateTime? // null until rider dismisses the celebration
 
   @@unique([riderId, badgeId])
   @@index([riderId])
@@ -1312,15 +1367,15 @@ model RiderBadge {
 // ============================================================
 
 model RiderStreak {
-  id                String       @id @default(cuid())
-  riderId           String       @unique
-  rider             RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  currentStreak     Int          @default(0)   // consecutive active days
-  longestStreak     Int          @default(0)
-  lastActiveDate    DateTime?                  // last date rider completed a delivery
-  streakStartDate   DateTime?                  // when the current streak started
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  riderId         String       @unique
+  rider           RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  currentStreak   Int          @default(0) // consecutive active days
+  longestStreak   Int          @default(0)
+  lastActiveDate  DateTime? // last date rider completed a delivery
+  streakStartDate DateTime? // when the current streak started
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([currentStreak])
   @@map("rider_streaks")
@@ -1342,33 +1397,33 @@ enum ChallengeStatus {
 }
 
 model Challenge {
-  id            String          @id @default(cuid())
-  title         String
-  description   String
-  type          ChallengeType
-  status        ChallengeStatus @default(DRAFT)
-  icon          String          @default("🎯")
+  id             String          @id @default(cuid())
+  title          String
+  description    String
+  type           ChallengeType
+  status         ChallengeStatus @default(DRAFT)
+  icon           String          @default("🎯")
   // Criteria: what action & how many to complete
-  criteriaAction String         // e.g., "delivery_complete", "on_time_delivery", "five_star_rating"
-  criteriaCount  Int            // e.g., 10 deliveries
+  criteriaAction String // e.g., "delivery_complete", "on_time_delivery", "five_star_rating"
+  criteriaCount  Int // e.g., 10 deliveries
   // Reward
-  xpReward      Int             @default(0)
-  pointsReward  Int             @default(0)   // reward store points
-  badgeRewardId String?                        // optional badge awarded on completion
+  xpReward       Int             @default(0)
+  pointsReward   Int             @default(0) // reward store points
+  badgeRewardId  String? // optional badge awarded on completion
   // Targeting
-  zoneId        String?                        // null = all zones
-  minLevel      Int?                           // null = all levels
-  maxLevel      Int?
+  zoneId         String? // null = all zones
+  minLevel       Int? // null = all levels
+  maxLevel       Int?
   // Scheduling
-  startsAt      DateTime
-  endsAt        DateTime
+  startsAt       DateTime
+  endsAt         DateTime
   // Metadata
-  createdBy     String?                        // admin userId who created it
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdBy      String? // admin userId who created it
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   // Relations
-  participants  ChallengeParticipant[]
+  participants ChallengeParticipant[]
 
   @@index([status])
   @@index([type])
@@ -1382,8 +1437,8 @@ model ChallengeParticipant {
   challenge     Challenge    @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   riderId       String
   rider         RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  progress      Int          @default(0)      // current count towards criteriaCount
-  completedAt   DateTime?                     // null until completed
+  progress      Int          @default(0) // current count towards criteriaCount
+  completedAt   DateTime? // null until completed
   rewardClaimed Boolean      @default(false)
   joinedAt      DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -1395,21 +1450,21 @@ model ChallengeParticipant {
 }
 
 model RewardStoreItem {
-  id            String    @id @default(cuid())
-  name          String
-  description   String
-  icon          String    @default("🎁")
-  imageUrl      String?
-  category      String    @default("general") // "merchandise", "voucher", "perk", "general"
-  pointsCost    Int                           // how many reward points to redeem
-  inventory     Int       @default(-1)        // -1 = unlimited
-  isFeatured    Boolean   @default(false)
-  isActive      Boolean   @default(true)
-  sortOrder     Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  icon        String   @default("🎁")
+  imageUrl    String?
+  category    String   @default("general") // "merchandise", "voucher", "perk", "general"
+  pointsCost  Int // how many reward points to redeem
+  inventory   Int      @default(-1) // -1 = unlimited
+  isFeatured  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  redemptions   RewardRedemption[]
+  redemptions RewardRedemption[]
 
   @@index([category])
   @@index([isActive, isFeatured])
@@ -1425,17 +1480,17 @@ enum RedemptionStatus {
 }
 
 model RewardRedemption {
-  id            String           @id @default(cuid())
-  riderId       String
-  rider         RiderProfile     @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  itemId        String
-  item          RewardStoreItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  pointsSpent   Int
-  status        RedemptionStatus @default(PENDING)
-  notes         String?          // admin notes
-  fulfilledAt   DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id          String           @id @default(cuid())
+  riderId     String
+  rider       RiderProfile     @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        RewardStoreItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  pointsSpent Int
+  status      RedemptionStatus @default(PENDING)
+  notes       String? // admin notes
+  fulfilledAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([riderId])
   @@index([itemId])
@@ -1444,22 +1499,22 @@ model RewardRedemption {
 }
 
 model BonusXpEvent {
-  id            String    @id @default(cuid())
-  title         String                        // e.g., "Double XP Weekend"
+  id            String   @id @default(cuid())
+  title         String // e.g., "Double XP Weekend"
   description   String
-  multiplier    Float     @default(2.0)       // XP multiplier (2.0 = double)
+  multiplier    Float    @default(2.0) // XP multiplier (2.0 = double)
   // Can target specific actions or all
-  targetActions String[]  @default([])        // empty = all actions get multiplied
+  targetActions String[] @default([]) // empty = all actions get multiplied
   // Targeting
-  zoneId        String?                       // null = global
+  zoneId        String? // null = global
   // Scheduling
   startsAt      DateTime
   endsAt        DateTime
-  isActive      Boolean   @default(true)
+  isActive      Boolean  @default(true)
   // Metadata
   createdBy     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([isActive, startsAt, endsAt])
   @@map("bonus_xp_events")
@@ -1470,8 +1525,8 @@ model BonusXpEvent {
 // ============================================================
 
 enum ChatRoomType {
-  ZONE        // Zone-based group chat for riders in the same area
-  DIRECT      // 1:1 direct messages between riders
+  ZONE // Zone-based group chat for riders in the same area
+  DIRECT // 1:1 direct messages between riders
   ANNOUNCEMENT // Admin announcement channel (read-only for riders)
 }
 
@@ -1479,7 +1534,7 @@ enum ChatMessageType {
   TEXT
   IMAGE
   VOICE
-  SYSTEM      // e.g., "User joined", "Room created"
+  SYSTEM // e.g., "User joined", "Room created"
 }
 
 enum ForumPostCategory {
@@ -1524,19 +1579,19 @@ enum ModerationAction {
 
 model ChatRoom {
   id          String       @id @default(cuid())
-  name        String       // e.g., "Accra Central Riders", or auto-generated for DMs
+  name        String // e.g., "Accra Central Riders", or auto-generated for DMs
   type        ChatRoomType
-  zoneId      String?      // For ZONE type rooms — links to zone
+  zoneId      String? // For ZONE type rooms — links to zone
   description String?
   avatarUrl   String?
   isActive    Boolean      @default(true)
-  createdBy   String?      // Admin or system
+  createdBy   String? // Admin or system
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   // Relations
-  members     ChatMember[]
-  messages    ChatMessage[]
+  members  ChatMember[]
+  messages ChatMessage[]
 
   @@unique([type, zoneId], name: "unique_zone_room") // One room per zone
   @@index([type])
@@ -1570,8 +1625,8 @@ model ChatMessage {
   sender    User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
   type      ChatMessageType @default(TEXT)
   content   String
-  mediaUrl  String?         // For image/voice messages
-  replyToId String?         // Reply thread reference
+  mediaUrl  String? // For image/voice messages
+  replyToId String? // Reply thread reference
   isEdited  Boolean         @default(false)
   isDeleted Boolean         @default(false)
   createdAt DateTime        @default(now())
@@ -1588,25 +1643,25 @@ model ChatMessage {
 // ── Forums ──
 
 model ForumPost {
-  id         String            @id @default(cuid())
-  authorId   String
-  author     User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  title      String
-  body       String            @db.Text
-  category   ForumPostCategory @default(GENERAL)
-  isPinned   Boolean           @default(false)
-  isLocked   Boolean           @default(false) // No new comments
-  isDeleted  Boolean           @default(false)
-  viewCount  Int               @default(0)
-  upvotes    Int               @default(0)
-  downvotes  Int               @default(0)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id        String            @id @default(cuid())
+  authorId  String
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String
+  body      String            @db.Text
+  category  ForumPostCategory @default(GENERAL)
+  isPinned  Boolean           @default(false)
+  isLocked  Boolean           @default(false) // No new comments
+  isDeleted Boolean           @default(false)
+  viewCount Int               @default(0)
+  upvotes   Int               @default(0)
+  downvotes Int               @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   // Relations
-  comments   ForumComment[]
-  votes      ForumVote[]
-  poll       Poll?
+  comments ForumComment[]
+  votes    ForumVote[]
+  poll     Poll?
 
   @@index([authorId])
   @@index([category])
@@ -1617,23 +1672,23 @@ model ForumPost {
 }
 
 model ForumComment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   postId    String
   post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parentId  String?  // For nested replies
-  body      String   @db.Text
-  isDeleted Boolean  @default(false)
-  upvotes   Int      @default(0)
-  downvotes Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentId  String? // For nested replies
+  body      String    @db.Text
+  isDeleted Boolean   @default(false)
+  upvotes   Int       @default(0)
+  downvotes Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   // Self-relation for nested replies
-  parent    ForumComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
-  replies   ForumComment[] @relation("CommentReplies")
-  votes     ForumVote[]
+  parent  ForumComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies ForumComment[] @relation("CommentReplies")
+  votes   ForumVote[]
 
   @@index([postId, createdAt])
   @@index([authorId])
@@ -1642,15 +1697,15 @@ model ForumComment {
 }
 
 model ForumVote {
-  id         String        @id @default(cuid())
-  userId     String
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postId     String?
-  post       ForumPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commentId  String?
-  comment    ForumComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  value      Int           // +1 upvote, -1 downvote
-  createdAt  DateTime      @default(now())
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      ForumPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   ForumComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  value     Int // +1 upvote, -1 downvote
+  createdAt DateTime      @default(now())
 
   @@unique([userId, postId])
   @@unique([userId, commentId])
@@ -1662,27 +1717,27 @@ model ForumVote {
 // ── Polls (attached to forum posts) ──
 
 model Poll {
-  id        String       @id @default(cuid())
-  postId    String       @unique
-  post      ForumPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  postId    String    @unique
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   question  String
   expiresAt DateTime?
-  createdAt DateTime     @default(now())
+  createdAt DateTime  @default(now())
 
-  options   PollOption[]
+  options PollOption[]
 
   @@map("polls")
 }
 
 model PollOption {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   pollId    String
-  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
   text      String
-  position  Int        @default(0) // Display order
-  createdAt DateTime   @default(now())
+  position  Int      @default(0) // Display order
+  createdAt DateTime @default(now())
 
-  votes     PollVote[]
+  votes PollVote[]
 
   @@index([pollId])
   @@map("poll_options")
@@ -1704,19 +1759,19 @@ model PollVote {
 // ── Announcements ──
 
 model Announcement {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   authorId    String
-  author      User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  author      User       @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   title       String
-  body        String   @db.Text
-  priority    Int      @default(0) // 0=normal, 1=important, 2=urgent
-  targetZones String[] @default([]) // Empty = global, otherwise zone IDs
+  body        String     @db.Text
+  priority    Int        @default(0) // 0=normal, 1=important, 2=urgent
+  targetZones String[]   @default([]) // Empty = global, otherwise zone IDs
   targetRoles UserRole[] @default([RIDER]) // Which roles see it
-  isPublished Boolean  @default(false)
+  isPublished Boolean    @default(false)
   publishedAt DateTime?
   expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([isPublished, publishedAt])
   @@index([priority])
@@ -1726,20 +1781,20 @@ model Announcement {
 // ── Content Moderation ──
 
 model ContentReport {
-  id           String              @id @default(cuid())
-  reporterId   String
-  reporter     User                @relation("ContentReporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  reason       ContentReportReason
-  description  String?
+  id            String              @id @default(cuid())
+  reporterId    String
+  reporter      User                @relation("ContentReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reason        ContentReportReason
+  description   String?
   // What was reported (polymorphic via entityType + entityId)
-  entityType   String              // 'chat_message', 'forum_post', 'forum_comment'
-  entityId     String
-  status       ContentReportStatus @default(PENDING)
-  moderatorId  String?             // Admin who reviewed
+  entityType    String // 'chat_message', 'forum_post', 'forum_comment'
+  entityId      String
+  status        ContentReportStatus @default(PENDING)
+  moderatorId   String? // Admin who reviewed
   moderatorNote String?
-  actionTaken  ModerationAction?
-  resolvedAt   DateTime?
-  createdAt    DateTime            @default(now())
+  actionTaken   ModerationAction?
+  resolvedAt    DateTime?
+  createdAt     DateTime            @default(now())
 
   @@index([status])
   @@index([entityType, entityId])
@@ -1753,10 +1808,10 @@ model ContentReport {
 // ============================================================
 
 enum MentorshipStatus {
-  PENDING     // Awaiting mentee/mentor acceptance
-  ACTIVE      // Ongoing mentorship
-  COMPLETED   // Successfully completed
-  CANCELLED   // Cancelled by either party
+  PENDING // Awaiting mentee/mentor acceptance
+  ACTIVE // Ongoing mentorship
+  COMPLETED // Successfully completed
+  CANCELLED // Cancelled by either party
 }
 
 enum EventType {
@@ -1784,21 +1839,21 @@ enum FeatureRequestStatus {
 // ── Mentorship ──
 
 model Mentorship {
-  id           String           @id @default(cuid())
-  mentorId     String
-  mentor       RiderProfile     @relation("MentorRelation", fields: [mentorId], references: [id], onDelete: Cascade)
-  menteeId     String
-  mentee       RiderProfile     @relation("MenteeRelation", fields: [menteeId], references: [id], onDelete: Cascade)
-  status       MentorshipStatus @default(PENDING)
-  zoneId       String?
-  zone         Zone?            @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  startedAt    DateTime?
-  completedAt  DateTime?
+  id             String           @id @default(cuid())
+  mentorId       String
+  mentor         RiderProfile     @relation("MentorRelation", fields: [mentorId], references: [id], onDelete: Cascade)
+  menteeId       String
+  mentee         RiderProfile     @relation("MenteeRelation", fields: [menteeId], references: [id], onDelete: Cascade)
+  status         MentorshipStatus @default(PENDING)
+  zoneId         String?
+  zone           Zone?            @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  startedAt      DateTime?
+  completedAt    DateTime?
   completionNote String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  checkIns     MentorCheckIn[]
+  checkIns MentorCheckIn[]
 
   @@unique([mentorId, menteeId]) // No duplicate pairings
   @@index([mentorId, status])
@@ -1811,9 +1866,9 @@ model MentorCheckIn {
   id           String     @id @default(cuid())
   mentorshipId String
   mentorship   Mentorship @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
-  authorId     String     // Who wrote this check-in (mentor or mentee)
+  authorId     String // Who wrote this check-in (mentor or mentee)
   note         String     @db.Text
-  rating       Int?       // 1-5 how the check-in went
+  rating       Int? // 1-5 how the check-in went
   createdAt    DateTime   @default(now())
 
   @@index([mentorshipId])
@@ -1823,25 +1878,25 @@ model MentorCheckIn {
 // ── Events ──
 
 model Event {
-  id           String      @id @default(cuid())
-  title        String
-  description  String      @db.Text
-  type         EventType   @default(IN_PERSON)
-  status       EventStatus @default(UPCOMING)
-  date         DateTime
-  endDate      DateTime?
-  location     String?     // Physical address for in-person
-  virtualLink  String?     // URL for virtual/hybrid
-  imageUrl     String?
-  zoneId       String?
-  zone         Zone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  capacity     Int?        // Max attendees (null = unlimited)
-  createdById  String
-  createdBy    User        @relation("EventCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id          String      @id @default(cuid())
+  title       String
+  description String      @db.Text
+  type        EventType   @default(IN_PERSON)
+  status      EventStatus @default(UPCOMING)
+  date        DateTime
+  endDate     DateTime?
+  location    String? // Physical address for in-person
+  virtualLink String? // URL for virtual/hybrid
+  imageUrl    String?
+  zoneId      String?
+  zone        Zone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  capacity    Int? // Max attendees (null = unlimited)
+  createdById String
+  createdBy   User        @relation("EventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  rsvps        EventRsvp[]
+  rsvps EventRsvp[]
 
   @@index([status, date])
   @@index([zoneId])
@@ -1864,19 +1919,19 @@ model EventRsvp {
 // ── Rider Profile / Identity ──
 
 model RiderSpotlight {
-  id          String   @id @default(cuid())
-  riderId     String
-  rider       RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  title       String          // e.g. "Rider of the Month — January 2026"
-  story       String   @db.Text
-  imageUrl    String?
-  month       Int              // 1-12
-  year        Int
-  isFeatured  Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String       @id @default(cuid())
+  riderId    String
+  rider      RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  title      String // e.g. "Rider of the Month — January 2026"
+  story      String       @db.Text
+  imageUrl   String?
+  month      Int // 1-12
+  year       Int
+  isFeatured Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
-  @@unique([month, year])    // One spotlight per month
+  @@unique([month, year]) // One spotlight per month
   @@index([riderId])
   @@index([year, month])
   @@map("rider_spotlights")
@@ -1896,7 +1951,7 @@ model FeatureRequest {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  upvotes     FeatureRequestUpvote[]
+  upvotes FeatureRequestUpvote[]
 
   @@index([status])
   @@index([upvoteCount])
@@ -1922,16 +1977,16 @@ model FeatureRequestUpvote {
 // ============================================================
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?  // who performed the action (null for system)
-  action      String   // e.g., "user.create", "order.assign", "document.approve"
-  entityType  String   // e.g., "User", "Order", "Document"
-  entityId    String
-  oldData     Json?
-  newData     Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String? // who performed the action (null for system)
+  action     String // e.g., "user.create", "order.assign", "document.approve"
+  entityType String // e.g., "User", "Order", "Document"
+  entityId   String
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -1950,23 +2005,23 @@ model AuditLog {
 // ============================================================
 
 model CommunityPlace {
-  id              String    @id @default(cuid())
-  name            String                            // display name (from reverse-geocode or user input)
-  address         String?                           // full formatted address
+  id              String   @id @default(cuid())
+  name            String // display name (from reverse-geocode or user input)
+  address         String? // full formatted address
   latitude        Float
   longitude       Float
-  plusCode         String?                           // Open Location Code for areas without addresses
-  placeType       String    @default("place")       // place, poi, business, landmark, etc.
-  category        String?                           // shop, restaurant, hospital, school, etc.
-  source          String    @default("google_maps")  // google_maps | pin_drop | imported
-  googleMapsUrl   String?                           // original Google Maps link (for verification)
-  contributedById String                            // user who added it
-  contributedBy   User      @relation(fields: [contributedById], references: [id], onDelete: Cascade)
-  usageCount      Int       @default(1)             // how many times this place has been used in orders
-  verified        Boolean   @default(false)         // admin-verified or threshold-verified
-  region          String?                           // region name for fast filtering (e.g., "Greater Accra")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  plusCode        String? // Open Location Code for areas without addresses
+  placeType       String   @default("place") // place, poi, business, landmark, etc.
+  category        String? // shop, restaurant, hospital, school, etc.
+  source          String   @default("google_maps") // google_maps | pin_drop | imported
+  googleMapsUrl   String? // original Google Maps link (for verification)
+  contributedById String // user who added it
+  contributedBy   User     @relation(fields: [contributedById], references: [id], onDelete: Cascade)
+  usageCount      Int      @default(1) // how many times this place has been used in orders
+  verified        Boolean  @default(false) // admin-verified or threshold-verified
+  region          String? // region name for fast filtering (e.g., "Greater Accra")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([latitude, longitude])
   @@index([name])
@@ -1984,24 +2039,24 @@ model CommunityPlace {
 // ============================================================
 
 model LocationPopularity {
-  id              String    @id @default(cuid())
+  id             String   @id @default(cuid())
   /// Normalized search query that led to this selection
-  searchQuery     String
+  searchQuery    String
   /// The place name that was selected
-  selectedName    String
+  selectedName   String
   /// Coordinates of the selected location
-  latitude        Float
-  longitude       Float
+  latitude       Float
+  longitude      Float
   /// Source provider: gazetteer, google, nominatim, community
-  source          String
+  source         String
   /// Number of times this query→place pair was selected
-  selectionCount  Int       @default(1)
+  selectionCount Int      @default(1)
   /// Last time this pair was selected
-  lastSelectedAt  DateTime  @default(now())
+  lastSelectedAt DateTime @default(now())
   /// Region for fast filtering
-  region          String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  region         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([searchQuery, selectedName])
   @@index([searchQuery])
@@ -2018,19 +2073,19 @@ model LocationPopularity {
 // ============================================================
 
 model EtaCorrectionFactor {
-  id                  String    @id @default(cuid())
+  id                  String   @id @default(cuid())
   /// Zone ID ("GLOBAL" sentinel for global fallback)
-  zoneId              String    @default("GLOBAL")
+  zoneId              String   @default("GLOBAL")
   /// Hour of day (0–23) for time-of-day correction, -1 = all hours
-  hourOfDay           Int       @default(-1)
+  hourOfDay           Int      @default(-1)
   /// Day of week (0=Sunday, 6=Saturday), -1 = all days
-  dayOfWeek           Int       @default(-1)
+  dayOfWeek           Int      @default(-1)
   /// Correction multiplier: actual_time / predicted_time
   /// >1.0 means predictions are too optimistic
   /// <1.0 means predictions are too pessimistic
-  correctionFactor    Float     @default(1.0)
+  correctionFactor    Float    @default(1.0)
   /// Number of deliveries used to compute this factor
-  sampleCount         Int       @default(0)
+  sampleCount         Int      @default(0)
   /// Average predicted duration (minutes) in sample
   avgPredictedMinutes Float?
   /// Average actual duration (minutes) in sample
@@ -2038,9 +2093,9 @@ model EtaCorrectionFactor {
   /// Standard deviation of correction ratios
   stdDeviation        Float?
   /// Confidence: 0.0–1.0 based on sample size
-  confidence          Float     @default(0.0)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  confidence          Float    @default(0.0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@unique([zoneId, hourOfDay, dayOfWeek])
   @@index([zoneId])
@@ -2056,69 +2111,69 @@ enum CancellationCategory {
   VEHICLE_BREAKDOWN
   PERSONAL_EMERGENCY
   UNSAFE_CONDITIONS
-  PACKAGE_ISSUE            // Too large, too heavy, prohibited item
+  PACKAGE_ISSUE // Too large, too heavy, prohibited item
   CANNOT_FIND_LOCATION
   CLIENT_UNREACHABLE
-  RECIPIENT_UNREACHABLE    // Post-pickup: recipient won't answer / refuses
+  RECIPIENT_UNREACHABLE // Post-pickup: recipient won't answer / refuses
   PAYMENT_DISPUTE
   EXCESSIVE_WAIT
-  DISTANCE_DISCREPANCY     // Actual distance much further than shown
-  ACCIDENTAL_ACCEPT        // Rider accepted by mistake
-  ADDRESS_INVALID          // Dropoff address doesn't exist / inaccessible
+  DISTANCE_DISCREPANCY // Actual distance much further than shown
+  ACCIDENTAL_ACCEPT // Rider accepted by mistake
+  ADDRESS_INVALID // Dropoff address doesn't exist / inaccessible
   UNDISCLOSED_REQUIREMENTS // Client added extra stops / requirements not in order
   OTHER
 }
 
 enum CancellationSeverity {
-  WARNING              // No financial penalty
-  MINOR                // Small fee deducted
-  MODERATE             // Larger fee + short suspension
-  SEVERE               // Large fee + long suspension + admin review
-  CRITICAL             // Immediate account review (cancelled after pickup)
+  WARNING // No financial penalty
+  MINOR // Small fee deducted
+  MODERATE // Larger fee + short suspension
+  SEVERE // Large fee + long suspension + admin review
+  CRITICAL // Immediate account review (cancelled after pickup)
 }
 
 enum AppealStatus {
   PENDING
   UNDER_REVIEW
-  APPROVED             // Consequence reversed
-  PARTIALLY_APPROVED   // Penalty reduced
+  APPROVED // Consequence reversed
+  PARTIALLY_APPROVED // Penalty reduced
   DENIED
 }
 
 model CancellationRecord {
-  id                  String                @id @default(cuid())
+  id String @id @default(cuid())
 
   // Who cancelled & which order
-  riderId             String
-  rider               RiderProfile          @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  orderId             String                @unique
-  order               Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  riderId String
+  rider   RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  orderId String       @unique
+  order   Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   // Reason details
   category            CancellationCategory
-  reason              String                // Free-text explanation from rider
-  orderStatusAtCancel String                // e.g. 'PICKED_UP', 'ASSIGNED'
+  reason              String // Free-text explanation from rider
+  orderStatusAtCancel String // e.g. 'PICKED_UP', 'ASSIGNED'
 
   // Consequence
-  severity            CancellationSeverity
-  penaltyAmount       Decimal               @default(0) @db.Decimal(12, 2)
-  penaltyApplied      Boolean               @default(false)
-  suspensionHours     Int                   @default(0)
-  suspensionApplied   Boolean               @default(false)
-  requiresInvestigation Boolean             @default(false)
-  investigationNotes  String?               @db.Text
+  severity              CancellationSeverity
+  penaltyAmount         Decimal              @default(0) @db.Decimal(12, 2)
+  penaltyApplied        Boolean              @default(false)
+  suspensionHours       Int                  @default(0)
+  suspensionApplied     Boolean              @default(false)
+  requiresInvestigation Boolean              @default(false)
+  investigationNotes    String?              @db.Text
 
   // Rolling window context at time of cancellation
-  cancellationsInWindow Int                 @default(1) // How many in last 30 days
+  cancellationsInWindow Int @default(1) // How many in last 30 days
 
   // Evidence (optional — rider can upload proof for vehicle breakdown etc.)
-  evidenceUrl         String?
+  evidenceUrl String?
 
   // Appeal
-  appeal              CancellationAppeal?
+  appeal CancellationAppeal?
 
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([riderId])
   @@index([riderId, createdAt])
@@ -2133,46 +2188,46 @@ model CancellationRecord {
 // ============================================================
 
 enum CancelRequestStatus {
-  PENDING              // Awaiting client response
-  AUTHORIZED_RETURN    // Client authorized — rider must return package
-  RETURN_CONFIRMED     // Client confirmed package was returned
-  AUTHORIZED_COMPLETE  // Client authorized — package already returned/handed over
-  DENIED               // Client denied the request
-  EXPIRED              // Client didn't respond within timeout (escalates to admin)
-  ADMIN_RESOLVED       // Admin intervened
+  PENDING // Awaiting client response
+  AUTHORIZED_RETURN // Client authorized — rider must return package
+  RETURN_CONFIRMED // Client confirmed package was returned
+  AUTHORIZED_COMPLETE // Client authorized — package already returned/handed over
+  DENIED // Client denied the request
+  EXPIRED // Client didn't respond within timeout (escalates to admin)
+  ADMIN_RESOLVED // Admin intervened
 }
 
 model CancellationRequest {
-  id              String              @id @default(cuid())
+  id String @id @default(cuid())
 
   // Who and which order
-  riderId         String
-  rider           RiderProfile        @relation(fields: [riderId], references: [id], onDelete: Cascade)
-  orderId         String              @unique
-  order           Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  clientId        String              // The client who must authorize
+  riderId  String
+  rider    RiderProfile @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  orderId  String       @unique
+  order    Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  clientId String // The client who must authorize
 
   // Request details
-  reason          String              // Why the rider wants to cancel
-  status          CancelRequestStatus @default(PENDING)
-  orderStatusAtRequest String          // PICKED_UP or IN_TRANSIT
+  reason               String // Why the rider wants to cancel
+  status               CancelRequestStatus @default(PENDING)
+  orderStatusAtRequest String // PICKED_UP or IN_TRANSIT
 
   // Client response
-  clientResponseAt  DateTime?
-  clientNote        String?           // Optional note from client
+  clientResponseAt DateTime?
+  clientNote       String? // Optional note from client
 
   // Admin override
-  adminResolvedBy   String?           // Admin user ID if admin intervened
-  adminNote         String?
+  adminResolvedBy String? // Admin user ID if admin intervened
+  adminNote       String?
 
   // Return tracking
-  returnConfirmedAt DateTime?         // When client confirmed package return
+  returnConfirmedAt DateTime? // When client confirmed package return
 
   // Timeout: auto-expire after 30 minutes (escalate to admin)
-  expiresAt       DateTime
+  expiresAt DateTime
 
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([riderId])
   @@index([orderId])
@@ -2183,21 +2238,21 @@ model CancellationRequest {
 }
 
 model CancellationAppeal {
-  id                  String              @id @default(cuid())
-  cancellationId      String              @unique
-  cancellation        CancellationRecord  @relation(fields: [cancellationId], references: [id], onDelete: Cascade)
-  riderId             String              // For quick lookup
-  status              AppealStatus        @default(PENDING)
-  riderStatement      String              @db.Text
-  evidenceUrls        String[]            @default([])
-  reviewedBy          String?             // Admin user ID
-  reviewNotes         String?             @db.Text
-  outcome             String?             // Summary of decision
-  penaltyRefunded     Boolean             @default(false)
-  suspensionLifted    Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  reviewedAt          DateTime?
-  updatedAt           DateTime            @updatedAt
+  id               String             @id @default(cuid())
+  cancellationId   String             @unique
+  cancellation     CancellationRecord @relation(fields: [cancellationId], references: [id], onDelete: Cascade)
+  riderId          String // For quick lookup
+  status           AppealStatus       @default(PENDING)
+  riderStatement   String             @db.Text
+  evidenceUrls     String[]           @default([])
+  reviewedBy       String? // Admin user ID
+  reviewNotes      String?            @db.Text
+  outcome          String? // Summary of decision
+  penaltyRefunded  Boolean            @default(false)
+  suspensionLifted Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  reviewedAt       DateTime?
+  updatedAt        DateTime           @updatedAt
 
   @@index([riderId])
   @@index([status])
@@ -2222,22 +2277,22 @@ enum JobType {
 }
 
 model JobPosting {
-  id            String        @id @default(cuid())
-  title         String
-  department    String
-  location      String
-  type          JobType       @default(FULL_TIME)
-  description   String        @db.Text
-  requirements  String?       @db.Text
-  status        JobPostStatus @default(DRAFT)
+  id           String        @id @default(cuid())
+  title        String
+  department   String
+  location     String
+  type         JobType       @default(FULL_TIME)
+  description  String        @db.Text
+  requirements String?       @db.Text
+  status       JobPostStatus @default(DRAFT)
 
-  createdById   String
-  createdBy     User          @relation("JobPostingsCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdBy   User   @relation("JobPostingsCreatedBy", fields: [createdById], references: [id])
 
-  publishedAt   DateTime?
-  closedAt      DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  publishedAt DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([status])
   @@index([createdById])

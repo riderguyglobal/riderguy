@@ -11,7 +11,7 @@ export default function PrivacyPolicyPage() {
     <section className="px-5 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-36">
       <div className="prose prose-gray prose-headings:font-bold mx-auto max-w-3xl">
         <h1>Privacy Policy</h1>
-        <p className="lead">Last updated: 3 June 2026</p>
+        <p className="lead">Last updated: 1 September 2026</p>
 
         <p>
           This Privacy Policy explains how RiderGuy (&ldquo;RiderGuy,&rdquo; &ldquo;we,&rdquo;
@@ -78,6 +78,11 @@ export default function PrivacyPolicyPage() {
           <li>In-app wallet balance, top-ups, transactions, and order payments</li>
           <li>Rider earnings, payouts, and withdrawal history</li>
           <li>
+            If a Rider registers interest in the 12-month lease program: the linked Rider
+            profile, preferred asset, verified account email, training-status reference,
+            request/review status, and any notes they choose to submit
+          </li>
+          <li>
             Card and bank payment details are collected and processed directly by our payment
             processor (Paystack). We do not store full card numbers on our servers.
           </li>
@@ -110,6 +115,7 @@ export default function PrivacyPolicyPage() {
           <li>Create and manage your account and verify Rider identity and vehicles</li>
           <li>Facilitate pickups, deliveries, matching, routing, and live tracking</li>
           <li>Process payments, wallet top-ups, earnings, and payouts</li>
+          <li>Review and respond to a Rider&apos;s asset-lease interest request</li>
           <li>Send service notifications, job offers, and delivery updates</li>
           <li>Provide customer support and resolve disputes</li>
           <li>Maintain safety, prevent fraud, and enforce our Terms of Service</li>
@@ -151,6 +157,11 @@ export default function PrivacyPolicyPage() {
           <li>
             <strong>Payment processing:</strong> Paystack, to process payments, wallet funding,
             and payouts.
+          </li>
+          <li>
+            <strong>Asset-lease partners:</strong> we will identify the relevant vehicle or
+            leasing partner and provide any required notice before sharing a Rider&apos;s lease
+            interest information with that partner.
           </li>
           <li>
             <strong>Location &amp; navigation:</strong> device location services and the navigation

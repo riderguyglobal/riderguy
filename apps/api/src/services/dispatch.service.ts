@@ -2,7 +2,24 @@ import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
 import { createOrderNotification } from './notification.service';
 import { emitOrderStatusUpdate } from '../socket';
-import { assertRiderWorkEligible, riderWorkEligibilityWhere } from './rider-work-eligibility';
+import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
+import {
+  assertRiderWorkEligible,
+  riderWorkEligibilityWhere,
+  setPostWorkRiderAvailability,
+} from './rider-work-eligibility';
+import type { Prisma } from '@prisma/client';
+
+async function lockRiderState(
+  tx: Prisma.TransactionClient,
+  ...riderProfileIds: string[]
+): Promise<void> {
+  // Stable ordering prevents simultaneous cross-reassignments from
+  // deadlocking while each Rider remains serialised against vehicle review.
+  for (const riderProfileId of [...new Set(riderProfileIds)].sort()) {
+    await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', riderProfileId);
+  }
+}
 
 // ============================================================
 // Dispatch Service — handles rider assignment, reassignment,
@@ -23,7 +40,10 @@ export async function assignRider(
     prisma.order.findUnique({ where: { id: orderId } }),
     prisma.riderProfile.findUnique({
       where: { id: riderProfileId },
-      include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, status: true } },
+        vehicles: { select: { reviewStatus: true } },
+      },
     }),
   ]);
 
@@ -58,6 +78,8 @@ export async function assignRider(
 
   // Atomic transaction — both writes succeed or neither does
   const updated = await prisma.$transaction(async (tx) => {
+    await lockRiderState(tx, riderProfileId);
+
     // Guard 1: Claim the rider — only succeeds if they're still ONLINE
     const riderClaim = await tx.riderProfile.updateMany({
       where: { id: riderProfileId, availability: 'ONLINE', ...riderWorkEligibilityWhere() },
@@ -80,11 +102,7 @@ export async function assignRider(
       },
     });
     if (orderClaim.count === 0) {
-      // Rollback rider claim — order was taken
-      await tx.riderProfile.update({
-        where: { id: riderProfileId },
-        data: { availability: 'ONLINE' },
-      });
+      // Throwing rolls the transaction back, including the Rider claim.
       throw ApiError.conflict(
         'Order was already assigned or status changed — please retry',
         'ASSIGN_RACE',
@@ -166,6 +184,8 @@ export async function unassignRider(orderId: string, actor: string) {
 
   // Atomic — both writes in one transaction with optimistic concurrency
   const updated = await prisma.$transaction(async (tx) => {
+    await lockRiderState(tx, prevRiderId);
+
     // Guard: only succeeds if order still has the expected status
     const result = await tx.order.updateMany({
       where: { id: orderId, status: order.status, riderId: prevRiderId },
@@ -191,11 +211,7 @@ export async function unassignRider(orderId: string, actor: string) {
       },
     });
 
-    // Set rider back to ONLINE
-    await tx.riderProfile.update({
-      where: { id: prevRiderId },
-      data: { availability: 'ONLINE' },
-    });
+    await setPostWorkRiderAvailability(tx, prevRiderId);
 
     return tx.order.findUnique({ where: { id: orderId } });
   });
@@ -225,7 +241,10 @@ export async function reassignRider(
 
   const newRider = await prisma.riderProfile.findUnique({
     where: { id: newRiderProfileId },
-    include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } },
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true, status: true } },
+      vehicles: { select: { reviewStatus: true } },
+    },
   });
   if (!newRider) throw ApiError.notFound('New rider not found');
   assertRiderWorkEligible(newRider);
@@ -236,11 +255,10 @@ export async function reassignRider(
   const prevRiderId = order.riderId;
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Release old rider
-    await tx.riderProfile.update({
-      where: { id: prevRiderId },
-      data: { availability: 'ONLINE' },
-    });
+    await lockRiderState(tx, prevRiderId, newRiderProfileId);
+
+    // Release the old Rider according to their current approval state.
+    await setPostWorkRiderAvailability(tx, prevRiderId);
 
     // Claim new rider — guard on availability
     const riderClaim = await tx.riderProfile.updateMany({

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
     axiosCreate: vi.fn(() => instance),
     axiosPost: vi.fn(),
     clearTokens: vi.fn(),
+    clearAuth: vi.fn(),
     getAccessToken: vi.fn(),
     getRefreshToken: vi.fn(),
     instance,
@@ -37,6 +38,12 @@ vi.mock('./token-storage', () => ({
     getAccessToken: mocks.getAccessToken,
     getRefreshToken: mocks.getRefreshToken,
     setAccessToken: mocks.setAccessToken,
+  },
+}));
+
+vi.mock('./auth-store', () => ({
+  useAuthStore: {
+    getState: () => ({ clearAuth: mocks.clearAuth }),
   },
 }));
 
@@ -111,6 +118,7 @@ describe('native API token refresh', () => {
     await expect(first).rejects.toBe(refreshError);
     await expect(second).rejects.toBe(refreshError);
     expect(mocks.clearTokens).toHaveBeenCalledTimes(1);
+    expect(mocks.clearAuth).toHaveBeenCalledTimes(1);
     expect(mocks.instance).not.toHaveBeenCalled();
   });
 });

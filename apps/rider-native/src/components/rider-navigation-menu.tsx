@@ -11,6 +11,7 @@ const MENU_ITEMS = [
   { icon: 'school-outline' as const, label: 'Learning Center', target: '/(app)/training' },
   { icon: 'people-outline' as const, label: 'Rider community', target: '/(tabs)/community' },
   { icon: 'shield-checkmark-outline' as const, label: 'Safety Center', target: '/(app)/safety' },
+  { icon: 'bicycle-outline' as const, label: 'Asset financing', target: '/(app)/asset-financing' },
   { icon: 'person-outline' as const, label: 'Profile & settings', target: '/(tabs)/account' },
 ];
 

@@ -4,7 +4,9 @@
 
 import crypto from 'node:crypto';
 import { prisma } from '@riderguy/database';
+import type { Prisma } from '@prisma/client';
 import { ApiError } from '../lib/api-error';
+import { isRiderWorkEligible } from './rider-work-eligibility';
 
 export const REQUIRED_IN_HOUSE_TRAINING_MODULES = [
   'SAFETY_BASICS',
@@ -79,7 +81,7 @@ export class OnboardingService {
         vehicles: {
           select: {
             id: true,
-            isApproved: true,
+            reviewStatus: true,
             photoFrontUrl: true,
             photoBackUrl: true,
             photoLeftUrl: true,
@@ -125,7 +127,7 @@ export class OnboardingService {
         key: 'vehicle_registration',
         label: 'Register & Verify Your Vehicle',
         description: 'Add the vehicle you will use for deliveries and wait for RiderGuy approval.',
-        status: rider.vehicles.some((vehicle) => vehicle.isApproved)
+        status: rider.vehicles.some((vehicle) => vehicle.reviewStatus === 'APPROVED')
           ? 'completed'
           : rider.vehicles.length > 0 ? 'current' : 'pending',
         optional: false,
@@ -177,10 +179,7 @@ export class OnboardingService {
       onboardingStatus: rider.onboardingStatus,
       referralCode: rider.referralCode,
       applicationRejectionReason: rider.applicationRejectionReason,
-      canAccessWork:
-        rider.onboardingStatus === 'ACTIVATED'
-        && rider.isVerified
-        && rider.user.status === 'ACTIVE',
+      canAccessWork: isRiderWorkEligible(rider),
       overallProgress: Math.round((completedRequired / requiredSteps.length) * 100),
       steps,
     };
@@ -348,15 +347,18 @@ export class OnboardingService {
     return prisma.riderProfile.update({ where: { id: rider.id }, data: { onboardingStatus: status } });
   }
 
-  static async getApprovalReadiness(userId: string) {
-    const rider = await prisma.riderProfile.findUnique({
+  static async getApprovalReadiness(
+    userId: string,
+    db: Pick<Prisma.TransactionClient, 'riderProfile'> = prisma,
+  ) {
+    const rider = await db.riderProfile.findUnique({
       where: { userId },
       include: {
         user: { include: { documents: { orderBy: { createdAt: 'desc' } } } },
         vehicles: {
           select: {
             id: true,
-            isApproved: true,
+            reviewStatus: true,
             photoFrontUrl: true,
             photoBackUrl: true,
             photoLeftUrl: true,
@@ -377,7 +379,7 @@ export class OnboardingService {
     if (rider.vehicles.length === 0) {
       missing.push('No delivery vehicle is registered');
     } else {
-      const approvedVehicles = rider.vehicles.filter((vehicle) => vehicle.isApproved);
+      const approvedVehicles = rider.vehicles.filter((vehicle) => vehicle.reviewStatus === 'APPROVED');
       if (approvedVehicles.length === 0) {
         missing.push('No delivery vehicle has been approved');
       }

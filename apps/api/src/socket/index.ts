@@ -251,6 +251,7 @@ export function initSocketServer(httpServer: HttpServer): AppSocket {
               onboardingStatus: true,
               isVerified: true,
               user: { select: { status: true } },
+              vehicles: { select: { reviewStatus: true } },
             },
           }),
           prisma.order.findUnique({

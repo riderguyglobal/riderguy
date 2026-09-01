@@ -64,6 +64,11 @@ logs/
 Thumbs.db
 desktop.ini
 
+# User-owned local review/export material at the repository root
+/app.json
+/output/
+/tmp/
+
 # Runtime data
 packages/database/prisma/*.db
 uploads/

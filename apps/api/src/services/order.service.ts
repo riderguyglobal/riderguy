@@ -9,9 +9,10 @@ import { cancelDispatch, getDeclinedRiderIds } from './auto-dispatch.service';
 import { processCancellationConsequences, isRiderSuspended } from './cancellation.service';
 import { ApiError } from '../lib/api-error';
 import { logger } from '../lib/logger';
+import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
 import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from '../jobs/queues';
 import { learnFromDelivery } from './eta-learning.service';
-import { assertRiderWorkEligible } from './rider-work-eligibility';
+import { assertRiderWorkEligible, setPostWorkRiderAvailability } from './rider-work-eligibility';
 import { StorageService } from './storage.service';
 import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
 
@@ -574,9 +575,9 @@ export async function transitionStatus(
   // Terminal states release the rider from this delivery. Stuck-order recovery
   // may subsequently mark the rider OFFLINE if the failure was connectivity-related.
   if ((newStatus.startsWith('CANCELLED') || newStatus === 'FAILED') && updated.riderId) {
-    await prisma.riderProfile.update({
-      where: { id: updated.riderId },
-      data: { availability: 'ONLINE' },
+    await prisma.$transaction(async (tx) => {
+      await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', updated.riderId!);
+      await setPostWorkRiderAvailability(tx, updated.riderId!);
     });
   }
 
@@ -667,12 +668,13 @@ export async function transitionStatus(
       }
     }
 
-    await prisma.riderProfile.update({
-      where: { id: updated.riderId! },
-      data: {
-        totalDeliveries: { increment: 1 },
-        availability: 'ONLINE',
-      },
+    await prisma.$transaction(async (tx) => {
+      await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', updated.riderId!);
+      await tx.riderProfile.update({
+        where: { id: updated.riderId! },
+        data: { totalDeliveries: { increment: 1 } },
+      });
+      await setPostWorkRiderAvailability(tx, updated.riderId!);
     });
 
     // Credit rider wallet (includes pickup distance bonus — platform absorbs)
@@ -1073,7 +1075,10 @@ export async function rateOrder(
 export async function getAvailableJobs(userId: string) {
   const riderProfile = await prisma.riderProfile.findUnique({
     where: { userId },
-    include: { user: { select: { status: true } } },
+    include: {
+      user: { select: { status: true } },
+      vehicles: { select: { reviewStatus: true } },
+    },
   });
   if (!riderProfile) throw ApiError.notFound('Rider profile not found');
 

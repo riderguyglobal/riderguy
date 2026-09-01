@@ -99,10 +99,24 @@ if (isRedisConfigured()) {
   sensitiveApiLimiter = new RateLimiterMemory({ points: 5, duration: 60, keyPrefix: 'rl_sensitive' });
 }
 
-function createRateLimitMiddleware(limiter: RateLimiterAbstract) {
+type RateLimitKeyResolver = (req: Request) => string | null;
+
+function ipRateLimitKey(req: Request): string {
+  return req.ip ?? req.socket.remoteAddress ?? `anon_${req.headers['user-agent']?.slice(0, 32) ?? 'no-ua'}`;
+}
+
+function createRateLimitMiddleware(
+  limiter: RateLimiterAbstract,
+  resolveKey: RateLimitKeyResolver = ipRateLimitKey,
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const key = resolveKey(req);
+    if (!key) {
+      next(ApiError.unauthorized('Authentication is required for this rate limit'));
+      return;
+    }
+
     try {
-      const key = req.ip ?? req.socket.remoteAddress ?? `anon_${req.headers['user-agent']?.slice(0, 32) ?? 'no-ua'}`;
       const result = await limiter.consume(key);
 
       // Set standard rate-limit response headers
@@ -192,3 +206,8 @@ function createAuthRateLimitMiddleware() {
 export const globalRateLimit = createRateLimitMiddleware(globalLimiter);
 export const authRateLimit = createAuthRateLimitMiddleware();
 export const sensitiveRateLimit = createRateLimitMiddleware(sensitiveApiLimiter);
+/** Authenticated write budget; the app-level global limiter still covers IP abuse. */
+export const sensitiveUserRateLimit = createRateLimitMiddleware(
+  sensitiveApiLimiter,
+  (req) => req.user?.userId ? `user:${req.user.userId}` : null,
+);

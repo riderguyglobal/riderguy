@@ -1,5 +1,7 @@
 import { VehicleType } from './enums';
 
+export type VehicleReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 /** Rider vehicle */
 export interface Vehicle {
   id: string;
@@ -16,6 +18,10 @@ export interface Vehicle {
   photoLeftUrl: string | null;
   photoRightUrl: string | null;
   isApproved: boolean;
+  reviewStatus: VehicleReviewStatus;
+  rejectionReason: string | null;
+  reviewedById: string | null;
+  reviewedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

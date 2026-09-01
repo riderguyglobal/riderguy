@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './user';
 export * from './rider';
+export * from './asset-financing';
 export * from './order';
 export * from './vehicle';
 export * from './document';

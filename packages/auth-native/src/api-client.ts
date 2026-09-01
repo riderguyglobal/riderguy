@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from './token-storage';
+import { useAuthStore } from './auth-store';
 
 let apiInstance: AxiosInstance | null = null;
 let isRefreshing = false;
@@ -115,6 +116,10 @@ export function initApiClient(baseURL: string): AxiosInstance {
       } catch (refreshError) {
         settleRefreshQueue(refreshError);
         await tokenStorage.clearTokens();
+        // A rejected/expired refresh token ends the authenticated session.
+        // Clear in-memory identity synchronously so protected screens and
+        // user-scoped query providers cannot keep rendering stale account data.
+        useAuthStore.getState().clearAuth();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

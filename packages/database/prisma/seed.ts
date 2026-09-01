@@ -298,6 +298,7 @@ async function main() {
         plateNumber: `GR-${1000 + i}-${String.fromCharCode(65 + i)}${String.fromCharCode(65 + i + 1)}`,
         isPrimary: true,
         isApproved: true,
+        reviewStatus: 'APPROVED',
       },
     });
     vehicleCount++;
