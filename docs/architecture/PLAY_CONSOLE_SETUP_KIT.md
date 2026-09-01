@@ -187,7 +187,7 @@ Note: tracking is geofenced to Ghana; use location simulation if testing elsewhe
 
 > Both apps also support Phone OTP and Ghana Card sign-in, tucked under "More sign-in options" on the login screen — but Phone/Ghana Card logins additionally require a one-time code emailed to the account (Google reviewers often can't receive Ghana SMS, so email is the one channel guaranteed to reach them). **For review purposes, always use the email + password path above** — it's the fastest and needs no second code.
 >
-> These two accounts are recreated from scratch (all data wiped) by `node scripts/seed-test-accounts.js` against `DATABASE_URL` — re-run it if they ever need to be reset, and re-verify with a live login call before submitting for review.
+> These two reserved accounts are repaired idempotently by `node scripts/seed-test-accounts.js` against `DATABASE_URL`. The script does not delete unrelated data. It also restores the Rider reviewer account's Guest classification and approved reviewer vehicle so the real production work-eligibility gate can remain enabled. Re-run it if the accounts need to be reset, then verify both live login flows before submitting for review.
 
 ---
 

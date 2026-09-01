@@ -33,11 +33,10 @@ Both APKs are signed with the debug keystore. Enable **"Install from unknown sou
 
 ## 2. Demo Login Credentials
 
-Credentials are intentionally not stored in this public repository. Create
-separate, revocable reviewer accounts for non-production test environments and
-store their passwords in the team password manager. The destructive
-`scripts/seed-test-accounts.js` helper is for disposable development databases
-only.
+Create separate, revocable reviewer accounts and store their passwords in the
+team password manager. `scripts/seed-test-accounts.js` idempotently repairs only
+the two reserved Play reviewer accounts and their required profiles; it does
+not delete unrelated users or application data.
 
 ---
 

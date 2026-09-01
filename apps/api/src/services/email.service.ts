@@ -257,6 +257,39 @@ export class EmailService {
     return sendMail({ to, subject: 'Congratulations! Your Rider Account is Approved 🎉', html });
   }
 
+  // ---- Rider In-House invitation ----
+  static async sendInHouseInvitation(to: string, code: string, expiresAt: Date) {
+    const formattedExpiry = expiresAt.toLocaleDateString('en-GH', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Africa/Accra',
+    });
+    const html = baseLayout(
+      'Your RiderGuy In-House Invitation',
+      `
+      <h2>You're invited to RiderGuy's In-House Rider channel</h2>
+      <p>This one-time invitation was issued specifically to <strong>${escapeHtml(to)}</strong>.</p>
+      <div style="text-align:center; margin:24px 0;">
+        <div style="display:inline-block; background:#ecfdf5; border:1px solid #a7f3d0; padding:16px 24px; border-radius:12px; letter-spacing:2px; font-size:22px; font-weight:800; color:#065f46;">
+          ${escapeHtml(code)}
+        </div>
+      </div>
+      <div class="highlight">
+        <p style="margin:0"><strong>How to use it:</strong> Sign in to the RiderGuy Rider app with this email address, open Rider onboarding, enter the code under "RiderGuy Trained In-House Rider", and tap "Verify In-House Invitation".</p>
+      </div>
+      <p>The code expires on <strong>${escapeHtml(formattedExpiry)}</strong> and stops working immediately after it is used.</p>
+      <p>If you were not expecting this invitation, ignore this email and contact RiderGuy support.</p>
+    `,
+    );
+    return sendMail({
+      to,
+      subject: 'Your RiderGuy In-House Rider invitation',
+      html,
+      text: `Your RiderGuy In-House Rider invitation code is ${code}. Sign in with ${to} and enter it in Rider onboarding. It expires on ${formattedExpiry} and can be used once.`,
+    });
+  }
+
   // ---- Rider rejection ----
   static async sendRiderRejection(to: string, firstName: string, reason?: string) {
     const html = baseLayout(

@@ -64,6 +64,14 @@ interface Pagination {
   totalPages: number;
 }
 
+interface IssuedInvitation {
+  code: string;
+  target: string;
+  channel: 'email' | 'phone';
+  expiresAt: string;
+  deliveryStatus: 'SENT' | 'FAILED' | 'NOT_REQUESTED';
+}
+
 // ─── Helpers ────────────────────────────────────────────────
 
 function onboardingBadge(status: string) {
@@ -119,7 +127,8 @@ export default function RiderManagementPage() {
   const [appsLoading, setAppsLoading] = useState(false);
   const [inviteType, setInviteType] = useState<'email' | 'phone'>('email');
   const [inviteTarget, setInviteTarget] = useState('');
-  const [issuedInviteCode, setIssuedInviteCode] = useState('');
+  const [issuedInvitation, setIssuedInvitation] = useState<IssuedInvitation | null>(null);
+  const [inviteFeedback, setInviteFeedback] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
 
   const [error, setError] = useState('');
@@ -200,23 +209,48 @@ export default function RiderManagementPage() {
 
   const createInHouseInvitation = async () => {
     if (!inviteTarget.trim()) return;
+    const target = inviteTarget.trim();
     setInviteLoading(true);
-    setIssuedInviteCode('');
+    setIssuedInvitation(null);
+    setInviteFeedback('');
     try {
       const res = await fetch(`${API_BASE_URL}/riders/invitations`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [inviteType]: inviteTarget.trim(), expiresInDays: 7 }),
+        body: JSON.stringify({ [inviteType]: target, expiresInDays: 7 }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? 'Invitation could not be created');
-      setIssuedInviteCode(json.data.code);
+      const deliveryKey = inviteType === 'email' ? 'email' : 'sms';
+      setIssuedInvitation({
+        code: json.data.code,
+        target,
+        channel: inviteType,
+        expiresAt: json.data.expiresAt,
+        deliveryStatus: json.data.delivery?.[deliveryKey] ?? 'FAILED',
+      });
       setInviteTarget('');
       setError('');
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : 'Invitation could not be created');
     } finally {
       setInviteLoading(false);
+    }
+  };
+
+  const copyInvitation = async (messageOnly = false) => {
+    if (!issuedInvitation) return;
+    const expiry = new Date(issuedInvitation.expiresAt).toLocaleDateString('en-GH', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const message = `Your RiderGuy In-House Rider invitation code is ${issuedInvitation.code}. Sign in with ${issuedInvitation.target}, open Rider onboarding, and enter the code. It expires on ${expiry} and can be used once.`;
+    try {
+      await navigator.clipboard.writeText(messageOnly ? message : issuedInvitation.code);
+      setInviteFeedback(messageOnly ? 'Invitation message copied.' : 'Invitation code copied.');
+    } catch {
+      setInviteFeedback('Copy failed. Select the code below and copy it manually.');
     }
   };
 
@@ -382,7 +416,7 @@ export default function RiderManagementPage() {
               <div className="flex flex-wrap items-end gap-3">
                 <div>
                   <p className="font-semibold text-gray-900">Issue In-House invitation</p>
-                  <p className="text-xs text-gray-500">The targeted one-time code expires in 7 days and is shown only once.</p>
+                  <p className="text-xs text-gray-500">The API generates a targeted one-time code, sends it by email or SMS, and shows it here once as a fallback.</p>
                 </div>
                 <select
                   value={inviteType}
@@ -402,10 +436,24 @@ export default function RiderManagementPage() {
                   {inviteLoading ? 'Issuing...' : 'Issue invitation'}
                 </Button>
               </div>
-              {issuedInviteCode ? (
+              {issuedInvitation ? (
                 <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                  <p className="text-xs font-medium text-green-800">Copy and send this code securely. It cannot be displayed again.</p>
-                  <code className="mt-1 block select-all text-base font-bold tracking-wide text-green-950">{issuedInviteCode}</code>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-medium text-green-800">
+                        {issuedInvitation.deliveryStatus === 'SENT'
+                          ? `Sent automatically by ${issuedInvitation.channel === 'email' ? 'email' : 'SMS'} to ${issuedInvitation.target}.`
+                          : `Automatic ${issuedInvitation.channel === 'email' ? 'email' : 'SMS'} delivery failed. Copy and send it securely to ${issuedInvitation.target}.`}
+                      </p>
+                      <code className="mt-1 block select-all text-base font-bold tracking-wide text-green-950">{issuedInvitation.code}</code>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => void copyInvitation(false)}>Copy code</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => void copyInvitation(true)}>Copy message</Button>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-green-800">This plaintext code cannot be displayed again after you leave this result.</p>
+                  {inviteFeedback ? <p className="mt-1 text-xs font-semibold text-green-900">{inviteFeedback}</p> : null}
                 </div>
               ) : null}
             </CardContent>

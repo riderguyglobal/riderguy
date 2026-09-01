@@ -133,6 +133,20 @@ export class SmsService {
     return this.send({ to: phone, message });
   }
 
+  // ---- Rider In-House invitation ----
+  static async sendInHouseInvitation(phone: string, code: string, expiresAt: Date): Promise<boolean> {
+    const expiry = expiresAt.toLocaleDateString('en-GH', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Africa/Accra',
+    });
+    return this.send({
+      to: phone,
+      message: `RiderGuy In-House invite: ${code}. Sign in with this phone number and enter it in Rider onboarding. One use only; expires ${expiry}.`,
+    });
+  }
+
   // ---- Order status notifications ----
   static async sendOrderUpdate(phone: string, orderNumber: string, statusMessage: string): Promise<boolean> {
     return this.send({

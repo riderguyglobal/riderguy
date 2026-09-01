@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 export const SmsService = {
   sendNewJobAvailable: vi.fn().mockResolvedValue({ success: true }),
   sendOtp: vi.fn().mockResolvedValue({ success: true, messageId: 'mock-msg-1' }),
+  sendInHouseInvitation: vi.fn().mockResolvedValue(true),
   sendWelcome: vi.fn().mockResolvedValue({ success: true }),
   sendOrderUpdate: vi.fn().mockResolvedValue({ success: true }),
 };

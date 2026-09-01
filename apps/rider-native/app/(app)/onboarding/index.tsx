@@ -29,7 +29,7 @@ export default function OnboardingIndexScreen() {
   const [invitationCode, setInvitationCode] = useState('');
   const [channelError, setChannelError] = useState('');
 
-  const { data: progress, isLoading, refetch } = useQuery({
+  const { data: progress, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['rider-onboarding-status'],
     queryFn: async () => {
       const { data } = await api.get('/riders/onboarding');
@@ -47,6 +47,8 @@ export default function OnboardingIndexScreen() {
 
   const firstVehicleId = vehicles?.[0]?.id;
   const steps = progress?.steps ?? [];
+  const activatedWithoutChannel = progress?.onboardingStatus === 'ACTIVATED' && !progress?.riderChannel;
+  const canChooseChannel = !progress?.riderChannel && !activatedWithoutChannel;
 
   const channelMutation = useMutation({
     mutationFn: async ({ channel, code }: { channel: 'GUEST' | 'IN_HOUSE'; code?: string }) => {
@@ -92,14 +94,14 @@ export default function OnboardingIndexScreen() {
 
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={riderColors.green} />}
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={riderColors.green} />}
         showsVerticalScrollIndicator={false}
       >
-        {!progress?.riderChannel && !isLoading ? (
+        {canChooseChannel && !isLoading ? (
           <RiderCard style={{ marginBottom: 14, padding: 16 }}>
             <Text style={{ color: riderColors.ink, fontSize: 18, fontWeight: '900' }}>Confirm your Rider channel</Text>
             <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>
-              Guest Riders can continue independently. The protected In-House channel requires a one-time invitation issued by RiderGuy.
+              Guest Riders can continue independently. RiderGuy issues In-House codes after trainee enrolment and sends the code to the email address or phone number recorded for that Rider.
             </Text>
 
             <RiderButton
@@ -141,6 +143,30 @@ export default function OnboardingIndexScreen() {
               disabled={channelMutation.isPending || invitationCode.trim().length < 8}
               onPress={() => channelMutation.mutate({ channel: 'IN_HOUSE', code: invitationCode })}
               style={{ marginTop: 10 }}
+            />
+          </RiderCard>
+        ) : null}
+
+        {activatedWithoutChannel && !isLoading ? (
+          <RiderCard style={{ marginBottom: 14, padding: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 15, backgroundColor: riderColors.amberSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="shield-checkmark-outline" size={23} color="#9A5F05" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>RiderGuy must confirm this channel</Text>
+                <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+                  This is an activated legacy account, so its Rider channel cannot be changed inside the app. RiderGuy support must classify it as Guest or In-House from the admin review screen.
+                </Text>
+              </View>
+            </View>
+            <RiderButton
+              label="Refresh Account Status"
+              icon="refresh-outline"
+              variant="light"
+              loading={isFetching}
+              onPress={() => refetch()}
+              style={{ marginTop: 12 }}
             />
           </RiderCard>
         ) : null}

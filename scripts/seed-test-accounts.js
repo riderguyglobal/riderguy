@@ -58,7 +58,7 @@ async function main() {
       },
     });
 
-    await tx.riderProfile.upsert({
+    const riderProfile = await tx.riderProfile.upsert({
       where: { userId: rider.id },
       create: {
         userId: rider.id,
@@ -78,6 +78,52 @@ async function main() {
         isVerified: true,
         activatedAt: new Date(),
         availability: 'OFFLINE',
+      },
+    });
+
+    // Work eligibility requires an approved delivery vehicle. Keep the Play
+    // reviewer account fully usable without weakening that production gate.
+    await tx.vehicle.updateMany({
+      where: { riderId: riderProfile.id, id: { not: 'play-reviewer-rider-vehicle-v1' } },
+      data: { isPrimary: false },
+    });
+    await tx.vehicle.upsert({
+      where: { id: 'play-reviewer-rider-vehicle-v1' },
+      create: {
+        id: 'play-reviewer-rider-vehicle-v1',
+        riderId: riderProfile.id,
+        type: 'MOTORCYCLE',
+        make: 'RiderGuy',
+        model: 'Reviewer Bike',
+        year: 2026,
+        color: 'Green',
+        plateNumber: 'RG-PLAY-TEST',
+        isPrimary: true,
+        isApproved: true,
+        reviewStatus: 'APPROVED',
+        reviewedAt: new Date(),
+        photoFrontUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+        photoBackUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+        photoLeftUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+        photoRightUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+      },
+      update: {
+        riderId: riderProfile.id,
+        type: 'MOTORCYCLE',
+        make: 'RiderGuy',
+        model: 'Reviewer Bike',
+        year: 2026,
+        color: 'Green',
+        plateNumber: 'RG-PLAY-TEST',
+        isPrimary: true,
+        isApproved: true,
+        reviewStatus: 'APPROVED',
+        rejectionReason: null,
+        reviewedAt: new Date(),
+        photoFrontUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+        photoBackUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+        photoLeftUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
+        photoRightUrl: 'https://myriderguy.com/images/new/Display%20of%20Fleet.png',
       },
     });
 

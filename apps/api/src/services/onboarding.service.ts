@@ -251,11 +251,32 @@ export class OnboardingService {
     if (!targetEmail && !targetPhone) throw ApiError.badRequest('An email address or phone number is required for a targeted invitation.');
     const days = Math.min(Math.max(input.expiresInDays ?? 7, 1), 30);
     const code = `RGIH-${crypto.randomBytes(12).toString('hex').toUpperCase()}`;
+    const expiresAt = new Date(Date.now() + days * 86_400_000);
     const invitation = await prisma.riderInvitation.create({
-      data: { codeHash: hashInvitationCode(code), targetEmail, targetPhone, expiresAt: new Date(Date.now() + days * 86_400_000), createdById },
+      data: { codeHash: hashInvitationCode(code), targetEmail, targetPhone, expiresAt, createdById },
       select: { id: true, targetEmail: true, targetPhone: true, expiresAt: true, createdAt: true },
     });
-    return { ...invitation, code };
+
+    // The plaintext code is deliberately not stored. Deliver it immediately
+    // to the targeted identity and return it once to the issuing admin as a
+    // manual fallback if the configured provider is unavailable.
+    const [emailSent, smsSent] = await Promise.all([
+      targetEmail
+        ? import('./email.service').then(({ EmailService }) => EmailService.sendInHouseInvitation(targetEmail, code, expiresAt))
+        : Promise.resolve(null),
+      targetPhone
+        ? import('./sms.service').then(({ SmsService }) => SmsService.sendInHouseInvitation(targetPhone, code, expiresAt))
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      ...invitation,
+      code,
+      delivery: {
+        email: targetEmail ? (emailSent ? 'SENT' : 'FAILED') : 'NOT_REQUESTED',
+        sms: targetPhone ? (smsSent ? 'SENT' : 'FAILED') : 'NOT_REQUESTED',
+      },
+    };
   }
 
   static async listInHouseInvitations() {

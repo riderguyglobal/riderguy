@@ -9,8 +9,14 @@ vi.mock('@riderguy/database', () => ({
   },
 }));
 
+vi.mock('./email.service', () => ({
+  EmailService: { sendInHouseInvitation: vi.fn() },
+}));
+
 import { prisma } from '@riderguy/database';
+import { EmailService } from './email.service';
 import { OnboardingService } from './onboarding.service';
+import { SmsService } from './sms.service';
 
 const asMock = (value: unknown) => value as ReturnType<typeof vi.fn>;
 
@@ -31,6 +37,69 @@ describe('OnboardingService security gates', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     asMock(prisma.$transaction).mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+    asMock(EmailService.sendInHouseInvitation).mockResolvedValue(true);
+    asMock(SmsService.sendInHouseInvitation).mockResolvedValue(true);
+  });
+
+  it('generates a targeted one-time invitation and delivers it without persisting plaintext', async () => {
+    asMock(prisma.riderInvitation.create).mockResolvedValue({
+      id: 'invite-1',
+      targetEmail: 'rider@example.com',
+      targetPhone: null,
+      expiresAt: new Date(Date.now() + 7 * 86_400_000),
+      createdAt: new Date(),
+    });
+
+    const result = await OnboardingService.createInHouseInvitation('admin-1', {
+      email: 'RIDER@EXAMPLE.COM',
+      expiresInDays: 7,
+    });
+
+    expect(prisma.riderInvitation.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        targetEmail: 'rider@example.com',
+        targetPhone: null,
+        createdById: 'admin-1',
+        codeHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    }));
+    expect(prisma.riderInvitation.create).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ code: expect.anything() }),
+    }));
+    expect(EmailService.sendInHouseInvitation).toHaveBeenCalledWith(
+      'rider@example.com',
+      expect.stringMatching(/^RGIH-[A-F0-9]{24}$/),
+      expect.any(Date),
+    );
+    expect(SmsService.sendInHouseInvitation).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      id: 'invite-1',
+      delivery: { email: 'SENT', sms: 'NOT_REQUESTED' },
+    });
+    expect(result.code).toMatch(/^RGIH-[A-F0-9]{24}$/);
+  });
+
+  it('returns the one-time code to the admin when automatic delivery fails', async () => {
+    asMock(prisma.riderInvitation.create).mockResolvedValue({
+      id: 'invite-2',
+      targetEmail: null,
+      targetPhone: '+233241234567',
+      expiresAt: new Date(Date.now() + 7 * 86_400_000),
+      createdAt: new Date(),
+    });
+    asMock(SmsService.sendInHouseInvitation).mockResolvedValue(false);
+
+    const result = await OnboardingService.createInHouseInvitation('admin-1', {
+      phone: '0241234567',
+    });
+
+    expect(SmsService.sendInHouseInvitation).toHaveBeenCalledWith(
+      '+233241234567',
+      expect.stringMatching(/^RGIH-[A-F0-9]{24}$/),
+      expect.any(Date),
+    );
+    expect(result.delivery).toEqual({ email: 'NOT_REQUESTED', sms: 'FAILED' });
+    expect(result.code).toMatch(/^RGIH-[A-F0-9]{24}$/);
   });
 
   it('lets a Rider self-select Guest but keeps the account unverified', async () => {
