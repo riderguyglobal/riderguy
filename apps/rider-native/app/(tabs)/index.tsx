@@ -845,7 +845,15 @@ function HomeDashboard({
 
       <View style={[homeStyles.section, homeStyles.sectionSpacing]}>
         <Text style={homeStyles.sectionTitle}>Recommended for You</Text>
-        <View style={homeStyles.recommendationRow}>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          directionalLockEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={homeStyles.recommendationRow}
+          accessibilityRole="list"
+          accessibilityLabel="Recommended for you"
+        >
           <HomeRecommendationTile
             icon="school-outline"
             title="Training"
@@ -878,7 +886,7 @@ function HomeDashboard({
             iconBackground="#F0EBFF"
             onPress={() => router.push('/(app)/asset-financing')}
           />
-        </View>
+        </ScrollView>
       </View>
 
       <HomeLevelProgress
@@ -1682,14 +1690,13 @@ const homeStyles = StyleSheet.create({
   },
   recommendationRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
+    paddingRight: 16,
+    paddingBottom: 4,
   },
   recommendationTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    minWidth: 0,
-    minHeight: 132,
+    width: 142,
+    minHeight: 128,
     borderRadius: 11,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
