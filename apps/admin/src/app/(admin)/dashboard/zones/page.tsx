@@ -209,8 +209,9 @@ export default function ZoneManagementPage() {
     <>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Zone Management</h1>
-          <p className="text-sm text-gray-500">
+          <p className="admin-kicker">Coverage &amp; pricing</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Zone management</h1>
+          <p className="mt-2 text-sm text-[#6E7A73]">
             Manage delivery zones, pricing, and surge multipliers.
           </p>
         </div>

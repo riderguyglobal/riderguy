@@ -32,6 +32,8 @@ export default function AdminJobsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<JobPosting | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   // Form state
   const [title, setTitle] = useState('');
@@ -44,12 +46,13 @@ export default function AdminJobsPage() {
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const api = getApiClient();
       const { data } = await api.get('/job-postings/admin');
       setJobs(data.data);
     } catch {
-      // handle silently
+      setError('Job postings could not be loaded. Retry the connection.');
     } finally {
       setLoading(false);
     }
@@ -86,6 +89,8 @@ export default function AdminJobsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError('');
+    setNotice('');
     try {
       const api = getApiClient();
       const payload = { title, department, location, type, description, requirements: requirements || undefined, status };
@@ -98,20 +103,24 @@ export default function AdminJobsPage() {
 
       resetForm();
       await fetchJobs();
+      setNotice(editing ? 'Job posting updated.' : 'Job posting created.');
     } catch {
-      // handle silently
+      setError('The job posting could not be saved. Review the fields and retry.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleStatusChange = async (id: string, newStatus: JobPostStatus) => {
+    setError('');
+    setNotice('');
     try {
       const api = getApiClient();
       await api.patch(`/job-postings/admin/${id}`, { status: newStatus });
       await fetchJobs();
+      setNotice('Job status updated.');
     } catch {
-      // handle silently
+      setError('The job status could not be updated.');
     }
   };
 
@@ -121,18 +130,20 @@ export default function AdminJobsPage() {
       const api = getApiClient();
       await api.delete(`/job-postings/admin/${id}`);
       await fetchJobs();
+      setNotice('Job posting deleted.');
     } catch {
-      // handle silently
+      setError('The job posting could not be deleted.');
     }
   };
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.SUPER_ADMIN]}>
-      <div className="p-6 lg:p-8">
+      <div className="pb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Job Postings</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="admin-kicker">Team growth</p>
+            <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Job postings</h1>
+            <p className="mt-2 text-sm text-[#6E7A73]">
               Manage career listings displayed on the marketing website.
             </p>
           </div>
@@ -143,6 +154,9 @@ export default function AdminJobsPage() {
             + New Job Posting
           </Button>
         </div>
+
+        {error && <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {notice && <div role="status" className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
 
         {/* ── Create / Edit Form ── */}
         {showForm && (

@@ -566,8 +566,9 @@ export default function GamificationAdminPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gamification</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage badges, challenges, rewards, XP events & rider levels</p>
+          <p className="admin-kicker">Rider engagement</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Growth &amp; rewards</h1>
+          <p className="mt-2 text-sm text-[#6E7A73]">Manage badges, challenges, rewards, XP events, and rider levels.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleSeedBadges}>

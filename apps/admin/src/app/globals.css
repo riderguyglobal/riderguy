@@ -1,3 +1,54 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --rider-brand: #40be89;
+  --rider-brand-dark: #079b61;
+  --rider-ink: #050505;
+  --rider-ink-soft: #111814;
+  --rider-surface: #f7faf8;
+  --rider-mist: #f3fbf7;
+  --rider-line: #e3eee9;
+}
+
+html {
+  min-width: 320px;
+  background: var(--rider-surface);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 85% -5%, rgba(64, 190, 137, 0.09), transparent 28rem),
+    var(--rider-surface);
+}
+
+::selection {
+  background: rgba(64, 190, 137, 0.28);
+  color: var(--rider-ink);
+}
+
+* {
+  scrollbar-color: #bed8cc transparent;
+  scrollbar-width: thin;
+}
+
+*:focus-visible {
+  outline-color: var(--rider-brand-dark);
+}
+
+@layer components {
+  .admin-panel {
+    @apply rounded-2xl border border-[#E3EEE9] bg-white shadow-float;
+  }
+
+  .admin-kicker {
+    @apply text-[11px] font-bold uppercase tracking-[0.18em] text-brand-700;
+  }
+
+  .admin-field {
+    @apply h-11 rounded-xl border border-[#DCE8E2] bg-white px-3 text-sm text-[#25312B] outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100;
+  }
+}

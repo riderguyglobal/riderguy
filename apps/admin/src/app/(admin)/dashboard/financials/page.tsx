@@ -9,8 +9,15 @@ import {
   CardHeader,
   CardTitle,
   Badge,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Spinner,
   Separator,
+  Textarea,
 } from '@riderguy/ui';
 
 // ============================================================
@@ -105,6 +112,10 @@ export default function FinancialsPage() {
   const [tTotalPages, setTTotalPages] = useState(1);
   const [txTypeFilter, setTxTypeFilter] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [decisionTarget, setDecisionTarget] = useState<{ withdrawal: Withdrawal; action: 'approve' | 'reject' } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -112,7 +123,7 @@ export default function FinancialsPage() {
       const { data } = await api.get('/payments/admin/stats');
       setStats(data.data);
     } catch {
-      /* */
+      setError('Financial summary could not be loaded.');
     }
   }, []);
 
@@ -126,7 +137,7 @@ export default function FinancialsPage() {
         setWithdrawals(data.data ?? []);
         setWTotalPages(data.pagination?.totalPages ?? 1);
       } catch {
-        /* */
+        setError('Withdrawal requests could not be loaded.');
       }
     },
     [withdrawalFilter],
@@ -142,7 +153,7 @@ export default function FinancialsPage() {
         setTransactions(data.data ?? []);
         setTTotalPages(data.pagination?.totalPages ?? 1);
       } catch {
-        /* */
+        setError('The transaction ledger could not be loaded.');
       }
     },
     [txTypeFilter],
@@ -163,29 +174,34 @@ export default function FinancialsPage() {
   // ── Actions ──
   async function approveWithdrawal(id: string) {
     setActionLoading(id);
+    setError('');
+    setNotice('');
     try {
       const api = getApiClient();
       await api.post(`/payments/admin/withdrawals/${id}/approve`);
-      fetchWithdrawals(wPage);
-      fetchStats();
+      await Promise.all([fetchWithdrawals(wPage), fetchStats()]);
+      setNotice('Withdrawal approved and queued for processing.');
+      setDecisionTarget(null);
     } catch {
-      /* */
+      setError('The withdrawal could not be approved. Its state has not been changed.');
     } finally {
       setActionLoading(null);
     }
   }
 
-  async function rejectWithdrawal(id: string) {
-    const reason = prompt('Reason for rejection:');
-    if (!reason) return;
+  async function rejectWithdrawal(id: string, reason: string) {
     setActionLoading(id);
+    setError('');
+    setNotice('');
     try {
       const api = getApiClient();
       await api.post(`/payments/admin/withdrawals/${id}/reject`, { reason });
-      fetchWithdrawals(wPage);
-      fetchStats();
+      await Promise.all([fetchWithdrawals(wPage), fetchStats()]);
+      setNotice('Withdrawal rejected and returned to the rider wallet.');
+      setDecisionTarget(null);
+      setRejectionReason('');
     } catch {
-      /* */
+      setError('The withdrawal could not be rejected. Its state has not been changed.');
     } finally {
       setActionLoading(null);
     }
@@ -202,9 +218,13 @@ export default function FinancialsPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Financials</h1>
-        <p className="text-sm text-gray-500">Revenue, payouts, and transaction ledger</p>
+        <p className="admin-kicker">Money operations</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Financial control</h1>
+        <p className="mt-2 text-sm text-[#6E7A73]">Revenue, rider payouts, and the complete transaction ledger.</p>
       </div>
+
+      {error && <div role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {notice && <div role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
 
       {/* Tabs */}
       <div className="mb-6 flex border-b">
@@ -442,7 +462,7 @@ export default function FinancialsPage() {
                                     size="sm"
                                     className="bg-green-600 hover:bg-green-700 text-xs h-7"
                                     disabled={actionLoading === w.id}
-                                    onClick={() => approveWithdrawal(w.id)}
+                                    onClick={() => setDecisionTarget({ withdrawal: w, action: 'approve' })}
                                   >
                                     {actionLoading === w.id ? (
                                       <Spinner className="h-3 w-3" />
@@ -455,7 +475,7 @@ export default function FinancialsPage() {
                                     variant="outline"
                                     className="text-red-600 border-red-200 hover:bg-red-50 text-xs h-7"
                                     disabled={actionLoading === w.id}
-                                    onClick={() => rejectWithdrawal(w.id)}
+                                    onClick={() => setDecisionTarget({ withdrawal: w, action: 'reject' })}
                                   >
                                     Reject
                                   </Button>
@@ -622,6 +642,39 @@ export default function FinancialsPage() {
           </Card>
         </div>
       )}
+
+      <Dialog open={Boolean(decisionTarget)} onOpenChange={(open) => { if (!open && !actionLoading) { setDecisionTarget(null); setRejectionReason(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{decisionTarget?.action === 'approve' ? 'Approve rider withdrawal?' : 'Reject rider withdrawal?'}</DialogTitle>
+            <DialogDescription>
+              {decisionTarget
+                ? `${decisionTarget.withdrawal.wallet.user.firstName} ${decisionTarget.withdrawal.wallet.user.lastName} requested ${new Intl.NumberFormat('en-GH', { style: 'currency', currency: decisionTarget.withdrawal.currency || 'GHS' }).format(decisionTarget.withdrawal.amount)}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {decisionTarget?.action === 'reject' && (
+            <div>
+              <label htmlFor="withdrawal-rejection-reason" className="mb-1.5 block text-sm font-semibold text-[#142019]">Reason returned to the audit trail</label>
+              <Textarea id="withdrawal-rejection-reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Explain why this payout cannot proceed" rows={4} />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={Boolean(actionLoading)} onClick={() => { setDecisionTarget(null); setRejectionReason(''); }}>Keep pending</Button>
+            <Button
+              disabled={!decisionTarget || Boolean(actionLoading) || (decisionTarget.action === 'reject' && rejectionReason.trim().length < 5)}
+              className={decisionTarget?.action === 'reject' ? 'bg-red-600 hover:bg-red-700' : ''}
+              onClick={() => {
+                if (!decisionTarget) return;
+                if (decisionTarget.action === 'approve') void approveWithdrawal(decisionTarget.withdrawal.id);
+                else void rejectWithdrawal(decisionTarget.withdrawal.id, rejectionReason.trim());
+              }}
+            >
+              {actionLoading ? 'Applying…' : decisionTarget?.action === 'approve' ? 'Approve payout' : 'Reject & refund'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import Link from 'next/link';
 import { getApiClient } from '@riderguy/auth';
+import { Bike, RefreshCw } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -258,16 +259,17 @@ export default function AssetFinancingQueuePage() {
   const selectedRider = selected?.rider.user;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#07110D] px-6 py-6 text-white shadow-premium sm:px-7">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Asset Financing</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Review Rider interest in the 12-month motorbike and EV lease programme.
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#73D2A5]">Growth programme</p>
+          <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-[-0.03em]"><Bike className="h-6 w-6 text-[#40BE89]" />Asset financing</h1>
+          <p className="mt-2 text-sm text-white/[0.58]">
+            Review rider interest in the 12-month motorbike and EV lease programme.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void loadInterests()} disabled={loading}>
-          Refresh
+        <Button variant="outline" size="sm" className="border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12] hover:text-white" onClick={() => void loadInterests()} disabled={loading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
         </Button>
       </div>
 
@@ -282,7 +284,7 @@ export default function AssetFinancingQueuePage() {
         </div>
       ) : null}
 
-      <Card>
+      <Card className="rounded-2xl border-[#E3EEE9] shadow-sm">
         <CardContent className="pt-6">
           <div className="grid gap-3 md:grid-cols-4">
             <div className="md:col-span-2">
@@ -348,7 +350,7 @@ export default function AssetFinancingQueuePage() {
           <Spinner className="h-8 w-8 text-brand-500" />
         </div>
       ) : items.length === 0 ? (
-        <Card>
+        <Card className="rounded-2xl border-[#E3EEE9] shadow-sm">
           <CardContent className="py-20 text-center">
             <p className="text-base font-semibold text-gray-600">No interests found</p>
             <p className="mt-1 text-sm text-gray-400">
@@ -359,10 +361,10 @@ export default function AssetFinancingQueuePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-[#E3EEE9] bg-white shadow-sm">
           <table className="w-full min-w-[1050px] text-sm">
             <caption className="sr-only">Asset-financing interests awaiting administration</caption>
-            <thead className="border-b bg-gray-50">
+            <thead className="border-b bg-[#F7FAF8]">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left font-medium text-gray-500">Rider</th>
                 <th scope="col" className="px-4 py-3 text-left font-medium text-gray-500">Contact</th>
@@ -381,7 +383,7 @@ export default function AssetFinancingQueuePage() {
                   && rider.email.trim().toLowerCase() !== interest.contactEmail.trim().toLowerCase(),
                 );
                 return (
-                  <tr key={interest.id} className="hover:bg-gray-50">
+                  <tr key={interest.id} className="hover:bg-[#F7FAF8]">
                     <td className="px-4 py-3">
                       <Link
                         href={`/dashboard/riders/${interest.rider.userId}/review`}

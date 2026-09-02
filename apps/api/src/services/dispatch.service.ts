@@ -9,6 +9,7 @@ import {
   setPostWorkRiderAvailability,
 } from './rider-work-eligibility';
 import type { Prisma } from '@prisma/client';
+import { OrderStatus } from '@riderguy/types';
 
 async function lockRiderState(
   tx: Prisma.TransactionClient,
@@ -323,7 +324,23 @@ export async function getDispatchQueue(options?: {
   const whereClause: any = {};
 
   if (options?.status) {
-    whereClause.status = options.status;
+    const requestedStatuses = [...new Set(
+      options.status
+        .split(',')
+        .map((status) => status.trim())
+        .filter(Boolean),
+    )];
+    const allowedStatuses = new Set<string>(Object.values(OrderStatus));
+    const invalidStatus = requestedStatuses.find((status) => !allowedStatuses.has(status));
+    if (invalidStatus || requestedStatuses.length === 0) {
+      throw ApiError.badRequest(
+        `Unknown order status filter: ${invalidStatus ?? options.status}`,
+        'INVALID_ORDER_STATUS_FILTER',
+      );
+    }
+    whereClause.status = requestedStatuses.length === 1
+      ? requestedStatuses[0]
+      : { in: requestedStatuses };
   } else {
     // Default: show active orders
     whereClause.status = {

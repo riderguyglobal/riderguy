@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Poppins } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
 export const dynamic = 'force-dynamic';
 
-const inter = Inter({
+const poppins = Poppins({
   subsets: ['latin'],
-  variable: '--font-inter',
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-poppins',
   display: 'swap',
 });
 
@@ -19,13 +20,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0ea5e9',
+  themeColor: '#07110D',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="bg-surface-50 font-sans text-surface-900 antialiased">
+    <html lang="en" className={poppins.variable}>
+      <body className="bg-[#F7FAF8] font-sans text-[#111814] antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

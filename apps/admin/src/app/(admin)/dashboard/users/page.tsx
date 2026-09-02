@@ -173,8 +173,9 @@ export default function UsersPage() {
       {/* Left — user list */}
       <div className="flex-1 min-w-0">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Users</h1>
-          <p className="text-sm text-gray-500">Search and manage all platform users.</p>
+          <p className="admin-kicker">People directory</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Platform users</h1>
+          <p className="mt-2 text-sm text-[#6E7A73]">Search and manage every platform account.</p>
         </div>
 
         {/* Filters */}

@@ -22,8 +22,21 @@ export function validate(schema: ZodSchema, source: 'body' | 'query' | 'params' 
       throw ApiError.badRequest('Validation failed', 'VALIDATION_ERROR', formattedErrors);
     }
 
-    // Overwrite with parsed (and possibly transformed) data
-    req[source] = result.data;
+    // Express 5 exposes `req.query` as a getter-only property on the request
+    // prototype. A direct assignment throws at runtime even though the
+    // Express TypeScript surface still permits it. Shadow the getter with the
+    // parsed value so downstream handlers receive Zod defaults/transforms in
+    // exactly the same way as body and params validation.
+    if (source === 'query') {
+      Object.defineProperty(req, 'query', {
+        configurable: true,
+        enumerable: true,
+        value: result.data,
+        writable: true,
+      });
+    } else {
+      req[source] = result.data;
+    }
     next();
   };
 }

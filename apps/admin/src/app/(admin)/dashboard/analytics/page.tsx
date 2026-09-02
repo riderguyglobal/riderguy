@@ -132,8 +132,9 @@ export default function AnalyticsPage() {
     <>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-sm text-gray-500">Platform performance over time.</p>
+          <p className="admin-kicker">Performance intelligence</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Network analytics</h1>
+          <p className="mt-2 text-sm text-[#6E7A73]">Understand delivery, revenue, and growth performance over time.</p>
         </div>
 
         {/* Time range picker */}

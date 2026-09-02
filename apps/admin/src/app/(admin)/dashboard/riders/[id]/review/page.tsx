@@ -444,8 +444,9 @@ export default function RiderReviewPage() {
       </button>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Rider Operations Case
+        <p className="admin-kicker">Evidence &amp; activation</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">
+          Rider operations case
           {profile && ` — ${profile.user.firstName} ${profile.user.lastName}`}
         </h1>
         <p className="mt-1 text-sm text-gray-500">Evidence, authorization, decisions, and audit history for one Rider.</p>

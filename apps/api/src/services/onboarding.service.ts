@@ -513,6 +513,12 @@ export class OnboardingService {
     const latest = new Map<string, string>();
     for (const document of rider.user.documents) if (!latest.has(document.type)) latest.set(document.type, document.status);
     const missing: string[] = [];
+    if (rider.onboardingStatus === 'APPLICATION_REJECTED') {
+      missing.push('Application is rejected and requires a new Rider submission');
+    }
+    if (['SUSPENDED', 'DEACTIVATED', 'BANNED'].includes(rider.user.status)) {
+      missing.push(`Rider account is ${rider.user.status.toLowerCase()}`);
+    }
     if (!rider.riderChannel) missing.push('Rider channel is not authorized');
     for (const type of ['NATIONAL_ID', 'DRIVERS_LICENSE', 'SELFIE']) {
       if (latest.get(type) !== 'APPROVED') missing.push(`${type.replace(/_/g, ' ')} is not approved`);

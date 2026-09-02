@@ -9,12 +9,98 @@ import { handleRiderSuspended } from '../../services/order-reassign.service';
 import { PushService } from '../../services/push.service';
 import { disconnectUserSockets } from '../../socket';
 import { AdminAuditService, adminAuditContext } from '../../services/admin-audit.service';
+import { config } from '../../config';
 
 const router = Router();
 
 // All admin routes require authentication + ADMIN role
 router.use(authenticate);
 router.use(requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN));
+
+/**
+ * GET /admin/system-readiness
+ * Safe configuration and dependency visibility for the Super Admin console.
+ * Never returns credentials, identifiers, endpoints, or secret values.
+ */
+router.get(
+  '/system-readiness',
+  requireRole(UserRole.SUPER_ADMIN),
+  asyncHandler(async (_req: Request, res: Response) => {
+    const databaseOperational = await prisma.$queryRaw<Array<{ ok: number }>>`SELECT 1 AS ok`
+      .then(() => true)
+      .catch((error) => {
+        logger.error({ err: error }, '[Admin] Database readiness check failed');
+        return false;
+      });
+
+    const configured = (values: readonly string[]) => values.every((value) => Boolean(value));
+    const services = {
+      database: {
+        state: databaseOperational ? 'OPERATIONAL' : 'UNAVAILABLE',
+        detail: databaseOperational ? 'Primary datastore is responding.' : 'Primary datastore did not respond.',
+      },
+      fileStorage: {
+        state: configured([config.s3.endpoint, config.s3.accessKeyId, config.s3.secretAccessKey, config.s3.bucketName])
+          ? 'CONFIGURED'
+          : 'FALLBACK',
+        detail: config.s3.endpoint
+          ? 'Durable object storage is configured.'
+          : 'Uploads are using local server storage.',
+      },
+      googleSignIn: {
+        state: config.google.clientIds.length > 0 ? 'CONFIGURED' : 'UNCONFIGURED',
+        detail: config.google.clientIds.length > 0
+          ? 'Google identity audiences are allowlisted.'
+          : 'Google identity audiences are missing.',
+      },
+      email: {
+        state: configured([config.email.user, config.email.appPassword]) ? 'CONFIGURED' : 'UNCONFIGURED',
+        detail: configured([config.email.user, config.email.appPassword])
+          ? 'Email delivery credentials are configured.'
+          : 'Automatic email delivery is unavailable.',
+      },
+      sms: {
+        state: config.mnotify.apiKey ? 'CONFIGURED' : 'MANUAL_FALLBACK',
+        detail: config.mnotify.apiKey
+          ? 'Ghana SMS delivery is configured.'
+          : 'SMS invitations require manual secure sharing.',
+      },
+      payments: {
+        state: config.paystack.secretKey ? 'CONFIGURED' : 'UNCONFIGURED',
+        detail: config.paystack.secretKey
+          ? 'Paystack server credentials are configured.'
+          : 'Payment processing credentials are missing.',
+      },
+      riderPush: {
+        state: configured([
+          config.firebase.rider.projectId,
+          config.firebase.rider.clientEmail,
+          config.firebase.rider.privateKey,
+        ]) ? 'CONFIGURED' : 'UNCONFIGURED',
+        detail: configured([
+          config.firebase.rider.projectId,
+          config.firebase.rider.clientEmail,
+          config.firebase.rider.privateKey,
+        ]) ? 'Rider push delivery is configured.' : 'Rider push delivery is unavailable.',
+      },
+      maps: {
+        state: config.google.mapsEnabled && config.google.mapsApiKey ? 'CONFIGURED' : 'GHANA_FALLBACK',
+        detail: config.google.mapsEnabled && config.google.mapsApiKey
+          ? 'Google Maps routing is enabled.'
+          : 'Local Ghana routing and geocoding fallback is active.',
+      },
+    } as const;
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        environment: config.nodeEnv,
+        generatedAt: new Date().toISOString(),
+        services,
+      },
+    });
+  }),
+);
 
 // ============================================================
 // Admin Dashboard & Analytics Routes — Sprint 7
@@ -49,7 +135,7 @@ router.get(
       prisma.riderProfile.count({ where: { availability: 'ONLINE' } }),
       prisma.user.count({ where: { role: 'CLIENT' } }),
       prisma.riderProfile.count({
-        where: { onboardingStatus: { not: 'ACTIVATED' } },
+        where: { onboardingStatus: { notIn: ['ACTIVATED', 'APPLICATION_REJECTED'] } },
       }),
       // ORD-08: collapse 9 separate order count + aggregate round-trips into a
       //          single SQL pass with conditional aggregates. Cuts dashboard

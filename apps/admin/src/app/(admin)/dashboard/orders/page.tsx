@@ -16,6 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@riderguy/ui';
+import { AlertCircle, Flag, MapPin, RefreshCw } from 'lucide-react';
 
 // ============================================================
 // Admin Dispatch Dashboard — view orders, assign riders manually
@@ -58,9 +59,11 @@ interface DispatchOrder {
   };
   rider?: {
     id: string;
-    firstName: string;
-    lastName: string;
-    phone?: string;
+    user: {
+      firstName: string;
+      lastName: string;
+      phone?: string;
+    };
   };
   zone?: {
     id: string;
@@ -70,21 +73,22 @@ interface DispatchOrder {
 
 interface AvailableRider {
   id: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  email?: string;
-  riderProfile?: {
-    averageRating: number;
-    totalDeliveries: number;
-    vehicleType?: string;
-    licensePlate?: string;
+  userId: string;
+  user: {
+    firstName: string;
+    lastName: string;
+    phone?: string;
   };
+  averageRating: number;
+  totalDeliveries: number;
+  currentZoneId?: string;
 }
 
 export default function DispatchDashboardPage() {
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
 
   // Assign rider dialog
@@ -93,6 +97,8 @@ export default function DispatchDashboardPage() {
   const [availableRiders, setAvailableRiders] = useState<AvailableRider[]>([]);
   const [loadingRiders, setLoadingRiders] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ order: DispatchOrder; action: 'unassign' | 'cancel' } | null>(null);
+  const [actioning, setActioning] = useState(false);
 
   // Stats
   const [stats, setStats] = useState({
@@ -112,10 +118,12 @@ export default function DispatchDashboardPage() {
       else if (statusFilter === 'active') params.status = 'PENDING,SEARCHING_RIDER,ASSIGNED,PICKUP_EN_ROUTE,AT_PICKUP,PICKED_UP,IN_TRANSIT,AT_DROPOFF';
 
       const { data } = await api.get('/orders/dispatch', { params });
-      setOrders(data.data ?? []);
+      const queueOrders: DispatchOrder[] = data.orders ?? [];
+      setOrders(queueOrders);
+      setError('');
 
-      // Compute stats from the full set
-      const allOrders: DispatchOrder[] = data.data ?? [];
+      // These figures describe the current queue page, not hidden orders.
+      const allOrders = queueOrders;
       setStats({
         pending: allOrders.filter((o: DispatchOrder) => ['PENDING', 'SEARCHING_RIDER'].includes(o.status)).length,
         inProgress: allOrders.filter((o: DispatchOrder) => ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'].includes(o.status)).length,
@@ -123,7 +131,8 @@ export default function DispatchDashboardPage() {
         total: allOrders.length,
       });
     } catch {
-      // Silent fail
+      setOrders([]);
+      setError('The live dispatch queue could not be loaded. Check the API connection and retry.');
     } finally {
       setLoading(false);
     }
@@ -155,48 +164,59 @@ export default function DispatchDashboardPage() {
     setAssigning(true);
     try {
       const api = getApiClient();
-      await api.post(`/orders/${selectedOrder.id}/assign`, { riderId });
+      await api.post(`/orders/${selectedOrder.id}/assign`, { riderProfileId: riderId });
       setAssignDialogOpen(false);
       setSelectedOrder(null);
       await fetchOrders();
+      setNotice('Rider assigned successfully.');
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response: { data: { error?: string } } }).response?.data?.error
           : 'Failed to assign rider';
-      alert(msg || 'Failed to assign rider');
+      setError(msg || 'Failed to assign rider');
     } finally {
       setAssigning(false);
     }
   }
 
   async function handleUnassignRider(orderId: string) {
-    if (!confirm('Unassign rider from this order?')) return;
+    setActioning(true);
+    setError('');
     try {
       const api = getApiClient();
       await api.post(`/orders/${orderId}/unassign`);
       await fetchOrders();
+      setNotice('Rider removed from the order.');
+      setConfirmAction(null);
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response: { data: { error?: string } } }).response?.data?.error
           : 'Failed to unassign rider';
-      alert(msg || 'Failed to unassign rider');
+      setError(msg || 'Failed to unassign rider');
+    } finally {
+      setActioning(false);
     }
   }
 
   async function handleCancelOrder(orderId: string) {
-    if (!confirm('Cancel this order as admin?')) return;
+    setActioning(true);
+    setError('');
     try {
       const api = getApiClient();
       await api.post(`/orders/${orderId}/cancel`, { reason: 'Cancelled by admin' });
       await fetchOrders();
+      setNotice('Order cancelled by administrator.');
+      setConfirmAction(null);
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response: { data: { error?: string } } }).response?.data?.error
           : 'Failed to cancel';
-      alert(msg || 'Failed to cancel');
+      setError(msg || 'Failed to cancel');
+    } finally {
+      setActioning(false);
     }
   }
 
@@ -212,8 +232,9 @@ export default function DispatchDashboardPage() {
     <>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dispatch Dashboard</h1>
-        <p className="text-sm text-gray-500">Monitor and manage all delivery orders</p>
+        <p className="admin-kicker">Live operations</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Delivery control</h1>
+        <p className="mt-2 text-sm text-[#6E7A73]">Monitor every active route and assign eligible riders with confidence.</p>
       </div>
 
       {/* Stats Row */}
@@ -239,20 +260,20 @@ export default function DispatchDashboardPage() {
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            <p className="text-xs text-gray-400">Total</p>
+            <p className="text-xs text-gray-400">Visible</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filter Tabs */}
-      <div className="mb-4 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1">
+      <div className="mb-4 flex flex-wrap gap-1 rounded-2xl border border-[#E3EEE9] bg-white p-1.5 shadow-sm">
         {filterTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setStatusFilter(t.key)}
             className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               statusFilter === t.key
-                ? 'bg-white text-gray-900 shadow-sm'
+                ? 'bg-[#07110D] text-white shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -265,9 +286,19 @@ export default function DispatchDashboardPage() {
       <div className="mb-4 flex items-center justify-between">
         <p className="text-xs text-gray-400">{orders.length} orders</p>
         <Button variant="outline" size="sm" onClick={() => fetchOrders()}>
-          ↻ Refresh
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh
         </Button>
       </div>
+
+      {error && (
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" />{error}</span>
+          <button type="button" onClick={() => void fetchOrders()} className="shrink-0 font-bold underline">Retry</button>
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>
+      )}
 
       {/* Orders List */}
       {loading ? (
@@ -303,14 +334,14 @@ export default function DispatchDashboardPage() {
                       </Badge>
                     </div>
                     <span className="text-sm font-semibold text-gray-900">
-                      GH₵{order.totalPrice.toLocaleString()}
+                      {new Intl.NumberFormat('en-GH', { style: 'currency', currency: order.currency || 'GHS' }).format(order.totalPrice)}
                     </span>
                   </div>
 
                   {/* Route */}
                   <div className="text-xs text-gray-500 space-y-1 mb-2">
-                    <p className="truncate">📍 {order.pickupAddress}</p>
-                    <p className="truncate">🏁 {order.dropoffAddress}</p>
+                    <p className="flex items-center gap-1.5 truncate"><MapPin className="h-3.5 w-3.5 shrink-0 text-[#079B61]" /> {order.pickupAddress}</p>
+                    <p className="flex items-center gap-1.5 truncate"><Flag className="h-3.5 w-3.5 shrink-0 text-[#B77912]" /> {order.dropoffAddress}</p>
                   </div>
 
                   {/* Meta row */}
@@ -324,7 +355,7 @@ export default function DispatchDashboardPage() {
                       <>
                         <span>·</span>
                         <span>
-                          Rider: {order.rider.firstName} {order.rider.lastName}
+                          Rider: {order.rider.user.firstName} {order.rider.user.lastName}
                         </span>
                       </>
                     )}
@@ -360,7 +391,7 @@ export default function DispatchDashboardPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleUnassignRider(order.id)}
+                        onClick={() => setConfirmAction({ order, action: 'unassign' })}
                       >
                         Unassign Rider
                       </Button>
@@ -370,7 +401,7 @@ export default function DispatchDashboardPage() {
                         size="sm"
                         variant="outline"
                         className="text-red-500 border-red-200 hover:bg-red-50"
-                        onClick={() => handleCancelOrder(order.id)}
+                        onClick={() => setConfirmAction({ order, action: 'cancel' })}
                       >
                         Cancel
                       </Button>
@@ -415,27 +446,16 @@ export default function DispatchDashboardPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
-                          {rider.firstName} {rider.lastName}
+                          {rider.user.firstName} {rider.user.lastName}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {rider.phone || rider.email}
+                          {rider.user.phone || 'Phone unavailable'}
                         </p>
                       </div>
                       <div className="text-right">
-                        {rider.riderProfile && (
-                          <>
-                            <p className="text-xs text-gray-500">
-                              ⭐ {rider.riderProfile.averageRating.toFixed(1)} ·{' '}
-                              {rider.riderProfile.totalDeliveries} trips
-                            </p>
-                            {rider.riderProfile.vehicleType && (
-                              <p className="text-xs text-gray-400">
-                                {rider.riderProfile.vehicleType}
-                                {rider.riderProfile.licensePlate && ` · ${rider.riderProfile.licensePlate}`}
-                              </p>
-                            )}
-                          </>
-                        )}
+                        <p className="text-xs text-gray-500">
+                          {rider.averageRating.toFixed(1)} rating · {rider.totalDeliveries} trips
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -451,6 +471,33 @@ export default function DispatchDashboardPage() {
               disabled={assigning}
             >
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open && !actioning) setConfirmAction(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{confirmAction?.action === 'cancel' ? 'Cancel delivery order?' : 'Remove assigned rider?'}</DialogTitle>
+            <DialogDescription>
+              {confirmAction?.action === 'cancel'
+                ? `Order #${confirmAction.order.orderNumber} will be cancelled and removed from live dispatch.`
+                : `The rider will be released from order #${confirmAction?.order.orderNumber} and the order can be dispatched again.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={actioning} onClick={() => setConfirmAction(null)}>Keep order</Button>
+            <Button
+              disabled={actioning || !confirmAction}
+              className={confirmAction?.action === 'cancel' ? 'bg-red-600 hover:bg-red-700' : ''}
+              onClick={() => {
+                if (!confirmAction) return;
+                if (confirmAction.action === 'cancel') void handleCancelOrder(confirmAction.order.id);
+                else void handleUnassignRider(confirmAction.order.id);
+              }}
+            >
+              {actioning ? 'Applying…' : confirmAction?.action === 'cancel' ? 'Cancel order' : 'Remove rider'}
             </Button>
           </DialogFooter>
         </DialogContent>

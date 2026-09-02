@@ -15,13 +15,8 @@ const approvedVehicleWhere: Prisma.VehicleWhereInput = {
 };
 
 const readyForActivationWhere: Prisma.RiderProfileWhereInput = {
-  onboardingStatus: { not: 'ACTIVATED' },
+  onboardingStatus: { notIn: ['ACTIVATED', 'APPLICATION_REJECTED'] },
   riderChannel: { not: null },
-  user: {
-    documents: {
-      every: {},
-    },
-  },
   AND: [
     ...REQUIRED_DOCUMENT_TYPES.map((type) => ({
       user: { documents: { some: { type, status: 'APPROVED' as const } } },
@@ -50,7 +45,7 @@ const reviewableVehicleWhere: Prisma.VehicleWhereInput = {
 };
 
 const actionRequiredWhere: Prisma.RiderProfileWhereInput = {
-  onboardingStatus: { not: 'ACTIVATED' },
+  onboardingStatus: { notIn: ['ACTIVATED', 'APPLICATION_REJECTED'] },
   OR: [
     { riderChannel: null },
     { user: { documents: { some: { status: { in: ['PENDING', 'UNDER_REVIEW'] } } } } },
@@ -122,6 +117,12 @@ function latestDocuments(rider: RiderCase) {
 export function describeRiderReadiness(rider: RiderCase) {
   const latest = latestDocuments(rider);
   const missing: string[] = [];
+  if (rider.onboardingStatus === 'APPLICATION_REJECTED') {
+    missing.push('Application is rejected and requires a new Rider submission');
+  }
+  if (['SUSPENDED', 'DEACTIVATED', 'BANNED'].includes(rider.user.status)) {
+    missing.push(`Rider account is ${rider.user.status.toLowerCase()}`);
+  }
   if (!rider.riderChannel) missing.push('Rider channel is not authorized');
   for (const type of REQUIRED_DOCUMENT_TYPES) {
     if (latest.get(type)?.status !== 'APPROVED') {
@@ -150,7 +151,7 @@ export function describeRiderReadiness(rider: RiderCase) {
 function queueWhere(queue: ListRiderOperationsCasesQuery['queue']): Prisma.RiderProfileWhereInput {
   switch (queue) {
     case 'PENDING':
-      return { onboardingStatus: { not: 'ACTIVATED' } };
+      return { onboardingStatus: { notIn: ['ACTIVATED', 'APPLICATION_REJECTED'] } };
     case 'ACTION_REQUIRED':
       return actionRequiredWhere;
     case 'READY':
@@ -255,7 +256,9 @@ export class RiderOperationsService {
       staleCases,
     ] = await Promise.all([
       prisma.riderProfile.count(),
-      prisma.riderProfile.count({ where: { onboardingStatus: { not: 'ACTIVATED' } } }),
+      prisma.riderProfile.count({
+        where: { onboardingStatus: { notIn: ['ACTIVATED', 'APPLICATION_REJECTED'] } },
+      }),
       prisma.riderProfile.count({ where: readyForActivationWhere }),
       prisma.riderProfile.count({ where: { onboardingStatus: 'APPLICATION_REJECTED' } }),
       prisma.riderProfile.count({ where: { onboardingStatus: 'ACTIVATED' } }),

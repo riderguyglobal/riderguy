@@ -81,7 +81,9 @@ export default function ContactInboxPage() {
       setSubmissions(prev => prev.map(s => s.id === id ? { ...s, read: true } : s));
       setUnreadCount(prev => Math.max(0, prev - 1));
       setSelected(prev  => prev?.id === id ? { ...prev, read: true } : prev);
-    } catch { /* silent */ }
+    } catch {
+      setError('The message was opened, but its read status could not be saved. Retry before leaving the inbox.');
+    }
   }, []);
 
   const handleSelect = useCallback(async (s: ContactSubmission) => {
@@ -96,7 +98,8 @@ export default function ContactInboxPage() {
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contact Messages</h1>
+          <p className="admin-kicker">Support desk</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Contact messages</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {total} message{total !== 1 ? 's' : ''}
             {unreadCount > 0 && (
