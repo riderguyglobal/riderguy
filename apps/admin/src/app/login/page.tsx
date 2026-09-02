@@ -51,42 +51,42 @@ export default function AdminLoginPage() {
 
   return (
     <main className="grid min-h-screen bg-[#F7FAF8] lg:grid-cols-[minmax(420px,0.92fr)_1.08fr]">
-      <section className="relative hidden min-h-screen overflow-hidden bg-[#07110D] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
-        <div className="absolute -right-36 -top-40 h-[440px] w-[440px] rounded-full bg-brand-500/20 blur-3xl" />
-        <div className="absolute -bottom-52 -left-32 h-[480px] w-[480px] rounded-full bg-brand-700/20 blur-3xl" />
-        <div className="absolute inset-0 opacity-[0.055]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
+      <section className="relative hidden min-h-screen overflow-hidden bg-[#40BE89] p-10 text-[#050505] lg:flex lg:flex-col lg:justify-between xl:p-14">
+        <div className="absolute -right-36 -top-40 h-[440px] w-[440px] rounded-full bg-white/35 blur-3xl" />
+        <div className="absolute -bottom-52 -left-32 h-[480px] w-[480px] rounded-full bg-[#079B61]/25 blur-3xl" />
+        <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'linear-gradient(rgba(5,5,5,.8) 1px, transparent 1px), linear-gradient(90deg, rgba(5,5,5,.8) 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
 
         <div className="relative z-10 flex items-center gap-3">
           <Image src="/images/branding/logo-square.png" alt="RiderGuy" width={48} height={48} className="h-12 w-12 rounded-2xl object-cover" priority />
           <div>
             <p className="text-lg font-bold tracking-[-0.03em]">RiderGuy</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-400">Operations control</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#075C3D]">Operations control</p>
           </div>
         </div>
 
         <div className="relative z-10 max-w-xl py-16">
-          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-brand-400/25 bg-brand-500/10 px-3.5 py-2 text-[11px] font-semibold text-brand-300">
-            <span className="h-2 w-2 rounded-full bg-brand-400" />
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#075C3D]/15 bg-white/35 px-3.5 py-2 text-[11px] font-semibold text-[#075C3D]">
+            <span className="h-2 w-2 rounded-full bg-[#079B61]" />
             Secure production workspace · Ghana
           </div>
           <h1 className="max-w-lg text-4xl font-bold leading-[1.12] tracking-[-0.045em] xl:text-5xl">
             Every RiderGuy decision, in one trusted place.
           </h1>
-          <p className="mt-6 max-w-lg text-sm leading-7 text-white/[0.55]">
+          <p className="mt-6 max-w-lg text-sm leading-7 text-[#0B3D2B]/75">
             Review Rider evidence, coordinate deliveries, protect payouts and manage the programmes that move the network forward.
           </p>
 
           <div className="mt-10 grid max-w-lg gap-3 sm:grid-cols-3">
             {['Role-protected', 'Decision-audited', 'Live operations'].map((item) => (
-              <div key={item} className="rounded-2xl border border-white/[0.09] bg-white/[0.045] px-4 py-4">
-                <Check className="mb-3 h-4 w-4 text-brand-400" />
-                <p className="text-xs font-semibold text-white/[0.75]">{item}</p>
+              <div key={item} className="rounded-2xl border border-[#075C3D]/12 bg-white/35 px-4 py-4">
+                <Check className="mb-3 h-4 w-4 text-[#079B61]" />
+                <p className="text-xs font-semibold text-[#0B3D2B]/80">{item}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.17em] text-white/[0.28]">
+        <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.17em] text-[#0B3D2B]/50">
           Internal access · Authorized personnel only
         </p>
       </section>
@@ -161,7 +161,7 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#079B61] px-5 text-sm font-bold text-white shadow-[0_16px_32px_-18px_rgba(7,155,97,0.9)] transition hover:bg-[#087B50] disabled:cursor-not-allowed disabled:opacity-60"
+              className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#087B50] px-5 text-sm font-bold text-white shadow-[0_16px_32px_-18px_rgba(8,123,80,0.75)] transition hover:bg-[#086342] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy ? (
                 <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Securing workspace…</>

@@ -76,7 +76,7 @@ function BarChart({
                 style={{ height: `${h}%` }}
               />
               {/* Tooltip on hover */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white shadow-lg z-10">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded bg-[#087B50] px-2 py-1 text-xs text-white shadow-lg z-10">
                 {fmtDate(d.date)}: {fmt(val)}
               </div>
             </div>

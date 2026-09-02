@@ -204,22 +204,22 @@ export default function SettingsPage() {
           </Card>
 
           {/* Account info */}
-          <Card className="overflow-hidden rounded-2xl border-[#E3EEE9] bg-[#07110D] text-white shadow-premium">
+          <Card className="overflow-hidden rounded-2xl border-[#087B50] bg-[#087B50] text-white shadow-premium">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white"><ShieldCheck className="h-5 w-5 text-[#40BE89]" />Account authority</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-white"><ShieldCheck className="h-5 w-5 text-white" />Account authority</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between border-b border-white/[0.08] pb-3">
-                <span className="text-white/[0.5]">Role</span>
+              <div className="flex justify-between border-b border-white/20 pb-3">
+                <span className="text-white/70">Role</span>
                 <span className="font-semibold text-white">{user?.role?.replace(/_/g, ' ') ?? '—'}</span>
               </div>
-              <div className="flex justify-between border-b border-white/[0.08] pb-3">
-                <span className="text-white/[0.5]">Account status</span>
-                <span className="font-semibold text-[#73D2A5]">{user?.status?.replace(/_/g, ' ') ?? '—'}</span>
+              <div className="flex justify-between border-b border-white/20 pb-3">
+                <span className="text-white/70">Account status</span>
+                <span className="font-semibold text-white">{user?.status?.replace(/_/g, ' ') ?? '—'}</span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-white/[0.5]">User ID</span>
-                <span className="truncate font-mono text-xs text-white/[0.7]">{user?.id ?? '—'}</span>
+                <span className="text-white/70">User ID</span>
+                <span className="truncate font-mono text-xs text-white/80">{user?.id ?? '—'}</span>
               </div>
             </CardContent>
           </Card>

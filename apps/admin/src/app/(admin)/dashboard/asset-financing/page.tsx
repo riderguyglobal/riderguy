@@ -260,15 +260,15 @@ export default function AssetFinancingQueuePage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#07110D] px-6 py-6 text-white shadow-premium sm:px-7">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#40BE89] px-6 py-6 text-[#050505] shadow-premium sm:px-7">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#73D2A5]">Growth programme</p>
-          <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-[-0.03em]"><Bike className="h-6 w-6 text-[#40BE89]" />Asset financing</h1>
-          <p className="mt-2 text-sm text-white/[0.58]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#075C3D]">Growth programme</p>
+          <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-[-0.03em]"><Bike className="h-6 w-6 text-[#079B61]" />Asset financing</h1>
+          <p className="mt-2 text-sm text-[#0B3D2B]/75">
             Review rider interest in the 12-month motorbike and EV lease programme.
           </p>
         </div>
-        <Button variant="outline" size="sm" className="border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12] hover:text-white" onClick={() => void loadInterests()} disabled={loading}>
+        <Button variant="outline" size="sm" className="border-[#075C3D]/15 bg-white/40 text-[#050505] hover:bg-white/70 hover:text-[#050505]" onClick={() => void loadInterests()} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
         </Button>
       </div>

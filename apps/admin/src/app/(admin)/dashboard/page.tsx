@@ -149,8 +149,8 @@ export default function AdminDashboardPage() {
     return (
       <div className="grid min-h-[62vh] place-items-center">
         <div className="text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#07110D] shadow-premium">
-            <RefreshCw className="h-6 w-6 animate-spin text-[#40BE89]" />
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#40BE89] shadow-premium">
+            <RefreshCw className="h-6 w-6 animate-spin text-[#050505]" />
           </div>
           <p className="mt-4 text-sm font-semibold text-[#47564E]">Opening the command centre…</p>
         </div>
@@ -169,7 +169,7 @@ export default function AdminDashboardPage() {
         <button
           type="button"
           onClick={() => void fetchDashboard()}
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#07110D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#14251D]"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#087B50] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#086342]"
         >
           <RefreshCw className="h-4 w-4" />
           Retry connection
@@ -215,33 +215,33 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-[2rem] bg-[#07110D] px-6 py-7 text-white shadow-premium sm:px-8 sm:py-9">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#40BE89]/20 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-64 rounded-full bg-[#079B61]/10 blur-2xl" />
+      <section className="relative overflow-hidden rounded-[2rem] bg-[#40BE89] px-6 py-7 text-[#050505] shadow-premium sm:px-8 sm:py-9">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/40 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-64 rounded-full bg-[#079B61]/20 blur-2xl" />
         <div className="relative flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8EE0BB]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#075C3D]/15 bg-white/35 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#075C3D]">
               <Sparkles className="h-3.5 w-3.5" />
               Ghana operations
             </div>
             <h1 className="mt-5 text-3xl font-bold tracking-[-0.04em] sm:text-4xl">
               RiderGuy command centre
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/[0.62] sm:text-base">
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[#0B3D2B]/75 sm:text-base">
               One live view of rider welfare, delivery movement, approvals, and the decisions that keep the network running.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/[0.42]">Last sync</p>
-              <p className="mt-1 text-sm font-semibold text-white">{formatTime(lastUpdated)}</p>
+            <div className="rounded-2xl border border-[#075C3D]/15 bg-white/35 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#075C3D]/65">Last sync</p>
+              <p className="mt-1 text-sm font-semibold text-[#050505]">{formatTime(lastUpdated)}</p>
             </div>
             <button
               type="button"
               onClick={() => void fetchDashboard(true)}
               disabled={refreshing}
               aria-label="Refresh live dashboard data"
-              className="grid h-[58px] w-[58px] place-items-center rounded-2xl bg-[#40BE89] text-[#07110D] transition hover:bg-[#63D4A3] disabled:cursor-wait disabled:opacity-70"
+              className="grid h-[58px] w-[58px] place-items-center rounded-2xl bg-white text-[#079B61] shadow-sm transition hover:bg-[#F4FBF7] disabled:cursor-wait disabled:opacity-70"
             >
               <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -296,7 +296,7 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-sm font-bold text-[#142019]">{label}</h3>
                     {count > 0 && (
-                      <span className="rounded-full bg-[#07110D] px-2 py-0.5 text-[10px] font-bold text-white">{count}</span>
+                      <span className="rounded-full bg-[#087B50] px-2 py-0.5 text-[10px] font-bold text-white">{count}</span>
                     )}
                   </div>
                   <p className="mt-1 truncate text-xs text-[#7B8881]">{detail}</p>
@@ -307,13 +307,13 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[1.75rem] bg-[#0D1B14] p-6 text-white shadow-premium">
+        <div className="overflow-hidden rounded-[1.75rem] bg-[#087B50] p-6 text-white shadow-premium">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#73D2A5]">Network pulse</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#DDF5E9]">Network pulse</p>
               <h2 className="mt-2 text-xl font-bold">Ghana at a glance</h2>
             </div>
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/[0.07] text-[#40BE89]">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 text-white">
               <MapPinned className="h-5 w-5" />
             </div>
           </div>
@@ -321,11 +321,11 @@ export default function AdminDashboardPage() {
           <div className="mt-8 space-y-5">
             <div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-white/[0.55]">Activated riders online</span>
+                <span className="text-white/70">Activated riders online</span>
                 <span className="font-bold text-white">{onlineRate}%</span>
               </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.08]">
-                <div className="h-full rounded-full bg-[#40BE89]" style={{ width: `${Math.min(onlineRate, 100)}%` }} />
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20">
+                <div className="h-full rounded-full bg-white" style={{ width: `${Math.min(onlineRate, 100)}%` }} />
               </div>
             </div>
 
@@ -339,10 +339,10 @@ export default function AdminDashboardPage() {
 
           <Link
             href="/dashboard/analytics"
-            className="mt-6 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold transition hover:bg-white/[0.1]"
+            className="mt-6 flex items-center justify-between rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold transition hover:bg-white/20"
           >
             Explore network analytics
-            <ArrowRight className="h-4 w-4 text-[#40BE89]" />
+            <ArrowRight className="h-4 w-4 text-white" />
           </Link>
         </div>
       </section>
@@ -373,10 +373,10 @@ export default function AdminDashboardPage() {
 
 function PulseStat({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-3.5">
-      <Icon className="h-4 w-4 text-[#40BE89]" />
+    <div className="rounded-2xl border border-white/20 bg-white/10 p-3.5">
+      <Icon className="h-4 w-4 text-white" />
       <p className="mt-3 text-lg font-bold tracking-[-0.02em]">{value}</p>
-      <p className="mt-0.5 text-[11px] text-white/[0.42]">{label}</p>
+      <p className="mt-0.5 text-[11px] text-white/70">{label}</p>
     </div>
   );
 }

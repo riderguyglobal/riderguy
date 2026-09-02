@@ -5,7 +5,8 @@
 :root {
   color-scheme: light;
   --rider-brand: #40be89;
-  --rider-brand-dark: #079b61;
+  --rider-brand-dark: #087b50;
+  --rider-brand-deep: #075c3d;
   --rider-ink: #050505;
   --rider-ink-soft: #111814;
   --rider-surface: #f7faf8;
@@ -23,6 +24,11 @@ body {
   background:
     radial-gradient(circle at 85% -5%, rgba(64, 190, 137, 0.09), transparent 28rem),
     var(--rider-surface);
+}
+
+/* RiderGuy uses black on signature mint and white on deep green. */
+.admin-theme .bg-brand-500.text-white {
+  color: var(--rider-ink);
 }
 
 ::selection {

@@ -20,13 +20,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#07110D',
+  themeColor: '#40BE89',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={poppins.variable}>
-      <body className="bg-[#F7FAF8] font-sans text-[#111814] antialiased">
+      <body className="admin-theme bg-[#F7FAF8] font-sans text-[#111814] antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

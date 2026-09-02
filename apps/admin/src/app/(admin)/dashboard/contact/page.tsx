@@ -118,7 +118,7 @@ export default function ContactInboxPage() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`rounded-md px-3 py-1.5 capitalize transition-colors ${
-                  filter === f ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+                  filter === f ? 'bg-[#087B50] text-white' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 {f}

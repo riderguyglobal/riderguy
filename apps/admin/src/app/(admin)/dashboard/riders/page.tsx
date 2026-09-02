@@ -335,13 +335,13 @@ export default function RiderOperationsPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#07110D] px-6 py-6 text-white shadow-premium sm:px-7">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#40BE89] px-6 py-6 text-[#050505] shadow-premium sm:px-7">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#73D2A5]">People &amp; welfare</p>
-          <div className="mt-2 flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-[#40BE89]" /><h1 className="text-2xl font-bold tracking-[-0.03em]">Rider operations</h1></div>
-          <p className="mt-2 max-w-2xl text-sm text-white/[0.58]">Verify evidence, control access, and activate riders from one auditable workspace.</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#075C3D]">People &amp; welfare</p>
+          <div className="mt-2 flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-[#079B61]" /><h1 className="text-2xl font-bold tracking-[-0.03em]">Rider operations</h1></div>
+          <p className="mt-2 max-w-2xl text-sm text-[#0B3D2B]/75">Verify evidence, control access, and activate riders from one auditable workspace.</p>
         </div>
-        <Button variant="outline" size="sm" className="border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12] hover:text-white" onClick={() => void refresh()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+        <Button variant="outline" size="sm" className="border-[#075C3D]/15 bg-white/40 text-[#050505] hover:bg-white/70 hover:text-[#050505]" onClick={() => void refresh()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
       </div>
 
       {summary && (
@@ -358,7 +358,7 @@ export default function RiderOperationsPage() {
           ['all', `All Riders${summary ? ` (${summary.totalRiders})` : ''}`],
           ['invitations', `In-House invitations${summary ? ` (${summary.activeInvitations})` : ''}`],
         ] as Array<[OperationsTab, string]>).map(([value, label]) => (
-          <button key={value} type="button" onClick={() => changeTab(value)} className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === value ? 'bg-[#07110D] text-white shadow-sm' : 'text-[#69766F] hover:bg-[#F3FBF7] hover:text-[#07110D]'}`}>{label}</button>
+          <button key={value} type="button" onClick={() => changeTab(value)} className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === value ? 'bg-[#087B50] text-white shadow-sm' : 'text-[#69766F] hover:bg-[#F3FBF7] hover:text-[#07110D]'}`}>{label}</button>
         ))}
       </div>
 
@@ -411,9 +411,9 @@ export default function RiderOperationsPage() {
         </div>
       )}
 
-      {revokeTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Revoke invitation</h3><p className="mt-1 text-sm text-gray-500">This immediately prevents the unused code for {revokeTarget.targetEmail ?? revokeTarget.targetPhone} from being redeemed.</p><textarea value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} rows={3} placeholder="Reason for revocation" className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); }}>Cancel</Button><Button className="bg-red-600 hover:bg-red-700" disabled={revokeReason.trim().length < 5 || updating} onClick={() => void revokeInvitation()}>{updating ? 'Revoking…' : 'Revoke code'}</Button></div></div></div>}
+      {revokeTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#075C3D]/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Revoke invitation</h3><p className="mt-1 text-sm text-gray-500">This immediately prevents the unused code for {revokeTarget.targetEmail ?? revokeTarget.targetPhone} from being redeemed.</p><textarea value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} rows={3} placeholder="Reason for revocation" className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); }}>Cancel</Button><Button className="bg-red-600 hover:bg-red-700" disabled={revokeReason.trim().length < 5 || updating} onClick={() => void revokeInvitation()}>{updating ? 'Revoking…' : 'Revoke code'}</Button></div></div></div>}
 
-      {statusTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Account access</h3><p className="mt-1 text-sm text-gray-500">Update access for <strong>{statusTarget.user.firstName} {statusTarget.user.lastName}</strong>. Current status: {formatStatus(statusTarget.user.status)}.</p><select value={newAccountStatus} onChange={(event) => setNewAccountStatus(event.target.value)} className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option value="">Choose status</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="DEACTIVATED">Deactivated</option><option value="BANNED">Banned</option></select><textarea value={statusReason} onChange={(event) => setStatusReason(event.target.value)} rows={3} placeholder="Operational reason" className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={!newAccountStatus || updating} onClick={() => void updateAccountStatus()}>{updating ? 'Updating…' : 'Apply status'}</Button></div></div></div>}
+      {statusTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#075C3D]/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Account access</h3><p className="mt-1 text-sm text-gray-500">Update access for <strong>{statusTarget.user.firstName} {statusTarget.user.lastName}</strong>. Current status: {formatStatus(statusTarget.user.status)}.</p><select value={newAccountStatus} onChange={(event) => setNewAccountStatus(event.target.value)} className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option value="">Choose status</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="DEACTIVATED">Deactivated</option><option value="BANNED">Banned</option></select><textarea value={statusReason} onChange={(event) => setStatusReason(event.target.value)} rows={3} placeholder="Operational reason" className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={!newAccountStatus || updating} onClick={() => void updateAccountStatus()}>{updating ? 'Updating…' : 'Apply status'}</Button></div></div></div>}
     </div>
   );
 }
