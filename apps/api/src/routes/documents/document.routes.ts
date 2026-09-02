@@ -8,6 +8,8 @@ import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { DocumentService } from '../../services/document.service';
 import { NotificationService } from '../../services/notification.service';
+import { adminAuditContext } from '../../services/admin-audit.service';
+import { logger } from '../../lib/logger';
 import { uploadDocumentSchema, reviewDocumentSchema } from '@riderguy/validators';
 import { UserRole } from '@riderguy/types';
 import { StatusCodes } from 'http-status-codes';
@@ -155,15 +157,24 @@ router.patch(
       reviewerId: req.user!.userId,
       status,
       rejectionReason,
+      auditContext: adminAuditContext(req),
     });
 
-    // Send notification to the rider
-    await NotificationService.notifyDocumentReview(
-      document.userId,
-      document.type,
-      status,
-      rejectionReason,
-    );
+    // The decision and audit entry are already committed. Do not return a
+    // misleading failure (and invite a duplicate decision) if messaging fails.
+    try {
+      await NotificationService.notifyDocumentReview(
+        document.userId,
+        document.type,
+        status,
+        rejectionReason,
+      );
+    } catch (error) {
+      logger.error(
+        { error, documentId: document.id, riderUserId: document.userId, status },
+        'Document review notification failed after the decision was persisted',
+      );
+    }
 
     res.status(StatusCodes.OK).json({ success: true, data: document });
   }),

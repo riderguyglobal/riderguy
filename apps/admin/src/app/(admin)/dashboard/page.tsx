@@ -138,7 +138,7 @@ export default function AdminDashboardPage() {
                   <p className="font-semibold text-amber-900">
                     {stats.riders.pendingApplications} pending application{stats.riders.pendingApplications !== 1 ? 's' : ''}
                   </p>
-                  <p className="text-xs text-amber-700">Rider documents need review</p>
+                  <p className="text-xs text-amber-700">Rider onboarding cases need attention</p>
                 </div>
                 <a href="/dashboard/riders" className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700">
                   Review

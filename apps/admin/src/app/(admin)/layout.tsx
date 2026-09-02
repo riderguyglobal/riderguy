@@ -1,15 +1,55 @@
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, ProtectedRoute } from '@riderguy/auth';
 import { UserRole } from '@riderguy/types';
 import Image from 'next/image';
 import { Button, Avatar, AvatarFallback, AvatarImage, Spinner } from '@riderguy/ui';
+import { Menu, X } from 'lucide-react';
+
+const navigationItems = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Rider Operations', href: '/dashboard/riders' },
+  { label: 'Asset Financing', href: '/dashboard/asset-financing' },
+  { label: 'Orders', href: '/dashboard/orders' },
+  { label: 'Users', href: '/dashboard/users' },
+  { label: 'Zones', href: '/dashboard/zones' },
+  { label: 'Gamification', href: '/dashboard/gamification' },
+  { label: 'Jobs', href: '/dashboard/jobs' },
+  { label: 'Financials', href: '/dashboard/financials' },
+  { label: 'Analytics', href: '/dashboard/analytics' },
+  { label: 'Messages', href: '/dashboard/contact' },
+  { label: 'Settings', href: '/dashboard/settings' },
+];
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+
+  const navigation = (
+    <nav className="flex flex-col gap-1 p-4">
+      {navigationItems.map((item) => {
+        const active = item.href === '/dashboard'
+          ? pathname === item.href
+          : pathname.startsWith(item.href);
+        return (
+          <button
+            key={item.href}
+            onClick={() => {
+              setMobileNavigationOpen(false);
+              router.push(item.href);
+            }}
+            className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${active ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
 
   return (
     <ProtectedRoute
@@ -37,37 +77,28 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             <span className="text-sm font-bold text-gray-900">RiderGuy Admin</span>
           </div>
 
-          <nav className="flex flex-col gap-1 p-4">
-            {[
-              { label: 'Dashboard', href: '/dashboard' },
-              { label: 'Riders', href: '/dashboard/riders' },
-              { label: 'Asset Financing', href: '/dashboard/asset-financing' },
-              { label: 'Orders', href: '/dashboard/orders' },
-              { label: 'Users', href: '/dashboard/users' },
-              { label: 'Zones', href: '/dashboard/zones' },
-              { label: 'Gamification', href: '/dashboard/gamification' },
-              { label: 'Jobs', href: '/dashboard/jobs' },
-              { label: 'Financials', href: '/dashboard/financials' },
-              { label: 'Analytics', href: '/dashboard/analytics' },
-              { label: 'Messages', href: '/dashboard/contact' },
-              { label: 'Settings', href: '/dashboard/settings' },
-            ].map((item) => (
-              <button
-                key={item.href}
-                onClick={() => router.push(item.href)}
-                className="rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+          {navigation}
         </aside>
+
+        {mobileNavigationOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <button aria-label="Close navigation" className="absolute inset-0 bg-black/40" onClick={() => setMobileNavigationOpen(false)} />
+            <aside className="relative h-full w-72 bg-white shadow-xl">
+              <div className="flex h-16 items-center justify-between border-b px-5">
+                <div className="flex items-center gap-2"><Image src="/images/branding/logo-square.png" alt="RiderGuy" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" /><span className="text-sm font-bold text-gray-900">RiderGuy Admin</span></div>
+                <Button aria-label="Close navigation" variant="ghost" size="sm" onClick={() => setMobileNavigationOpen(false)}><X className="h-5 w-5" /></Button>
+              </div>
+              <div className="h-[calc(100vh-4rem)] overflow-y-auto">{navigation}</div>
+            </aside>
+          </div>
+        )}
 
         {/* Main content */}
         <div className="flex flex-1 flex-col">
           {/* Top bar */}
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-white px-6">
             <div className="flex items-center gap-2 lg:hidden">
+              <Button aria-label="Open navigation" variant="ghost" size="sm" onClick={() => setMobileNavigationOpen(true)}><Menu className="h-5 w-5" /></Button>
               <Image
                 src="/images/branding/logo-square.png"
                 alt="RiderGuy"

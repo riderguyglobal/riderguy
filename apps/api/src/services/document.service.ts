@@ -10,6 +10,7 @@ import { ApiError } from '../lib/api-error';
 import { StorageService } from './storage.service';
 import type { DocumentType, DocumentStatus } from '@prisma/client';
 import { OnboardingService } from './onboarding.service';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 // --------------- types ------------------------------------------------
 
@@ -27,6 +28,7 @@ export interface ReviewDocumentInput {
   reviewerId: string;
   status: 'APPROVED' | 'REJECTED';
   rejectionReason?: string;
+  auditContext?: AdminAuditContext;
 }
 
 // --------------- service class ----------------------------------------
@@ -115,18 +117,48 @@ export class DocumentService {
       throw ApiError.notFound('Document not found');
     }
 
-    if (doc.status === 'APPROVED' || doc.status === 'EXPIRED') {
+    if (doc.status !== 'PENDING' && doc.status !== 'UNDER_REVIEW') {
       throw ApiError.badRequest('Document cannot be reviewed in its current status');
     }
 
-    const updated = await prisma.document.update({
-      where: { id: input.documentId },
-      data: {
-        status: input.status as DocumentStatus,
-        reviewedBy: input.reviewerId,
-        reviewedAt: new Date(),
-        rejectionReason: input.status === 'REJECTED' ? (input.rejectionReason ?? null) : null,
-      },
+    const rejectionReason = input.rejectionReason?.trim();
+    if (input.status === 'REJECTED' && (!rejectionReason || rejectionReason.length < 5)) {
+      throw ApiError.badRequest('A meaningful rejection reason is required.');
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const reviewedAt = new Date();
+      const changed = await tx.document.updateMany({
+        where: { id: input.documentId, status: { in: ['PENDING', 'UNDER_REVIEW'] } },
+        data: {
+          status: input.status as DocumentStatus,
+          reviewedBy: input.reviewerId,
+          reviewedAt,
+          rejectionReason: input.status === 'REJECTED' ? rejectionReason! : null,
+        },
+      });
+      if (changed.count !== 1) {
+        throw ApiError.conflict('This document was reviewed by another administrator. Refresh the case.');
+      }
+      const reviewed = await tx.document.findUnique({ where: { id: input.documentId } });
+      if (!reviewed) throw ApiError.notFound('Document not found');
+      await AdminAuditService.record({
+        actorUserId: input.reviewerId,
+        ipAddress: input.auditContext?.ipAddress,
+        userAgent: input.auditContext?.userAgent,
+        action: input.status === 'APPROVED' ? 'rider_document.approved' : 'rider_document.rejected',
+        entityType: 'Document',
+        entityId: doc.id,
+        oldData: { riderUserId: doc.userId, type: doc.type, status: doc.status },
+        newData: {
+          riderUserId: doc.userId,
+          type: doc.type,
+          status: reviewed.status,
+          rejectionReason: reviewed.rejectionReason,
+          reviewedAt,
+        },
+      }, tx);
+      return reviewed;
     });
 
     // Update rider onboarding status

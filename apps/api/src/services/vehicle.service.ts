@@ -9,6 +9,7 @@ import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
 import { logger } from '../lib/logger';
 import { StorageService } from './storage.service';
 import type { Prisma, VehicleType } from '@prisma/client';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 // --------------- types ------------------------------------------------
 
@@ -41,6 +42,7 @@ export interface ReviewVehicleInput {
   reviewerUserId: string;
   status: 'APPROVED' | 'REJECTED';
   rejectionReason?: string;
+  auditContext?: AdminAuditContext;
 }
 
 type VehiclePhotoField = 'photoFrontUrl' | 'photoBackUrl' | 'photoLeftUrl' | 'photoRightUrl';
@@ -331,6 +333,28 @@ export class VehicleService {
       if (input.status === 'REJECTED') {
         await takeRiderOfflineIfNoApprovedVehicle(tx, vehicle.riderId);
       }
+      await AdminAuditService.record({
+        actorUserId: input.reviewerUserId,
+        ipAddress: input.auditContext?.ipAddress,
+        userAgent: input.auditContext?.userAgent,
+        action: input.status === 'APPROVED' ? 'rider_vehicle.approved' : 'rider_vehicle.rejected',
+        entityType: 'Vehicle',
+        entityId: vehicle.id,
+        oldData: {
+          riderUserId: input.riderUserId,
+          reviewStatus: vehicle.reviewStatus,
+          rejectionReason: vehicle.rejectionReason,
+          reviewedById: vehicle.reviewedById,
+          reviewedAt: vehicle.reviewedAt,
+        },
+        newData: {
+          riderUserId: input.riderUserId,
+          reviewStatus: reviewed.reviewStatus,
+          rejectionReason: reviewed.rejectionReason,
+          reviewedById: reviewed.reviewedById,
+          reviewedAt: reviewed.reviewedAt,
+        },
+      }, tx);
       return reviewed;
     });
   }

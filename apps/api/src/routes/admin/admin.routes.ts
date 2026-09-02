@@ -8,6 +8,7 @@ import { logger } from '../../lib/logger';
 import { handleRiderSuspended } from '../../services/order-reassign.service';
 import { PushService } from '../../services/push.service';
 import { disconnectUserSockets } from '../../socket';
+import { AdminAuditService, adminAuditContext } from '../../services/admin-audit.service';
 
 const router = Router();
 
@@ -48,7 +49,7 @@ router.get(
       prisma.riderProfile.count({ where: { availability: 'ONLINE' } }),
       prisma.user.count({ where: { role: 'CLIENT' } }),
       prisma.riderProfile.count({
-        where: { onboardingStatus: { in: ['DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW'] } },
+        where: { onboardingStatus: { not: 'ACTIVATED' } },
       }),
       // ORD-08: collapse 9 separate order count + aggregate round-trips into a
       //          single SQL pass with conditional aggregates. Cuts dashboard
@@ -280,6 +281,14 @@ router.patch(
       });
       return;
     }
+    const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (status !== 'ACTIVE' && normalizedReason.length < 5) {
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'STATUS_REASON_REQUIRED', message: 'A meaningful operational reason is required for access restrictions' },
+      });
+      return;
+    }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -302,18 +311,53 @@ router.patch(
       return;
     }
 
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { status },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        role: true,
-        status: true,
-      },
+    if (userId === req.user!.userId && status !== 'ACTIVE') {
+      res.status(StatusCodes.CONFLICT).json({
+        success: false,
+        error: { code: 'SELF_LOCKOUT_PREVENTED', message: 'You cannot restrict your own administrator account' },
+      });
+      return;
+    }
+
+    if (hasAnyRole(user, UserRole.SUPER_ADMIN) && status !== 'ACTIVE') {
+      const activeSuperAdmins = await prisma.user.count({
+        where: {
+          status: 'ACTIVE',
+          OR: [{ role: UserRole.SUPER_ADMIN }, { roles: { has: UserRole.SUPER_ADMIN } }],
+        },
+      });
+      if (activeSuperAdmins <= 1) {
+        res.status(StatusCodes.CONFLICT).json({
+          success: false,
+          error: { code: 'LAST_SUPER_ADMIN', message: 'The last active super administrator cannot be restricted' },
+        });
+        return;
+      }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.user.update({
+        where: { id: userId },
+        data: { status },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          role: true,
+          status: true,
+        },
+      });
+      await AdminAuditService.record({
+        ...adminAuditContext(req),
+        action: `user_account.status_${String(status).toLowerCase()}`,
+        entityType: 'User',
+        entityId: userId,
+        oldData: { status: user.status },
+        newData: { status, reason: normalizedReason || null },
+      }, tx);
+      return result;
     });
 
     if (status !== 'ACTIVE') {
@@ -325,7 +369,7 @@ router.patch(
       disconnectUserSockets(userId);
     }
 
-    logger.info({ userId, newStatus: status, reason, adminId: req.user!.userId }, 'User status updated by admin');
+    logger.info({ userId, newStatus: status, reason: normalizedReason, adminId: req.user!.userId }, 'User status updated by admin');
 
     // If a rider is being suspended, reassign/escalate their active orders
     if (

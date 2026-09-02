@@ -43,6 +43,61 @@ export const adminClassifyRiderChannelSchema = z.object({
   channel: z.enum(['GUEST', 'IN_HOUSE']),
 });
 
+export const riderOperationsQueues = [
+  'ALL',
+  'PENDING',
+  'ACTION_REQUIRED',
+  'READY',
+  'BLOCKED',
+  'REJECTED',
+  'ACTIVATED',
+] as const;
+
+export const riderOnboardingStatuses = [
+  'REGISTERED',
+  'DOCUMENTS_PENDING',
+  'DOCUMENTS_SUBMITTED',
+  'DOCUMENTS_UNDER_REVIEW',
+  'DOCUMENTS_APPROVED',
+  'DOCUMENTS_REJECTED',
+  'TRAINING_PENDING',
+  'TRAINING_COMPLETE',
+  'APPLICATION_REJECTED',
+  'ACTIVATED',
+] as const;
+
+/** Strict, bounded filters for the consolidated Rider Operations queue. */
+export const listRiderOperationsCasesQuerySchema = z.object({
+  queue: z.enum(riderOperationsQueues).default('PENDING'),
+  status: z.enum(riderOnboardingStatuses).optional(),
+  channel: z.enum(['GUEST', 'IN_HOUSE', 'UNCLASSIFIED']).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
+
+export const listRiderAuditHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+}).strict();
+
+export const revokeInHouseInvitationSchema = z.object({
+  reason: z.string().trim().min(5, 'A meaningful revocation reason is required').max(500),
+}).strict();
+
+export const reviewTrainingModuleSchema = z.object({
+  decision: z.enum(['VERIFIED', 'REVOKED']),
+  reason: z.string().trim().min(5).max(500).optional(),
+}).strict().superRefine((data, context) => {
+  if (data.decision === 'REVOKED' && !data.reason) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['reason'],
+      message: 'A meaningful reason is required when revoking training verification',
+    });
+  }
+});
+
 /**
  * A trained Rider can register interest in the 12-month asset lease program.
  * Eligibility is always re-checked by the API; clients cannot assert it.
@@ -70,5 +125,8 @@ export type UpdateAvailabilityInput = z.infer<typeof updateAvailabilitySchema>;
 export type UpdateLocationInput = z.infer<typeof updateLocationSchema>;
 export type SelectRiderChannelInput = z.infer<typeof selectRiderChannelSchema>;
 export type CreateInHouseInvitationInput = z.infer<typeof createInHouseInvitationSchema>;
+export type ListRiderOperationsCasesQuery = z.infer<typeof listRiderOperationsCasesQuerySchema>;
+export type ListRiderAuditHistoryQuery = z.infer<typeof listRiderAuditHistoryQuerySchema>;
+export type ReviewTrainingModuleInput = z.infer<typeof reviewTrainingModuleSchema>;
 export type CreateAssetFinancingInterestInput = z.infer<typeof createAssetFinancingInterestSchema>;
 export type UpdateAssetFinancingInterestStatusInput = z.infer<typeof updateAssetFinancingInterestStatusSchema>;

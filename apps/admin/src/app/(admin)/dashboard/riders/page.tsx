@@ -1,60 +1,83 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, getApiClient } from '@riderguy/auth';
-import { API_BASE_URL } from '@/lib/constants';
+import { getApiClient } from '@riderguy/auth';
+import { Badge, Button, Card, CardContent, Input, Spinner } from '@riderguy/ui';
 import {
-  Card,
-  CardContent,
-  Badge,
-  Button,
-  Input,
-  Spinner,
-} from '@riderguy/ui';
+  AlertTriangle,
+  Ban,
+  Bike,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  Clock3,
+  Copy,
+  FileCheck2,
+  GraduationCap,
+  RefreshCw,
+  Search,
+  Send,
+  ShieldCheck,
+  TicketCheck,
+} from 'lucide-react';
 
-// ─── Types ──────────────────────────────────────────────────
+type OperationsTab = 'queue' | 'all' | 'invitations';
+type QueueName = 'PENDING' | 'ACTION_REQUIRED' | 'READY' | 'BLOCKED' | 'REJECTED' | 'ACTIVATED';
 
-interface RiderUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email: string | null;
-  createdAt: string;
+interface OperationsSummary {
+  totalRiders: number;
+  pendingCases: number;
+  readyForActivation: number;
+  rejectedCases: number;
+  activatedRiders: number;
+  unclassifiedChannels: number;
+  evidenceQueues: {
+    documents: number;
+    vehicles: number;
+    incompleteVehicleEvidence: number;
+    training: number;
+    assetFinancing: number;
+  };
+  activeInvitations: number;
+  staleCases: number;
+  generatedAt: string;
 }
 
-interface RiderApplication {
+interface RiderCase {
   id: string;
   userId: string;
   onboardingStatus: string;
   riderChannel: 'GUEST' | 'IN_HOUSE' | null;
   requestedRiderChannel: 'GUEST' | 'IN_HOUSE' | null;
-  channelVerifiedAt: string | null;
-  referralCode: string;
-  createdAt: string;
-  user: RiderUser;
-  vehicles: Array<{
+  applicationRejectionReason: string | null;
+  user: {
     id: string;
-    make: string;
-    model: string;
-    plateNumber: string;
-    type: string;
-  }>;
-}
-
-interface RiderListItem {
-  id: string;
-  phone: string;
-  email: string | null;
-  firstName: string;
-  lastName: string;
-  role: string;
-  status: string;
-  avatarUrl: string | null;
-  createdAt: string;
-  lastLoginAt: string | null;
-  _count: { ordersAsClient: number };
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string | null;
+    status: string;
+    phoneVerified: boolean;
+    emailVerified: boolean;
+    createdAt: string;
+    lastLoginAt: string | null;
+  };
+  evidence: {
+    requiredDocuments: number;
+    approvedDocuments: number;
+    pendingDocuments: number;
+    registeredVehicles: number;
+    approvedVehicles: number;
+    reviewableVehicles: number;
+    trainingCompleted: number;
+    trainingVerified: number;
+    trainingAwaitingVerification: number;
+  };
+  readiness: { ready: boolean; missing: string[] };
+  nextAction: string;
+  lastActivityAt: string;
 }
 
 interface Pagination {
@@ -62,6 +85,18 @@ interface Pagination {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+interface Invitation {
+  id: string;
+  targetEmail: string | null;
+  targetPhone: string | null;
+  expiresAt: string;
+  usedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  createdBy: { id: string; firstName: string; lastName: string; email: string | null };
+  consumedBy: { userId: string } | null;
 }
 
 interface IssuedInvitation {
@@ -72,167 +107,169 @@ interface IssuedInvitation {
   deliveryStatus: 'SENT' | 'FAILED' | 'NOT_REQUESTED';
 }
 
-// ─── Helpers ────────────────────────────────────────────────
+const queueOptions: Array<{ value: QueueName; label: string }> = [
+  { value: 'PENDING', label: 'Open cases' },
+  { value: 'ACTION_REQUIRED', label: 'Needs admin action' },
+  { value: 'READY', label: 'Ready to activate' },
+  { value: 'BLOCKED', label: 'Waiting on Rider' },
+  { value: 'REJECTED', label: 'Rejected' },
+  { value: 'ACTIVATED', label: 'Activated' },
+];
 
-function onboardingBadge(status: string) {
-  const map: Record<string, { label: string; className: string }> = {
-    DOCUMENTS_SUBMITTED: { label: 'Docs Submitted', className: 'bg-amber-100 text-amber-800 hover:bg-amber-100' },
-    DOCUMENTS_UNDER_REVIEW: { label: 'Under Review', className: 'bg-blue-100 text-blue-800 hover:bg-blue-100' },
-    ACTIVATED: { label: 'Activated', className: 'bg-green-100 text-green-800 hover:bg-green-100' },
-    DOCUMENTS_REJECTED: { label: 'Rejected', className: 'bg-red-100 text-red-800 hover:bg-red-100' },
-    REGISTERED: { label: 'Registered', className: 'bg-gray-100 text-gray-700 hover:bg-gray-100' },
-    DOCUMENTS_PENDING: { label: 'Docs Pending', className: 'bg-gray-100 text-gray-600 hover:bg-gray-100' },
-    DOCUMENTS_APPROVED: { label: 'Docs Approved', className: 'bg-teal-100 text-teal-800 hover:bg-teal-100' },
-    TRAINING_PENDING: { label: 'Training', className: 'bg-purple-100 text-purple-800 hover:bg-purple-100' },
-    TRAINING_COMPLETE: { label: 'Training Done', className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100' },
-    APPLICATION_REJECTED: { label: 'Application Rejected', className: 'bg-red-100 text-red-800 hover:bg-red-100' },
-  };
-  const entry = map[status] ?? { label: status.replace(/_/g, ' '), className: '' };
-  return <Badge className={entry.className}>{entry.label}</Badge>;
+function formatStatus(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function accountBadge(status: string) {
-  const map: Record<string, { className: string }> = {
-    ACTIVE: { className: 'bg-green-100 text-green-800 hover:bg-green-100' },
-    SUSPENDED: { className: 'bg-red-100 text-red-800 hover:bg-red-100' },
-    DEACTIVATED: { className: 'bg-gray-100 text-gray-600 hover:bg-gray-100' },
-    BANNED: { className: 'bg-red-200 text-red-900 hover:bg-red-200' },
-    PENDING_VERIFICATION: { className: 'bg-amber-100 text-amber-800 hover:bg-amber-100' },
-  };
-  const entry = map[status] ?? { className: '' };
-  return <Badge className={entry.className}>{status.replace(/_/g, ' ')}</Badge>;
+function ageLabel(value: string) {
+  const hours = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 3_600_000));
+  if (hours < 1) return 'Updated recently';
+  if (hours < 24) return `Updated ${hours}h ago`;
+  return `Updated ${Math.floor(hours / 24)}d ago`;
 }
 
-// ─── Component ──────────────────────────────────────────────
+function statusBadge(status: string) {
+  const colors: Record<string, string> = {
+    ACTIVATED: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
+    TRAINING_COMPLETE: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100',
+    DOCUMENTS_APPROVED: 'bg-teal-100 text-teal-800 hover:bg-teal-100',
+    DOCUMENTS_SUBMITTED: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
+    DOCUMENTS_UNDER_REVIEW: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+    APPLICATION_REJECTED: 'bg-red-100 text-red-800 hover:bg-red-100',
+    DOCUMENTS_REJECTED: 'bg-red-100 text-red-800 hover:bg-red-100',
+  };
+  return <Badge className={colors[status] ?? 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>{formatStatus(status)}</Badge>;
+}
 
-export default function RiderManagementPage() {
+function channelBadge(riderCase: RiderCase) {
+  if (riderCase.riderChannel === 'IN_HOUSE') {
+    return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">In-House</Badge>;
+  }
+  if (riderCase.riderChannel === 'GUEST') {
+    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Guest</Badge>;
+  }
+  return (
+    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+      {riderCase.requestedRiderChannel === 'IN_HOUSE' ? 'Invite needed' : 'Unclassified'}
+    </Badge>
+  );
+}
+
+function invitationState(invitation: Invitation) {
+  if (invitation.usedAt) return { label: 'Used', className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' };
+  if (invitation.revokedAt) return { label: 'Revoked', className: 'bg-red-100 text-red-800 hover:bg-red-100' };
+  if (new Date(invitation.expiresAt).getTime() <= Date.now()) {
+    return { label: 'Expired', className: 'bg-gray-100 text-gray-700 hover:bg-gray-100' };
+  }
+  return { label: 'Active', className: 'bg-blue-100 text-blue-800 hover:bg-blue-100' };
+}
+
+export default function RiderOperationsPage() {
   const router = useRouter();
-  const { accessToken } = useAuth();
+  const api = useMemo(() => getApiClient(), []);
+  const [tab, setTab] = useState<OperationsTab>('queue');
+  const [queue, setQueue] = useState<QueueName>('PENDING');
+  const [summary, setSummary] = useState<OperationsSummary | null>(null);
+  const [cases, setCases] = useState<RiderCase[]>([]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [channel, setChannel] = useState('');
+  const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const [tab, setTab] = useState<'all' | 'applications'>('all');
-
-  // ── All Riders state ──
-  const [riders, setRiders] = useState<RiderListItem[]>([]);
-  const [riderPagination, setRiderPagination] = useState<Pagination | null>(null);
-  const [riderPage, setRiderPage] = useState(1);
-  const [riderSearch, setRiderSearch] = useState('');
-  const [riderStatusFilter, setRiderStatusFilter] = useState('');
-  const [ridersLoading, setRidersLoading] = useState(false);
-
-  // ── Applications state ──
-  const [applications, setApplications] = useState<RiderApplication[]>([]);
-  const [appPagination, setAppPagination] = useState<Pagination | null>(null);
-  const [appPage, setAppPage] = useState(1);
-  const [appChannelFilter, setAppChannelFilter] = useState('');
-  const [appsLoading, setAppsLoading] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inviteType, setInviteType] = useState<'email' | 'phone'>('email');
   const [inviteTarget, setInviteTarget] = useState('');
   const [issuedInvitation, setIssuedInvitation] = useState<IssuedInvitation | null>(null);
   const [inviteFeedback, setInviteFeedback] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<Invitation | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
 
-  const [error, setError] = useState('');
-  const [statusModal, setStatusModal] = useState<{ userId: string; name: string; current: string } | null>(null);
-  const [newStatus, setNewStatus] = useState('');
+  const [statusTarget, setStatusTarget] = useState<RiderCase | null>(null);
+  const [newAccountStatus, setNewAccountStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');
   const [updating, setUpdating] = useState(false);
 
-  // ── Fetch all riders ──
-  const fetchRiders = useCallback(async () => {
-    setRidersLoading(true);
-    try {
-      const api = getApiClient();
-      const params = new URLSearchParams({ page: String(riderPage), limit: '20', role: 'RIDER' });
-      if (riderSearch) params.set('search', riderSearch);
-      if (riderStatusFilter) params.set('status', riderStatusFilter);
-      const { data } = await api.get(`/users?${params}`);
-      setRiders(data.data);
-      setRiderPagination(data.pagination);
-      setError('');
-    } catch {
-      setError('Failed to load riders');
-    } finally {
-      setRidersLoading(false);
-    }
-  }, [riderPage, riderSearch, riderStatusFilter]);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
 
-  // ── Fetch applications ──
-  const fetchApplications = useCallback(async () => {
-    setAppsLoading(true);
+  const fetchSummary = useCallback(async () => {
+    const response = await api.get('/riders/admin/operations/summary');
+    setSummary(response.data.data);
+  }, [api]);
+
+  const fetchCases = useCallback(async () => {
+    const params = new URLSearchParams({
+      queue: tab === 'all' ? 'ALL' : queue,
+      page: String(page),
+      limit: '20',
+    });
+    if (search) params.set('search', search);
+    if (channel) params.set('channel', channel);
+    if (status) params.set('status', status);
+    const response = await api.get(`/riders/admin/operations/cases?${params.toString()}`);
+    setCases(response.data.data);
+    setPagination(response.data.pagination);
+  }, [api, channel, page, queue, search, status, tab]);
+
+  const fetchInvitations = useCallback(async () => {
+    const response = await api.get('/riders/admin/operations/invitations');
+    setInvitations(response.data.data);
+  }, [api]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      const params = new URLSearchParams({ page: String(appPage), limit: '20' });
-      if (appChannelFilter) params.set('channel', appChannelFilter);
-      const res = await fetch(
-        `${API_BASE_URL}/riders/applications?${params}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (!res.ok) throw new Error('Failed');
-      const json = await res.json();
-      setApplications(json.data);
-      setAppPagination(json.pagination);
-      setError('');
+      if (tab === 'invitations') await Promise.all([fetchSummary(), fetchInvitations()]);
+      else await Promise.all([fetchSummary(), fetchCases()]);
     } catch {
-      setError('Failed to load applications');
+      setError('The Rider Operations workspace could not be loaded. Please retry.');
     } finally {
-      setAppsLoading(false);
+      setLoading(false);
     }
-  }, [accessToken, appPage, appChannelFilter]);
+  }, [fetchCases, fetchInvitations, fetchSummary, tab]);
 
   useEffect(() => {
-    if (tab === 'all') fetchRiders();
-  }, [tab, fetchRiders]);
+    void refresh();
+  }, [refresh]);
 
-  useEffect(() => {
-    if (tab === 'applications') fetchApplications();
-  }, [tab, fetchApplications]);
-
-  // ── Update user status ──
-  const handleStatusUpdate = async () => {
-    if (!statusModal || !newStatus) return;
-    setUpdating(true);
-    try {
-      const api = getApiClient();
-      await api.patch(`/admin/users/${statusModal.userId}/status`, {
-        status: newStatus,
-        reason: statusReason || undefined,
-      });
-      setStatusModal(null);
-      setNewStatus('');
-      setStatusReason('');
-      fetchRiders();
-    } catch {
-      setError('Failed to update status');
-    } finally {
-      setUpdating(false);
-    }
+  const changeTab = (nextTab: OperationsTab) => {
+    setTab(nextTab);
+    setPage(1);
+    setError('');
   };
 
-  const createInHouseInvitation = async () => {
-    if (!inviteTarget.trim()) return;
+  const createInvitation = async () => {
     const target = inviteTarget.trim();
+    if (!target) return;
     setInviteLoading(true);
     setIssuedInvitation(null);
     setInviteFeedback('');
+    setError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/riders/invitations`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [inviteType]: target, expiresInDays: 7 }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? 'Invitation could not be created');
+      const response = await api.post('/riders/invitations', { [inviteType]: target, expiresInDays: 7 });
       const deliveryKey = inviteType === 'email' ? 'email' : 'sms';
       setIssuedInvitation({
-        code: json.data.code,
+        code: response.data.data.code,
         target,
         channel: inviteType,
-        expiresAt: json.data.expiresAt,
-        deliveryStatus: json.data.delivery?.[deliveryKey] ?? 'FAILED',
+        expiresAt: response.data.data.expiresAt,
+        deliveryStatus: response.data.data.delivery?.[deliveryKey] ?? 'FAILED',
       });
       setInviteTarget('');
-      setError('');
-    } catch (inviteError) {
-      setError(inviteError instanceof Error ? inviteError.message : 'Invitation could not be created');
+      await Promise.all([fetchInvitations(), fetchSummary()]);
+    } catch (invitationError: unknown) {
+      const message = (invitationError as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      setError(message ?? 'The invitation could not be issued.');
     } finally {
       setInviteLoading(false);
     }
@@ -240,11 +277,7 @@ export default function RiderManagementPage() {
 
   const copyInvitation = async (messageOnly = false) => {
     if (!issuedInvitation) return;
-    const expiry = new Date(issuedInvitation.expiresAt).toLocaleDateString('en-GH', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    const expiry = new Date(issuedInvitation.expiresAt).toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' });
     const message = `Your RiderGuy In-House Rider invitation code is ${issuedInvitation.code}. Sign in with ${issuedInvitation.target}, open Rider onboarding, and enter the code. It expires on ${expiry} and can be used once.`;
     try {
       await navigator.clipboard.writeText(messageOnly ? message : issuedInvitation.code);
@@ -254,342 +287,132 @@ export default function RiderManagementPage() {
     }
   };
 
-  // ── Search debounce ──
-  const [searchInput, setSearchInput] = useState('');
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setRiderSearch(searchInput);
-      setRiderPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [searchInput]);
+  const revokeInvitation = async () => {
+    if (!revokeTarget || revokeReason.trim().length < 5) return;
+    setUpdating(true);
+    setError('');
+    try {
+      await api.patch(`/riders/admin/operations/invitations/${revokeTarget.id}/revoke`, { reason: revokeReason.trim() });
+      setRevokeTarget(null);
+      setRevokeReason('');
+      await Promise.all([fetchInvitations(), fetchSummary()]);
+    } catch (revokeError: unknown) {
+      const message = (revokeError as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      setError(message ?? 'The invitation could not be revoked.');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
-  const loading = tab === 'all' ? ridersLoading : appsLoading;
+  const updateAccountStatus = async () => {
+    if (!statusTarget || !newAccountStatus) return;
+    setUpdating(true);
+    setError('');
+    try {
+      await api.patch(`/admin/users/${statusTarget.userId}/status`, {
+        status: newAccountStatus,
+        reason: statusReason.trim() || undefined,
+      });
+      setStatusTarget(null);
+      setNewAccountStatus('');
+      setStatusReason('');
+      await Promise.all([fetchCases(), fetchSummary()]);
+    } catch {
+      setError('The Rider account status could not be updated.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const summaryCards = summary ? [
+    { label: 'Open cases', value: summary.pendingCases, icon: ClipboardCheck, tone: 'bg-amber-50 text-amber-700' },
+    { label: 'Ready to activate', value: summary.readyForActivation, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Documents to review', value: summary.evidenceQueues.documents, icon: FileCheck2, tone: 'bg-blue-50 text-blue-700' },
+    { label: 'Vehicles to review', value: summary.evidenceQueues.vehicles, icon: Bike, tone: 'bg-purple-50 text-purple-700' },
+    { label: 'Training to verify', value: summary.evidenceQueues.training, icon: GraduationCap, tone: 'bg-indigo-50 text-indigo-700' },
+    { label: 'Stale over 48 hours', value: summary.staleCases, icon: Clock3, tone: 'bg-red-50 text-red-700' },
+  ] : [];
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Rider Management</h1>
-        <p className="text-sm text-gray-500">Manage riders, review applications, and update statuses.</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-brand-600" /><h1 className="text-2xl font-bold text-gray-950">Rider Operations</h1></div>
+          <p className="mt-1 text-sm text-gray-500">Verify evidence, control access, and activate Riders from one auditable workspace.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1 w-fit">
-        <button
-          onClick={() => setTab('all')}
-          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${tab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-        >
-          All Riders
-        </button>
-        <button
-          onClick={() => setTab('applications')}
-          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${tab === 'applications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-        >
-          Applications
-        </button>
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-      )}
-
-      {/* ── All Riders Tab ── */}
-      {tab === 'all' && (
-        <>
-          {/* Filters */}
-          <div className="mb-4 flex flex-wrap gap-3">
-            <Input
-              placeholder="Search by name, email, phone..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-64"
-            />
-            <select
-              value={riderStatusFilter}
-              onChange={(e) => { setRiderStatusFilter(e.target.value); setRiderPage(1); }}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            >
-              <option value="">All Statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="PENDING_VERIFICATION">Pending Verification</option>
-              <option value="SUSPENDED">Suspended</option>
-              <option value="DEACTIVATED">Deactivated</option>
-              <option value="BANNED">Banned</option>
-            </select>
-          </div>
-
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <Spinner className="h-8 w-8 text-brand-500" />
-            </div>
-          )}
-
-          {!loading && riders.length === 0 && (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <p className="text-lg font-medium text-gray-400">No riders found</p>
-                <p className="mt-1 text-sm text-gray-300">
-                  {riderSearch ? 'Try a different search term' : 'No riders have registered yet'}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!loading && riders.length > 0 && (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="border-b bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">Rider</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">Contact</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">Joined</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">Last Login</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {riders.map((rider) => (
-                    <tr key={rider.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
-                            {rider.firstName[0]}{rider.lastName[0]}
-                          </div>
-                          <span className="font-medium text-gray-900">{rider.firstName} {rider.lastName}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <div>{rider.phone}</div>
-                        {rider.email && <div className="text-xs text-gray-400">{rider.email}</div>}
-                      </td>
-                      <td className="px-4 py-3">{accountBadge(rider.status)}</td>
-                      <td className="px-4 py-3 text-gray-500">{new Date(rider.createdAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-gray-500">
-                        {rider.lastLoginAt ? new Date(rider.lastLoginAt).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => router.push(`/dashboard/riders/${rider.id}/review`)}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setStatusModal({ userId: rider.id, name: `${rider.firstName} ${rider.lastName}`, current: rider.status })}
-                          >
-                            Status
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {riderPagination && riderPagination.totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-gray-500">
-                Page {riderPagination.page} of {riderPagination.totalPages} ({riderPagination.total} total)
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={riderPage <= 1} onClick={() => setRiderPage((p) => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={riderPage >= riderPagination.totalPages} onClick={() => setRiderPage((p) => p + 1)}>Next</Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Applications Tab ── */}
-      {tab === 'applications' && (
-        <>
-          <Card className="mb-4">
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <p className="font-semibold text-gray-900">Issue In-House invitation</p>
-                  <p className="text-xs text-gray-500">The API generates a targeted one-time code, sends it by email or SMS, and shows it here once as a fallback.</p>
-                </div>
-                <select
-                  value={inviteType}
-                  onChange={(event) => setInviteType(event.target.value as 'email' | 'phone')}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                >
-                  <option value="email">Email</option>
-                  <option value="phone">Phone</option>
-                </select>
-                <Input
-                  value={inviteTarget}
-                  onChange={(event) => setInviteTarget(event.target.value)}
-                  placeholder={inviteType === 'email' ? 'rider@example.com' : '+233...'}
-                  className="w-64"
-                />
-                <Button onClick={() => void createInHouseInvitation()} disabled={!inviteTarget.trim() || inviteLoading}>
-                  {inviteLoading ? 'Issuing...' : 'Issue invitation'}
-                </Button>
-              </div>
-              {issuedInvitation ? (
-                <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-medium text-green-800">
-                        {issuedInvitation.deliveryStatus === 'SENT'
-                          ? `Sent automatically by ${issuedInvitation.channel === 'email' ? 'email' : 'SMS'} to ${issuedInvitation.target}.`
-                          : `Automatic ${issuedInvitation.channel === 'email' ? 'email' : 'SMS'} delivery failed. Copy and send it securely to ${issuedInvitation.target}.`}
-                      </p>
-                      <code className="mt-1 block select-all text-base font-bold tracking-wide text-green-950">{issuedInvitation.code}</code>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => void copyInvitation(false)}>Copy code</Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => void copyInvitation(true)}>Copy message</Button>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-green-800">This plaintext code cannot be displayed again after you leave this result.</p>
-                  {inviteFeedback ? <p className="mt-1 text-xs font-semibold text-green-900">{inviteFeedback}</p> : null}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <select
-              value={appChannelFilter}
-              onChange={(event) => { setAppChannelFilter(event.target.value); setAppPage(1); }}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            >
-              <option value="">All Rider Channels</option>
-              <option value="GUEST">3rd Party Riders (Guest)</option>
-              <option value="IN_HOUSE">RiderGuy In-House</option>
-            </select>
-          </div>
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <Spinner className="h-8 w-8 text-brand-500" />
-            </div>
-          )}
-
-          {!loading && applications.length === 0 && (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <p className="text-lg font-medium text-gray-400">No pending applications</p>
-                <p className="mt-1 text-sm text-gray-300">New rider applications will appear here.</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!loading && applications.length > 0 && (
-            <div className="space-y-3">
-              {applications.map((app) => (
-                <Card
-                  key={app.id}
-                  className="cursor-pointer transition-all hover:border-brand-300 hover:shadow-sm"
-                  onClick={() => router.push(`/dashboard/riders/${app.userId}/review`)}
-                >
-                  <CardContent className="flex items-center gap-4 p-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-semibold">
-                      {app.user.firstName[0]}{app.user.lastName[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900">{app.user.firstName} {app.user.lastName}</p>
-                        {onboardingBadge(app.onboardingStatus)}
-                        <Badge className={app.riderChannel === 'IN_HOUSE'
-                          ? 'bg-purple-100 text-purple-800 hover:bg-purple-100'
-                          : app.riderChannel === 'GUEST'
-                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
-                            : 'bg-amber-100 text-amber-800 hover:bg-amber-100'}>
-                          {app.riderChannel === 'IN_HOUSE'
-                            ? 'In-House'
-                            : app.riderChannel === 'GUEST'
-                              ? 'Guest'
-                              : app.requestedRiderChannel === 'IN_HOUSE'
-                                ? 'In-House Invite Needed'
-                                : 'Channel Needed'}
-                        </Badge>
-                      </div>
-                      <p className="mt-0.5 text-sm text-gray-500">
-                        {app.user.phone}{app.user.email && ` • ${app.user.email}`}
-                      </p>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
-                        <span>Applied {new Date(app.createdAt).toLocaleDateString()}</span>
-                        {app.vehicles.length > 0 && <span>{app.vehicles.length} vehicle{app.vehicles.length > 1 ? 's' : ''}</span>}
-                        <span>Code {app.referralCode}</span>
-                      </div>
-                    </div>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5 flex-shrink-0 text-gray-300">
-                      <path d="M9 18l6-6-6-6" />
-                    </svg>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {appPagination && appPagination.totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-gray-500">
-                Page {appPagination.page} of {appPagination.totalPages} ({appPagination.total} total)
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={appPage <= 1} onClick={() => setAppPage((p) => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={appPage >= appPagination.totalPages} onClick={() => setAppPage((p) => p + 1)}>Next</Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Status Update Modal ── */}
-      {statusModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900">Update Status</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Change status for <strong>{statusModal.name}</strong>
-            </p>
-            <p className="mt-2 text-xs text-gray-400">
-              Current: {statusModal.current.replace(/_/g, ' ')}
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              >
-                <option value="">Select new status</option>
-                <option value="ACTIVE">Active</option>
-                <option value="SUSPENDED">Suspended</option>
-                <option value="DEACTIVATED">Deactivated</option>
-                <option value="BANNED">Banned</option>
-              </select>
-
-              <Input
-                placeholder="Reason (optional)"
-                value={statusReason}
-                onChange={(e) => setStatusReason(e.target.value)}
-              />
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setStatusModal(null); setNewStatus(''); setStatusReason(''); }}>
-                Cancel
-              </Button>
-              <Button onClick={handleStatusUpdate} disabled={!newStatus || updating}>
-                {updating ? 'Updating...' : 'Update Status'}
-              </Button>
-            </div>
-          </div>
+      {summary && (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {summaryCards.map(({ label, value, icon: Icon, tone }) => (
+            <Card key={label}><CardContent className="p-4"><div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}><Icon className="h-5 w-5" /></div><p className="text-2xl font-bold text-gray-950">{value}</p><p className="text-xs text-gray-500">{label}</p></CardContent></Card>
+          ))}
         </div>
       )}
+
+      <div className="mb-5 flex w-fit gap-1 rounded-xl bg-gray-100 p-1">
+        {([
+          ['queue', 'Review queue'],
+          ['all', `All Riders${summary ? ` (${summary.totalRiders})` : ''}`],
+          ['invitations', `In-House invitations${summary ? ` (${summary.activeInvitations})` : ''}`],
+        ] as Array<[OperationsTab, string]>).map(([value, label]) => (
+          <button key={value} type="button" onClick={() => changeTab(value)} className={`rounded-lg px-4 py-2 text-sm font-medium transition ${tab === value ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>{label}</button>
+        ))}
+      </div>
+
+      {error && <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />{error}</div>}
+
+      {tab !== 'invitations' && (
+        <>
+          {tab === 'queue' && (
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+              {queueOptions.map((option) => <button key={option.value} type="button" onClick={() => { setQueue(option.value); setPage(1); }} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition ${queue === option.value ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'}`}>{option.label}</button>)}
+            </div>
+          )}
+
+          <Card className="mb-4"><CardContent className="flex flex-wrap gap-3 p-4">
+            <div className="relative min-w-[240px] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" /><Input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search name, phone, email, code, or plate" className="pl-9" /></div>
+            <select value={channel} onChange={(event) => { setChannel(event.target.value); setPage(1); }} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">All channels</option><option value="GUEST">Guest</option><option value="IN_HOUSE">In-House</option><option value="UNCLASSIFIED">Unclassified</option></select>
+            <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">All onboarding statuses</option>{['REGISTERED', 'DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW', 'DOCUMENTS_APPROVED', 'DOCUMENTS_REJECTED', 'TRAINING_PENDING', 'TRAINING_COMPLETE', 'APPLICATION_REJECTED', 'ACTIVATED'].map((value) => <option key={value} value={value}>{formatStatus(value)}</option>)}</select>
+          </CardContent></Card>
+
+          {loading ? <div className="flex justify-center py-20"><Spinner className="h-8 w-8 text-brand-500" /></div> : cases.length === 0 ? (
+            <Card><CardContent className="py-16 text-center"><CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-500" /><p className="font-semibold text-gray-800">This queue is clear</p><p className="mt-1 text-sm text-gray-500">No Rider cases match the selected filters.</p></CardContent></Card>
+          ) : (
+            <div className="space-y-3">
+              {cases.map((riderCase) => {
+                const name = `${riderCase.user.firstName} ${riderCase.user.lastName}`;
+                return (
+                  <Card key={riderCase.id} className="overflow-hidden transition hover:border-brand-300 hover:shadow-sm"><CardContent className="p-0">
+                    <div className="grid gap-4 p-4 lg:grid-cols-[minmax(230px,1.1fr)_minmax(280px,1.2fr)_minmax(240px,1fr)_auto] lg:items-center">
+                      <div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-100 font-bold text-brand-700">{riderCase.user.firstName[0]}{riderCase.user.lastName[0]}</div><div className="min-w-0"><p className="truncate font-semibold text-gray-950">{name}</p><p className="truncate text-xs text-gray-500">{riderCase.user.phone}{riderCase.user.email ? ` · ${riderCase.user.email}` : ''}</p><div className="mt-1 flex flex-wrap gap-1.5">{channelBadge(riderCase)}{statusBadge(riderCase.onboardingStatus)}</div></div></div>
+                      <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Evidence</p><div className="grid grid-cols-3 gap-2 text-xs"><div className="rounded-lg bg-gray-50 p-2"><FileCheck2 className="mb-1 h-4 w-4 text-blue-600" /><span className="font-bold text-gray-900">{riderCase.evidence.approvedDocuments}/{riderCase.evidence.requiredDocuments}</span><p className="text-gray-500">Documents</p></div><div className="rounded-lg bg-gray-50 p-2"><Bike className="mb-1 h-4 w-4 text-purple-600" /><span className="font-bold text-gray-900">{riderCase.evidence.approvedVehicles}/{riderCase.evidence.registeredVehicles}</span><p className="text-gray-500">Vehicles</p></div><div className="rounded-lg bg-gray-50 p-2"><GraduationCap className="mb-1 h-4 w-4 text-indigo-600" /><span className="font-bold text-gray-900">{riderCase.evidence.trainingVerified}/{riderCase.riderChannel === 'IN_HOUSE' ? 3 : 0}</span><p className="text-gray-500">Training</p></div></div></div>
+                      <div><p className={`text-sm font-semibold ${riderCase.readiness.ready ? 'text-emerald-700' : 'text-gray-900'}`}>{riderCase.nextAction}</p><p className="mt-1 text-xs text-gray-500">{ageLabel(riderCase.lastActivityAt)}</p>{!riderCase.readiness.ready && riderCase.readiness.missing.length > 0 && <p className="mt-1 line-clamp-2 text-xs text-amber-700">{riderCase.readiness.missing.slice(0, 2).join(' · ')}</p>}</div>
+                      <div className="flex gap-2 lg:flex-col"><Button size="sm" onClick={() => router.push(`/dashboard/riders/${riderCase.userId}/review`)}>Open case</Button>{tab === 'all' && <Button size="sm" variant="outline" onClick={() => setStatusTarget(riderCase)}>Account status</Button>}</div>
+                    </div>
+                  </CardContent></Card>
+                );
+              })}
+            </div>
+          )}
+
+          {pagination && pagination.totalPages > 1 && <div className="mt-5 flex items-center justify-between"><p className="text-sm text-gray-500">Page {pagination.page} of {pagination.totalPages} · {pagination.total} cases</p><div className="flex gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={page >= pagination.totalPages} onClick={() => setPage((value) => value + 1)}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button></div></div>}
+        </>
+      )}
+
+      {tab === 'invitations' && (
+        <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
+          <Card><CardContent className="p-5"><div className="mb-4 flex items-center gap-2"><TicketCheck className="h-5 w-5 text-purple-600" /><h2 className="font-bold text-gray-950">Issue In-House invitation</h2></div><p className="mb-4 text-sm text-gray-500">Codes are targeted, single-use, expire after seven days, and are only displayed once.</p><div className="space-y-3"><select value={inviteType} onChange={(event) => setInviteType(event.target.value as 'email' | 'phone')} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option value="email">Send by email</option><option value="phone">Send by SMS</option></select><Input value={inviteTarget} onChange={(event) => setInviteTarget(event.target.value)} placeholder={inviteType === 'email' ? 'rider@example.com' : '+233...'} /><Button className="w-full" disabled={!inviteTarget.trim() || inviteLoading} onClick={() => void createInvitation()}><Send className="mr-2 h-4 w-4" />{inviteLoading ? 'Issuing…' : 'Issue secure invitation'}</Button></div>
+            {issuedInvitation && <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-semibold text-emerald-800">{issuedInvitation.deliveryStatus === 'SENT' ? `Sent to ${issuedInvitation.target}.` : `Automatic delivery failed. Send this code securely to ${issuedInvitation.target}.`}</p><code className="my-2 block select-all break-all text-base font-bold tracking-wide text-emerald-950">{issuedInvitation.code}</code><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void copyInvitation(false)}><Copy className="mr-1 h-3.5 w-3.5" />Code</Button><Button size="sm" variant="outline" onClick={() => void copyInvitation(true)}><Copy className="mr-1 h-3.5 w-3.5" />Message</Button></div><p className="mt-2 text-xs text-emerald-800">Store or send it now. Plaintext is never saved.</p>{inviteFeedback && <p className="mt-1 text-xs font-bold text-emerald-900">{inviteFeedback}</p>}</div>}
+          </CardContent></Card>
+          <Card><CardContent className="p-0"><div className="border-b px-5 py-4"><h2 className="font-bold text-gray-950">Invitation register</h2><p className="text-xs text-gray-500">Latest 100 invitations with issuer and lifecycle state.</p></div>{loading ? <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-brand-500" /></div> : invitations.length === 0 ? <p className="py-16 text-center text-sm text-gray-500">No invitations have been issued.</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3">Target</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Issued by</th><th className="px-4 py-3">Expiry</th><th className="px-4 py-3 text-right">Control</th></tr></thead><tbody className="divide-y">{invitations.map((invitation) => { const state = invitationState(invitation); const canRevoke = state.label === 'Active'; return <tr key={invitation.id} className="hover:bg-gray-50"><td className="px-4 py-3"><p className="font-medium text-gray-900">{invitation.targetEmail ?? invitation.targetPhone}</p><p className="text-xs text-gray-400">{new Date(invitation.createdAt).toLocaleString()}</p></td><td className="px-4 py-3"><Badge className={state.className}>{state.label}</Badge>{invitation.consumedBy && <p className="mt-1 text-xs text-gray-400">Linked to Rider</p>}</td><td className="px-4 py-3 text-gray-600">{invitation.createdBy.firstName} {invitation.createdBy.lastName}</td><td className="px-4 py-3 text-gray-600">{new Date(invitation.expiresAt).toLocaleDateString()}</td><td className="px-4 py-3 text-right"><Button size="sm" variant="outline" disabled={!canRevoke} onClick={() => setRevokeTarget(invitation)}><Ban className="mr-1 h-3.5 w-3.5" />Revoke</Button></td></tr>; })}</tbody></table></div>}</CardContent></Card>
+        </div>
+      )}
+
+      {revokeTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Revoke invitation</h3><p className="mt-1 text-sm text-gray-500">This immediately prevents the unused code for {revokeTarget.targetEmail ?? revokeTarget.targetPhone} from being redeemed.</p><textarea value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} rows={3} placeholder="Reason for revocation" className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); }}>Cancel</Button><Button className="bg-red-600 hover:bg-red-700" disabled={revokeReason.trim().length < 5 || updating} onClick={() => void revokeInvitation()}>{updating ? 'Revoking…' : 'Revoke code'}</Button></div></div></div>}
+
+      {statusTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Account access</h3><p className="mt-1 text-sm text-gray-500">Update access for <strong>{statusTarget.user.firstName} {statusTarget.user.lastName}</strong>. Current status: {formatStatus(statusTarget.user.status)}.</p><select value={newAccountStatus} onChange={(event) => setNewAccountStatus(event.target.value)} className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option value="">Choose status</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="DEACTIVATED">Deactivated</option><option value="BANNED">Banned</option></select><textarea value={statusReason} onChange={(event) => setStatusReason(event.target.value)} rows={3} placeholder="Operational reason" className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={!newAccountStatus || updating} onClick={() => void updateAccountStatus()}>{updating ? 'Updating…' : 'Apply status'}</Button></div></div></div>}
     </>
   );
 }

@@ -30,7 +30,22 @@ export const uploadDocumentSchema = z.object({
 
 export const reviewDocumentSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']),
-  rejectionReason: z.string().max(500).optional(),
+  rejectionReason: z.string().trim().min(5).max(500).optional(),
+}).strict().superRefine((data, context) => {
+  if (data.status === 'REJECTED' && !data.rejectionReason) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rejectionReason'],
+      message: 'A meaningful rejection reason is required',
+    });
+  }
+  if (data.status === 'APPROVED' && data.rejectionReason) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rejectionReason'],
+      message: 'A rejection reason is only allowed when rejecting a document',
+    });
+  }
 });
 
 export type UploadDocumentInput = z.infer<typeof uploadDocumentSchema>;

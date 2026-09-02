@@ -94,13 +94,14 @@ describe('admin vehicle-review route', () => {
       user: { userId: 'admin-user-1', role: UserRole.ADMIN, sessionId: 'session-1' },
     } as unknown as Request, { status } as unknown as Response);
 
-    expect(review).toHaveBeenCalledWith({
+    expect(review).toHaveBeenCalledWith(expect.objectContaining({
       vehicleId: 'vehicle-1',
       riderUserId: 'rider-user-1',
       reviewerUserId: 'admin-user-1',
       status: 'REJECTED',
       rejectionReason: 'Registration photo is unreadable',
-    });
+      auditContext: expect.objectContaining({ actorUserId: 'admin-user-1' }),
+    }));
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'rider-user-1',
       title: 'Vehicle Not Approved',

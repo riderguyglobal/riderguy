@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
       update: interestUpdate,
       updateMany: interestUpdateMany,
     },
+    auditLog: { create: vi.fn() },
     $executeRaw: executeRaw,
   }));
 

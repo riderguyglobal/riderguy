@@ -21,6 +21,7 @@ const {
     $executeRaw: executeRawMock,
     riderProfile: riderProfileMock,
     vehicle: vehicleMock,
+    auditLog: { create: vi.fn() },
   };
   return {
     executeRawMock,

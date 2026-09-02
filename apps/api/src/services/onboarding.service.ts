@@ -7,6 +7,7 @@ import { prisma } from '@riderguy/database';
 import type { Prisma } from '@prisma/client';
 import { ApiError } from '../lib/api-error';
 import { isRiderWorkEligible } from './rider-work-eligibility';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 export const REQUIRED_IN_HOUSE_TRAINING_MODULES = [
   'SAFETY_BASICS',
@@ -245,16 +246,36 @@ export class OnboardingService {
     });
   }
 
-  static async createInHouseInvitation(createdById: string, input: { email?: string; phone?: string; expiresInDays?: number }) {
+  static async createInHouseInvitation(
+    createdById: string,
+    input: { email?: string; phone?: string; expiresInDays?: number },
+    auditContext?: AdminAuditContext,
+  ) {
     const targetEmail = normalizeEmail(input.email);
     const targetPhone = normalizePhone(input.phone);
     if (!targetEmail && !targetPhone) throw ApiError.badRequest('An email address or phone number is required for a targeted invitation.');
     const days = Math.min(Math.max(input.expiresInDays ?? 7, 1), 30);
     const code = `RGIH-${crypto.randomBytes(12).toString('hex').toUpperCase()}`;
     const expiresAt = new Date(Date.now() + days * 86_400_000);
-    const invitation = await prisma.riderInvitation.create({
-      data: { codeHash: hashInvitationCode(code), targetEmail, targetPhone, expiresAt, createdById },
-      select: { id: true, targetEmail: true, targetPhone: true, expiresAt: true, createdAt: true },
+    const invitation = await prisma.$transaction(async (tx) => {
+      const created = await tx.riderInvitation.create({
+        data: { codeHash: hashInvitationCode(code), targetEmail, targetPhone, expiresAt, createdById },
+        select: { id: true, targetEmail: true, targetPhone: true, expiresAt: true, createdAt: true },
+      });
+      await AdminAuditService.record({
+        actorUserId: createdById,
+        ipAddress: auditContext?.ipAddress,
+        userAgent: auditContext?.userAgent,
+        action: 'rider_invitation.issued',
+        entityType: 'RiderInvitation',
+        entityId: created.id,
+        newData: {
+          targetEmail: created.targetEmail,
+          targetPhone: created.targetPhone,
+          expiresAt: created.expiresAt,
+        },
+      }, tx);
+      return created;
     });
 
     // The plaintext code is deliberately not stored. Deliver it immediately
@@ -284,8 +305,49 @@ export class OnboardingService {
       orderBy: { createdAt: 'desc' }, take: 100,
       select: {
         id: true, targetEmail: true, targetPhone: true, expiresAt: true, usedAt: true, revokedAt: true, createdAt: true,
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         consumedBy: { select: { userId: true } },
       },
+    });
+  }
+
+  static async revokeInHouseInvitation(
+    adminId: string,
+    invitationId: string,
+    reason: string,
+    auditContext?: AdminAuditContext,
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const invitation = await tx.riderInvitation.findUnique({ where: { id: invitationId } });
+      if (!invitation) throw ApiError.notFound('Rider invitation not found');
+      if (invitation.usedAt) throw ApiError.conflict('A consumed invitation cannot be revoked.');
+      if (invitation.revokedAt) throw ApiError.conflict('This invitation has already been revoked.');
+
+      const now = new Date();
+      const changed = await tx.riderInvitation.updateMany({
+        where: { id: invitationId, usedAt: null, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      if (changed.count !== 1) {
+        throw ApiError.conflict('This invitation changed while it was being revoked. Refresh and try again.');
+      }
+      await AdminAuditService.record({
+        actorUserId: adminId,
+        ipAddress: auditContext?.ipAddress,
+        userAgent: auditContext?.userAgent,
+        action: 'rider_invitation.revoked',
+        entityType: 'RiderInvitation',
+        entityId: invitationId,
+        oldData: { revokedAt: invitation.revokedAt, usedAt: invitation.usedAt },
+        newData: { revokedAt: now, reason },
+      }, tx);
+      return tx.riderInvitation.findUnique({
+        where: { id: invitationId },
+        select: {
+          id: true, targetEmail: true, targetPhone: true, expiresAt: true,
+          usedAt: true, revokedAt: true, createdAt: true,
+        },
+      });
     });
   }
 
@@ -314,14 +376,72 @@ export class OnboardingService {
     };
   }
 
-  static async verifyTrainingModule(adminId: string, userId: string, moduleKey: string) {
+  static async verifyTrainingModule(
+    adminId: string,
+    userId: string,
+    moduleKey: string,
+    auditContext?: AdminAuditContext,
+  ) {
+    return this.reviewTrainingModule(adminId, userId, moduleKey, 'VERIFIED', undefined, auditContext);
+  }
+
+  static async reviewTrainingModule(
+    adminId: string,
+    userId: string,
+    moduleKey: string,
+    decision: 'VERIFIED' | 'REVOKED',
+    reason?: string,
+    auditContext?: AdminAuditContext,
+  ) {
     this.assertTrainingModule(moduleKey);
     const rider = await prisma.riderProfile.findUnique({ where: { userId } });
     if (!rider) throw ApiError.notFound('Rider profile not found');
     const completion = await prisma.riderTrainingCompletion.findUnique({ where: { riderId_moduleKey: { riderId: rider.id, moduleKey } } });
     if (!completion) throw ApiError.badRequest('The Rider has not completed this training module.');
-    const updated = await prisma.riderTrainingCompletion.update({
-      where: { id: completion.id }, data: { verifiedAt: new Date(), verifiedById: adminId },
+    if (decision === 'VERIFIED' && completion.verifiedAt) {
+      throw ApiError.conflict('This training module is already verified.');
+    }
+    if (decision === 'REVOKED' && !completion.verifiedAt) {
+      throw ApiError.conflict('This training module is not currently verified.');
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const changed = await tx.riderTrainingCompletion.updateMany({
+        where: {
+          id: completion.id,
+          verifiedAt: decision === 'VERIFIED' ? null : { not: null },
+        },
+        data: decision === 'VERIFIED'
+          ? { verifiedAt: now, verifiedById: adminId }
+          : { verifiedAt: null, verifiedById: null },
+      });
+      if (changed.count !== 1) {
+        throw ApiError.conflict('This training record changed during review. Refresh the case.');
+      }
+      const result = await tx.riderTrainingCompletion.findUnique({ where: { id: completion.id } });
+      if (!result) throw ApiError.notFound('Training completion not found');
+      await AdminAuditService.record({
+        actorUserId: adminId,
+        ipAddress: auditContext?.ipAddress,
+        userAgent: auditContext?.userAgent,
+        action: decision === 'VERIFIED' ? 'rider_training.verified' : 'rider_training.verification_revoked',
+        entityType: 'RiderTrainingCompletion',
+        entityId: completion.id,
+        oldData: {
+          riderUserId: userId,
+          moduleKey,
+          verifiedAt: completion.verifiedAt,
+          verifiedById: completion.verifiedById,
+        },
+        newData: {
+          riderUserId: userId,
+          moduleKey,
+          verifiedAt: result.verifiedAt,
+          verifiedById: result.verifiedById,
+          ...(reason ? { reason } : {}),
+        },
+      }, tx);
+      return result;
     });
     await this.recalculateStatus(userId);
     return updated;

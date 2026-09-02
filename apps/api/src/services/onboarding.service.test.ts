@@ -6,6 +6,7 @@ vi.mock('@riderguy/database', () => ({
     riderProfile: { findUnique: vi.fn(), update: vi.fn() },
     riderInvitation: { findUnique: vi.fn(), create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
     riderTrainingCompletion: { findUnique: vi.fn(), update: vi.fn(), upsert: vi.fn() },
+    auditLog: { create: vi.fn() },
   },
 }));
 

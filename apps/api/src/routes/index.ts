@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { authRouter } from './auth/auth.routes';
 import { userRouter } from './users/user.routes';
 import { riderRouter } from './riders/rider.routes';
+import { riderOperationsRouter } from './riders/rider-operations.routes';
 import { orderRouter } from './orders/order.routes';
 import { walletRouter } from './wallets/wallet.routes';
 import { zoneRouter } from './zones/zone.routes';
@@ -44,6 +45,7 @@ const authenticatePrivateUpload: RequestHandler = (req, res, next) => {
 
 router.use('/auth', authRouter);
 router.use('/users', userRouter);
+router.use('/riders/admin/operations', riderOperationsRouter);
 router.use('/riders', riderRouter);
 router.use('/orders', orderRouter);
 router.use('/wallets', walletRouter);

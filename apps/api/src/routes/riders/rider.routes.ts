@@ -19,12 +19,14 @@ import {
   createAssetFinancingInterestSchema,
   listAssetFinancingInterestsQuerySchema,
   updateAssetFinancingInterestStatusSchema,
+  reviewTrainingModuleSchema,
 } from '@riderguy/validators';
 import type { ListAssetFinancingInterestsQuery } from '@riderguy/validators';
 import { VehicleService } from '../../services/vehicle.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { AssetFinancingService } from '../../services/asset-financing.service';
 import { NotificationService } from '../../services/notification.service';
+import { AdminAuditService, adminAuditContext } from '../../services/admin-audit.service';
 import {
   recordHeartbeat,
   forceRiderOffline,
@@ -147,6 +149,7 @@ export async function updateAssetFinancingInterestStatusHandler(
     String(req.params.interestId),
     req.user!.userId,
     req.body,
+    adminAuditContext(req),
   );
   res.status(StatusCodes.OK).json({ success: true, data: interest });
 }
@@ -165,6 +168,7 @@ export async function reviewVehicleHandler(req: Request, res: Response): Promise
     reviewerUserId: req.user!.userId,
     status,
     rejectionReason,
+    auditContext: adminAuditContext(req),
   });
 
   const approved = status === 'APPROVED';
@@ -650,7 +654,11 @@ router.post(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(createInHouseInvitationSchema),
   asyncHandler(async (req, res) => {
-    const invitation = await OnboardingService.createInHouseInvitation(req.user!.userId, req.body);
+    const invitation = await OnboardingService.createInHouseInvitation(
+      req.user!.userId,
+      req.body,
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.CREATED).json({ success: true, data: invitation });
   }),
 );
@@ -790,6 +798,25 @@ router.patch(
       req.user!.userId,
       String(req.params.riderId),
       String(req.params.moduleKey).toUpperCase(),
+      adminAuditContext(req),
+    );
+    res.status(StatusCodes.OK).json({ success: true, data: completion });
+  }),
+);
+
+/** PATCH /riders/:riderId/training/:moduleKey/review — verify or revoke verification. */
+router.patch(
+  '/:riderId/training/:moduleKey/review',
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate(reviewTrainingModuleSchema),
+  asyncHandler(async (req, res) => {
+    const completion = await OnboardingService.reviewTrainingModule(
+      req.user!.userId,
+      String(req.params.riderId),
+      String(req.params.moduleKey).toUpperCase(),
+      req.body.decision,
+      req.body.reason,
+      adminAuditContext(req),
     );
     res.status(StatusCodes.OK).json({ success: true, data: completion });
   }),
@@ -803,22 +830,39 @@ router.patch(
   asyncHandler(async (req, res) => {
     const riderId = String(req.params.riderId);
     const channel = req.body.channel as 'GUEST' | 'IN_HOUSE';
-    const existing = await prisma.riderProfile.findUnique({ where: { userId: riderId } });
-    if (!existing) throw ApiError.notFound('Rider profile not found');
-    if (existing.riderChannel) {
-      throw ApiError.conflict('This Rider already has a verified channel classification.');
-    }
 
-    const profile = await prisma.riderProfile.update({
-      where: { userId: riderId },
-      data: {
-        riderChannel: channel,
-        requestedRiderChannel: channel,
-        channelVerifiedAt: new Date(),
-        channelInvitationId: null,
-        applicationReviewedAt: new Date(),
-        applicationReviewedById: req.user!.userId,
-      },
+    const profile = await prisma.$transaction(async (tx) => {
+      await lockRiderVehicleStateForUser(tx, riderId);
+      const existing = await tx.riderProfile.findUnique({ where: { userId: riderId } });
+      if (!existing) throw ApiError.notFound('Rider profile not found');
+      if (existing.riderChannel) {
+        throw ApiError.conflict('This Rider already has a verified channel classification.');
+      }
+      const now = new Date();
+      const updated = await tx.riderProfile.update({
+        where: { userId: riderId },
+        data: {
+          riderChannel: channel,
+          requestedRiderChannel: channel,
+          channelVerifiedAt: now,
+          channelInvitationId: null,
+          applicationReviewedAt: now,
+          applicationReviewedById: req.user!.userId,
+        },
+      });
+      const context = adminAuditContext(req);
+      await AdminAuditService.record({
+        ...context,
+        action: 'rider_channel.classified',
+        entityType: 'RiderProfile',
+        entityId: existing.id,
+        oldData: {
+          riderChannel: existing.riderChannel,
+          requestedRiderChannel: existing.requestedRiderChannel,
+        },
+        newData: { riderChannel: channel, classifiedAt: now },
+      }, tx);
+      return updated;
     });
     if (profile.onboardingStatus !== 'ACTIVATED') {
       await OnboardingService.recalculateStatus(riderId);
@@ -839,6 +883,9 @@ router.patch(
       // must use that exact identity rather than User.id.
       await lockRiderVehicleStateForUser(tx, riderId);
       const readiness = await OnboardingService.getApprovalReadiness(riderId, tx);
+      if (readiness.rider.onboardingStatus === 'ACTIVATED') {
+        throw ApiError.conflict('This Rider application is already activated.');
+      }
       if (!readiness.ready) {
         throw ApiError.badRequest(
           'This Rider cannot be activated until all required checks are complete.',
@@ -860,17 +907,39 @@ router.patch(
         },
       });
       await tx.user.update({ where: { id: riderId }, data: { status: 'ACTIVE' } });
+      const context = adminAuditContext(req);
+      await AdminAuditService.record({
+        ...context,
+        action: 'rider_application.activated',
+        entityType: 'RiderProfile',
+        entityId: activated.id,
+        oldData: {
+          onboardingStatus: readiness.rider.onboardingStatus,
+          isVerified: readiness.rider.isVerified,
+          accountStatus: readiness.rider.user.status,
+        },
+        newData: {
+          riderUserId: riderId,
+          onboardingStatus: activated.onboardingStatus,
+          isVerified: activated.isVerified,
+          accountStatus: 'ACTIVE',
+          activatedAt: activated.activatedAt,
+        },
+      }, tx);
       return activated;
     });
 
-    // Notify the rider
-    await NotificationService.create({
-      userId: riderId,
-      title: 'Application Approved!',
-      body: 'Your rider application has been approved. You can now start accepting deliveries.',
-      type: 'TRAINING',
-      data: { status: 'ACTIVATED' },
-    });
+    try {
+      await NotificationService.create({
+        userId: riderId,
+        title: 'Application Approved!',
+        body: 'Your rider application has been approved. You can now start accepting deliveries.',
+        type: 'TRAINING',
+        data: { status: 'ACTIVATED' },
+      });
+    } catch (error) {
+      logger.error({ error, riderId }, 'Rider activation notification failed after the decision was persisted');
+    }
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
   }),
@@ -885,26 +954,58 @@ router.patch(
     const riderId = req.params.riderId as string;
     const { reason } = req.body;
 
-    const profile = await prisma.riderProfile.update({
-      where: { userId: riderId },
-      data: {
-        onboardingStatus: 'APPLICATION_REJECTED',
-        isVerified: false,
-        activatedAt: null,
-        availability: 'OFFLINE',
-        applicationRejectionReason: reason,
-        applicationReviewedAt: new Date(),
-        applicationReviewedById: req.user!.userId,
-      },
+    const profile = await prisma.$transaction(async (tx) => {
+      await lockRiderVehicleStateForUser(tx, riderId);
+      const existing = await tx.riderProfile.findUnique({ where: { userId: riderId } });
+      if (!existing) throw ApiError.notFound('Rider profile not found');
+      if (existing.onboardingStatus === 'ACTIVATED') {
+        throw ApiError.conflict('An activated Rider cannot be rejected. Suspend or deactivate the account instead.');
+      }
+      const reviewedAt = new Date();
+      const rejected = await tx.riderProfile.update({
+        where: { userId: riderId },
+        data: {
+          onboardingStatus: 'APPLICATION_REJECTED',
+          isVerified: false,
+          activatedAt: null,
+          availability: 'OFFLINE',
+          applicationRejectionReason: reason,
+          applicationReviewedAt: reviewedAt,
+          applicationReviewedById: req.user!.userId,
+        },
+      });
+      const context = adminAuditContext(req);
+      await AdminAuditService.record({
+        ...context,
+        action: 'rider_application.rejected',
+        entityType: 'RiderProfile',
+        entityId: existing.id,
+        oldData: {
+          onboardingStatus: existing.onboardingStatus,
+          isVerified: existing.isVerified,
+          applicationRejectionReason: existing.applicationRejectionReason,
+        },
+        newData: {
+          riderUserId: riderId,
+          onboardingStatus: rejected.onboardingStatus,
+          reason,
+          reviewedAt,
+        },
+      }, tx);
+      return rejected;
     });
 
-    await NotificationService.create({
-      userId: riderId,
-      title: 'Application Not Approved',
-      body: reason || 'Your application was not approved at this time. Please check your documents.',
-      type: 'TRAINING',
-      data: { status: 'APPLICATION_REJECTED', reason },
-    });
+    try {
+      await NotificationService.create({
+        userId: riderId,
+        title: 'Application Not Approved',
+        body: reason,
+        type: 'TRAINING',
+        data: { status: 'APPLICATION_REJECTED', reason },
+      });
+    } catch (error) {
+      logger.error({ error, riderId }, 'Rider rejection notification failed after the decision was persisted');
+    }
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
   }),

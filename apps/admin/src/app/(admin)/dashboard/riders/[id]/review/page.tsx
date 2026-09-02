@@ -24,6 +24,19 @@ import {
 } from '@riderguy/ui';
 import { API_BASE_URL } from '@/lib/constants';
 import { AuthenticatedImage, openAuthenticatedMedia } from '@/components/authenticated-media';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  Fingerprint,
+  History,
+  Landmark,
+  MailCheck,
+  PhoneCall,
+  ShieldCheck,
+} from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -37,6 +50,14 @@ interface DocumentData {
   rejectionReason: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  reviewer?: Reviewer | null;
+}
+
+interface Reviewer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
 }
 
 interface VehicleData {
@@ -79,6 +100,8 @@ interface RiderProfile {
     moduleKey: string;
     completedAt: string;
     verifiedAt: string | null;
+    verifiedById?: string | null;
+    reviewer?: Reviewer | null;
   }>;
   user: {
     id: string;
@@ -87,8 +110,59 @@ interface RiderProfile {
     phone: string;
     email: string | null;
     createdAt: string;
+    status: string;
+    phoneVerified: boolean;
+    emailVerified: boolean;
+    lastLoginAt: string | null;
   };
   vehicles: VehicleData[];
+  identity: {
+    phoneVerified: boolean;
+    emailVerified: boolean;
+    ghanaCardOnFile: boolean;
+  };
+  profile: {
+    availability: string;
+    isVerified: boolean;
+    activatedAt: string | null;
+    applicationReviewedAt: string | null;
+    applicationReviewedBy: Reviewer | null;
+    totalDeliveries: number;
+    averageRating: number;
+    cancellationCount: number;
+    suspendedUntil: string | null;
+  };
+  assetFinancingInterest: {
+    id: string;
+    assetType: string;
+    status: string;
+    contactEmail: string;
+    notes: string | null;
+    reviewNotes: string | null;
+    submittedAt: string;
+    reviewedAt: string | null;
+    reviewedBy: Reviewer | null;
+  } | null;
+  channelInvitation: {
+    id: string;
+    targetEmail: string | null;
+    targetPhone: string | null;
+    expiresAt: string;
+    usedAt: string | null;
+    revokedAt: string | null;
+    createdBy: Reviewer;
+  } | null;
+  activity: { completedOrders: number; cancellationRecords: number };
+}
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  oldData: Record<string, unknown> | null;
+  newData: Record<string, unknown> | null;
+  createdAt: string;
+  actor: Reviewer | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -139,11 +213,14 @@ export default function RiderReviewPage() {
 
   const [profile, setProfile] = useState<RiderProfile | null>(null);
   const [documents, setDocuments] = useState<DocumentData[]>([]);
+  const [history, setHistory] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [vehicleRejectionReason, setVehicleRejectionReason] = useState('');
   const [vehicleReviewDialogId, setVehicleReviewDialogId] = useState<string | null>(null);
+  const [documentReviewDialogId, setDocumentReviewDialogId] = useState<string | null>(null);
+  const [documentRejectionReason, setDocumentRejectionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
@@ -161,26 +238,29 @@ export default function RiderReviewPage() {
       setLoading(true);
       setError(null);
 
-      const [profileRes, docsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/riders/profile/${riderId}`, {
+      const [profileRes, historyRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/riders/admin/operations/cases/${riderId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }),
-        fetch(`${API_BASE_URL}/documents/rider/${riderId}`, {
+        fetch(`${API_BASE_URL}/riders/admin/operations/cases/${riderId}/history?limit=50`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }),
       ]);
 
-      if (profileRes.ok) {
-        const profileJson = await profileRes.json();
-        setProfile(profileJson.data);
+      if (!profileRes.ok) {
+        const failure = await profileRes.json().catch((_error: unknown): null => null);
+        throw new Error(failure?.error?.message ?? 'Rider case could not be loaded.');
       }
+      const profileJson = await profileRes.json();
+      setProfile(profileJson.data);
+      setDocuments(profileJson.data.documents);
 
-      if (docsRes.ok) {
-        const docsJson = await docsRes.json();
-        setDocuments(docsJson.data);
+      if (historyRes.ok) {
+        const historyJson = await historyRes.json();
+        setHistory(historyJson.data);
       }
-    } catch {
-      setError('Failed to load rider data.');
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load Rider case.');
     } finally {
       setLoading(false);
     }
@@ -196,8 +276,8 @@ export default function RiderReviewPage() {
       setActionLoading(true);
       try {
         const body: Record<string, string> = { status };
-        if (status === 'REJECTED' && rejectionReason.trim()) {
-          body.rejectionReason = rejectionReason.trim();
+        if (status === 'REJECTED' && documentRejectionReason.trim()) {
+          body.rejectionReason = documentRejectionReason.trim();
         }
 
         const res = await fetch(`${API_BASE_URL}/documents/${docId}/review`, {
@@ -211,7 +291,8 @@ export default function RiderReviewPage() {
 
         if (!res.ok) throw new Error('Review failed');
 
-        setRejectionReason('');
+        setDocumentRejectionReason('');
+        setDocumentReviewDialogId(null);
         await fetchData();
       } catch {
         setError('Failed to review document.');
@@ -219,7 +300,7 @@ export default function RiderReviewPage() {
         setActionLoading(false);
       }
     },
-    [accessToken, rejectionReason, fetchData],
+    [accessToken, documentRejectionReason, fetchData],
   );
 
   // Review the registered vehicle evidence used by the Rider activation gate.
@@ -294,12 +375,17 @@ export default function RiderReviewPage() {
     [accessToken, riderId, rejectionReason, fetchData],
   );
 
-  const verifyTraining = useCallback(async (moduleKey: string) => {
+  const reviewTraining = useCallback(async (moduleKey: string, decision: 'VERIFIED' | 'REVOKED') => {
+    const reason = decision === 'REVOKED'
+      ? window.prompt('Explain why this training verification is being revoked:')?.trim()
+      : undefined;
+    if (decision === 'REVOKED' && (!reason || reason.length < 5)) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/riders/${riderId}/training/${moduleKey}/verify`, {
+      const res = await fetch(`${API_BASE_URL}/riders/${riderId}/training/${moduleKey}/review`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
       });
       if (!res.ok) {
         const json = await res.json().catch((_error: unknown): null => null);
@@ -359,14 +445,32 @@ export default function RiderReviewPage() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          Rider Review
+          Rider Operations Case
           {profile && ` — ${profile.user.firstName} ${profile.user.lastName}`}
         </h1>
+        <p className="mt-1 text-sm text-gray-500">Evidence, authorization, decisions, and audit history for one Rider.</p>
       </div>
 
       {error && (
         <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {profile && (
+        <div className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 ${profile.approvalReadiness.ready ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <div className="flex items-center gap-3">
+            {profile.approvalReadiness.ready ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertTriangle className="h-5 w-5 text-amber-600" />}
+            <div>
+              <p className={`text-sm font-bold ${profile.approvalReadiness.ready ? 'text-emerald-900' : 'text-amber-900'}`}>
+                {profile.approvalReadiness.ready ? 'All activation controls passed' : `${profile.approvalReadiness.missing.length} activation blocker${profile.approvalReadiness.missing.length === 1 ? '' : 's'}`}
+              </p>
+              <p className={`text-xs ${profile.approvalReadiness.ready ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {profile.approvalReadiness.ready ? 'This Rider can be approved and activated.' : profile.approvalReadiness.missing[0]}
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline">{profile.user.status.replace(/_/g, ' ')}</Badge>
         </div>
       )}
 
@@ -455,6 +559,33 @@ export default function RiderReviewPage() {
                     Previous decision: {profile.applicationRejectionReason}
                   </div>
                 ) : null}
+              </CardContent>
+            </Card>
+          )}
+
+          {profile && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm text-gray-500">
+                  <Fingerprint className="h-4 w-4" /> Identity & Access
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-gray-600"><PhoneCall className="h-4 w-4" />Phone</span>
+                  <Badge className={profile.identity.phoneVerified ? 'bg-green-100 text-green-800 hover:bg-green-100' : 'bg-amber-100 text-amber-800 hover:bg-amber-100'}>{profile.identity.phoneVerified ? 'Verified' : 'Unverified'}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-gray-600"><MailCheck className="h-4 w-4" />Email</span>
+                  <Badge className={profile.identity.emailVerified ? 'bg-green-100 text-green-800 hover:bg-green-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>{profile.identity.emailVerified ? 'Verified' : 'Unverified'}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-gray-600"><ShieldCheck className="h-4 w-4" />Ghana Card</span>
+                  <Badge className={profile.identity.ghanaCardOnFile ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>{profile.identity.ghanaCardOnFile ? 'On file' : 'Not on file'}</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between gap-2"><span className="text-gray-500">Last sign-in</span><span className="text-right font-medium text-gray-800">{profile.user.lastLoginAt ? new Date(profile.user.lastLoginAt).toLocaleString() : 'Never'}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-500">Work state</span><span className="font-medium text-gray-800">{profile.profile.availability.replace(/_/g, ' ')}</span></div>
               </CardContent>
             </Card>
           )}
@@ -610,9 +741,14 @@ export default function RiderReviewPage() {
                           </p>
                         </div>
                         {completion?.verifiedAt ? (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Verified</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Verified</Badge>
+                            <Button size="sm" variant="ghost" className="text-red-600" disabled={actionLoading} onClick={() => void reviewTraining(moduleKey, 'REVOKED')}>
+                              Revoke
+                            </Button>
+                          </div>
                         ) : completion ? (
-                          <Button size="sm" variant="outline" disabled={actionLoading} onClick={() => void verifyTraining(moduleKey)}>
+                          <Button size="sm" variant="outline" disabled={actionLoading} onClick={() => void reviewTraining(moduleKey, 'VERIFIED')}>
                             Verify
                           </Button>
                         ) : (
@@ -622,6 +758,34 @@ export default function RiderReviewPage() {
                     </div>
                   );
                 })}
+              </CardContent>
+            </Card>
+          )}
+
+          {profile?.assetFinancingInterest && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm text-gray-500"><Landmark className="h-4 w-4" />Asset Financing</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between"><span className="text-gray-500">Requested asset</span><span className="font-medium text-gray-900">{friendlyDocType(profile.assetFinancingInterest.assetType)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-500">Status</span><Badge variant="outline">{friendlyDocType(profile.assetFinancingInterest.status)}</Badge></div>
+                {profile.assetFinancingInterest.notes && <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">{profile.assetFinancingInterest.notes}</div>}
+                {profile.assetFinancingInterest.reviewNotes && <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-700"><strong>Admin notes:</strong> {profile.assetFinancingInterest.reviewNotes}</div>}
+                <Button variant="outline" size="sm" className="w-full" onClick={() => router.push('/dashboard/asset-financing')}>
+                  Open financing queue <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {profile && (
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2 text-sm text-gray-500"><Activity className="h-4 w-4" />Operational Activity</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-gray-50 p-2"><p className="text-lg font-bold text-gray-900">{profile.activity.completedOrders}</p><p className="text-xs text-gray-500">Orders</p></div>
+                <div className="rounded-lg bg-gray-50 p-2"><p className="text-lg font-bold text-gray-900">{profile.profile.averageRating.toFixed(1)}</p><p className="text-xs text-gray-500">Rating</p></div>
+                <div className="rounded-lg bg-gray-50 p-2"><p className="text-lg font-bold text-gray-900">{profile.activity.cancellationRecords}</p><p className="text-xs text-gray-500">Cancellations</p></div>
               </CardContent>
             </Card>
           )}
@@ -690,7 +854,7 @@ export default function RiderReviewPage() {
         </div>
 
         {/* ── Right column: Documents ── */}
-        <div className="lg:col-span-2">
+        <div className="space-y-4 lg:col-span-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-sm text-gray-500">
@@ -746,10 +910,15 @@ export default function RiderReviewPage() {
                               Reason: {doc.rejectionReason}
                             </p>
                           )}
+                          {doc.reviewedAt && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Reviewed {new Date(doc.reviewedAt).toLocaleString()}{doc.reviewer ? ` by ${doc.reviewer.firstName} ${doc.reviewer.lastName}` : ''}
+                            </p>
+                          )}
                         </div>
 
                         {/* Actions */}
-                        {doc.status === 'PENDING' && (
+                        {(doc.status === 'PENDING' || doc.status === 'UNDER_REVIEW') && (
                           <div className="flex flex-shrink-0 gap-2">
                             <Button
                               size="sm"
@@ -760,7 +929,13 @@ export default function RiderReviewPage() {
                               Approve
                             </Button>
 
-                            <Dialog>
+                            <Dialog
+                              open={documentReviewDialogId === doc.id}
+                              onOpenChange={(open) => {
+                                setDocumentReviewDialogId(open ? doc.id : null);
+                                if (!open) setDocumentRejectionReason('');
+                              }}
+                            >
                               <DialogTrigger asChild>
                                 <Button
                                   size="sm"
@@ -781,8 +956,8 @@ export default function RiderReviewPage() {
                                 </DialogHeader>
                                 <Textarea
                                   placeholder="Reason for rejection..."
-                                  value={rejectionReason}
-                                  onChange={(e) => setRejectionReason(e.target.value)}
+                                  value={documentRejectionReason}
+                                  onChange={(e) => setDocumentRejectionReason(e.target.value)}
                                   rows={3}
                                 />
                                 <DialogFooter>
@@ -792,7 +967,7 @@ export default function RiderReviewPage() {
                                   <Button
                                     className="bg-red-600 hover:bg-red-700"
                                     onClick={() => void handleDocReview(doc.id, 'REJECTED')}
-                                    disabled={actionLoading}
+                                    disabled={actionLoading || documentRejectionReason.trim().length < 5}
                                   >
                                     Reject Document
                                   </Button>
@@ -826,6 +1001,37 @@ export default function RiderReviewPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm text-gray-500"><History className="h-4 w-4" />Decision History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {history.length === 0 ? (
+                <p className="py-6 text-center text-sm text-gray-400">No administrative decisions have been recorded for this Rider yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {history.map((entry) => {
+                    const reason = typeof entry.newData?.reason === 'string'
+                      ? entry.newData.reason
+                      : typeof entry.newData?.rejectionReason === 'string'
+                        ? entry.newData.rejectionReason
+                        : null;
+                    return (
+                      <div key={entry.id} className="flex gap-3 border-b pb-3 last:border-0 last:pb-0">
+                        <div className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-gray-100"><Clock3 className="h-4 w-4 text-gray-500" /></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-gray-900">{friendlyDocType(entry.action.replace(/\./g, '_'))}</p><span className="text-xs text-gray-400">{new Date(entry.createdAt).toLocaleString()}</span></div>
+                          <p className="text-xs text-gray-500">{entry.entityType} · {entry.actor ? `${entry.actor.firstName} ${entry.actor.lastName}` : 'System or former administrator'}</p>
+                          {reason && <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-xs text-gray-600">{reason}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

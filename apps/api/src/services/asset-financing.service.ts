@@ -8,6 +8,7 @@ import { ApiError } from '../lib/api-error';
 import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
 import { REQUIRED_IN_HOUSE_TRAINING_MODULES } from './onboarding.service';
 import type { AssetFinancingInterestStatus, Prisma } from '@prisma/client';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 const RIDER_INTEREST_SELECT = {
   id: true,
@@ -241,6 +242,7 @@ export class AssetFinancingService {
     interestId: string,
     reviewerUserId: string,
     input: UpdateAssetFinancingInterestStatusInput,
+    auditContext?: AdminAuditContext,
   ) {
     const reviewNotes = normalizedNotes(input.reviewNotes);
     if (input.status === 'DECLINED' && (!reviewNotes || reviewNotes.length < 3)) {
@@ -318,6 +320,22 @@ export class AssetFinancingService {
           'ASSET_FINANCING_STALE_REVIEW',
         );
       }
+      await AdminAuditService.record({
+        actorUserId: reviewerUserId,
+        ipAddress: auditContext?.ipAddress,
+        userAgent: auditContext?.userAgent,
+        action: `asset_financing.status_${input.status.toLowerCase()}`,
+        entityType: 'AssetFinancingInterest',
+        entityId: interestId,
+        oldData: { status: current.status, updatedAt: current.updatedAt },
+        newData: {
+          riderUserId: identity.rider.userId,
+          status: reviewed.status,
+          reviewNotes: reviewed.reviewNotes,
+          reviewedAt: reviewed.reviewedAt,
+          reviewedById: reviewed.reviewedById,
+        },
+      }, tx);
       return reviewed;
     });
   }

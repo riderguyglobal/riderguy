@@ -125,7 +125,7 @@ describe('asset-financing Rider routes', () => {
     expect(update).toHaveBeenCalledWith('interest-1', 'admin-1', {
       status: 'UNDER_REVIEW',
       expectedUpdatedAt: '2026-09-01T08:00:00.000Z',
-    });
+    }, expect.objectContaining({ actorUserId: 'admin-1' }));
     expect(result.status).toHaveBeenCalledWith(200);
   });
 });

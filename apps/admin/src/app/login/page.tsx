@@ -12,7 +12,7 @@ import { Button, Input, Label } from '@riderguy/ui';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { loginWithPassword, isLoading, error } = useAuth();
+  const { loginWithPassword, logout, api, isLoading, error } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,6 +39,14 @@ export default function AdminLoginPage() {
 
       try {
         await loginWithPassword(email.trim(), password);
+        const session = await api.get('/auth/me');
+        const authenticatedUser = session.data.data as { role?: string; roles?: string[] };
+        const roles = new Set([authenticatedUser.role, ...(authenticatedUser.roles ?? [])]);
+        if (!roles.has('ADMIN') && !roles.has('SUPER_ADMIN')) {
+          await logout();
+          setLocalError('This account is not authorized for the Operations Portal.');
+          return;
+        }
         router.replace('/dashboard');
       } catch {
         setLocalError('Invalid email or password.');
@@ -46,7 +54,7 @@ export default function AdminLoginPage() {
         setSubmitting(false);
       }
     },
-    [email, password, loginWithPassword, router]
+    [api, email, password, loginWithPassword, logout, router]
   );
 
   return (
