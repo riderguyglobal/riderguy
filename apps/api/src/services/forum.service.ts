@@ -5,6 +5,7 @@
 
 import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 // ────── Posts ──────
 
@@ -23,19 +24,19 @@ export async function createPost(data: {
       category: (data.category ?? 'GENERAL') as any,
       ...(data.poll
         ? {
-          poll: {
-            create: {
-              question: data.poll.question,
-              expiresAt: data.poll.expiresAt ? new Date(data.poll.expiresAt) : null,
-              options: {
-                create: data.poll.options.map((text, i) => ({
-                  text,
-                  position: i,
-                })),
+            poll: {
+              create: {
+                question: data.poll.question,
+                expiresAt: data.poll.expiresAt ? new Date(data.poll.expiresAt) : null,
+                options: {
+                  create: data.poll.options.map((text, i) => ({
+                    text,
+                    position: i,
+                  })),
+                },
               },
             },
-          },
-        }
+          }
         : {}),
     },
     include: {
@@ -78,10 +79,12 @@ export async function getPost(postId: string, userId?: string) {
   if (!post || post.isDeleted) throw ApiError.notFound('Post not found');
 
   // Increment view count (fire-and-forget)
-  prisma.forumPost.update({
-    where: { id: postId },
-    data: { viewCount: { increment: 1 } },
-  }).catch(() => {});
+  prisma.forumPost
+    .update({
+      where: { id: postId },
+      data: { viewCount: { increment: 1 } },
+    })
+    .catch(() => {});
 
   // Get user's vote if logged in
   let userVote: number | null = null;
@@ -111,7 +114,11 @@ export async function listPosts(options: {
   let orderBy: any;
   switch (sort) {
     case 'trending':
-      orderBy = [{ viewCount: 'desc' as const }, { upvotes: 'desc' as const }, { createdAt: 'desc' as const }];
+      orderBy = [
+        { viewCount: 'desc' as const },
+        { upvotes: 'desc' as const },
+        { createdAt: 'desc' as const },
+      ];
       break;
     case 'top':
       orderBy = [{ upvotes: 'desc' as const }, { createdAt: 'desc' as const }];
@@ -136,7 +143,7 @@ export async function listPosts(options: {
   ]);
 
   return {
-    posts: posts.map(p => formatPost(p, userId)),
+    posts: posts.map((p) => formatPost(p, userId)),
     pagination: {
       page,
       limit,
@@ -146,11 +153,15 @@ export async function listPosts(options: {
   };
 }
 
-export async function updatePost(postId: string, userId: string, data: {
-  title?: string;
-  body?: string;
-  category?: string;
-}) {
+export async function updatePost(
+  postId: string,
+  userId: string,
+  data: {
+    title?: string;
+    body?: string;
+    category?: string;
+  },
+) {
   const post = await prisma.forumPost.findUnique({ where: { id: postId } });
   if (!post || post.isDeleted) throw ApiError.notFound('Post not found');
   if (post.authorId !== userId) throw ApiError.forbidden('You can only edit your own posts');
@@ -184,23 +195,58 @@ export async function deletePost(postId: string, userId: string, isAdmin = false
 
 // ────── Admin Moderation ──────
 
-export async function pinPost(postId: string, isPinned: boolean) {
-  const post = await prisma.forumPost.findUnique({ where: { id: postId } });
-  if (!post) throw ApiError.notFound('Post not found');
-
-  return prisma.forumPost.update({
-    where: { id: postId },
-    data: { isPinned },
-  });
+export async function pinPost(postId: string, isPinned: boolean, auditContext: AdminAuditContext) {
+  return updatePostModeration(postId, 'isPinned', isPinned, auditContext);
 }
 
-export async function lockPost(postId: string, isLocked: boolean) {
-  const post = await prisma.forumPost.findUnique({ where: { id: postId } });
-  if (!post) throw ApiError.notFound('Post not found');
+export async function lockPost(postId: string, isLocked: boolean, auditContext: AdminAuditContext) {
+  return updatePostModeration(postId, 'isLocked', isLocked, auditContext);
+}
 
-  return prisma.forumPost.update({
-    where: { id: postId },
-    data: { isLocked },
+async function updatePostModeration(
+  postId: string,
+  field: 'isPinned' | 'isLocked',
+  value: boolean,
+  auditContext: AdminAuditContext,
+) {
+  return prisma.$transaction(async (tx) => {
+    const post = await tx.forumPost.findUnique({ where: { id: postId } });
+    if (!post) throw ApiError.notFound('Post not found');
+    if (post[field] === value) return post;
+
+    const changed = await tx.forumPost.updateMany({
+      where: { id: postId, updatedAt: post.updatedAt },
+      data: { [field]: value },
+    });
+    if (changed.count !== 1) {
+      throw ApiError.conflict(
+        'This community post changed while it was being moderated. Refresh and try again.',
+        'FORUM_POST_CHANGED',
+      );
+    }
+
+    await AdminAuditService.record(
+      {
+        ...auditContext,
+        action:
+          field === 'isPinned'
+            ? value
+              ? 'COMMUNITY_POST_PINNED'
+              : 'COMMUNITY_POST_UNPINNED'
+            : value
+              ? 'COMMUNITY_POST_LOCKED'
+              : 'COMMUNITY_POST_UNLOCKED',
+        entityType: 'ForumPost',
+        entityId: postId,
+        oldData: { [field]: post[field] },
+        newData: { [field]: value },
+      },
+      tx,
+    );
+
+    const updated = await tx.forumPost.findUnique({ where: { id: postId } });
+    if (!updated) throw ApiError.notFound('Post not found');
+    return updated;
   });
 }
 
@@ -214,7 +260,8 @@ export async function createComment(data: {
 }) {
   const post = await prisma.forumPost.findUnique({ where: { id: data.postId } });
   if (!post || post.isDeleted) throw ApiError.notFound('Post not found');
-  if (post.isLocked) throw ApiError.badRequest('This post is locked — new comments are not allowed');
+  if (post.isLocked)
+    throw ApiError.badRequest('This post is locked — new comments are not allowed');
 
   const comment = await prisma.forumComment.create({
     data: {
@@ -250,20 +297,23 @@ export async function getComments(postId: string, userId?: string) {
   // Get user's votes for all visible comments
   let userVotes: Record<string, number> = {};
   if (userId) {
-    const commentIds = comments.flatMap(c => [c.id, ...c.replies.map(r => r.id)]);
+    const commentIds = comments.flatMap((c) => [c.id, ...c.replies.map((r) => r.id)]);
     const votes = await prisma.forumVote.findMany({
       where: { userId, commentId: { in: commentIds } },
     });
-    userVotes = votes.reduce((acc, v) => {
-      if (v.commentId) acc[v.commentId] = v.value;
-      return acc;
-    }, {} as Record<string, number>);
+    userVotes = votes.reduce(
+      (acc, v) => {
+        if (v.commentId) acc[v.commentId] = v.value;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
   }
 
-  return comments.map(c => ({
+  return comments.map((c) => ({
     ...formatComment(c),
     userVote: userVotes[c.id] ?? null,
-    replies: c.replies.map(r => ({
+    replies: c.replies.map((r) => ({
       ...formatComment(r),
       userVote: userVotes[r.id] ?? null,
     })),
@@ -425,7 +475,7 @@ export async function getPollResults(pollId: string, userId?: string) {
     expiresAt: poll.expiresAt?.toISOString() ?? null,
     isExpired: poll.expiresAt ? poll.expiresAt < new Date() : false,
     totalVotes,
-    options: poll.options.map(o => ({
+    options: poll.options.map((o) => ({
       id: o.id,
       text: o.text,
       votes: o._count.votes,
@@ -453,18 +503,21 @@ function formatPost(post: any, userId?: string) {
     hasPoll: !!post.poll,
     poll: post.poll
       ? {
-        id: post.poll.id,
-        question: post.poll.question,
-        expiresAt: post.poll.expiresAt?.toISOString() ?? null,
-        isExpired: post.poll.expiresAt ? post.poll.expiresAt < new Date() : false,
-        options: post.poll.options?.map((o: any) => ({
-          id: o.id,
-          text: o.text,
-          votes: o._count?.votes ?? 0,
-          userVoted: userId ? o.votes?.some((v: any) => v.userId === userId) : false,
-        })) ?? [],
-        totalVotes: post.poll.options?.reduce((sum: number, o: any) => sum + (o._count?.votes ?? 0), 0) ?? 0,
-      }
+          id: post.poll.id,
+          question: post.poll.question,
+          expiresAt: post.poll.expiresAt?.toISOString() ?? null,
+          isExpired: post.poll.expiresAt ? post.poll.expiresAt < new Date() : false,
+          options:
+            post.poll.options?.map((o: any) => ({
+              id: o.id,
+              text: o.text,
+              votes: o._count?.votes ?? 0,
+              userVoted: userId ? o.votes?.some((v: any) => v.userId === userId) : false,
+            })) ?? [],
+          totalVotes:
+            post.poll.options?.reduce((sum: number, o: any) => sum + (o._count?.votes ?? 0), 0) ??
+            0,
+        }
       : null,
     author: {
       id: post.author.id,

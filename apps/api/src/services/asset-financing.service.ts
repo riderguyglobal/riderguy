@@ -9,6 +9,8 @@ import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
 import { REQUIRED_IN_HOUSE_TRAINING_MODULES } from './onboarding.service';
 import type { AssetFinancingInterestStatus, Prisma } from '@prisma/client';
 import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
+import { NotificationService } from './notification.service';
+import { logger } from '../lib/logger';
 
 const RIDER_INTEREST_SELECT = {
   id: true,
@@ -16,6 +18,8 @@ const RIDER_INTEREST_SELECT = {
   status: true,
   contactEmail: true,
   notes: true,
+  // Review feedback is Rider-facing. Reviewer identity remains admin-only.
+  reviewNotes: true,
   submittedAt: true,
   reviewedAt: true,
   createdAt: true,
@@ -155,7 +159,9 @@ export class AssetFinancingService {
 
       if (!rider) throw ApiError.notFound('Rider profile not found');
       if (rider.riderChannel !== 'IN_HOUSE') {
-        throw ApiError.forbidden('The asset lease pilot is available only to RiderGuy In-House Riders.');
+        throw ApiError.forbidden(
+          'The asset lease pilot is available only to RiderGuy In-House Riders.',
+        );
       }
 
       const verifiedModules = new Set(
@@ -222,9 +228,9 @@ export class AssetFinancingService {
       }
 
       if (
-        current.assetType === input.assetType
-        && current.contactEmail === contactEmail
-        && current.notes === notes
+        current.assetType === input.assetType &&
+        current.contactEmail === contactEmail &&
+        current.notes === notes
       ) {
         return { interest: current, outcome: 'UNCHANGED' as const };
       }
@@ -252,7 +258,7 @@ export class AssetFinancingService {
       );
     }
 
-    return prisma.$transaction(async (tx) => {
+    const decision = await prisma.$transaction(async (tx) => {
       // Resolve the same immutable account identity used by Rider submissions,
       // then serialize both Rider and admin writes on one cross-instance lock.
       const identity = await tx.assetFinancingInterest.findUnique({
@@ -261,11 +267,7 @@ export class AssetFinancingService {
       });
       if (!identity) throw ApiError.notFound('Asset-financing interest not found');
 
-      await acquireTransactionAdvisoryLock(
-        tx,
-        'asset-financing-interest',
-        identity.rider.userId,
-      );
+      await acquireTransactionAdvisoryLock(tx, 'asset-financing-interest', identity.rider.userId);
 
       // Re-read only after acquiring the lock. The row may have been
       // resubmitted or removed while this request waited.
@@ -320,23 +322,65 @@ export class AssetFinancingService {
           'ASSET_FINANCING_STALE_REVIEW',
         );
       }
-      await AdminAuditService.record({
-        actorUserId: reviewerUserId,
-        ipAddress: auditContext?.ipAddress,
-        userAgent: auditContext?.userAgent,
-        action: `asset_financing.status_${input.status.toLowerCase()}`,
-        entityType: 'AssetFinancingInterest',
-        entityId: interestId,
-        oldData: { status: current.status, updatedAt: current.updatedAt },
-        newData: {
-          riderUserId: identity.rider.userId,
-          status: reviewed.status,
-          reviewNotes: reviewed.reviewNotes,
-          reviewedAt: reviewed.reviewedAt,
-          reviewedById: reviewed.reviewedById,
+      await AdminAuditService.record(
+        {
+          actorUserId: reviewerUserId,
+          ipAddress: auditContext?.ipAddress,
+          userAgent: auditContext?.userAgent,
+          action: `asset_financing.status_${input.status.toLowerCase()}`,
+          entityType: 'AssetFinancingInterest',
+          entityId: interestId,
+          oldData: { status: current.status, updatedAt: current.updatedAt },
+          newData: {
+            riderUserId: identity.rider.userId,
+            status: reviewed.status,
+            reviewNotes: reviewed.reviewNotes,
+            reviewedAt: reviewed.reviewedAt,
+            reviewedById: reviewed.reviewedById,
+          },
         },
-      }, tx);
-      return reviewed;
+        tx,
+      );
+      return { reviewed, riderUserId: identity.rider.userId };
     });
+
+    const statusCopy: Record<AssetFinancingInterestStatus, { title: string; body: string }> = {
+      SUBMITTED: {
+        title: 'Asset request reopened',
+        body: 'Your asset-financing interest is back in the RiderGuy review queue.',
+      },
+      UNDER_REVIEW: {
+        title: 'Asset request under review',
+        body: 'RiderGuy has started reviewing your 12-month asset lease interest.',
+      },
+      APPROVED: {
+        title: 'Asset request approved',
+        body: 'Your asset-financing interest was approved. Open the app to review the update.',
+      },
+      DECLINED: {
+        title: 'Asset request updated',
+        body: 'Your asset-financing interest was not approved. Review the feedback before resubmitting.',
+      },
+      WITHDRAWN: {
+        title: 'Asset request withdrawn',
+        body: 'Your asset-financing interest has been closed as withdrawn.',
+      },
+    };
+    const notification = statusCopy[input.status];
+    await NotificationService.create({
+      userId: decision.riderUserId,
+      title: notification.title,
+      body: notification.body,
+      type: 'SYSTEM',
+      data: {
+        context: 'ASSET_FINANCING',
+        assetFinancingInterestId: interestId,
+        status: input.status,
+      },
+    }).catch((error) => {
+      logger.error({ error, interestId }, 'Asset-financing notification failed after commit');
+    });
+
+    return decision.reviewed;
   }
 }

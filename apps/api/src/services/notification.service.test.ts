@@ -153,9 +153,7 @@ describe('NotificationService', () => {
 
     it('should handle page 2 pagination correctly', async () => {
       asMock(prisma.notification.findMany).mockResolvedValue([]);
-      asMock(prisma.notification.count)
-        .mockResolvedValueOnce(25)
-        .mockResolvedValueOnce(0);
+      asMock(prisma.notification.count).mockResolvedValueOnce(25).mockResolvedValueOnce(0);
 
       const result = await NotificationService.list('user-1', 2, 20);
 
@@ -166,9 +164,7 @@ describe('NotificationService', () => {
 
     it('should handle empty notifications', async () => {
       asMock(prisma.notification.findMany).mockResolvedValue([]);
-      asMock(prisma.notification.count)
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(0);
+      asMock(prisma.notification.count).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
 
       const result = await NotificationService.list('user-1');
 
@@ -228,10 +224,7 @@ describe('NotificationService', () => {
         firstName: 'Kofi',
         lastName: 'Asante',
       });
-      asMock(prisma.user.findMany).mockResolvedValue([
-        { id: 'admin-1' },
-        { id: 'admin-2' },
-      ]);
+      asMock(prisma.user.findMany).mockResolvedValue([{ id: 'admin-1' }, { id: 'admin-2' }]);
       asMock(prisma.notification.create).mockResolvedValue({ id: 'n-1' });
 
       await NotificationService.notifyAdminsNewApplication('rider-user-1');
@@ -254,7 +247,10 @@ describe('NotificationService', () => {
   // ────────────────────────────────────────────────────────────
   describe('notifyNearbyRiders', () => {
     it('should notify all online activated riders regardless of zone', async () => {
-      const riders = [{ userId: 'rider-1' }, { userId: 'rider-2' }];
+      const riders = [
+        { id: 'profile-1', userId: 'rider-1' },
+        { id: 'profile-2', userId: 'rider-2' },
+      ];
       asMock(prisma.riderProfile.findMany).mockResolvedValue(riders);
       asMock(prisma.order.findUnique).mockResolvedValue({
         distanceKm: 5,
@@ -272,12 +268,15 @@ describe('NotificationService', () => {
 
       // Should query all online activated riders (no zone filter)
       expect(prisma.riderProfile.findMany).toHaveBeenCalledWith({
-        where: {
+        where: expect.objectContaining({
           availability: 'ONLINE',
           onboardingStatus: 'ACTIVATED',
-        },
-        select: { userId: true },
-        take: 50,
+          isVerified: true,
+          user: { status: 'ACTIVE' },
+        }),
+        select: { id: true, userId: true },
+        orderBy: { id: 'asc' },
+        take: 200,
       });
       // Should notify both riders
       expect(prisma.notification.create).toHaveBeenCalledTimes(2);
@@ -306,6 +305,41 @@ describe('NotificationService', () => {
 
       // No riders to notify
       expect(prisma.notification.create).not.toHaveBeenCalled();
+    });
+
+    it('paginates deterministically so more than one batch receives the offer', async () => {
+      const firstPage = Array.from({ length: 200 }, (_, index) => ({
+        id: `profile-${String(index).padStart(3, '0')}`,
+        userId: `rider-${index}`,
+      }));
+      const secondPage = [{ id: 'profile-200', userId: 'rider-200' }];
+      asMock(prisma.riderProfile.findMany)
+        .mockResolvedValueOnce(firstPage)
+        .mockResolvedValueOnce(secondPage);
+      asMock(prisma.order.findUnique).mockResolvedValue({
+        distanceKm: 5,
+        totalPrice: 13,
+        packageType: 'SMALL',
+        dropoffAddress: 'Legon',
+        pickupLatitude: 5.56,
+        pickupLongitude: -0.187,
+        isMultiStop: false,
+        isScheduled: false,
+      });
+      asMock(prisma.notification.create).mockResolvedValue({ id: 'n-1' });
+
+      await notifyNearbyRiders('order-1', 'RG-001', 'zone-accra', 'Osu Mall');
+
+      expect(prisma.riderProfile.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.riderProfile.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          cursor: { id: 'profile-199' },
+          skip: 1,
+          orderBy: { id: 'asc' },
+          take: 200,
+        }),
+      );
+      expect(prisma.notification.create).toHaveBeenCalledTimes(201);
     });
   });
 

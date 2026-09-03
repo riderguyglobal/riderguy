@@ -1,6 +1,7 @@
 import { prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
-import type { TransactionType } from '@prisma/client';
+import type { Prisma, TransactionType } from '@prisma/client';
+import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
 
 // ============================================================
 // Wallet Service — atomic wallet operations with Prisma
@@ -22,10 +23,11 @@ export async function creditWallet(
   description: string,
   referenceId?: string,
   referenceType?: string,
+  transactionClient?: Prisma.TransactionClient,
 ) {
   if (amount <= 0) return null;
 
-  return prisma.$transaction(async (tx) => {
+  const credit = async (tx: Prisma.TransactionClient) => {
     // Idempotency guard — if this exact credit was already processed, return it
     if (referenceId && referenceType) {
       const existing = await tx.transaction.findFirst({
@@ -65,7 +67,9 @@ export async function creditWallet(
     });
 
     return { wallet, transaction };
-  });
+  };
+
+  return transactionClient ? credit(transactionClient) : prisma.$transaction(credit);
 }
 
 /**
@@ -79,10 +83,32 @@ export async function debitWallet(
   description: string,
   referenceId?: string,
   referenceType?: string,
+  transactionClient?: Prisma.TransactionClient,
 ) {
   if (amount <= 0) return null;
 
-  return prisma.$transaction(async (tx) => {
+  const debit = async (tx: Prisma.TransactionClient) => {
+    // A retry with the same business reference must not charge the wallet twice.
+    if (referenceId && referenceType) {
+      await acquireTransactionAdvisoryLock(
+        tx,
+        'wallet-debit',
+        `${referenceType}:${referenceId}:${txType}`,
+      );
+      const existing = await tx.transaction.findFirst({
+        where: {
+          referenceId,
+          referenceType,
+          type: txType,
+          amount: -amount,
+        },
+        include: { wallet: true },
+      });
+      if (existing) {
+        return { wallet: existing.wallet, transaction: existing };
+      }
+    }
+
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet) throw ApiError.notFound('Wallet not found');
     if (Number(wallet.balance) < amount) {
@@ -114,7 +140,9 @@ export async function debitWallet(
     });
 
     return { wallet: updated, transaction };
-  });
+  };
+
+  return transactionClient ? debit(transactionClient) : prisma.$transaction(debit);
 }
 
 /**

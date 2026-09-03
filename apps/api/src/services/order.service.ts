@@ -1,7 +1,12 @@
 import { prisma } from '@riderguy/database';
 import { generateOrderNumber, generateDeliveryPin } from '@riderguy/utils';
 import { XpAction } from '@riderguy/types';
-import { calculatePrice, fetchRouteDistance, calculateWaitTimeCharge, calculatePickupDistanceBonus } from './pricing.service';
+import {
+  calculatePrice,
+  fetchRouteDistance,
+  calculateWaitTimeCharge,
+  calculatePickupDistanceBonus,
+} from './pricing.service';
 import { awardXp, getCommissionRate } from './gamification.service';
 import { recordActivity as recordStreakActivity } from './streak.service';
 import { creditWallet, creditTip } from './wallet.service';
@@ -14,7 +19,8 @@ import { enqueueCommissionJob, enqueueReceiptJob, type CommissionJobData } from 
 import { learnFromDelivery } from './eta-learning.service';
 import { assertRiderWorkEligible, setPostWorkRiderAvailability } from './rider-work-eligibility';
 import { StorageService } from './storage.service';
-import type { PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
+import type { Order, PackageType, PaymentMethod, OrderStatus } from '@prisma/client';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 // ============================================================
 // Order Service — handles order creation, retrieval, status
@@ -39,6 +45,17 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CANCELLED_BY_ADMIN: [],
 };
 
+export interface OrderTransitionOptions {
+  auditContext?: AdminAuditContext;
+  /** Bind a Rider-originated mutation to the profile authorised by the route. */
+  expectedRiderId?: string;
+  /** Revalidate Client ownership and settle any cancellation compensation atomically. */
+  clientCancellation?: {
+    requestedByClientId: string;
+    reason?: string;
+  };
+}
+
 /**
  * Check if a status transition is valid.
  */
@@ -61,8 +78,10 @@ type DeliveryPaymentState = {
  */
 export function isDeliveryPaymentReady(order: DeliveryPaymentState): boolean {
   if (order.paymentMethod === 'CASH') {
-    return order.riderPaymentConfirmed === true
-      && (order.actualPaymentMethod == null || order.actualPaymentMethod === 'CASH');
+    return (
+      order.riderPaymentConfirmed === true &&
+      (order.actualPaymentMethod == null || order.actualPaymentMethod === 'CASH')
+    );
   }
 
   return order.paymentStatus === 'COMPLETED';
@@ -207,8 +226,8 @@ export async function createOrder(
   },
 ) {
   if (
-    input.packagePhotoUrl
-    && !StorageService.privateReferencesBelongTo(input.packagePhotoUrl, 'packages', clientId)
+    input.packagePhotoUrl &&
+    !StorageService.privateReferencesBelongTo(input.packagePhotoUrl, 'packages', clientId)
   ) {
     throw ApiError.forbidden(
       'Package photos must be uploaded by the account creating the order',
@@ -252,7 +271,8 @@ export async function createOrder(
 
   // Reject if actual price drifted >15% from client-side estimate
   if (input.estimatedTotalPrice != null && input.estimatedTotalPrice > 0) {
-    const drift = Math.abs(price.totalPrice - input.estimatedTotalPrice) / input.estimatedTotalPrice;
+    const drift =
+      Math.abs(price.totalPrice - input.estimatedTotalPrice) / input.estimatedTotalPrice;
     if (drift > 0.15) {
       throw new ApiError(
         409,
@@ -271,11 +291,21 @@ export async function createOrder(
     promoCodeId = await prisma.$transaction(async (tx) => {
       const promo = await tx.promoCode.findUnique({
         where: { code },
-        select: { id: true, maxUsesPerUser: true, maxUses: true, usedCount: true, isActive: true, validFrom: true, validUntil: true },
+        select: {
+          id: true,
+          maxUsesPerUser: true,
+          maxUses: true,
+          usedCount: true,
+          isActive: true,
+          validFrom: true,
+          validUntil: true,
+        },
       });
       if (!promo || !promo.isActive) throw ApiError.conflict('Promo code is no longer available');
-      if (promo.validUntil && promo.validUntil <= now) throw ApiError.conflict('Promo code has expired');
-      if (promo.maxUses != null && promo.usedCount >= promo.maxUses) throw ApiError.conflict('Promo code usage limit reached');
+      if (promo.validUntil && promo.validUntil <= now)
+        throw ApiError.conflict('Promo code has expired');
+      if (promo.maxUses != null && promo.usedCount >= promo.maxUses)
+        throw ApiError.conflict('Promo code usage limit reached');
 
       // Serialize concurrent same-user same-promo claims via a Postgres
       // transaction-scoped advisory lock keyed on (promoId, userId). Without this,
@@ -355,20 +385,21 @@ export async function createOrder(
       scheduleType: input.scheduleType ?? null,
       scheduleDiscount: price.scheduleDiscount,
       isMultiStop: !!(input.stops && input.stops.length > 0),
-      stops: input.stops && input.stops.length > 0
-        ? {
-            create: input.stops.map((s, i) => ({
-              type: s.type,
-              sequence: s.sequence ?? i,
-              address: s.address,
-              latitude: s.latitude,
-              longitude: s.longitude,
-              contactName: s.contactName,
-              contactPhone: s.contactPhone,
-              instructions: s.instructions,
-            })),
-          }
-        : undefined,
+      stops:
+        input.stops && input.stops.length > 0
+          ? {
+              create: input.stops.map((s, i) => ({
+                type: s.type,
+                sequence: s.sequence ?? i,
+                address: s.address,
+                latitude: s.latitude,
+                longitude: s.longitude,
+                contactName: s.contactName,
+                contactPhone: s.contactPhone,
+                instructions: s.instructions,
+              })),
+            }
+          : undefined,
       status: 'PENDING',
       statusHistory: {
         create: {
@@ -380,21 +411,27 @@ export async function createOrder(
     },
     include: {
       statusHistory: { orderBy: { createdAt: 'asc' } },
+      stops: { orderBy: { sequence: 'asc' } },
     },
   });
 
   // Record promo usage with orderId
   if (promoCodeId && price.promoDiscount > 0) {
-    await prisma.promoCodeUsage.create({
-      data: {
-        promoCodeId,
-        userId: clientId,
-        orderId: order.id,
-        discount: price.promoDiscount,
-      },
-    }).catch((err) => {
-      logger.error({ err, promoCodeId, orderId: order.id }, 'Failed to record promo code usage — promo may be reusable');
-    });
+    await prisma.promoCodeUsage
+      .create({
+        data: {
+          promoCodeId,
+          userId: clientId,
+          orderId: order.id,
+          discount: price.promoDiscount,
+        },
+      })
+      .catch((err) => {
+        logger.error(
+          { err, promoCodeId, orderId: order.id },
+          'Failed to record promo code usage — promo may be reusable',
+        );
+      });
   }
 
   return order;
@@ -507,6 +544,386 @@ export async function listOrders(
   };
 }
 
+type DeliveryAdjustments = {
+  waitTimeCharge: number;
+  waitTimeMinutes: number;
+  pickupBonus: number;
+};
+
+/** Calculate optional, telemetry-based adjustments before opening the settlement transaction. */
+async function calculateDeliveryAdjustments(
+  order: Order,
+  deliveredAt: Date,
+): Promise<DeliveryAdjustments> {
+  let waitTimeCharge = 0;
+  let waitTimeMinutes = 0;
+  let pickupBonus = 0;
+
+  try {
+    const history = await prisma.orderStatusHistory.findMany({
+      where: {
+        orderId: order.id,
+        status: { in: ['AT_PICKUP', 'PICKED_UP', 'AT_DROPOFF'] },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    const timestamps = new Map<string, Date>();
+    for (const entry of history) {
+      if (!timestamps.has(entry.status)) timestamps.set(entry.status, entry.createdAt);
+    }
+    const atPickup = timestamps.get('AT_PICKUP');
+    const pickedUp = timestamps.get('PICKED_UP');
+    const atDropoff = timestamps.get('AT_DROPOFF');
+    const pickupWaitMinutes =
+      atPickup && pickedUp ? (pickedUp.getTime() - atPickup.getTime()) / 60_000 : 0;
+    const dropoffWaitMinutes = atDropoff
+      ? (deliveredAt.getTime() - atDropoff.getTime()) / 60_000
+      : 0;
+    const waitResult = calculateWaitTimeCharge(pickupWaitMinutes, dropoffWaitMinutes);
+    if (waitResult.charge > 0) {
+      waitTimeCharge = waitResult.charge;
+      waitTimeMinutes = Math.round(waitResult.totalMinutes);
+    }
+  } catch {
+    // Telemetry is advisory and must not prevent an otherwise valid settlement.
+  }
+
+  if (order.riderId) {
+    try {
+      const rider = await prisma.riderProfile.findUnique({
+        where: { id: order.riderId },
+        select: { currentLatitude: true, currentLongitude: true },
+      });
+      if (
+        rider?.currentLatitude != null &&
+        rider.currentLongitude != null &&
+        order.pickupLatitude != null &&
+        order.pickupLongitude != null
+      ) {
+        const firstBreadcrumb = await prisma.locationHistory.findFirst({
+          where: { orderId: order.id, riderId: order.riderId },
+          orderBy: { createdAt: 'asc' },
+        });
+        pickupBonus = calculatePickupDistanceBonus(
+          firstBreadcrumb?.latitude ?? Number(rider.currentLatitude),
+          firstBreadcrumb?.longitude ?? Number(rider.currentLongitude),
+          Number(order.pickupLatitude),
+          Number(order.pickupLongitude),
+        );
+      }
+    } catch {
+      // Missing location telemetry must not prevent settlement.
+    }
+  }
+
+  return { waitTimeCharge, waitTimeMinutes, pickupBonus };
+}
+
+function enqueueDeliveryReceipt(order: Order): void {
+  enqueueReceiptJob({
+    orderId: order.id,
+    clientId: order.clientId,
+    orderNumber: order.orderNumber,
+    totalPrice: Number(order.totalPrice),
+    currency: order.currency,
+  }).catch((err) => {
+    logger.error({ err, orderId: order.id }, 'Failed to enqueue receipt job');
+  });
+}
+
+function enqueueDeliveryCommission(orderId: string, commission: CommissionJobData): void {
+  enqueueCommissionJob(commission).catch((err) => {
+    logger.error(
+      { err, orderId, commData: commission },
+      'Failed to enqueue commission job - creating fallback record',
+    );
+    prisma.orderStatusHistory
+      .create({
+        data: {
+          orderId,
+          status: 'DELIVERED',
+          actor: 'system',
+          note: `COMMISSION_FAILED: ${JSON.stringify(commission)}`,
+        },
+      })
+      .catch(() => {});
+  });
+}
+
+/** Re-submit only queue work whose worker-side effects are idempotent. */
+async function recoverDeliveryQueueJobs(order: Order): Promise<void> {
+  enqueueDeliveryReceipt(order);
+  if (!order.riderId || !order.platformCommission || Number(order.platformCommission) <= 0) return;
+
+  try {
+    const [rider, zone] = await Promise.all([
+      prisma.riderProfile.findUnique({
+        where: { id: order.riderId },
+        select: { id: true, userId: true },
+      }),
+      order.zoneId
+        ? prisma.zone.findUnique({
+            where: { id: order.zoneId },
+            select: { commissionRate: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    if (!rider) return;
+    enqueueDeliveryCommission(order.id, {
+      orderId: order.id,
+      riderId: rider.id,
+      riderUserId: rider.userId,
+      orderAmount: Number(order.totalPrice),
+      commissionRate: Number(zone?.commissionRate ?? 15),
+      platformCommission: Number(order.platformCommission),
+    });
+  } catch (err) {
+    logger.error({ err, orderId: order.id }, 'Failed to recover delivery queue jobs');
+  }
+}
+
+/**
+ * Commit every delivery-financial write together. Queueing and learning stay
+ * post-commit so external infrastructure never extends the database lock.
+ */
+async function transitionToDelivered(
+  initialOrder: Order,
+  actor: string,
+  note?: string,
+  options?: OrderTransitionOptions,
+) {
+  if (options?.expectedRiderId && initialOrder.riderId !== options.expectedRiderId) {
+    throw ApiError.forbidden(
+      'You are no longer assigned to this order',
+      'ORDER_RIDER_ASSIGNMENT_CHANGED',
+    );
+  }
+  if (initialOrder.status === 'DELIVERED') {
+    await recoverDeliveryQueueJobs(initialOrder);
+    return initialOrder;
+  }
+  if (!isValidTransition(initialOrder.status, 'DELIVERED')) {
+    throw ApiError.badRequest(
+      `Cannot transition from ${initialOrder.status} to DELIVERED`,
+      'INVALID_STATUS_TRANSITION',
+    );
+  }
+
+  assertDeliveryPaymentReady(initialOrder);
+  if (!initialOrder.proofOfDeliveryType || !initialOrder.proofOfDeliveryUrl) {
+    throw ApiError.badRequest('Proof of delivery is required before completion', 'PROOF_REQUIRED');
+  }
+
+  const deliveredAt = new Date();
+  const adjustments = await calculateDeliveryAdjustments(initialOrder, deliveredAt);
+  const settlement = await prisma.$transaction(async (tx) => {
+    await acquireTransactionAdvisoryLock(tx, 'delivery-settlement', initialOrder.id);
+    const current = await tx.order.findUnique({ where: { id: initialOrder.id } });
+    if (!current) throw ApiError.notFound('Order not found');
+
+    if (options?.expectedRiderId && current.riderId !== options.expectedRiderId) {
+      throw ApiError.forbidden(
+        'You are no longer assigned to this order',
+        'ORDER_RIDER_ASSIGNMENT_CHANGED',
+      );
+    }
+    // The lock serializes mobile retries. A request that lost its first HTTP
+    // response returns the committed order without duplicating any side effect.
+    if (current.status === 'DELIVERED') {
+      return { order: current, committed: false, commission: undefined };
+    }
+    if (!isValidTransition(current.status, 'DELIVERED')) {
+      throw ApiError.badRequest(
+        'Order status changed concurrently, please retry',
+        'CONCURRENT_STATUS_CHANGE',
+      );
+    }
+    assertDeliveryPaymentReady(current);
+    if (!current.proofOfDeliveryType || !current.proofOfDeliveryUrl) {
+      throw ApiError.badRequest(
+        'Proof of delivery is required before completion',
+        'PROOF_REQUIRED',
+      );
+    }
+    if (current.isMultiStop) {
+      const incompleteStops = await tx.orderStop.count({
+        where: {
+          orderId: current.id,
+          status: { notIn: ['COMPLETED', 'SKIPPED'] },
+        },
+      });
+      if (incompleteStops > 0) {
+        throw ApiError.badRequest(
+          `Complete all delivery stops before closing this order (${incompleteStops} remaining)`,
+          'INCOMPLETE_DELIVERY_STOPS',
+        );
+      }
+    }
+
+    // Electronic orders are fully paid before this transition. Charging their
+    // total again here would create an uncollected balance. Until an explicit
+    // incremental-capture flow exists, RiderGuy funds wait/pickup adjustments:
+    // the Rider receives them, while the client's settled total stays exact.
+    const riderAdjustment = adjustments.waitTimeCharge + adjustments.pickupBonus;
+    const settledRiderEarnings = current.riderId
+      ? (current.riderEarnings
+          ? Number(current.riderEarnings)
+          : Number(current.totalPrice) * 0.85) + riderAdjustment
+      : undefined;
+
+    // Dispatch takes the Rider lock before claiming/updating the order. Match
+    // that order here so a progress/settlement transaction can never hold the
+    // order row while waiting on a concurrent reassign operation.
+    if (current.riderId) {
+      await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', current.riderId);
+    }
+
+    const statusUpdate = await tx.order.updateMany({
+      where: { id: current.id, status: current.status, riderId: current.riderId },
+      data: {
+        status: 'DELIVERED',
+        deliveredAt,
+        ...(current.paymentMethod === 'CASH' ? { paymentStatus: 'COMPLETED' } : {}),
+        ...(adjustments.waitTimeCharge > 0
+          ? {
+              waitTimeCharge: adjustments.waitTimeCharge,
+              waitTimeMinutes: adjustments.waitTimeMinutes,
+            }
+          : {}),
+        ...(current.riderId && riderAdjustment > 0 ? { riderEarnings: settledRiderEarnings } : {}),
+      },
+    });
+    if (statusUpdate.count === 0) {
+      throw ApiError.badRequest(
+        'Order status changed concurrently, please retry',
+        'CONCURRENT_STATUS_CHANGE',
+      );
+    }
+
+    const updated = await tx.order.findUniqueOrThrow({ where: { id: current.id } });
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId: current.id,
+        status: 'DELIVERED',
+        actor,
+        note: note ?? 'Status changed to DELIVERED',
+      },
+    });
+
+    if (options?.auditContext) {
+      await AdminAuditService.record(
+        {
+          ...options.auditContext,
+          action: 'ORDER_STATUS_CHANGED',
+          entityType: 'Order',
+          entityId: current.id,
+          oldData: { status: current.status },
+          newData: { status: 'DELIVERED', note: note?.trim() || null },
+        },
+        tx,
+      );
+    }
+
+    let commission: CommissionJobData | undefined;
+    if (updated.riderId) {
+      const rider = await tx.riderProfile.findUnique({
+        where: { id: updated.riderId },
+        select: { id: true, userId: true, currentLevel: true },
+      });
+      if (!rider) throw ApiError.notFound('Assigned Rider profile not found');
+
+      await tx.riderProfile.update({
+        where: { id: updated.riderId },
+        data: { totalDeliveries: { increment: 1 } },
+      });
+      await setPostWorkRiderAvailability(tx, updated.riderId);
+
+      const earnings = updated.riderEarnings
+        ? Number(updated.riderEarnings)
+        : Number(updated.totalPrice) * 0.85;
+      await creditWallet(
+        rider.userId,
+        earnings,
+        'DELIVERY_EARNING',
+        `Earnings from order ${updated.orderNumber}`,
+        updated.id,
+        'order',
+        tx,
+      );
+
+      const zoneRate = updated.zoneId
+        ? ((
+            await tx.zone.findUnique({
+              where: { id: updated.zoneId },
+              select: { commissionRate: true },
+            })
+          )?.commissionRate ?? 15)
+        : 15;
+      if (rider.currentLevel > 1) {
+        const riderRate = getCommissionRate(rider.currentLevel);
+        if (riderRate < zoneRate) {
+          const bonus = Math.round(
+            Number(updated.totalPrice) * ((Number(zoneRate) - riderRate) / 100),
+          );
+          if (bonus > 0) {
+            await creditWallet(
+              rider.userId,
+              bonus,
+              'DELIVERY_EARNING',
+              `Level ${rider.currentLevel} commission bonus for order ${updated.orderNumber}`,
+              updated.id,
+              'level_bonus',
+              tx,
+            );
+          }
+        }
+      }
+
+      if (updated.platformCommission && Number(updated.platformCommission) > 0) {
+        commission = {
+          orderId: updated.id,
+          riderId: rider.id,
+          riderUserId: rider.userId,
+          orderAmount: Number(updated.totalPrice),
+          commissionRate: Number(zoneRate),
+          platformCommission: Number(updated.platformCommission),
+        };
+      }
+
+      await tx.clientProfile.updateMany({
+        where: { userId: updated.clientId },
+        data: {
+          totalOrders: { increment: 1 },
+          totalSpent: { increment: updated.totalPrice },
+        },
+      });
+    }
+
+    return { order: updated, committed: true, commission };
+  });
+
+  const updated = settlement.order;
+  if (!settlement.committed) {
+    await recoverDeliveryQueueJobs(updated);
+    return updated;
+  }
+
+  if (settlement.commission) {
+    enqueueDeliveryCommission(updated.id, settlement.commission);
+  }
+  enqueueDeliveryReceipt(updated);
+  if (updated.riderId) {
+    awardXp(updated.riderId, XpAction.DELIVERY_COMPLETE, undefined, {
+      orderId: updated.id,
+      orderNumber: updated.orderNumber,
+    }).catch(() => {});
+    recordStreakActivity(updated.riderId).catch(() => {});
+  }
+  learnFromDelivery(updated.id).catch(() => {});
+
+  return updated;
+}
+
 /**
  * Transition an order to a new status.
  */
@@ -515,357 +932,161 @@ export async function transitionStatus(
   newStatus: OrderStatus,
   actor: string,
   note?: string,
+  options?: OrderTransitionOptions,
 ) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw ApiError.notFound('Order not found');
-
-  if (!isValidTransition(order.status, newStatus)) {
-    throw ApiError.badRequest(
-      `Cannot transition from ${order.status} to ${newStatus}`,
-      'INVALID_STATUS_TRANSITION',
-    );
-  }
-
   if (newStatus === 'DELIVERED') {
-    assertDeliveryPaymentReady(order);
-    if (!order.proofOfDeliveryType || !order.proofOfDeliveryUrl) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Order not found');
+    return transitionToDelivered(order, actor, note, options);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await acquireTransactionAdvisoryLock(tx, 'order-status-transition', orderId);
+    const order = await tx.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Order not found');
+
+    if (options?.expectedRiderId && order.riderId !== options.expectedRiderId) {
+      throw ApiError.forbidden(
+        'You are no longer assigned to this order',
+        'ORDER_RIDER_ASSIGNMENT_CHANGED',
+      );
+    }
+    if (options?.clientCancellation && newStatus !== 'CANCELLED_BY_CLIENT') {
       throw ApiError.badRequest(
-        'Proof of delivery is required before completion',
-        'PROOF_REQUIRED',
+        'Client cancellation settlement can only be used for a Client cancellation.',
+        'INVALID_CLIENT_CANCELLATION_TRANSITION',
       );
     }
-  }
-
-  // Determine timestamp fields to update
-  const timestampUpdates: Record<string, Date> = {};
-  if (newStatus === 'ASSIGNED') timestampUpdates.assignedAt = new Date();
-  if (newStatus === 'PICKED_UP') timestampUpdates.pickedUpAt = new Date();
-  if (newStatus === 'DELIVERED') timestampUpdates.deliveredAt = new Date();
-  if (newStatus.startsWith('CANCELLED')) timestampUpdates.cancelledAt = new Date();
-
-  // Optimistic concurrency: only succeeds if order still has the expected status
-  const updateResult = await prisma.order.updateMany({
-    where: { id: orderId, status: order.status },
-    data: {
-      status: newStatus,
-      ...timestampUpdates,
-      ...(newStatus === 'FAILED' && note ? { failureReason: note } : {}),
-    },
-  });
-
-  if (updateResult.count === 0) {
-    throw ApiError.badRequest(
-      'Order status changed concurrently, please retry',
-      'CONCURRENT_STATUS_CHANGE',
-    );
-  }
-
-  // Re-read the updated order
-  let updated = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-
-  await prisma.orderStatusHistory.create({
-    data: {
-      orderId,
-      status: newStatus,
-      actor,
-      note: note ?? `Status changed to ${newStatus}`,
-    },
-  });
-
-  // Terminal states release the rider from this delivery. Stuck-order recovery
-  // may subsequently mark the rider OFFLINE if the failure was connectivity-related.
-  if ((newStatus.startsWith('CANCELLED') || newStatus === 'FAILED') && updated.riderId) {
-    await prisma.$transaction(async (tx) => {
-      await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', updated.riderId!);
-      await setPostWorkRiderAvailability(tx, updated.riderId!);
-    });
-  }
-
-  // If delivered, update rider stats + credit wallet
-  if (newStatus === 'DELIVERED' && updated.riderId) {
-    // ── Pre-compute all financial adjustments (read-only) ──
-    let waitTimeAdjustment = 0;
-    let waitTotalMinutes = 0;
-    let pickupBonus = 0;
-
-    // Wait time charge (LOGIC-05)
-    try {
-      const statusHistory = await prisma.orderStatusHistory.findMany({
-        where: { orderId, status: { in: ['AT_PICKUP', 'PICKED_UP', 'AT_DROPOFF', 'DELIVERED'] } },
-        orderBy: { createdAt: 'asc' },
-      });
-      const tsMap = new Map<string, Date>();
-      for (const entry of statusHistory) {
-        if (!tsMap.has(entry.status)) tsMap.set(entry.status, entry.createdAt);
-      }
-      const atPickup = tsMap.get('AT_PICKUP');
-      const pickedUp = tsMap.get('PICKED_UP');
-      const atDropoff = tsMap.get('AT_DROPOFF');
-      const delivered = tsMap.get('DELIVERED');
-      const pickupWaitMin = (atPickup && pickedUp)
-        ? (pickedUp.getTime() - atPickup.getTime()) / 60_000
-        : 0;
-      const dropoffWaitMin = (atDropoff && delivered)
-        ? (delivered.getTime() - atDropoff.getTime()) / 60_000
-        : 0;
-      const waitResult = calculateWaitTimeCharge(pickupWaitMin, dropoffWaitMin);
-      if (waitResult.charge > 0) {
-        waitTimeAdjustment = waitResult.charge;
-        waitTotalMinutes = Math.round(waitResult.totalMinutes);
-      }
-    } catch {
-      // Don't block delivery completion if wait time calc fails
+    if (
+      options?.clientCancellation &&
+      order.clientId !== options.clientCancellation.requestedByClientId
+    ) {
+      throw ApiError.forbidden('Not your order');
     }
 
-    // Pickup distance bonus (LOGIC-06)
-    try {
-      const riderProfileForBonus = await prisma.riderProfile.findUnique({
-        where: { id: updated.riderId },
-        select: { currentLatitude: true, currentLongitude: true },
-      });
-      if (
-        riderProfileForBonus?.currentLatitude != null &&
-        riderProfileForBonus?.currentLongitude != null &&
-        updated.pickupLatitude != null &&
-        updated.pickupLongitude != null
-      ) {
-        const firstBreadcrumb = await prisma.locationHistory.findFirst({
-          where: { orderId, riderId: updated.riderId },
-          orderBy: { createdAt: 'asc' },
-        });
-        const riderLat = firstBreadcrumb?.latitude ?? Number(riderProfileForBonus.currentLatitude);
-        const riderLng = firstBreadcrumb?.longitude ?? Number(riderProfileForBonus.currentLongitude);
-        pickupBonus = calculatePickupDistanceBonus(
-          riderLat,
-          riderLng,
-          Number(updated.pickupLatitude),
-          Number(updated.pickupLongitude),
-        );
-      }
-    } catch {
-      // Don't block delivery completion if bonus calc fails
+    // A retry after a committed transition is a no-op. History, Rider release
+    // and administrator audit were already committed with the first request.
+    if (order.status === newStatus) return order;
+
+    if (
+      options?.clientCancellation &&
+      !(['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE'] as OrderStatus[]).includes(
+        order.status,
+      )
+    ) {
+      throw ApiError.badRequest('Order can no longer be cancelled');
     }
 
-    // ── Apply all financial adjustments atomically ──
-    const orderUpdates: Record<string, any> = {};
-    if (waitTimeAdjustment > 0) {
-      orderUpdates.waitTimeCharge = waitTimeAdjustment;
-      orderUpdates.waitTimeMinutes = waitTotalMinutes;
-    }
-    if (waitTimeAdjustment > 0 || pickupBonus > 0) {
-      // Apply order price/earnings adjustments in a single update
-      const finalOrder = await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          ...orderUpdates,
-          ...(waitTimeAdjustment > 0 ? { totalPrice: { increment: waitTimeAdjustment } } : {}),
-          ...(pickupBonus > 0 ? { riderEarnings: { increment: pickupBonus } } : {}),
-        },
-      });
-      // Use the updated order for earnings calc
-      if (finalOrder.riderEarnings) {
-        updated = { ...updated, riderEarnings: finalOrder.riderEarnings, totalPrice: finalOrder.totalPrice };
-      }
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', updated.riderId!);
-      await tx.riderProfile.update({
-        where: { id: updated.riderId! },
-        data: { totalDeliveries: { increment: 1 } },
-      });
-      await setPostWorkRiderAvailability(tx, updated.riderId!);
-    });
-
-    // Credit rider wallet (includes pickup distance bonus — platform absorbs)
-    const baseEarnings = updated.riderEarnings ? Number(updated.riderEarnings) : (Number(updated.totalPrice) * 0.85);
-    const earnings = baseEarnings;
-    const riderProfile = await prisma.riderProfile.findUnique({
-      where: { id: updated.riderId! },
-      select: { id: true, userId: true, currentLevel: true },
-    });
-
-    if (riderProfile) {
-      await creditWallet(
-        riderProfile.userId,
-        earnings,
-        'DELIVERY_EARNING',
-        `Earnings from order ${updated.orderNumber}`,
-        updated.id,
-        'order',
+    // Assignment must claim both the Order and Rider through DispatchService.
+    // A bare status transition would create an ASSIGNED order with no valid
+    // Rider claim or availability update.
+    if (newStatus === 'ASSIGNED') {
+      throw ApiError.badRequest(
+        'Use the Rider assignment workflow to assign this order.',
+        'ASSIGNMENT_REQUIRES_DISPATCH',
       );
-
-      // Tips are handled exclusively in rateOrder() to avoid double-credit
-
-      // Level perk: reduced commission for higher-level riders
-      if (riderProfile.currentLevel > 1) {
-        const riderLevelCommRate = getCommissionRate(riderProfile.currentLevel);
-        const zoneRate = updated.zoneId
-          ? (await prisma.zone.findUnique({ where: { id: updated.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
-          : 15;
-        if (riderLevelCommRate < zoneRate) {
-          const bonus = Math.round(Number(updated.totalPrice) * ((Number(zoneRate) - riderLevelCommRate) / 100));
-          if (bonus > 0) {
-            await creditWallet(
-              riderProfile.userId,
-              bonus,
-              'DELIVERY_EARNING',
-              `Level ${riderProfile.currentLevel} commission bonus for order ${updated.orderNumber}`,
-              updated.id,
-              'level_bonus',
-            );
-          }
-        }
-      }
-
-      // Collect commission data for enqueuing AFTER writes complete
-      if (updated.platformCommission && Number(updated.platformCommission) > 0) {
-        const zoneCommRate = updated.zoneId
-          ? (await prisma.zone.findUnique({ where: { id: updated.zoneId }, select: { commissionRate: true } }))?.commissionRate ?? 15
-          : 15;
-
-        (updated as Record<string, unknown>).__commissionEnqueue = {
-          orderId: updated.id,
-          riderId: riderProfile.id,
-          riderUserId: riderProfile.userId,
-          orderAmount: Number(updated.totalPrice),
-          commissionRate: Number(zoneCommRate),
-          platformCommission: Number(updated.platformCommission),
-        };
-      }
     }
 
-    // Update client stats
-    await prisma.clientProfile.updateMany({
-      where: { userId: updated.clientId },
+    if (!isValidTransition(order.status, newStatus)) {
+      throw ApiError.badRequest(
+        `Cannot transition from ${order.status} to ${newStatus}`,
+        'INVALID_STATUS_TRANSITION',
+      );
+    }
+
+    const timestampUpdates: Record<string, Date> = {};
+    if (newStatus === 'PICKED_UP') timestampUpdates.pickedUpAt = new Date();
+    if (newStatus.startsWith('CANCELLED')) timestampUpdates.cancelledAt = new Date();
+
+    const postAssignmentCancellation =
+      options?.clientCancellation !== undefined &&
+      (order.status === 'ASSIGNED' || order.status === 'PICKUP_EN_ROUTE') &&
+      order.riderId !== null;
+    const cancellationFee = postAssignmentCancellation ? 3 : 0;
+    const clientCancellationReason =
+      options?.clientCancellation?.reason?.trim() || 'Cancelled by client';
+    const effectiveNote = options?.clientCancellation
+      ? cancellationFee > 0
+        ? `${clientCancellationReason} (cancellation fee: GHS ${cancellationFee.toFixed(2)})`
+        : clientCancellationReason
+      : note;
+
+    // Acquire any Rider lock before the Order row update, matching dispatch's
+    // rider-lock -> order-row order and eliminating the inverse wait cycle.
+    const releasingRiderId =
+      (newStatus.startsWith('CANCELLED') || newStatus === 'FAILED') && order.riderId
+        ? order.riderId
+        : null;
+    if (releasingRiderId) {
+      await acquireTransactionAdvisoryLock(tx, 'rider-vehicle-state', releasingRiderId);
+    }
+
+    // Keep the CAS even under the advisory lock so writes from legacy or
+    // non-cooperating paths cannot be silently overwritten.
+    const updateResult = await tx.order.updateMany({
+      where: { id: orderId, status: order.status, riderId: order.riderId },
       data: {
-        totalOrders: { increment: 1 },
-        totalSpent: { increment: updated.totalPrice },
+        status: newStatus,
+        ...timestampUpdates,
+        ...(newStatus === 'FAILED' && effectiveNote ? { failureReason: effectiveNote } : {}),
+      },
+    });
+    if (updateResult.count === 0) {
+      throw ApiError.badRequest(
+        'Order status changed concurrently, please retry',
+        'CONCURRENT_STATUS_CHANGE',
+      );
+    }
+
+    const updated = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId,
+        status: newStatus,
+        actor,
+        note: effectiveNote ?? `Status changed to ${newStatus}`,
       },
     });
 
-    // ── Post-delivery payment collection ──
-    // Payment is collected AFTER delivery because the final price may differ
-    // from the estimate (wait time charges, pickup distance bonuses, etc.).
-    // Guard: skip if already paid (prevents double-debit on concurrent calls)
-    if (updated.paymentStatus !== 'COMPLETED') {
-      const finalPrice = Number(updated.totalPrice);
-
-      if (updated.paymentMethod === 'WALLET') {
-        // Auto-debit client wallet for the final amount
-        try {
-          const walletDebit = await prisma.$transaction(async (tx) => {
-            const clientWallet = await tx.wallet.findFirst({
-              where: { userId: updated.clientId },
-            });
-            if (!clientWallet || Number(clientWallet.balance) < finalPrice) {
-              return null; // Insufficient balance
-            }
-            const updatedWallet = await tx.wallet.update({
-              where: { id: clientWallet.id },
-              data: { balance: { decrement: finalPrice } },
-            });
-            await tx.transaction.create({
-              data: {
-                walletId: clientWallet.id,
-                type: 'COMMISSION_DEDUCTION',
-                amount: finalPrice,
-                balanceAfter: Number(updatedWallet.balance),
-                description: `Payment for order ${updated.orderNumber}`,
-                referenceId: updated.id,
-                referenceType: 'order',
-              },
-            });
-            await tx.order.update({
-              where: { id: orderId },
-              data: { paymentStatus: 'COMPLETED' },
-            });
-            return updatedWallet;
-          });
-
-          if (walletDebit) {
-            updated = { ...updated, paymentStatus: 'COMPLETED' };
-          } else {
-            // Insufficient funds — leave paymentStatus PENDING so client
-            // can top up and pay via the payment page
-            logger.warn({ orderId, clientId: updated.clientId, finalPrice }, 'Insufficient wallet balance — client must pay manually');
-
-            // Notify client via socket that payment is pending
-            try {
-              const { getIO } = await import('../socket');
-              const io = getIO();
-              (io.to(`user:${updated.clientId}`) as any).emit('order:payment-required', {
-                orderId: updated.id,
-                orderNumber: updated.orderNumber,
-                amount: finalPrice,
-                currency: updated.currency,
-                reason: 'INSUFFICIENT_WALLET_BALANCE',
-              });
-            } catch {
-              // Socket not available
-            }
-          }
-        } catch (err) {
-          logger.error({ err, orderId }, 'Failed to debit client wallet after delivery');
-        }
-      } else if (updated.paymentMethod === 'CASH') {
-        // Cash is collected by the rider in person — mark as completed
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { paymentStatus: 'COMPLETED' },
-        });
-        updated = { ...updated, paymentStatus: 'COMPLETED' };
-      }
-      // CARD / MOBILE_MONEY / BANK_TRANSFER: paymentStatus stays PENDING —
-      // client pays via Paystack after seeing the "Pay Now" prompt on tracking page.
+    // Terminal states release the Rider in this same transaction. Stuck-order
+    // recovery may subsequently mark them OFFLINE for connectivity failures.
+    if (releasingRiderId) {
+      await setPostWorkRiderAvailability(tx, releasingRiderId);
     }
-  }
 
-  // Enqueue background jobs AFTER writes have completed successfully
-  if (newStatus === 'DELIVERED') {
-    const commData = (updated as Record<string, unknown>).__commissionEnqueue as CommissionJobData | undefined;
-    if (commData) {
-      enqueueCommissionJob(commData).catch((err) => {
-        logger.error({ err, orderId: updated.id, commData }, 'Failed to enqueue commission job — creating fallback record');
-        // Fallback: persist commission data so it can be reconciled manually
-        prisma.orderStatusHistory.create({
-          data: {
-            orderId: updated.id,
-            status: 'DELIVERED',
-            actor: 'system',
-            note: `COMMISSION_FAILED: ${JSON.stringify(commData)}`,
-          },
-        }).catch(() => {});
+    if (cancellationFee > 0 && releasingRiderId) {
+      const rider = await tx.riderProfile.findUnique({
+        where: { id: releasingRiderId },
+        select: { userId: true },
       });
-      delete (updated as Record<string, unknown>).__commissionEnqueue;
+      if (!rider) throw ApiError.notFound('Assigned Rider profile not found');
+      await creditWallet(
+        rider.userId,
+        cancellationFee,
+        'DELIVERY_EARNING',
+        `Cancellation compensation for order ${order.orderNumber}`,
+        order.id,
+        'cancellation',
+        tx,
+      );
     }
 
-    enqueueReceiptJob({
-      orderId: updated.id,
-      clientId: updated.clientId,
-      orderNumber: updated.orderNumber,
-      totalPrice: Number(updated.totalPrice),
-      currency: updated.currency,
-    }).catch((err) => {
-      logger.error({ err, orderId: updated.id }, 'Failed to enqueue receipt job');
-    });
-
-    // Award XP for completed delivery (fire-and-forget)
-    if (updated.riderId) {
-      awardXp(updated.riderId, XpAction.DELIVERY_COMPLETE, undefined, {
-        orderId: updated.id,
-        orderNumber: updated.orderNumber,
-      }).catch(() => {});
-
-      // Update rider delivery streak
-      recordStreakActivity(updated.riderId).catch(() => {});
+    if (options?.auditContext) {
+      await AdminAuditService.record(
+        {
+          ...options.auditContext,
+          action: newStatus === 'CANCELLED_BY_ADMIN' ? 'ORDER_CANCELLED' : 'ORDER_STATUS_CHANGED',
+          entityType: 'Order',
+          entityId: orderId,
+          oldData: { status: order.status },
+          newData: { status: newStatus, note: effectiveNote?.trim() || null },
+        },
+        tx,
+      );
     }
 
-    // Learn from this delivery to improve future ETA predictions
-    learnFromDelivery(updated.id).catch(() => {});
-  }
-
-  return updated;
+    return updated;
+  });
 }
 
 /**
@@ -876,51 +1097,14 @@ export async function transitionStatus(
  *   - After assignment  (ASSIGNED / PICKUP_EN_ROUTE): GHS 3.00 → rider compensation
  */
 export async function cancelOrder(orderId: string, userId: string, reason?: string) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw ApiError.notFound('Order not found');
-  if (order.clientId !== userId) throw ApiError.forbidden('Not your order');
+  const updated = await transitionStatus(orderId, 'CANCELLED_BY_CLIENT', userId, reason, {
+    clientCancellation: { requestedByClientId: userId, ...(reason ? { reason } : {}) },
+  });
 
-  // Can only cancel before pickup
-  const cancellableStatuses: OrderStatus[] = ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE'];
-  if (!cancellableStatuses.includes(order.status)) {
-    throw ApiError.badRequest('Order can no longer be cancelled');
-  }
-
-  // Stop the auto-dispatch loop if it's actively seeking riders
+  // Dispatch is external process state, so stop it only after the cancellation
+  // and any Rider compensation have committed successfully.
   cancelDispatch(orderId);
-
-  // Determine cancellation fee based on current status
-  const CANCELLATION_FEE_AFTER_ASSIGNMENT = 3.00; // GHS
-  const postAssignmentStatuses: OrderStatus[] = ['ASSIGNED', 'PICKUP_EN_ROUTE'];
-  const hasFee = postAssignmentStatuses.includes(order.status) && !!order.riderId;
-  const feeAmount = hasFee ? CANCELLATION_FEE_AFTER_ASSIGNMENT : 0;
-
-  // If there's a fee and an assigned rider, compensate the rider
-  if (hasFee && order.riderId) {
-    const riderProfile = await prisma.riderProfile.findUnique({
-      where: { id: order.riderId },
-      select: { userId: true },
-    });
-
-    if (riderProfile) {
-      // Credit cancellation compensation to rider's wallet atomically
-      await creditWallet(
-        riderProfile.userId,
-        feeAmount,
-        'DELIVERY_EARNING',
-        `Cancellation compensation for order ${order.orderNumber}`,
-        order.id,
-        'cancellation',
-      );
-    }
-  }
-
-  const cancelNote = reason ?? 'Cancelled by client';
-  const noteWithFee = hasFee
-    ? `${cancelNote} (cancellation fee: GHS ${feeAmount.toFixed(2)})`
-    : cancelNote;
-
-  return transitionStatus(orderId, 'CANCELLED_BY_CLIENT', userId, noteWithFee);
+  return updated;
 }
 
 /**
@@ -949,9 +1133,7 @@ export async function cancelOrderByRider(orderId: string, riderUserId: string, r
     throw ApiError.forbidden('Your account is currently suspended');
   }
 
-  const cancellableStatuses: OrderStatus[] = [
-    'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP',
-  ];
+  const cancellableStatuses: OrderStatus[] = ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP'];
   const postPickupStatuses: OrderStatus[] = ['PICKED_UP', 'IN_TRANSIT'];
 
   if (postPickupStatuses.includes(order.status)) {
@@ -967,7 +1149,9 @@ export async function cancelOrderByRider(orderId: string, riderUserId: string, r
 
   const orderStatusAtCancel = order.status;
   const cancelNote = `Rider cancel: ${reason}`;
-  const updated = await transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote);
+  const updated = await transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote, {
+    expectedRiderId: riderProfile.id,
+  });
 
   // Process cancellation consequences (penalty, suspension, investigation)
   try {
@@ -1092,11 +1276,7 @@ export async function getAvailableJobs(userId: string) {
     where: {
       status: { in: ['PENDING', 'SEARCHING_RIDER'] },
       riderId: null,
-      OR: [
-        { isScheduled: false },
-        { scheduledAt: null },
-        { scheduledAt: { lte: new Date() } },
-      ],
+      OR: [{ isScheduled: false }, { scheduledAt: null }, { scheduledAt: { lte: new Date() } }],
     },
     orderBy: { createdAt: 'desc' },
     take: 50,
@@ -1122,15 +1302,17 @@ export async function getAvailableJobs(userId: string) {
 
   // D-06: Filter out orders the rider has already declined via auto-dispatch
   // Batch query all declined rider sets at once to avoid N+1
-  const orderIds = orders.map(o => o.id);
+  const orderIds = orders.map((o) => o.id);
   const declinedMap = new Map<string, Set<string>>();
   if (orderIds.length > 0) {
-    const allDeclined = await Promise.all(orderIds.map(oid => getDeclinedRiderIds(oid).then(set => ({ oid, set }))));
+    const allDeclined = await Promise.all(
+      orderIds.map((oid) => getDeclinedRiderIds(oid).then((set) => ({ oid, set }))),
+    );
     for (const { oid, set } of allDeclined) {
       declinedMap.set(oid, set);
     }
   }
-  const filtered = orders.filter(order => {
+  const filtered = orders.filter((order) => {
     const declined = declinedMap.get(order.id);
     return !declined || !declined.has(userId);
   });
@@ -1141,12 +1323,14 @@ export async function getAvailableJobs(userId: string) {
 
   if (riderLat != null && riderLng != null) {
     filtered.sort((a, b) => {
-      const distA = (a.pickupLatitude != null && a.pickupLongitude != null)
-        ? Math.hypot(Number(a.pickupLatitude) - riderLat, Number(a.pickupLongitude) - riderLng)
-        : Infinity;
-      const distB = (b.pickupLatitude != null && b.pickupLongitude != null)
-        ? Math.hypot(Number(b.pickupLatitude) - riderLat, Number(b.pickupLongitude) - riderLng)
-        : Infinity;
+      const distA =
+        a.pickupLatitude != null && a.pickupLongitude != null
+          ? Math.hypot(Number(a.pickupLatitude) - riderLat, Number(a.pickupLongitude) - riderLng)
+          : Infinity;
+      const distB =
+        b.pickupLatitude != null && b.pickupLongitude != null
+          ? Math.hypot(Number(b.pickupLatitude) - riderLat, Number(b.pickupLongitude) - riderLng)
+          : Infinity;
       return distA - distB;
     });
   }
@@ -1173,7 +1357,10 @@ export async function releaseDueScheduledOrders(): Promise<number> {
 
   const { autoDispatch } = await import('./auto-dispatch.service');
   for (const order of dueOrders) {
-    logger.info({ orderId: order.id, orderNumber: order.orderNumber }, 'Releasing scheduled order for dispatch');
+    logger.info(
+      { orderId: order.id, orderNumber: order.orderNumber },
+      'Releasing scheduled order for dispatch',
+    );
     autoDispatch(order.id).catch((err) => {
       logger.error({ err, orderId: order.id }, 'Scheduled order dispatch failed');
     });
@@ -1248,7 +1435,9 @@ export async function escalateStaleDeliveries(): Promise<number> {
 
   const staleOrders = await prisma.order.findMany({
     where: {
-      status: { in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'] },
+      status: {
+        in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'],
+      },
       updatedAt: { lt: cutoff },
     },
     select: {
@@ -1332,7 +1521,10 @@ export async function cleanupOldBreadcrumbs(): Promise<number> {
   });
 
   if (result.count > 0) {
-    logger.info({ deleted: result.count, cutoff: cutoff.toISOString() }, '[Retention] Cleaned old breadcrumbs');
+    logger.info(
+      { deleted: result.count, cutoff: cutoff.toISOString() },
+      '[Retention] Cleaned old breadcrumbs',
+    );
   }
 
   return result.count;

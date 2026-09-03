@@ -18,15 +18,21 @@ export const adminAdjustXpSchema = z.object({
 
 /** Admin: create a badge */
 export const createBadgeSchema = z.object({
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9_]+$/, 'Slug must be lowercase alphanumeric with underscores'),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9_]+$/, 'Slug must be lowercase alphanumeric with underscores'),
   name: z.string().min(1).max(100),
   description: z.string().min(1).max(500),
   icon: z.string().min(1).max(10),
   category: z.enum(['achievement', 'milestone', 'special']),
-  criteria: z.object({
-    action: z.string(),
-    threshold: z.number().int().min(0),
-  }).optional(),
+  criteria: z
+    .object({
+      action: z.string(),
+      threshold: z.number().int().min(0),
+    })
+    .optional(),
   xpReward: z.number().int().min(0).max(10000).optional(),
   sortOrder: z.number().int().min(0).optional(),
 });
@@ -37,10 +43,13 @@ export const updateBadgeSchema = z.object({
   description: z.string().min(1).max(500).optional(),
   icon: z.string().min(1).max(10).optional(),
   category: z.enum(['achievement', 'milestone', 'special']).optional(),
-  criteria: z.object({
-    action: z.string(),
-    threshold: z.number().int().min(0),
-  }).optional(),
+  criteria: z
+    .object({
+      action: z.string(),
+      threshold: z.number().int().min(0),
+    })
+    .nullable()
+    .optional(),
   xpReward: z.number().int().min(0).max(10000).optional(),
   sortOrder: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
@@ -135,10 +144,23 @@ export const redeemRewardSchema = z.object({
 });
 
 /** Admin: update a redemption status */
-export const updateRedemptionSchema = z.object({
-  status: z.enum(['PENDING', 'APPROVED', 'FULFILLED', 'REJECTED', 'CANCELLED']),
-  notes: z.string().max(500).optional(),
-});
+export const updateRedemptionSchema = z
+  .object({
+    status: z.enum(['PENDING', 'APPROVED', 'FULFILLED', 'REJECTED', 'CANCELLED']),
+    reason: z.string().trim().min(10).max(500).optional(),
+    // Keep accepting the previous field while deployed admin clients roll forward.
+    notes: z.string().trim().max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    const rejectionReason = value.reason ?? value.notes;
+    if (value.status === 'REJECTED' && (!rejectionReason || rejectionReason.length < 10)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message: 'A meaningful rejection reason of at least 10 characters is required',
+      });
+    }
+  });
 
 /** Admin: create a bonus XP event */
 export const createBonusXpEventSchema = z.object({

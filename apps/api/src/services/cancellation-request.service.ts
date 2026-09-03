@@ -27,15 +27,13 @@ const TIMEOUT_MINUTES = 30;
  * Rider requests cancellation authorization from the client.
  * Only allowed when order status is PICKED_UP or IN_TRANSIT.
  */
-export async function createCancelRequest(
-  orderId: string,
-  riderUserId: string,
-  reason: string,
-) {
+export async function createCancelRequest(orderId: string, riderUserId: string, reason: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      rider: { select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } } },
+      rider: {
+        select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } },
+      },
     },
   });
   if (!order) throw ApiError.notFound('Order not found');
@@ -49,7 +47,7 @@ export async function createCancelRequest(
   }
 
   // Must be post-pickup
-  if (!POST_PICKUP_STATUSES.includes(order.status as typeof POST_PICKUP_STATUSES[number])) {
+  if (!POST_PICKUP_STATUSES.includes(order.status as (typeof POST_PICKUP_STATUSES)[number])) {
     throw ApiError.badRequest('Cancellation requests are only required after package pickup');
   }
 
@@ -105,7 +103,9 @@ export async function createCancelRequest(
       `${riderName} wants to cancel order ${order.orderNumber}. Reason: ${reason}. Please authorize or deny this request.`,
       orderId,
     );
-  } catch { /* non-blocking */ }
+  } catch {
+    /* non-blocking */
+  }
 
   // Record in order status history
   await prisma.orderStatusHistory.create({
@@ -136,7 +136,9 @@ export async function authorizeCancelRequest(
     where: { id: requestId },
     include: {
       order: { select: { id: true, orderNumber: true, clientId: true, status: true } },
-      rider: { select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } } },
+      rider: {
+        select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } },
+      },
     },
   });
   if (!request) throw ApiError.notFound('Cancellation request not found');
@@ -188,12 +190,27 @@ export async function authorizeCancelRequest(
 
   // Push notification to rider
   try {
-    await createOrderNotification(request.rider.userId, riderNotifTitle, riderNotifBody, request.order.id);
-  } catch { /* non-blocking */ }
+    await createOrderNotification(
+      request.rider.userId,
+      riderNotifTitle,
+      riderNotifBody,
+      request.order.id,
+    );
+  } catch {
+    /* non-blocking */
+  }
 
   // If authorized complete, execute the cancellation immediately
   if (decision === 'complete') {
-    await executeCancellation(request.order.id, request.rider.id, request.rider.userId, request.order.orderNumber, request.orderStatusAtRequest, request.reason, request.order.clientId);
+    await executeCancellation(
+      request.order.id,
+      request.rider.id,
+      request.rider.userId,
+      request.order.orderNumber,
+      request.orderStatusAtRequest,
+      request.reason,
+      request.order.clientId,
+    );
   }
 
   return updated;
@@ -203,10 +220,7 @@ export async function authorizeCancelRequest(
  * Client confirms the package has been returned.
  * This triggers the actual cancellation.
  */
-export async function confirmReturn(
-  requestId: string,
-  clientUserId: string,
-) {
+export async function confirmReturn(requestId: string, clientUserId: string) {
   const request = await prisma.cancellationRequest.findUnique({
     where: { id: requestId },
     include: {
@@ -219,7 +233,9 @@ export async function confirmReturn(
     throw ApiError.forbidden('Only the order client can confirm package return');
   }
   if (request.status !== 'AUTHORIZED_RETURN') {
-    throw ApiError.badRequest('Package return can only be confirmed for authorized-return requests');
+    throw ApiError.badRequest(
+      'Package return can only be confirmed for authorized-return requests',
+    );
   }
 
   const updated = await prisma.cancellationRequest.update({
@@ -231,7 +247,15 @@ export async function confirmReturn(
   });
 
   // Execute the actual cancellation now
-  await executeCancellation(request.order.id, request.rider.id, request.rider.userId, request.order.orderNumber, request.orderStatusAtRequest, request.reason, request.order.clientId);
+  await executeCancellation(
+    request.order.id,
+    request.rider.id,
+    request.rider.userId,
+    request.order.orderNumber,
+    request.orderStatusAtRequest,
+    request.reason,
+    request.order.clientId,
+  );
 
   // Notify rider that return was confirmed and order is cancelled
   try {
@@ -241,7 +265,9 @@ export async function confirmReturn(
       `Client confirmed package return for ${request.order.orderNumber}. The delivery has been cancelled.`,
       request.order.id,
     );
-  } catch { /* non-blocking */ }
+  } catch {
+    /* non-blocking */
+  }
 
   return updated;
 }
@@ -295,7 +321,9 @@ export async function processExpiredRequests() {
             `Cancel request for ${request.order.orderNumber} expired without client response. Rider has the package. Please investigate.`,
             request.order.id,
           );
-        } catch { /* non-blocking */ }
+        } catch {
+          /* non-blocking */
+        }
       }
 
       // Also notify both rider and client
@@ -312,7 +340,9 @@ export async function processExpiredRequests() {
           `The cancellation request for order ${request.order.orderNumber} has been escalated to our support team.`,
           request.order.id,
         );
-      } catch { /* non-blocking */ }
+      } catch {
+        /* non-blocking */
+      }
     } catch (err) {
       logger.error(`Failed to process expired cancel request ${request.id}: ${err}`);
     }
@@ -380,7 +410,9 @@ async function executeCancellation(
     }
 
     const cancelNote = `Rider cancel (authorized): ${reason}`;
-    const updated = await transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote);
+    const updated = await transitionStatus(orderId, 'CANCELLED_BY_RIDER', riderUserId, cancelNote, {
+      expectedRiderId: riderId,
+    });
 
     // Emit status update via WebSocket
     emitOrderStatusUpdate({

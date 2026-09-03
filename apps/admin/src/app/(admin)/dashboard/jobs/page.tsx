@@ -27,7 +27,9 @@ function formatDate(dateStr: string | null) {
 // ── Component ──
 
 export default function AdminJobsPage() {
-  const [jobs, setJobs] = useState<(JobPosting & { createdBy?: { firstName: string; lastName: string } })[]>([]);
+  const [jobs, setJobs] = useState<
+    (JobPosting & { createdBy?: { firstName: string; lastName: string } })[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<JobPosting | null>(null);
@@ -42,7 +44,7 @@ export default function AdminJobsPage() {
   const [type, setType] = useState<JobType>('FULL_TIME');
   const [description, setDescription] = useState('');
   const [requirements, setRequirements] = useState('');
-  const [status, setStatus] = useState<'DRAFT' | 'PUBLISHED'>('DRAFT');
+  const [status, setStatus] = useState<JobPostStatus>('DRAFT');
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -82,7 +84,7 @@ export default function AdminJobsPage() {
     setType(job.type);
     setDescription(job.description);
     setRequirements(job.requirements || '');
-    setStatus(job.status === 'CLOSED' ? 'DRAFT' : job.status);
+    setStatus(job.status);
     setShowForm(true);
   };
 
@@ -93,7 +95,15 @@ export default function AdminJobsPage() {
     setNotice('');
     try {
       const api = getApiClient();
-      const payload = { title, department, location, type, description, requirements: requirements || undefined, status };
+      const payload = {
+        title,
+        department,
+        location,
+        type,
+        description,
+        requirements: requirements || undefined,
+        status,
+      };
 
       if (editing) {
         await api.patch(`/job-postings/admin/${editing.id}`, payload);
@@ -142,21 +152,40 @@ export default function AdminJobsPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="admin-kicker">Team growth</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Job postings</h1>
+            <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">
+              Job postings
+            </h1>
             <p className="mt-2 text-sm text-[#6E7A73]">
               Manage career listings displayed on the marketing website.
             </p>
           </div>
           <Button
-            onClick={() => { resetForm(); setShowForm(true); }}
-            className="bg-brand-500 text-white hover:bg-brand-600"
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            className="bg-brand-500 hover:bg-brand-600 text-white"
           >
             + New Job Posting
           </Button>
         </div>
 
-        {error && <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        {notice && <div role="status" className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
+        {error && (
+          <div
+            role="alert"
+            className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        )}
+        {notice && (
+          <div
+            role="status"
+            className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+          >
+            {notice}
+          </div>
+        )}
 
         {/* ── Create / Edit Form ── */}
         {showForm && (
@@ -168,39 +197,62 @@ export default function AdminJobsPage() {
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Job Title *</label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Operations Manager" />
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Job Title *
+                  </label>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                    placeholder="e.g. Operations Manager"
+                  />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Department *</label>
-                  <Input value={department} onChange={(e) => setDepartment(e.target.value)} required placeholder="e.g. Operations" />
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Department *
+                  </label>
+                  <Input
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    required
+                    placeholder="e.g. Operations"
+                  />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Location *</label>
-                  <Input value={location} onChange={(e) => setLocation(e.target.value)} required placeholder="e.g. Accra, Ghana" />
+                  <Input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    required
+                    placeholder="e.g. Accra, Ghana"
+                  />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Job Type</label>
                   <select
                     value={type}
                     onChange={(e) => setType(e.target.value as JobType)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    className="focus:border-brand-500 focus:ring-brand-500 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   >
                     {Object.entries(JOB_TYPE_LABELS).map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
+                      <option key={val} value={val}>
+                        {label}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Description *</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Description *
+                </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   required
                   rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="focus:border-brand-500 focus:ring-brand-500 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   placeholder="Describe the role, responsibilities, and what the candidate will be doing..."
                 />
               </div>
@@ -211,7 +263,7 @@ export default function AdminJobsPage() {
                   value={requirements}
                   onChange={(e) => setRequirements(e.target.value)}
                   rows={3}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="focus:border-brand-500 focus:ring-brand-500 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   placeholder="List qualifications, skills, or experience needed (optional)..."
                 />
               </div>
@@ -220,16 +272,21 @@ export default function AdminJobsPage() {
                 <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as 'DRAFT' | 'PUBLISHED')}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-auto"
+                  onChange={(e) => setStatus(e.target.value as JobPostStatus)}
+                  className="focus:border-brand-500 focus:ring-brand-500 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 sm:w-auto"
                 >
                   <option value="DRAFT">Draft (not visible on website)</option>
                   <option value="PUBLISHED">Published (live on website)</option>
+                  {editing && <option value="CLOSED">Closed (applications ended)</option>}
                 </select>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <Button type="submit" disabled={saving} className="bg-brand-500 text-white hover:bg-brand-600">
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-brand-500 hover:bg-brand-600 text-white"
+                >
                   {saving ? 'Saving...' : editing ? 'Update Job' : 'Create Job'}
                 </Button>
                 <Button type="button" variant="outline" onClick={resetForm}>
@@ -243,12 +300,14 @@ export default function AdminJobsPage() {
         {/* ── Job Listings Table ── */}
         {loading ? (
           <div className="mt-12 flex justify-center">
-            <Spinner className="h-8 w-8 text-brand-500" />
+            <Spinner className="text-brand-500 h-8 w-8" />
           </div>
         ) : jobs.length === 0 ? (
           <div className="mt-12 rounded-xl border bg-white p-12 text-center">
             <p className="text-lg font-medium text-gray-900">No job postings yet</p>
-            <p className="mt-1 text-sm text-gray-500">Create your first job posting to display it on the careers page.</p>
+            <p className="mt-1 text-sm text-gray-500">
+              Create your first job posting to display it on the careers page.
+            </p>
           </div>
         ) : (
           <div className="mt-6 overflow-hidden rounded-xl border bg-white shadow-sm">
@@ -256,18 +315,32 @@ export default function AdminJobsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Title</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Department</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Published</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Title
+                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Department
+                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Location
+                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Type
+                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Status
+                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Published
+                    </th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {jobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={job.id} className="transition-colors hover:bg-gray-50">
                       <td className="whitespace-nowrap px-5 py-4">
                         <p className="text-sm font-semibold text-gray-900">{job.title}</p>
                         {job.createdBy && (
@@ -276,36 +349,61 @@ export default function AdminJobsPage() {
                           </p>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">{job.department}</td>
-                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">{job.location}</td>
-                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">{JOB_TYPE_LABELS[job.type]}</td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
+                        {job.department}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
+                        {job.location}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
+                        {JOB_TYPE_LABELS[job.type]}
+                      </td>
                       <td className="whitespace-nowrap px-5 py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGES[job.status]}`}>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGES[job.status]}`}
+                        >
                           {job.status}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-500">{formatDate(job.publishedAt)}</td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-500">
+                        {formatDate(job.publishedAt)}
+                      </td>
                       <td className="whitespace-nowrap px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openEdit(job)} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+                          <button
+                            onClick={() => openEdit(job)}
+                            className="text-brand-600 hover:text-brand-700 text-xs font-medium"
+                          >
                             Edit
                           </button>
                           {job.status === 'DRAFT' && (
-                            <button onClick={() => handleStatusChange(job.id, 'PUBLISHED')} className="text-xs font-medium text-green-600 hover:text-green-700">
+                            <button
+                              onClick={() => handleStatusChange(job.id, 'PUBLISHED')}
+                              className="text-xs font-medium text-green-600 hover:text-green-700"
+                            >
                               Publish
                             </button>
                           )}
                           {job.status === 'PUBLISHED' && (
-                            <button onClick={() => handleStatusChange(job.id, 'CLOSED')} className="text-xs font-medium text-amber-600 hover:text-amber-700">
+                            <button
+                              onClick={() => handleStatusChange(job.id, 'CLOSED')}
+                              className="text-xs font-medium text-amber-600 hover:text-amber-700"
+                            >
                               Close
                             </button>
                           )}
                           {job.status === 'CLOSED' && (
-                            <button onClick={() => handleStatusChange(job.id, 'PUBLISHED')} className="text-xs font-medium text-green-600 hover:text-green-700">
+                            <button
+                              onClick={() => handleStatusChange(job.id, 'PUBLISHED')}
+                              className="text-xs font-medium text-green-600 hover:text-green-700"
+                            >
                               Reopen
                             </button>
                           )}
-                          <button onClick={() => handleDelete(job.id)} className="text-xs font-medium text-red-600 hover:text-red-700">
+                          <button
+                            onClick={() => handleDelete(job.id)}
+                            className="text-xs font-medium text-red-600 hover:text-red-700"
+                          >
                             Delete
                           </button>
                         </div>

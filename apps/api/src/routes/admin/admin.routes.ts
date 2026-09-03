@@ -8,8 +8,10 @@ import { logger } from '../../lib/logger';
 import { handleRiderSuspended } from '../../services/order-reassign.service';
 import { PushService } from '../../services/push.service';
 import { disconnectUserSockets } from '../../socket';
-import { AdminAuditService, adminAuditContext } from '../../services/admin-audit.service';
+import { adminAuditContext } from '../../services/admin-audit.service';
+import { updateAdminManagedUserStatus } from '../../services/admin-user-status.service';
 import { config } from '../../config';
+import { ApiError } from '../../lib/api-error';
 
 const router = Router();
 
@@ -37,10 +39,17 @@ router.get(
     const services = {
       database: {
         state: databaseOperational ? 'OPERATIONAL' : 'UNAVAILABLE',
-        detail: databaseOperational ? 'Primary datastore is responding.' : 'Primary datastore did not respond.',
+        detail: databaseOperational
+          ? 'Primary datastore is responding.'
+          : 'Primary datastore did not respond.',
       },
       fileStorage: {
-        state: configured([config.s3.endpoint, config.s3.accessKeyId, config.s3.secretAccessKey, config.s3.bucketName])
+        state: configured([
+          config.s3.endpoint,
+          config.s3.accessKeyId,
+          config.s3.secretAccessKey,
+          config.s3.bucketName,
+        ])
           ? 'CONFIGURED'
           : 'FALLBACK',
         detail: config.s3.endpoint
@@ -49,12 +58,15 @@ router.get(
       },
       googleSignIn: {
         state: config.google.clientIds.length > 0 ? 'CONFIGURED' : 'UNCONFIGURED',
-        detail: config.google.clientIds.length > 0
-          ? 'Google identity audiences are allowlisted.'
-          : 'Google identity audiences are missing.',
+        detail:
+          config.google.clientIds.length > 0
+            ? 'Google identity audiences are allowlisted.'
+            : 'Google identity audiences are missing.',
       },
       email: {
-        state: configured([config.email.user, config.email.appPassword]) ? 'CONFIGURED' : 'UNCONFIGURED',
+        state: configured([config.email.user, config.email.appPassword])
+          ? 'CONFIGURED'
+          : 'UNCONFIGURED',
         detail: configured([config.email.user, config.email.appPassword])
           ? 'Email delivery credentials are configured.'
           : 'Automatic email delivery is unavailable.',
@@ -76,18 +88,24 @@ router.get(
           config.firebase.rider.projectId,
           config.firebase.rider.clientEmail,
           config.firebase.rider.privateKey,
-        ]) ? 'CONFIGURED' : 'UNCONFIGURED',
+        ])
+          ? 'CONFIGURED'
+          : 'UNCONFIGURED',
         detail: configured([
           config.firebase.rider.projectId,
           config.firebase.rider.clientEmail,
           config.firebase.rider.privateKey,
-        ]) ? 'Rider push delivery is configured.' : 'Rider push delivery is unavailable.',
+        ])
+          ? 'Rider push delivery is configured.'
+          : 'Rider push delivery is unavailable.',
       },
       maps: {
-        state: config.google.mapsEnabled && config.google.mapsApiKey ? 'CONFIGURED' : 'GHANA_FALLBACK',
-        detail: config.google.mapsEnabled && config.google.mapsApiKey
-          ? 'Google Maps routing is enabled.'
-          : 'Local Ghana routing and geocoding fallback is active.',
+        state:
+          config.google.mapsEnabled && config.google.mapsApiKey ? 'CONFIGURED' : 'GHANA_FALLBACK',
+        detail:
+          config.google.mapsEnabled && config.google.mapsApiKey
+            ? 'Google Maps routing is enabled.'
+            : 'Local Ghana routing and geocoding fallback is active.',
       },
     } as const;
 
@@ -133,24 +151,26 @@ router.get(
       prisma.riderProfile.count(),
       prisma.riderProfile.count({ where: { onboardingStatus: 'ACTIVATED' } }),
       prisma.riderProfile.count({ where: { availability: 'ONLINE' } }),
-      prisma.user.count({ where: { role: 'CLIENT' } }),
+      prisma.user.count({ where: { OR: [{ role: 'CLIENT' }, { roles: { has: 'CLIENT' } }] } }),
       prisma.riderProfile.count({
         where: { onboardingStatus: { notIn: ['ACTIVATED', 'APPLICATION_REJECTED'] } },
       }),
       // ORD-08: collapse 9 separate order count + aggregate round-trips into a
       //          single SQL pass with conditional aggregates. Cuts dashboard
       //          load latency from O(N round-trips) to O(1).
-      prisma.$queryRaw<Array<{
-        orders_today: bigint;
-        orders_week: bigint;
-        orders_month: bigint;
-        orders_total: bigint;
-        active_deliveries: bigint;
-        delivered_today: bigint;
-        revenue_today: string | null;
-        revenue_month: string | null;
-        revenue_total: string | null;
-      }>>`
+      prisma.$queryRaw<
+        Array<{
+          orders_today: bigint;
+          orders_week: bigint;
+          orders_month: bigint;
+          orders_total: bigint;
+          active_deliveries: bigint;
+          delivered_today: bigint;
+          revenue_today: string | null;
+          revenue_month: string | null;
+          revenue_total: string | null;
+        }>
+      >`
         SELECT
           COUNT(*) FILTER (WHERE "createdAt" >= ${startOfToday}) AS orders_today,
           COUNT(*) FILTER (WHERE "createdAt" >= ${startOfWeek})  AS orders_week,
@@ -168,9 +188,15 @@ router.get(
     ]);
 
     const stat = orderStats[0] ?? {
-      orders_today: 0n, orders_week: 0n, orders_month: 0n, orders_total: 0n,
-      active_deliveries: 0n, delivered_today: 0n,
-      revenue_today: '0', revenue_month: '0', revenue_total: '0',
+      orders_today: 0n,
+      orders_week: 0n,
+      orders_month: 0n,
+      orders_total: 0n,
+      active_deliveries: 0n,
+      delivered_today: 0n,
+      revenue_today: '0',
+      revenue_month: '0',
+      revenue_total: '0',
     };
     const ordersToday = Number(stat.orders_today);
     const ordersThisWeek = Number(stat.orders_week);
@@ -256,17 +282,20 @@ router.get(
     ]);
 
     // Group by day
-    const dailyMap = new Map<string, {
-      date: string;
-      orders: number;
-      deliveries: number;
-      revenue: number;
-      commission: number;
-      newRiders: number;
-      newClients: number;
-      withdrawals: number;
-      withdrawalAmount: number;
-    }>();
+    const dailyMap = new Map<
+      string,
+      {
+        date: string;
+        orders: number;
+        deliveries: number;
+        revenue: number;
+        commission: number;
+        newRiders: number;
+        newClients: number;
+        withdrawals: number;
+        withdrawalAmount: number;
+      }
+    >();
 
     // Initialize all days in range
     for (let d = new Date(startDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
@@ -330,19 +359,28 @@ router.get(
         totalNewRiders: acc.totalNewRiders + d.newRiders,
         totalNewClients: acc.totalNewClients + d.newClients,
       }),
-      { totalOrders: 0, totalDeliveries: 0, totalRevenue: 0, totalCommission: 0, totalNewRiders: 0, totalNewClients: 0 },
+      {
+        totalOrders: 0,
+        totalDeliveries: 0,
+        totalRevenue: 0,
+        totalCommission: 0,
+        totalNewRiders: 0,
+        totalNewClients: 0,
+      },
     );
 
     // Completion rate
-    const completionRate = summary.totalOrders > 0
-      ? Math.round((summary.totalDeliveries / summary.totalOrders) * 100)
-      : 0;
+    const completionRate =
+      summary.totalOrders > 0
+        ? Math.round((summary.totalDeliveries / summary.totalOrders) * 100)
+        : 0;
 
     res.status(StatusCodes.OK).json({
       success: true,
       data: {
         period: { days, startDate: startDate.toISOString(), endDate: new Date().toISOString() },
-        summary: { ...summary, completionRate },
+        summary,
+        completionRate,
         daily,
       },
     });
@@ -363,7 +401,10 @@ router.patch(
     if (!status || !validStatuses.includes(status)) {
       res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        error: { code: 'INVALID_STATUS', message: `Status must be one of: ${validStatuses.join(', ')}` },
+        error: {
+          code: 'INVALID_STATUS',
+          message: `Status must be one of: ${validStatuses.join(', ')}`,
+        },
       });
       return;
     }
@@ -371,101 +412,66 @@ router.patch(
     if (status !== 'ACTIVE' && normalizedReason.length < 5) {
       res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        error: { code: 'STATUS_REASON_REQUIRED', message: 'A meaningful operational reason is required for access restrictions' },
-      });
-      return;
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'User not found' },
-      });
-      return;
-    }
-
-    // Prevent admins from modifying other admins (only super_admin can)
-    if (
-      hasAnyRole(user, UserRole.ADMIN, UserRole.SUPER_ADMIN) &&
-      !hasAnyRole(req.user!, UserRole.SUPER_ADMIN)
-    ) {
-      res.status(StatusCodes.FORBIDDEN).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Only super admins can modify admin accounts' },
-      });
-      return;
-    }
-
-    if (userId === req.user!.userId && status !== 'ACTIVE') {
-      res.status(StatusCodes.CONFLICT).json({
-        success: false,
-        error: { code: 'SELF_LOCKOUT_PREVENTED', message: 'You cannot restrict your own administrator account' },
-      });
-      return;
-    }
-
-    if (hasAnyRole(user, UserRole.SUPER_ADMIN) && status !== 'ACTIVE') {
-      const activeSuperAdmins = await prisma.user.count({
-        where: {
-          status: 'ACTIVE',
-          OR: [{ role: UserRole.SUPER_ADMIN }, { roles: { has: UserRole.SUPER_ADMIN } }],
+        error: {
+          code: 'STATUS_REASON_REQUIRED',
+          message: 'A meaningful operational reason is required for access restrictions',
         },
       });
-      if (activeSuperAdmins <= 1) {
-        res.status(StatusCodes.CONFLICT).json({
-          success: false,
-          error: { code: 'LAST_SUPER_ADMIN', message: 'The last active super administrator cannot be restricted' },
-        });
-        return;
-      }
+      return;
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.user.update({
-        where: { id: userId },
-        data: { status },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          role: true,
-          status: true,
-        },
-      });
-      await AdminAuditService.record({
-        ...adminAuditContext(req),
-        action: `user_account.status_${String(status).toLowerCase()}`,
-        entityType: 'User',
-        entityId: userId,
-        oldData: { status: user.status },
-        newData: { status, reason: normalizedReason || null },
-      }, tx);
-      return result;
+    const decision = await updateAdminManagedUserStatus({
+      targetUserId: userId,
+      status,
+      reason: normalizedReason,
+      actorIsSuperAdmin: hasAnyRole(req.user!, UserRole.SUPER_ADMIN),
+      auditContext: adminAuditContext(req),
     });
+    const updated = decision.user;
 
     if (status !== 'ACTIVE') {
       // A status change is an immediate security boundary: remove refresh
       // sessions and terminate already-connected sockets. HTTP access tokens
       // are also rejected by the live session/account check in `authenticate`.
-      await prisma.session.deleteMany({ where: { userId } });
-      await PushService.removeAllTokens(userId);
-      disconnectUserSockets(userId);
+      const cleanupResults = await Promise.allSettled([
+        prisma.session.deleteMany({ where: { userId } }),
+        PushService.removeAllTokens(userId),
+      ]);
+      for (const result of cleanupResults) {
+        if (result.status === 'rejected') {
+          logger.error(
+            { err: result.reason, userId },
+            'Post-restriction credential cleanup failed',
+          );
+        }
+      }
+      try {
+        disconnectUserSockets(userId);
+      } catch (error) {
+        logger.error({ err: error, userId }, 'Post-restriction socket disconnect failed');
+      }
     }
 
-    logger.info({ userId, newStatus: status, reason: normalizedReason, adminId: req.user!.userId }, 'User status updated by admin');
+    logger.info(
+      { userId, newStatus: status, reason: normalizedReason, adminId: req.user!.userId },
+      'User status updated by admin',
+    );
 
-    // If a rider is being suspended, reassign/escalate their active orders
+    // Restricting any Rider account must synchronously recover its live work.
+    // Do not acknowledge success while an assigned order is unhandled.
     if (
-      (status === 'SUSPENDED' || status === 'BANNED')
-      && hasAnyRole(user, UserRole.RIDER)
+      (status === 'SUSPENDED' || status === 'DEACTIVATED' || status === 'BANNED') &&
+      decision.wasRider
     ) {
       const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
       if (riderProfile) {
-        handleRiderSuspended(riderProfile.id).catch((err) =>
-          logger.error({ err, riderId: riderProfile.id }, 'Failed to handle suspended rider orders'),
+        const handledOrders = await handleRiderSuspended(
+          riderProfile.id,
+          status as 'SUSPENDED' | 'DEACTIVATED' | 'BANNED',
+        );
+        logger.info(
+          { userId, riderId: riderProfile.id, status, handledOrders },
+          'Restricted Rider active-order recovery completed',
         );
       }
     }
@@ -493,6 +499,7 @@ router.get(
         lastName: true,
         avatarUrl: true,
         role: true,
+        roles: true,
         status: true,
         phoneVerified: true,
         emailVerified: true,
@@ -507,7 +514,15 @@ router.get(
         },
         clientProfile: true,
         partnerProfile: true,
-        wallet: { select: { id: true, balance: true, totalEarned: true, totalWithdrawn: true, totalTips: true } },
+        wallet: {
+          select: {
+            id: true,
+            balance: true,
+            totalEarned: true,
+            totalWithdrawn: true,
+            totalTips: true,
+          },
+        },
         _count: {
           select: {
             ordersAsClient: true,
@@ -565,19 +580,45 @@ router.post(
     if (!decision || !validDecisions.includes(decision)) {
       res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        error: { code: 'BAD_REQUEST', message: 'decision must be APPROVED, PARTIALLY_APPROVED, or DENIED' },
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'decision must be APPROVED, PARTIALLY_APPROVED, or DENIED',
+        },
       });
       return;
+    }
+    if (typeof notes !== 'string' || notes.trim().length < 5) {
+      throw ApiError.badRequest('A clear appeal rationale is required');
+    }
+    if (refundPenalty !== undefined && typeof refundPenalty !== 'boolean') {
+      throw ApiError.badRequest('refundPenalty must be a boolean');
+    }
+    if (liftSuspension !== undefined && typeof liftSuspension !== 'boolean') {
+      throw ApiError.badRequest('liftSuspension must be a boolean');
     }
 
     const appeal = await reviewAppeal(
       req.params.id as string,
-      req.user!.userId,
       decision as 'APPROVED' | 'PARTIALLY_APPROVED' | 'DENIED',
-      notes || '',
-      Boolean(refundPenalty),
-      Boolean(liftSuspension),
+      notes,
+      refundPenalty === true,
+      liftSuspension === true,
+      adminAuditContext(req),
     );
+    const rider = await prisma.riderProfile.findUnique({
+      where: { id: appeal.riderId },
+      select: { userId: true },
+    });
+    if (rider) {
+      PushService.sendToUser(
+        rider.userId,
+        'Cancellation appeal reviewed',
+        `Your RiderGuy appeal was ${String(appeal.status).toLowerCase().replace('_', ' ')}.`,
+        { appealId: appeal.id, status: String(appeal.status) },
+      ).catch((error) =>
+        logger.warn({ err: error, appealId: appeal.id }, 'Appeal push notification failed'),
+      );
+    }
     res.status(StatusCodes.OK).json({ success: true, data: appeal });
   }),
 );
@@ -587,19 +628,21 @@ router.patch(
   '/cancellations/:id/investigate',
   asyncHandler(async (req: Request, res: Response) => {
     const { notes } = req.body;
-    if (!notes || typeof notes !== 'string') {
+    if (typeof notes !== 'string' || notes.trim().length < 5) {
       res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        error: { code: 'BAD_REQUEST', message: 'notes are required' },
+        error: { code: 'BAD_REQUEST', message: 'clear investigation findings are required' },
       });
       return;
     }
 
-    const { prisma: db } = await import('@riderguy/database');
-    const record = await db.cancellationRecord.update({
-      where: { id: req.params.id as string },
-      data: { investigationNotes: notes },
-    });
+    const cancellationId = req.params.id as string;
+    const { closeCancellationInvestigation } = await import('../../services/cancellation.service');
+    const record = await closeCancellationInvestigation(
+      cancellationId,
+      notes,
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.OK).json({ success: true, data: record });
   }),
 );

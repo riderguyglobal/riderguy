@@ -6,6 +6,9 @@
 import { prisma } from '@riderguy/database';
 import { logger } from '../lib/logger';
 import { ApiError } from '../lib/api-error';
+import { riderWorkEligibilityWhere } from './rider-work-eligibility';
+import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
+import { NotificationService } from './notification.service';
 
 // ────── Search for Mentors ──────
 
@@ -22,8 +25,7 @@ export async function searchMentors(opts: {
 
   const effectiveMinLevel = Math.max(minLevel ?? 3, 3); // Mentors must be level 3+
   const where: any = {
-    isVerified: true,
-    onboardingStatus: 'ACTIVATED',
+    ...riderWorkEligibilityWhere(),
     ...(zoneId && { currentZoneId: zoneId }),
     ...(minDeliveries && { totalDeliveries: { gte: minDeliveries } }),
     ...(excludeRiderId && { id: { not: excludeRiderId } }),
@@ -75,13 +77,25 @@ export async function requestMentorship(menteeRiderId: string, mentorRiderId: st
     throw ApiError.badRequest('You cannot mentor yourself');
   }
 
-  // Check mentor exists and is level 3+
-  const mentor = await prisma.riderProfile.findUnique({
-    where: { id: mentorRiderId },
-    select: { id: true, currentLevel: true, userId: true },
-  });
-  if (!mentor) throw ApiError.notFound('Mentor not found');
-  if (mentor.currentLevel < 3) throw ApiError.badRequest('Mentor must be level 3 or above');
+  // Both sides must still satisfy the same live work/compliance boundary used
+  // by dispatch. An administrator restriction or evidence revocation must not
+  // leave a Rider discoverable or able to start a new mentorship by direct API.
+  const [mentee, mentor] = await Promise.all([
+    prisma.riderProfile.findFirst({
+      where: { id: menteeRiderId, ...riderWorkEligibilityWhere() },
+      select: { id: true, currentZoneId: true },
+    }),
+    prisma.riderProfile.findFirst({
+      where: {
+        id: mentorRiderId,
+        currentLevel: { gte: 3 },
+        ...riderWorkEligibilityWhere(),
+      },
+      select: { id: true, currentLevel: true, userId: true },
+    }),
+  ]);
+  if (!mentee) throw ApiError.forbidden('Complete Rider activation before requesting mentorship');
+  if (!mentor) throw ApiError.notFound('An eligible mentor was not found');
 
   // Check for existing mentorship between these two
   const existing = await prisma.mentorship.findUnique({
@@ -98,12 +112,6 @@ export async function requestMentorship(menteeRiderId: string, mentorRiderId: st
   if (activeMenteeCount >= 5) {
     throw ApiError.badRequest('This mentor has reached their maximum number of mentees');
   }
-
-  // Get mentee's zone for auto-tagging
-  const mentee = await prisma.riderProfile.findUnique({
-    where: { id: menteeRiderId },
-    select: { currentZoneId: true },
-  });
 
   // Use upsert to handle re-requesting after CANCELLED/COMPLETED
   const mentorship = await prisma.mentorship.upsert({
@@ -138,6 +146,16 @@ export async function requestMentorship(menteeRiderId: string, mentorRiderId: st
   });
 
   logger.info(`Mentorship requested: mentee ${menteeRiderId} → mentor ${mentorRiderId}`);
+  await NotificationService.create({
+    userId: mentor.userId,
+    title: 'New mentorship request',
+    body: 'A Rider has asked you to be their RiderGuy mentor. Open Mentorship to respond.',
+    type: 'COMMUNITY',
+    data: { mentorshipId: mentorship.id, status: 'PENDING' },
+  }).catch((error) => {
+    logger.error({ error, mentorshipId: mentorship.id }, 'Mentorship request notification failed');
+  });
+
   return mentorship;
 }
 
@@ -149,64 +167,94 @@ export async function updateMentorshipStatus(
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED',
   completionNote?: string,
 ) {
-  const mentorship = await prisma.mentorship.findUnique({
-    where: { id: mentorshipId },
-    include: {
-      mentor: { select: { userId: true } },
-      mentee: { select: { userId: true } },
-    },
+  const decision = await prisma.$transaction(async (tx) => {
+    // Participant and administrator decisions share one lock namespace, so
+    // accept/complete/cancel cannot overwrite a simultaneous admin outcome.
+    await acquireTransactionAdvisoryLock(tx, 'mentorship-admin-decision', mentorshipId);
+
+    const mentorship = await tx.mentorship.findUnique({
+      where: { id: mentorshipId },
+      include: {
+        mentor: { select: { userId: true } },
+        mentee: { select: { userId: true } },
+      },
+    });
+    if (!mentorship) throw ApiError.notFound('Mentorship not found');
+
+    const isMentor = mentorship.mentor.userId === userId;
+    const isMentee = mentorship.mentee.userId === userId;
+    if (!isMentor && !isMentee) {
+      throw ApiError.forbidden('Not a participant of this mentorship');
+    }
+    if (status === 'ACTIVE' && !isMentor) {
+      throw ApiError.forbidden('Only the mentor can accept a mentorship request');
+    }
+    if (status === 'ACTIVE' && mentorship.status !== 'PENDING') {
+      throw ApiError.conflict('Can only accept pending mentorships');
+    }
+    if (status === 'COMPLETED' && mentorship.status !== 'ACTIVE') {
+      throw ApiError.conflict('Can only complete active mentorships');
+    }
+    if (status === 'CANCELLED' && !['PENDING', 'ACTIVE'].includes(mentorship.status)) {
+      throw ApiError.conflict(
+        `A ${mentorship.status.toLowerCase()} mentorship cannot be cancelled`,
+      );
+    }
+
+    const now = new Date();
+    const changed = await tx.mentorship.updateMany({
+      where: { id: mentorshipId, status: mentorship.status },
+      data: {
+        status,
+        ...(status === 'ACTIVE' ? { startedAt: now } : {}),
+        ...(status === 'COMPLETED' ? { completedAt: now, completionNote } : {}),
+        ...(status === 'CANCELLED' ? { completionNote } : {}),
+      },
+    });
+    if (changed.count !== 1) {
+      throw ApiError.conflict(
+        'This mentorship changed while you were updating it. Refresh and try again.',
+        'MENTORSHIP_DECISION_CONFLICT',
+      );
+    }
+
+    const updated = await tx.mentorship.findUnique({
+      where: { id: mentorshipId },
+      include: {
+        mentor: {
+          select: {
+            user: { select: { firstName: true, lastName: true } },
+            currentLevel: true,
+          },
+        },
+        mentee: {
+          select: {
+            user: { select: { firstName: true, lastName: true } },
+            currentLevel: true,
+          },
+        },
+      },
+    });
+    if (!updated) throw ApiError.conflict('This mentorship is no longer available');
+
+    return {
+      updated,
+      counterpartUserId: isMentor ? mentorship.mentee.userId : mentorship.mentor.userId,
+    };
   });
-  if (!mentorship) throw ApiError.notFound('Mentorship not found');
 
-  // Only the mentor can accept (ACTIVE), both can cancel, both can complete
-  const isMentor = mentorship.mentor.userId === userId;
-  const isMentee = mentorship.mentee.userId === userId;
-  if (!isMentor && !isMentee) throw ApiError.forbidden('Not a participant of this mentorship');
-
-  if (status === 'ACTIVE' && !isMentor) {
-    throw ApiError.forbidden('Only the mentor can accept a mentorship request');
-  }
-
-  // Validate transitions
-  if (status === 'ACTIVE' && mentorship.status !== 'PENDING') {
-    throw ApiError.badRequest('Can only accept pending mentorships');
-  }
-  if (status === 'COMPLETED' && mentorship.status !== 'ACTIVE') {
-    throw ApiError.badRequest('Can only complete active mentorships');
-  }
-  if (status === 'CANCELLED' && mentorship.status === 'COMPLETED') {
-    throw ApiError.badRequest('Cannot cancel a completed mentorship');
-  }
-  if (status === 'CANCELLED' && mentorship.status === 'CANCELLED') {
-    throw ApiError.badRequest('Mentorship is already cancelled');
-  }
-
-  const updated = await prisma.mentorship.update({
-    where: { id: mentorshipId },
-    data: {
-      status,
-      ...(status === 'ACTIVE' && { startedAt: new Date() }),
-      ...(status === 'COMPLETED' && { completedAt: new Date(), completionNote }),
-      ...(status === 'CANCELLED' && { completionNote }),
-    },
-    include: {
-      mentor: {
-        select: {
-          user: { select: { firstName: true, lastName: true } },
-          currentLevel: true,
-        },
-      },
-      mentee: {
-        select: {
-          user: { select: { firstName: true, lastName: true } },
-          currentLevel: true,
-        },
-      },
-    },
+  await NotificationService.create({
+    userId: decision.counterpartUserId,
+    title: 'Mentorship updated',
+    body: `Your RiderGuy mentorship was marked ${status.toLowerCase()} by the other participant.`,
+    type: 'COMMUNITY',
+    data: { mentorshipId, status },
+  }).catch((error) => {
+    logger.error({ error, mentorshipId }, 'Mentorship notification failed after commit');
   });
 
   logger.info(`Mentorship ${mentorshipId} status → ${status}`);
-  return updated;
+  return decision.updated;
 }
 
 // ────── Get Rider's Mentorships ──────
@@ -302,8 +350,7 @@ export async function getCheckIns(mentorshipId: string, userId: string) {
   });
   if (!mentorship) throw ApiError.notFound('Mentorship not found');
 
-  const isParticipant =
-    mentorship.mentor.userId === userId || mentorship.mentee.userId === userId;
+  const isParticipant = mentorship.mentor.userId === userId || mentorship.mentee.userId === userId;
   if (!isParticipant) throw ApiError.forbidden('Not a participant');
 
   return prisma.mentorCheckIn.findMany({
@@ -345,8 +392,7 @@ export async function getMentorshipById(mentorshipId: string, userId: string) {
   });
   if (!mentorship) throw ApiError.notFound('Mentorship not found');
 
-  const isParticipant =
-    mentorship.mentor.userId === userId || mentorship.mentee.userId === userId;
+  const isParticipant = mentorship.mentor.userId === userId || mentorship.mentee.userId === userId;
   if (!isParticipant) throw ApiError.forbidden('Not a participant');
 
   return mentorship;

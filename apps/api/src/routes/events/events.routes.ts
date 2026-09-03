@@ -6,13 +6,10 @@ import { Router, Request, Response } from 'express';
 import { authenticate, hasAnyRole, requireRole, validate } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { UserRole } from '@riderguy/types';
-import {
-  createEventSchema,
-  updateEventSchema,
-  listEventsSchema,
-} from '@riderguy/validators';
+import { createEventSchema, updateEventSchema, listEventsSchema } from '@riderguy/validators';
 import * as EventService from '../../services/event.service';
 import { StatusCodes } from 'http-status-codes';
+import { adminAuditContext } from '../../services/admin-audit.service';
 
 const router = Router();
 
@@ -27,13 +24,18 @@ router.get(
   '/',
   validate(listEventsSchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const { status, zoneId, type, page, limit } = req.query as any;
+    const { status, scope, zoneId, type, page, limit } = req.query as any;
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
+    const deriveRiderZone = !isAdmin && hasAnyRole(req.user!, UserRole.RIDER);
     const data = await EventService.listEvents({
       status,
       zoneId,
       type,
       page: Number(page) || 1,
       limit: Number(limit) || 20,
+      viewerUserId: req.user!.userId,
+      deriveRiderZone,
+      operationalOnly: isAdmin && scope === 'operational',
     });
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
@@ -43,10 +45,7 @@ router.get(
 router.get(
   '/:id',
   asyncHandler(async (req: Request, res: Response) => {
-    const data = await EventService.getEventById(
-      req.params.id as string,
-      req.user!.userId,
-    );
+    const data = await EventService.getEventById(req.params.id as string, req.user!.userId);
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
 );
@@ -57,7 +56,12 @@ router.post(
   requireRole(UserRole.RIDER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(createEventSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const data = await EventService.createEvent(req.user!.userId, req.body);
+    const isAdmin = hasAnyRole(req.user!, UserRole.ADMIN, UserRole.SUPER_ADMIN);
+    const data = await EventService.createEvent(
+      req.user!.userId,
+      req.body,
+      isAdmin ? adminAuditContext(req) : undefined,
+    );
     res.status(StatusCodes.CREATED).json({ success: true, data });
   }),
 );
@@ -74,6 +78,7 @@ router.patch(
       req.user!.userId,
       isAdmin,
       req.body,
+      isAdmin ? adminAuditContext(req) : undefined,
     );
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
@@ -84,10 +89,7 @@ router.post(
   '/:id/rsvp',
   requireRole(UserRole.RIDER),
   asyncHandler(async (req: Request, res: Response) => {
-    const data = await EventService.rsvpToEvent(
-      req.params.id as string,
-      req.user!.userId,
-    );
+    const data = await EventService.rsvpToEvent(req.params.id as string, req.user!.userId);
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
 );
@@ -97,10 +99,7 @@ router.delete(
   '/:id/rsvp',
   requireRole(UserRole.RIDER),
   asyncHandler(async (req: Request, res: Response) => {
-    const data = await EventService.cancelRsvp(
-      req.params.id as string,
-      req.user!.userId,
-    );
+    const data = await EventService.cancelRsvp(req.params.id as string, req.user!.userId);
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
 );

@@ -30,6 +30,9 @@ vi.mock('@riderguy/database', () => ({
       updateMany: vi.fn(),
       count: vi.fn(),
     },
+    orderStop: {
+      count: vi.fn(),
+    },
     riderProfile: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -60,6 +63,9 @@ vi.mock('@riderguy/database', () => ({
     },
     transaction: {
       findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+    auditLog: {
       create: vi.fn(),
     },
     promoCode: {
@@ -131,7 +137,14 @@ vi.mock('./pricing.service', () => ({
     zoneName: 'Accra Metro',
   }),
   fetchRouteDistance: vi.fn().mockResolvedValue({ distanceKm: 5.2, durationMinutes: 18 }),
-  calculateWaitTimeCharge: vi.fn().mockReturnValue({ charge: 0, totalMinutes: 0, pickupMinutes: 0, dropoffMinutes: 0, freeMinutes: 5, chargeableMinutes: 0 }),
+  calculateWaitTimeCharge: vi.fn().mockReturnValue({
+    charge: 0,
+    totalMinutes: 0,
+    pickupMinutes: 0,
+    dropoffMinutes: 0,
+    freeMinutes: 5,
+    chargeableMinutes: 0,
+  }),
   calculatePickupDistanceBonus: vi.fn().mockReturnValue(0),
 }));
 
@@ -145,7 +158,9 @@ vi.mock('./streak.service', () => ({
 }));
 
 vi.mock('./wallet.service', () => ({
-  creditWallet: vi.fn().mockResolvedValue({ wallet: { balance: 100 }, transaction: { id: 'tx-1' } }),
+  creditWallet: vi
+    .fn()
+    .mockResolvedValue({ wallet: { balance: 100 }, transaction: { id: 'tx-1' } }),
   creditTip: vi.fn().mockResolvedValue({ wallet: { balance: 105 }, transaction: { id: 'tx-2' } }),
 }));
 
@@ -188,7 +203,9 @@ import {
 import { prisma } from '@riderguy/database';
 import { creditWallet, creditTip } from './wallet.service';
 import { awardXp } from './gamification.service';
+import { calculatePickupDistanceBonus, calculateWaitTimeCharge } from './pricing.service';
 import { enqueueReceiptJob } from '../jobs/queues';
+import { cancelDispatch } from './auto-dispatch.service';
 
 // ── Test Data ──
 
@@ -201,8 +218,8 @@ function mockOrder(overrides: Record<string, unknown> = {}) {
     zoneId: 'zone-accra',
     status: 'PENDING',
     pickupAddress: 'Osu Mall, Accra',
-    pickupLatitude: 5.5600,
-    pickupLongitude: -0.1870,
+    pickupLatitude: 5.56,
+    pickupLongitude: -0.187,
     dropoffAddress: 'Legon Campus',
     dropoffLatitude: 5.6505,
     dropoffLongitude: -0.1862,
@@ -250,8 +267,8 @@ function mockRiderProfile(overrides: Record<string, unknown> = {}) {
     totalXp: 1200,
     currentLevel: 2,
     currentZoneId: 'zone-accra',
-    currentLatitude: 5.5550,
-    currentLongitude: -0.1850,
+    currentLatitude: 5.555,
+    currentLongitude: -0.185,
     ...overrides,
   };
 }
@@ -423,35 +440,41 @@ describe('OrderService', () => {
 
     it('accepts only owner-scoped package photos uploaded by the creating client', async () => {
       const order = mockOrder({
-        packagePhotoUrl: '/uploads/packages/client-1/photo-a.jpg,/uploads/packages/client-1/photo-b.jpg',
+        packagePhotoUrl:
+          '/uploads/packages/client-1/photo-a.jpg,/uploads/packages/client-1/photo-b.jpg',
       });
       asMock(prisma.order.create).mockResolvedValue(order);
 
-      await expect(createOrder('client-1', {
-        pickupAddress: 'Osu Mall',
-        pickupLatitude: 5.56,
-        pickupLongitude: -0.187,
-        dropoffAddress: 'Legon',
-        dropoffLatitude: 5.65,
-        dropoffLongitude: -0.186,
-        packageType: 'SMALL' as any,
-        packagePhotoUrl: '/uploads/packages/client-1/photo-a.jpg,/uploads/packages/client-1/photo-b.jpg',
-        paymentMethod: 'CASH' as any,
-      })).resolves.toBe(order);
+      await expect(
+        createOrder('client-1', {
+          pickupAddress: 'Osu Mall',
+          pickupLatitude: 5.56,
+          pickupLongitude: -0.187,
+          dropoffAddress: 'Legon',
+          dropoffLatitude: 5.65,
+          dropoffLongitude: -0.186,
+          packageType: 'SMALL' as any,
+          packagePhotoUrl:
+            '/uploads/packages/client-1/photo-a.jpg,/uploads/packages/client-1/photo-b.jpg',
+          paymentMethod: 'CASH' as any,
+        }),
+      ).resolves.toBe(order);
     });
 
     it('rejects a package photo from another account before creating an order', async () => {
-      await expect(createOrder('client-1', {
-        pickupAddress: 'Osu Mall',
-        pickupLatitude: 5.56,
-        pickupLongitude: -0.187,
-        dropoffAddress: 'Legon',
-        dropoffLatitude: 5.65,
-        dropoffLongitude: -0.186,
-        packageType: 'SMALL' as any,
-        packagePhotoUrl: '/uploads/packages/client-2/private.jpg',
-        paymentMethod: 'CASH' as any,
-      })).rejects.toMatchObject({
+      await expect(
+        createOrder('client-1', {
+          pickupAddress: 'Osu Mall',
+          pickupLatitude: 5.56,
+          pickupLongitude: -0.187,
+          dropoffAddress: 'Legon',
+          dropoffLatitude: 5.65,
+          dropoffLongitude: -0.186,
+          packageType: 'SMALL' as any,
+          packagePhotoUrl: '/uploads/packages/client-2/private.jpg',
+          paymentMethod: 'CASH' as any,
+        }),
+      ).rejects.toMatchObject({
         statusCode: 403,
         code: 'INVALID_PACKAGE_PHOTO',
       });
@@ -464,24 +487,16 @@ describe('OrderService', () => {
   // 4. FULL DELIVERY LIFECYCLE — PENDING → DELIVERED
   // ────────────────────────────────────────────────────────────
   describe('Full Delivery Lifecycle (Happy Path)', () => {
-    it('should transition PENDING → ASSIGNED', async () => {
+    it('rejects a bare PENDING → ASSIGNED transition without the dispatch workflow', async () => {
       const order = mockOrder({ status: 'PENDING' });
-      const updated = mockOrder({ status: 'ASSIGNED', riderId: 'rider-1', assignedAt: new Date() });
-
       asMock(prisma.order.findUnique).mockResolvedValue(order);
-      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
-      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(updated);
-      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
 
-      const result = await transitionStatus('order-1', 'ASSIGNED' as any, 'system');
+      await expect(transitionStatus('order-1', 'ASSIGNED' as any, 'system')).rejects.toMatchObject({
+        code: 'ASSIGNMENT_REQUIRES_DISPATCH',
+      });
 
-      expect(result.status).toBe('ASSIGNED');
-      expect(prisma.order.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'order-1', status: 'PENDING' },
-          data: expect.objectContaining({ status: 'ASSIGNED' }),
-        }),
-      );
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
     });
 
     it('should transition ASSIGNED → PICKUP_EN_ROUTE → AT_PICKUP → PICKED_UP → IN_TRANSIT → AT_DROPOFF', async () => {
@@ -515,7 +530,7 @@ describe('OrderService', () => {
         riderId: 'rider-1',
         riderPaymentConfirmed: true,
         proofOfDeliveryType: 'PIN_CODE',
-        proofOfDeliveryUrl: 'pin:4829',
+        proofOfDeliveryUrl: 'pin:verified',
       });
       const delivered = mockOrder({
         status: 'DELIVERED',
@@ -523,7 +538,7 @@ describe('OrderService', () => {
         deliveredAt: new Date(),
         riderPaymentConfirmed: true,
         proofOfDeliveryType: 'PIN_CODE',
-        proofOfDeliveryUrl: 'pin:4829',
+        proofOfDeliveryUrl: 'pin:verified',
       });
       const rider = mockRiderProfile();
 
@@ -550,6 +565,7 @@ describe('OrderService', () => {
         expect.stringContaining('Earnings from order'),
         'order-1',
         'order',
+        prisma,
       );
 
       // Stats and post-work eligibility are evaluated under the Rider lock.
@@ -560,7 +576,7 @@ describe('OrderService', () => {
       expect(prisma.riderProfile.updateMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
           id: 'rider-1',
-          vehicles: { some: { reviewStatus: 'APPROVED' } },
+          vehicles: { some: expect.objectContaining({ reviewStatus: 'APPROVED' }) },
         }),
         data: { availability: 'ONLINE' },
       });
@@ -589,9 +605,9 @@ describe('OrderService', () => {
       });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
-      await expect(
-        transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
-      ).rejects.toThrow('Electronic payment must be verified');
+      await expect(transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1')).rejects.toThrow(
+        'Electronic payment must be verified',
+      );
 
       asMock(prisma.order.findUnique).mockResolvedValueOnce(
         mockOrder({
@@ -601,9 +617,29 @@ describe('OrderService', () => {
         }),
       );
 
+      await expect(transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1')).rejects.toThrow(
+        'Proof of delivery is required',
+      );
+    });
+
+    it('blocks multi-stop delivery completion while a required stop remains open', async () => {
+      asMock(prisma.order.findUnique).mockResolvedValue(
+        mockOrder({
+          status: 'AT_DROPOFF',
+          riderId: 'rider-1',
+          isMultiStop: true,
+          riderPaymentConfirmed: true,
+          proofOfDeliveryType: 'PIN_CODE',
+          proofOfDeliveryUrl: 'pin:verified',
+        }),
+      );
+      asMock(prisma.orderStop.count).mockResolvedValue(2);
+
       await expect(
         transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
-      ).rejects.toThrow('Proof of delivery is required');
+      ).rejects.toMatchObject({ code: 'INCOMPLETE_DELIVERY_STOPS' });
+
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
     });
 
     it.each(['CARD', 'MOBILE_MONEY', 'WALLET', 'BANK_TRANSFER'] as const)(
@@ -618,7 +654,7 @@ describe('OrderService', () => {
             riderPaymentConfirmed: true,
             actualPaymentMethod: paymentMethod,
             proofOfDeliveryType: 'PIN_CODE',
-            proofOfDeliveryUrl: 'pin:4829',
+            proofOfDeliveryUrl: 'pin:verified',
           }),
         );
 
@@ -641,14 +677,14 @@ describe('OrderService', () => {
           riderPaymentConfirmed: true,
           actualPaymentMethod: 'WALLET',
           proofOfDeliveryType: 'PIN_CODE',
-          proofOfDeliveryUrl: 'pin:4829',
+          proofOfDeliveryUrl: 'pin:verified',
         }),
       );
       asMock(prisma.$transaction).mockResolvedValue(null);
 
-      await expect(
-        transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1'),
-      ).rejects.toThrow('Electronic payment must be verified');
+      await expect(transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1')).rejects.toThrow(
+        'Electronic payment must be verified',
+      );
 
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(creditWallet).not.toHaveBeenCalled();
@@ -663,11 +699,12 @@ describe('OrderService', () => {
         riderPaymentConfirmed: true,
         actualPaymentMethod: 'CASH',
         proofOfDeliveryType: 'PIN_CODE',
-        proofOfDeliveryUrl: 'pin:4829',
+        proofOfDeliveryUrl: 'pin:verified',
       });
       const deliveredCashOrder = mockOrder({
         ...cashOrder,
         status: 'DELIVERED',
+        paymentStatus: 'COMPLETED',
         deliveredAt: new Date(),
       });
       const rider = mockRiderProfile({ currentLevel: 1 });
@@ -675,10 +712,6 @@ describe('OrderService', () => {
       asMock(prisma.order.findUnique).mockResolvedValue(cashOrder);
       asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
       asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(deliveredCashOrder);
-      asMock(prisma.order.update).mockResolvedValue({
-        ...deliveredCashOrder,
-        paymentStatus: 'COMPLETED',
-      });
       asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
       asMock(prisma.orderStatusHistory.findMany).mockResolvedValue([]);
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
@@ -690,11 +723,225 @@ describe('OrderService', () => {
 
       expect(result.status).toBe('DELIVERED');
       expect(result.paymentStatus).toBe('COMPLETED');
-      expect(prisma.order.update).toHaveBeenCalledWith({
-        where: { id: 'order-1' },
-        data: { paymentStatus: 'COMPLETED' },
-      });
+      expect(prisma.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'order-1', status: 'AT_DROPOFF', riderId: 'rider-1' },
+          data: expect.objectContaining({
+            status: 'DELIVERED',
+            paymentStatus: 'COMPLETED',
+          }),
+        }),
+      );
       expect(creditWallet).toHaveBeenCalledTimes(1);
+    });
+
+    it('pays wait and pickup adjustments without inflating an already-paid client total', async () => {
+      const ready = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        paymentMethod: 'MOBILE_MONEY',
+        paymentStatus: 'COMPLETED',
+        totalPrice: 13.23,
+        riderEarnings: 11.25,
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:verified',
+      });
+      const settled = mockOrder({
+        ...ready,
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+        waitTimeCharge: 3,
+        waitTimeMinutes: 8,
+        riderEarnings: 16.25,
+      });
+
+      asMock(calculateWaitTimeCharge).mockReturnValueOnce({
+        charge: 3,
+        totalMinutes: 8,
+        pickupMinutes: 0,
+        dropoffMinutes: 8,
+        freeMinutes: 5,
+        chargeableMinutes: 3,
+      });
+      asMock(calculatePickupDistanceBonus).mockReturnValueOnce(2);
+      asMock(prisma.order.findUnique).mockResolvedValue(ready);
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(settled);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.orderStatusHistory.findMany).mockResolvedValue([]);
+      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(mockRiderProfile());
+      asMock(prisma.riderProfile.update).mockResolvedValue(mockRiderProfile());
+      asMock(prisma.locationHistory.findFirst).mockResolvedValue({
+        latitude: 5.54,
+        longitude: -0.2,
+      });
+      asMock(prisma.clientProfile.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.zone.findUnique).mockResolvedValue({ commissionRate: 15 });
+
+      await transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1');
+
+      const settlementUpdate = asMock(prisma.order.updateMany).mock.calls[0][0];
+      expect(settlementUpdate.data).toMatchObject({
+        status: 'DELIVERED',
+        waitTimeCharge: 3,
+        waitTimeMinutes: 8,
+        riderEarnings: 16.25,
+      });
+      expect(settlementUpdate.data).not.toHaveProperty('totalPrice');
+      expect(creditWallet).toHaveBeenCalledWith(
+        'rider-user-1',
+        16.25,
+        'DELIVERY_EARNING',
+        expect.stringContaining('Earnings from order'),
+        'order-1',
+        'order',
+        prisma,
+      );
+      expect(prisma.clientProfile.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'client-1' },
+        data: {
+          totalOrders: { increment: 1 },
+          totalSpent: { increment: 13.23 },
+        },
+      });
+    });
+
+    it('treats a concurrent DELIVERED commit as an idempotent no-op', async () => {
+      const ready = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:verified',
+      });
+      const alreadyDelivered = mockOrder({
+        ...ready,
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+      });
+
+      asMock(prisma.order.findUnique)
+        .mockResolvedValueOnce(ready)
+        .mockResolvedValueOnce(alreadyDelivered);
+      asMock(prisma.orderStatusHistory.findMany).mockResolvedValue([]);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(mockRiderProfile());
+      asMock(prisma.locationHistory.findFirst).mockResolvedValue(null);
+
+      const result = await transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1');
+
+      expect(result.status).toBe('DELIVERED');
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
+      expect(prisma.riderProfile.update).not.toHaveBeenCalled();
+      expect(prisma.clientProfile.updateMany).not.toHaveBeenCalled();
+      expect(creditWallet).not.toHaveBeenCalled();
+      // Receipt/commission jobs have deterministic IDs and are safe to
+      // re-submit, closing the commit-before-enqueue crash window.
+      expect(enqueueReceiptJob).toHaveBeenCalledTimes(1);
+      expect(awardXp).not.toHaveBeenCalled();
+    });
+
+    it('rolls every settlement write back when the rider credit fails', async () => {
+      const ready = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:verified',
+      });
+      const durable = {
+        orderStatus: 'AT_DROPOFF',
+        statusHistoryCount: 0,
+        riderDeliveries: 50,
+        riderAvailability: 'BUSY',
+        clientOrders: 7,
+      };
+
+      asMock(prisma.order.findUnique).mockResolvedValue(ready);
+      asMock(prisma.orderStatusHistory.findMany).mockResolvedValue([]);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(mockRiderProfile());
+      asMock(prisma.locationHistory.findFirst).mockResolvedValue(null);
+      asMock(creditWallet).mockRejectedValueOnce(new Error('ledger unavailable'));
+
+      asMock(prisma.$transaction).mockImplementationOnce(async (operation: unknown) => {
+        const draft = { ...durable };
+        const transactionClient = {
+          ...prisma,
+          order: {
+            ...prisma.order,
+            findUnique: vi.fn().mockResolvedValue(ready),
+            updateMany: vi.fn().mockImplementation(async () => {
+              draft.orderStatus = 'DELIVERED';
+              return { count: 1 };
+            }),
+            findUniqueOrThrow: vi.fn().mockImplementation(async () =>
+              mockOrder({
+                ...ready,
+                status: draft.orderStatus,
+                deliveredAt: new Date(),
+              }),
+            ),
+          },
+          orderStatusHistory: {
+            ...prisma.orderStatusHistory,
+            create: vi.fn().mockImplementation(async () => {
+              draft.statusHistoryCount += 1;
+              return {};
+            }),
+          },
+          riderProfile: {
+            ...prisma.riderProfile,
+            findUnique: vi.fn().mockResolvedValue(mockRiderProfile()),
+            update: vi.fn().mockImplementation(async () => {
+              draft.riderDeliveries += 1;
+              return mockRiderProfile();
+            }),
+            updateMany: vi.fn().mockImplementation(async () => {
+              draft.riderAvailability = 'ONLINE';
+              return { count: 1 };
+            }),
+          },
+          clientProfile: {
+            updateMany: vi.fn().mockImplementation(async () => {
+              draft.clientOrders += 1;
+              return { count: 1 };
+            }),
+          },
+          zone: {
+            findUnique: vi.fn().mockResolvedValue({ commissionRate: 15 }),
+          },
+        };
+
+        const result = await (operation as (tx: typeof prisma) => Promise<unknown>)(
+          transactionClient as typeof prisma,
+        );
+        // This commit line is intentionally unreachable when the callback
+        // rejects, modelling Prisma discarding transaction-local writes.
+        Object.assign(durable, draft);
+        return result;
+      });
+
+      await expect(transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1')).rejects.toThrow(
+        'ledger unavailable',
+      );
+
+      expect(durable).toEqual({
+        orderStatus: 'AT_DROPOFF',
+        statusHistoryCount: 0,
+        riderDeliveries: 50,
+        riderAvailability: 'BUSY',
+        clientOrders: 7,
+      });
+      expect(creditWallet).toHaveBeenCalledWith(
+        'rider-user-1',
+        11.25,
+        'DELIVERY_EARNING',
+        expect.stringContaining('Earnings from order'),
+        'order-1',
+        'order',
+        expect.objectContaining({ order: expect.any(Object) }),
+      );
+      expect(enqueueReceiptJob).not.toHaveBeenCalled();
+      expect(awardXp).not.toHaveBeenCalled();
     });
   });
 
@@ -710,6 +957,239 @@ describe('OrderService', () => {
       await expect(
         transitionStatus('order-1', 'PICKUP_EN_ROUTE' as any, 'rider-user-1'),
       ).rejects.toThrow('Order status changed concurrently');
+      expect(asMock(prisma.$executeRaw).mock.calls[0]?.[1]).toBe(
+        'riderguy:order-status-transition:order-1',
+      );
+    });
+
+    it('re-authorizes the expected Rider inside the locked transition', async () => {
+      const reassigned = mockOrder({ status: 'ASSIGNED', riderId: 'rider-2' });
+      asMock(prisma.order.findUnique).mockResolvedValue(reassigned);
+
+      await expect(
+        transitionStatus('order-1', 'PICKUP_EN_ROUTE' as any, 'rider-user-1', undefined, {
+          expectedRiderId: 'rider-1',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'ORDER_RIDER_ASSIGNMENT_CHANGED',
+      });
+
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
+    });
+
+    it('re-authorizes the expected Rider after acquiring the delivery-settlement lock', async () => {
+      const initial = mockOrder({
+        status: 'AT_DROPOFF',
+        riderId: 'rider-1',
+        proofOfDeliveryType: 'PIN_CODE',
+        proofOfDeliveryUrl: 'pin:verified',
+      });
+      const reassigned = mockOrder({
+        ...initial,
+        riderId: 'rider-2',
+      });
+      asMock(prisma.order.findUnique)
+        .mockResolvedValueOnce(initial)
+        .mockResolvedValueOnce(reassigned);
+      asMock(prisma.orderStatusHistory.findMany).mockResolvedValue([]);
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(mockRiderProfile());
+      asMock(prisma.locationHistory.findFirst).mockResolvedValue(null);
+
+      await expect(
+        transitionStatus('order-1', 'DELIVERED' as any, 'rider-user-1', undefined, {
+          expectedRiderId: 'rider-1',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'ORDER_RIDER_ASSIGNMENT_CHANGED',
+      });
+
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
+      expect(creditWallet).not.toHaveBeenCalled();
+    });
+
+    it('binds the status CAS to both the observed status and Rider assignment', async () => {
+      const assigned = mockOrder({ status: 'ASSIGNED', riderId: 'rider-1' });
+      asMock(prisma.order.findUnique).mockResolvedValue(assigned);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 0 });
+
+      await expect(
+        transitionStatus('order-1', 'PICKUP_EN_ROUTE' as any, 'rider-user-1', undefined, {
+          expectedRiderId: 'rider-1',
+        }),
+      ).rejects.toMatchObject({ code: 'CONCURRENT_STATUS_CHANGE' });
+
+      expect(prisma.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'order-1', status: 'ASSIGNED', riderId: 'rider-1' },
+        }),
+      );
+    });
+
+    it('takes the Rider lock before updating a terminal Order row', async () => {
+      const current = mockOrder({ status: 'IN_TRANSIT', riderId: 'rider-1' });
+      const failed = mockOrder({ status: 'FAILED', riderId: 'rider-1' });
+      asMock(prisma.order.findUnique).mockResolvedValue(current);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(failed);
+      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
+
+      await transitionStatus('order-1', 'FAILED' as any, 'rider-user-1', 'Recipient unavailable', {
+        expectedRiderId: 'rider-1',
+      });
+
+      expect(asMock(prisma.$executeRaw).mock.calls.map((call) => call[1])).toEqual([
+        'riderguy:order-status-transition:order-1',
+        'riderguy:rider-vehicle-state:rider-1',
+      ]);
+      expect(asMock(prisma.$executeRaw).mock.invocationCallOrder[1]).toBeLessThan(
+        asMock(prisma.order.updateMany).mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('rolls status, history, Rider release, and admin audit back as one decision', async () => {
+      const current = mockOrder({ status: 'IN_TRANSIT', riderId: 'rider-1' });
+      const durable = {
+        status: 'IN_TRANSIT',
+        statusHistoryRows: 0,
+        riderAvailability: 'BUSY',
+        auditRows: 0,
+      };
+
+      asMock(prisma.$transaction).mockImplementationOnce(async (operation: unknown) => {
+        const draft = { ...durable };
+        const transactionClient = {
+          ...prisma,
+          $executeRaw: vi.fn().mockResolvedValue(1),
+          order: {
+            ...prisma.order,
+            findUnique: vi.fn().mockImplementation(async () => ({
+              ...current,
+              status: draft.status,
+            })),
+            updateMany: vi.fn().mockImplementation(async ({ data }) => {
+              draft.status = data.status;
+              return { count: 1 };
+            }),
+            findUniqueOrThrow: vi.fn().mockImplementation(async () => ({
+              ...current,
+              status: draft.status,
+            })),
+          },
+          orderStatusHistory: {
+            ...prisma.orderStatusHistory,
+            create: vi.fn().mockImplementation(async () => {
+              draft.statusHistoryRows += 1;
+              return {};
+            }),
+          },
+          riderProfile: {
+            ...prisma.riderProfile,
+            updateMany: vi.fn().mockImplementation(async () => {
+              draft.riderAvailability = 'ONLINE';
+              return { count: 1 };
+            }),
+          },
+          auditLog: {
+            create: vi.fn().mockImplementation(async () => {
+              draft.auditRows += 1;
+              throw new Error('audit unavailable');
+            }),
+          },
+        };
+
+        const result = await (operation as (tx: typeof prisma) => Promise<unknown>)(
+          transactionClient as typeof prisma,
+        );
+        Object.assign(durable, draft);
+        return result;
+      });
+
+      await expect(
+        transitionStatus(
+          'order-1',
+          'CANCELLED_BY_ADMIN' as any,
+          'admin-1',
+          'Confirmed operations cancellation',
+          {
+            auditContext: {
+              actorUserId: 'admin-1',
+              ipAddress: '127.0.0.1',
+              userAgent: 'vitest',
+            },
+          },
+        ),
+      ).rejects.toThrow('audit unavailable');
+
+      expect(durable).toEqual({
+        status: 'IN_TRANSIT',
+        statusHistoryRows: 0,
+        riderAvailability: 'BUSY',
+        auditRows: 0,
+      });
+    });
+
+    it('treats retrying an already-committed non-delivery status as a no-op', async () => {
+      const cancelled = mockOrder({ status: 'CANCELLED_BY_ADMIN', riderId: 'rider-1' });
+      asMock(prisma.order.findUnique).mockResolvedValue(cancelled);
+
+      await expect(
+        transitionStatus(
+          'order-1',
+          'CANCELLED_BY_ADMIN' as any,
+          'admin-1',
+          'Confirmed operations cancellation',
+          { auditContext: { actorUserId: 'admin-1' } },
+        ),
+      ).resolves.toEqual(cancelled);
+
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
+      expect(prisma.riderProfile.updateMany).not.toHaveBeenCalled();
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('attributes an administrator transition inside the status transaction', async () => {
+      const current = mockOrder({ status: 'PENDING' });
+      const cancelled = mockOrder({ status: 'CANCELLED_BY_ADMIN' });
+      asMock(prisma.order.findUnique).mockResolvedValue(current);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(cancelled);
+      asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
+      asMock(prisma.auditLog.create).mockResolvedValue({ id: 'audit-1' });
+
+      await transitionStatus(
+        'order-1',
+        'CANCELLED_BY_ADMIN' as any,
+        'admin-1',
+        'Duplicate delivery request',
+        {
+          auditContext: {
+            actorUserId: 'admin-1',
+            ipAddress: '127.0.0.1',
+            userAgent: 'vitest',
+          },
+        },
+      );
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'admin-1',
+          action: 'ORDER_CANCELLED',
+          entityType: 'Order',
+          entityId: 'order-1',
+          ipAddress: '127.0.0.1',
+          userAgent: 'vitest',
+          oldData: { status: 'PENDING' },
+          newData: {
+            status: 'CANCELLED_BY_ADMIN',
+            note: 'Duplicate delivery request',
+          },
+        }),
+      });
     });
 
     it('should reject invalid status transition', async () => {
@@ -724,9 +1204,9 @@ describe('OrderService', () => {
     it('should reject transition for non-existent order', async () => {
       asMock(prisma.order.findUnique).mockResolvedValue(null);
 
-      await expect(
-        transitionStatus('nonexistent', 'ASSIGNED' as any, 'system'),
-      ).rejects.toThrow('Order not found');
+      await expect(transitionStatus('nonexistent', 'ASSIGNED' as any, 'system')).rejects.toThrow(
+        'Order not found',
+      );
     });
   });
 
@@ -739,7 +1219,9 @@ describe('OrderService', () => {
       // cancelOrder calls transitionStatus internally, so we need the full mock chain
       asMock(prisma.order.findUnique).mockResolvedValue(order);
       asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
-      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(mockOrder({ status: 'CANCELLED_BY_CLIENT' }));
+      asMock(prisma.order.findUniqueOrThrow).mockResolvedValue(
+        mockOrder({ status: 'CANCELLED_BY_CLIENT' }),
+      );
       asMock(prisma.orderStatusHistory.create).mockResolvedValue({});
 
       const result = await cancelOrder('order-1', 'client-1', 'Changed my mind');
@@ -772,23 +1254,128 @@ describe('OrderService', () => {
         expect.stringContaining('Cancellation compensation'),
         'order-1',
         'cancellation',
+        prisma,
       );
+    });
+
+    it('rolls back cancellation, Rider release, and compensation when the wallet credit fails', async () => {
+      const assigned = mockOrder({ status: 'ASSIGNED', riderId: 'rider-1' });
+      const durable = {
+        status: 'ASSIGNED',
+        statusHistoryRows: 0,
+        riderAvailability: 'BUSY',
+      };
+
+      asMock(creditWallet).mockRejectedValueOnce(new Error('ledger unavailable'));
+      asMock(prisma.$transaction).mockImplementationOnce(async (operation: unknown) => {
+        const draft = { ...durable };
+        const transactionClient = {
+          ...prisma,
+          $executeRaw: vi.fn().mockResolvedValue(1),
+          order: {
+            ...prisma.order,
+            findUnique: vi.fn().mockImplementation(async () => ({
+              ...assigned,
+              status: draft.status,
+            })),
+            updateMany: vi.fn().mockImplementation(async ({ data }) => {
+              draft.status = data.status;
+              return { count: 1 };
+            }),
+            findUniqueOrThrow: vi.fn().mockImplementation(async () => ({
+              ...assigned,
+              status: draft.status,
+            })),
+          },
+          orderStatusHistory: {
+            ...prisma.orderStatusHistory,
+            create: vi.fn().mockImplementation(async () => {
+              draft.statusHistoryRows += 1;
+              return {};
+            }),
+          },
+          riderProfile: {
+            ...prisma.riderProfile,
+            findUnique: vi.fn().mockResolvedValue(mockRiderProfile()),
+            updateMany: vi.fn().mockImplementation(async () => {
+              draft.riderAvailability = 'ONLINE';
+              return { count: 1 };
+            }),
+          },
+        };
+
+        const result = await (operation as (tx: typeof prisma) => Promise<unknown>)(
+          transactionClient as typeof prisma,
+        );
+        Object.assign(durable, draft);
+        return result;
+      });
+
+      await expect(cancelOrder('order-1', 'client-1', 'Too slow')).rejects.toThrow(
+        'ledger unavailable',
+      );
+
+      expect(durable).toEqual({
+        status: 'ASSIGNED',
+        statusHistoryRows: 0,
+        riderAvailability: 'BUSY',
+      });
+      expect(creditWallet).toHaveBeenCalledWith(
+        'rider-user-1',
+        3,
+        'DELIVERY_EARNING',
+        expect.stringContaining('Cancellation compensation'),
+        'order-1',
+        'cancellation',
+        expect.objectContaining({ order: expect.any(Object) }),
+      );
+      expect(cancelDispatch).not.toHaveBeenCalled();
+    });
+
+    it('does not compensate or stop dispatch when the cancellation CAS loses a race', async () => {
+      const assigned = mockOrder({ status: 'ASSIGNED', riderId: 'rider-1' });
+      asMock(prisma.order.findUnique).mockResolvedValue(assigned);
+      asMock(prisma.order.updateMany).mockResolvedValue({ count: 0 });
+
+      await expect(cancelOrder('order-1', 'client-1', 'Too slow')).rejects.toMatchObject({
+        code: 'CONCURRENT_STATUS_CHANGE',
+      });
+
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
+      expect(prisma.riderProfile.updateMany).not.toHaveBeenCalled();
+      expect(creditWallet).not.toHaveBeenCalled();
+      expect(cancelDispatch).not.toHaveBeenCalled();
+    });
+
+    it('does not credit cancellation compensation twice when a committed request is retried', async () => {
+      const cancelled = mockOrder({
+        status: 'CANCELLED_BY_CLIENT',
+        riderId: 'rider-1',
+      });
+      asMock(prisma.order.findUnique).mockResolvedValue(cancelled);
+
+      await expect(cancelOrder('order-1', 'client-1', 'Too slow')).resolves.toEqual(cancelled);
+
+      expect(prisma.order.updateMany).not.toHaveBeenCalled();
+      expect(prisma.orderStatusHistory.create).not.toHaveBeenCalled();
+      expect(creditWallet).not.toHaveBeenCalled();
+      expect(cancelDispatch).toHaveBeenCalledTimes(1);
     });
 
     it('should reject cancel by non-owner', async () => {
       const order = mockOrder({ clientId: 'client-1' });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
-      await expect(cancelOrder('order-1', 'other-user', 'test'))
-        .rejects.toThrow('Not your order');
+      await expect(cancelOrder('order-1', 'other-user', 'test')).rejects.toThrow('Not your order');
     });
 
     it('should reject cancel after pickup', async () => {
       const order = mockOrder({ status: 'PICKED_UP', riderId: 'rider-1' });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
-      await expect(cancelOrder('order-1', 'client-1'))
-        .rejects.toThrow('can no longer be cancelled');
+      await expect(cancelOrder('order-1', 'client-1')).rejects.toThrow(
+        'can no longer be cancelled',
+      );
     });
   });
 
@@ -817,8 +1404,9 @@ describe('OrderService', () => {
       asMock(prisma.order.findUnique).mockResolvedValue(order);
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
 
-      await expect(cancelOrderByRider('order-1', 'rider-user-1', 'test'))
-        .rejects.toThrow('not assigned');
+      await expect(cancelOrderByRider('order-1', 'rider-user-1', 'test')).rejects.toThrow(
+        'not assigned',
+      );
     });
 
     it('should reject post-pickup cancellation by rider', async () => {
@@ -827,8 +1415,9 @@ describe('OrderService', () => {
       asMock(prisma.order.findUnique).mockResolvedValue(order);
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
 
-      await expect(cancelOrderByRider('order-1', 'rider-user-1', 'test'))
-        .rejects.toThrow('Post-pickup cancellation');
+      await expect(cancelOrderByRider('order-1', 'rider-user-1', 'test')).rejects.toThrow(
+        'Post-pickup cancellation',
+      );
     });
 
     it('should reject if rider is suspended', async () => {
@@ -840,8 +1429,9 @@ describe('OrderService', () => {
       asMock(prisma.order.findUnique).mockResolvedValue(order);
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
 
-      await expect(cancelOrderByRider('order-1', 'rider-user-1', 'test'))
-        .rejects.toThrow('suspended');
+      await expect(cancelOrderByRider('order-1', 'rider-user-1', 'test')).rejects.toThrow(
+        'suspended',
+      );
     });
   });
 
@@ -890,24 +1480,23 @@ describe('OrderService', () => {
       const order = mockOrder({ status: 'IN_TRANSIT' });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
-      await expect(rateOrder('order-1', 'client-1', 5))
-        .rejects.toThrow('Can only rate delivered orders');
+      await expect(rateOrder('order-1', 'client-1', 5)).rejects.toThrow(
+        'Can only rate delivered orders',
+      );
     });
 
     it('should reject duplicate rating (optimistic concurrency)', async () => {
       const order = mockOrder({ status: 'DELIVERED', clientRating: 4 });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
-      await expect(rateOrder('order-1', 'client-1', 5))
-        .rejects.toThrow('already rated');
+      await expect(rateOrder('order-1', 'client-1', 5)).rejects.toThrow('already rated');
     });
 
     it('should reject rating by non-client', async () => {
       const order = mockOrder({ status: 'DELIVERED', clientId: 'other-client' });
       asMock(prisma.order.findUnique).mockResolvedValue(order);
 
-      await expect(rateOrder('order-1', 'attacker-1', 5))
-        .rejects.toThrow('Not your order');
+      await expect(rateOrder('order-1', 'attacker-1', 5)).rejects.toThrow('Not your order');
     });
   });
 
@@ -932,8 +1521,9 @@ describe('OrderService', () => {
     });
 
     it('never falls through to an unscoped list for an unsupported role', async () => {
-      await expect(listOrders('partner-1', ['PARTNER'], {}))
-        .rejects.toThrow('You do not have permission to list orders');
+      await expect(listOrders('partner-1', ['PARTNER'], {})).rejects.toThrow(
+        'You do not have permission to list orders',
+      );
 
       expect(prisma.order.findMany).not.toHaveBeenCalled();
       expect(prisma.order.count).not.toHaveBeenCalled();
@@ -945,9 +1535,7 @@ describe('OrderService', () => {
 
       await listOrders('admin-1', ['CLIENT', 'ADMIN'], {});
 
-      expect(prisma.order.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
-      );
+      expect(prisma.order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
       expect(prisma.order.count).toHaveBeenCalledWith({ where: {} });
     });
   });
@@ -982,16 +1570,14 @@ describe('OrderService', () => {
       const rider = mockRiderProfile({ onboardingStatus: 'PENDING' });
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
 
-      await expect(getAvailableJobs('rider-user-1'))
-        .rejects.toThrow('not yet activated');
+      await expect(getAvailableJobs('rider-user-1')).rejects.toThrow('not yet activated');
     });
 
     it('should reject for offline rider', async () => {
       const rider = mockRiderProfile({ availability: 'OFFLINE' });
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(rider);
 
-      await expect(getAvailableJobs('rider-user-1'))
-        .rejects.toThrow('must be online');
+      await expect(getAvailableJobs('rider-user-1')).rejects.toThrow('must be online');
     });
 
     it('should filter out orders rider has declined', async () => {
@@ -1038,7 +1624,11 @@ describe('OrderService', () => {
 
     it('should release rider availability when an active order fails', async () => {
       const order = mockOrder({ status: 'IN_TRANSIT', riderId: 'rider-1' });
-      const failed = mockOrder({ status: 'FAILED', riderId: 'rider-1', failureReason: 'Recipient unreachable' });
+      const failed = mockOrder({
+        status: 'FAILED',
+        riderId: 'rider-1',
+        failureReason: 'Recipient unreachable',
+      });
 
       asMock(prisma.order.findUnique).mockResolvedValue(order);
       asMock(prisma.order.updateMany).mockResolvedValue({ count: 1 });
@@ -1071,10 +1661,11 @@ describe('OrderService', () => {
         where: { id: 'rider-1' },
         data: { availability: 'OFFLINE' },
       });
-      expect(prisma.$executeRaw).toHaveBeenCalledOnce();
-      expect(asMock(prisma.$executeRaw).mock.calls[0]?.[1]).toBe(
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+      expect(asMock(prisma.$executeRaw).mock.calls.map((call) => call[1])).toEqual([
+        'riderguy:order-status-transition:order-1',
         'riderguy:rider-vehicle-state:rider-1',
-      );
+      ]);
     });
   });
 });

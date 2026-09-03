@@ -8,6 +8,7 @@ import { AuthService } from '../../services/auth.service';
 import { PushService } from '../../services/push.service';
 import { StatusCodes } from 'http-status-codes';
 import { StorageService } from '../../services/storage.service';
+import { UserProfileService } from '../../services/user-profile.service';
 import multer from 'multer';
 import type { Request } from 'express';
 import path from 'node:path';
@@ -19,8 +20,16 @@ import crypto from 'node:crypto';
 // Files are stored via StorageService (S3/R2 in production, local in dev).
 // ---------------------------------------------------------------------------
 const avatarStorage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, os.tmpdir()),
-  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+  destination: (
+    _req: Request,
+    _file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void,
+  ) => cb(null, os.tmpdir()),
+  filename: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void,
+  ) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `riderguy-avatar-${crypto.randomUUID()}${ext}`);
   },
@@ -60,7 +69,7 @@ router.get(
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: user });
-  })
+  }),
 );
 
 /** PATCH /users/profile */
@@ -68,30 +77,18 @@ router.patch(
   '/profile',
   validate(updateProfileSchema),
   asyncHandler(async (req, res) => {
-    const { firstName, lastName, email, avatarUrl } = req.body;
+    const result = await UserProfileService.update(req.user!.userId, req.body);
 
-    const user = await prisma.user.update({
-      where: { id: req.user!.userId },
-      data: {
-        ...(firstName && { firstName }),
-        ...(lastName && { lastName }),
-        ...(email && { email }),
-        ...(avatarUrl && { avatarUrl }),
-      },
-      select: {
-        id: true,
-        phone: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        avatarUrl: true,
-        role: true,
-        status: true,
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result.user,
+      meta: {
+        emailVerificationRequired: result.emailVerificationRequired,
+        emailVerificationRequested: result.emailVerificationRequested,
+        emailVerificationRequestFailed: result.emailVerificationRequestFailed,
       },
     });
-
-    res.status(StatusCodes.OK).json({ success: true, data: user });
-  })
+  }),
 );
 
 /** GET /users (admin only) — supports search, role filter, status filter */
@@ -107,18 +104,22 @@ router.get(
     const status = req.query.status ? String(req.query.status) : undefined;
 
     const where: Record<string, unknown> = {};
+    const filters: Array<Record<string, unknown>> = [];
 
-    if (role) where.role = role;
+    if (role) filters.push({ OR: [{ role }, { roles: { has: role } }] });
     if (status) where.status = status;
 
     if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search } },
-      ];
+      filters.push({
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
+        ],
+      });
     }
+    if (filters.length > 0) where.AND = filters;
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
@@ -133,6 +134,7 @@ router.get(
           firstName: true,
           lastName: true,
           role: true,
+          roles: true,
           status: true,
           avatarUrl: true,
           createdAt: true,
@@ -148,7 +150,7 @@ router.get(
       data: users,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  })
+  }),
 );
 
 /** POST /users/avatar — upload or replace avatar image */
@@ -192,7 +194,7 @@ router.post(
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: user });
-  })
+  }),
 );
 
 /** POST /users/change-password */
@@ -206,7 +208,7 @@ router.post(
       success: true,
       data: { message: 'Password changed successfully' },
     });
-  })
+  }),
 );
 
 // ============================================================
@@ -290,7 +292,7 @@ router.post(
       req.user!.sessionId,
     );
     res.status(StatusCodes.CREATED).json({ success: true, data: pushToken });
-  })
+  }),
 );
 
 /** POST /users/push-token/remove — deactivate a push notification token */
@@ -307,7 +309,7 @@ router.post(
     }
     await PushService.removeToken(req.user!.userId, token);
     res.status(StatusCodes.OK).json({ success: true, data: { message: 'Token removed' } });
-  })
+  }),
 );
 
 export { router as userRouter };

@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   Sparkles,
   UsersRound,
+  HeartHandshake,
+  MessageSquareWarning,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -50,6 +52,17 @@ interface OperationsSummary {
   };
 }
 
+interface RiderExperienceSummary {
+  community: {
+    pendingReports: number;
+    pendingMentorships: number;
+    activeMentorships: number;
+    upcomingEvents: number;
+  };
+  welfare: { openInvestigations: number; pendingAppeals: number };
+  communications: { publishedAnnouncements: number };
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-GH', {
     style: 'currency',
@@ -66,9 +79,11 @@ function formatTime(value: Date | null): string {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [operations, setOperations] = useState<OperationsSummary | null>(null);
+  const [riderExperience, setRiderExperience] = useState<RiderExperienceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [partialFailures, setPartialFailures] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchDashboard = useCallback(async (quiet = false) => {
@@ -76,9 +91,10 @@ export default function AdminDashboardPage() {
     else setLoading(true);
 
     const api = getApiClient();
-    const [dashboardResult, operationsResult] = await Promise.allSettled([
+    const [dashboardResult, operationsResult, riderExperienceResult] = await Promise.allSettled([
       api.get('/admin/dashboard-stats'),
       api.get('/riders/admin/operations/summary'),
+      api.get('/admin/rider-experience/summary'),
     ]);
 
     if (dashboardResult.status === 'fulfilled') {
@@ -89,9 +105,18 @@ export default function AdminDashboardPage() {
       setError('The command centre could not reach the RiderGuy API. Retry to restore live data.');
     }
 
+    const failedSupportingFeeds: string[] = [];
     if (operationsResult.status === 'fulfilled') {
       setOperations(operationsResult.value.data.data);
+    } else {
+      failedSupportingFeeds.push('rider operations');
     }
+    if (riderExperienceResult.status === 'fulfilled') {
+      setRiderExperience(riderExperienceResult.value.data.data);
+    } else {
+      failedSupportingFeeds.push('rider experience');
+    }
+    setPartialFailures(failedSupportingFeeds);
 
     setLoading(false);
     setRefreshing(false);
@@ -112,7 +137,7 @@ export default function AdminDashboardPage() {
         label: 'Rider applications',
         detail: operations
           ? `${operations.readyForActivation} ready to activate · ${operations.staleCases} waiting over 48 hours`
-          : 'Review onboarding evidence and activation readiness',
+          : 'Application count is live; activation-readiness details are unavailable',
         count: operations?.pendingCases ?? stats.riders.pendingApplications,
         href: '/dashboard/riders',
         icon: ShieldCheck,
@@ -121,7 +146,7 @@ export default function AdminDashboardPage() {
       {
         label: 'Document verification',
         detail: 'Identity and compliance evidence awaiting a decision',
-        count: operations?.evidenceQueues.documents ?? 0,
+        count: operations ? operations.evidenceQueues.documents : null,
         href: '/dashboard/riders',
         icon: FileCheck2,
         tone: 'bg-sky-50 text-sky-700',
@@ -129,10 +154,30 @@ export default function AdminDashboardPage() {
       {
         label: 'Asset financing',
         detail: '12-month bike and EV lease applications to assess',
-        count: operations?.evidenceQueues.assetFinancing ?? 0,
+        count: operations ? operations.evidenceQueues.assetFinancing : null,
         href: '/dashboard/asset-financing',
         icon: Bike,
         tone: 'bg-violet-50 text-violet-700',
+      },
+      {
+        label: 'Rider welfare',
+        detail: 'Safety investigations and Rider appeals awaiting a fair decision',
+        count: riderExperience
+          ? riderExperience.welfare.openInvestigations + riderExperience.welfare.pendingAppeals
+          : null,
+        href: '/dashboard/rider-experience',
+        icon: HeartHandshake,
+        tone: 'bg-red-50 text-red-700',
+      },
+      {
+        label: 'Community moderation',
+        detail: 'Reported content and mentorship requests needing oversight',
+        count: riderExperience
+          ? riderExperience.community.pendingReports + riderExperience.community.pendingMentorships
+          : null,
+        href: '/dashboard/rider-experience',
+        icon: MessageSquareWarning,
+        tone: 'bg-orange-50 text-orange-700',
       },
       {
         label: 'Withdrawal approvals',
@@ -143,13 +188,13 @@ export default function AdminDashboardPage() {
         tone: 'bg-emerald-50 text-emerald-700',
       },
     ];
-  }, [operations, stats]);
+  }, [operations, riderExperience, stats]);
 
   if (loading) {
     return (
       <div className="grid min-h-[62vh] place-items-center">
         <div className="text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#40BE89] shadow-premium">
+          <div className="shadow-premium mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#40BE89]">
             <RefreshCw className="h-6 w-6 animate-spin text-[#050505]" />
           </div>
           <p className="mt-4 text-sm font-semibold text-[#47564E]">Opening the command centre…</p>
@@ -178,9 +223,8 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const onlineRate = stats.riders.active > 0
-    ? Math.round((stats.riders.online / stats.riders.active) * 100)
-    : 0;
+  const onlineRate =
+    stats.riders.active > 0 ? Math.round((stats.riders.online / stats.riders.active) * 100) : 0;
 
   const kpis = [
     {
@@ -215,7 +259,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-[2rem] bg-[#40BE89] px-6 py-7 text-[#050505] shadow-premium sm:px-8 sm:py-9">
+      <section className="shadow-premium relative overflow-hidden rounded-[2rem] bg-[#40BE89] px-6 py-7 text-[#050505] sm:px-8 sm:py-9">
         <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/40 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-64 rounded-full bg-[#079B61]/20 blur-2xl" />
         <div className="relative flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
@@ -228,12 +272,15 @@ export default function AdminDashboardPage() {
               RiderGuy command centre
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#0B3D2B]/75 sm:text-base">
-              One live view of rider welfare, delivery movement, approvals, and the decisions that keep the network running.
+              One live view of rider welfare, delivery movement, approvals, and the decisions that
+              keep the network running.
             </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="rounded-2xl border border-[#075C3D]/15 bg-white/35 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#075C3D]/65">Last sync</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#075C3D]/65">
+                Last sync
+              </p>
               <p className="mt-1 text-sm font-semibold text-[#050505]">{formatTime(lastUpdated)}</p>
             </div>
             <button
@@ -252,25 +299,54 @@ export default function AdminDashboardPage() {
       {error && (
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <span>{error} Showing the most recently available figures.</span>
-          <button type="button" onClick={() => void fetchDashboard(true)} className="shrink-0 font-bold underline">
+          <button
+            type="button"
+            onClick={() => void fetchDashboard(true)}
+            className="shrink-0 font-bold underline"
+          >
             Retry
           </button>
         </div>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Key performance indicators">
+      {partialFailures.length > 0 && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          <span>
+            Some supporting data could not be refreshed: {partialFailures.join(' and ')}. Previously
+            loaded figures may be stale; missing values are marked unavailable.
+          </span>
+          <button
+            type="button"
+            onClick={() => void fetchDashboard(true)}
+            className="shrink-0 font-bold underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <section
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Key performance indicators"
+      >
         {kpis.map(({ label, value, detail, icon: Icon, accent }) => (
-          <article key={label} className="admin-panel group p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-float">
+          <article
+            key={label}
+            className="admin-panel hover:shadow-float group p-5 transition duration-200 hover:-translate-y-0.5"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold text-[#748079]">{label}</p>
+                <p className="text-xs font-semibold text-[#52625A]">{label}</p>
                 <p className="mt-3 text-2xl font-bold tracking-[-0.03em] text-[#07110D]">{value}</p>
               </div>
               <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${accent}`}>
                 <Icon className="h-5 w-5" strokeWidth={2.2} />
               </div>
             </div>
-            <p className="mt-4 border-t border-[#E8EFEB] pt-3 text-xs text-[#7C8982]">{detail}</p>
+            <p className="mt-4 border-t border-[#E8EFEB] pt-3 text-xs text-[#52625A]">{detail}</p>
           </article>
         ))}
       </section>
@@ -280,26 +356,41 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between border-b border-[#E8EFEB] px-5 py-5 sm:px-6">
             <div>
               <p className="admin-kicker">Decision queue</p>
-              <h2 className="mt-1 text-xl font-bold tracking-[-0.025em] text-[#07110D]">What needs attention</h2>
+              <h2 className="mt-1 text-xl font-bold tracking-[-0.025em] text-[#07110D]">
+                What needs attention
+              </h2>
             </div>
-            <Link href="/dashboard/riders" className="hidden items-center gap-1.5 text-xs font-bold text-[#079B61] sm:inline-flex">
+            <Link
+              href="/dashboard/riders"
+              className="hidden items-center gap-1.5 text-xs font-bold text-[#079B61] sm:inline-flex"
+            >
               Open operations <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
           <div className="divide-y divide-[#EDF2EF]">
             {priorities.map(({ label, detail, count, href, icon: Icon, tone }) => (
-              <Link key={label} href={href} className="group flex items-center gap-4 px-5 py-4 transition hover:bg-[#F7FAF8] sm:px-6">
+              <Link
+                key={label}
+                href={href}
+                className="group flex items-center gap-4 px-5 py-4 transition hover:bg-[#F7FAF8] sm:px-6"
+              >
                 <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${tone}`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-sm font-bold text-[#142019]">{label}</h3>
-                    {count > 0 && (
-                      <span className="rounded-full bg-[#087B50] px-2 py-0.5 text-[10px] font-bold text-white">{count}</span>
-                    )}
+                    {count === null ? (
+                      <span className="rounded-full bg-[#EEF2F0] px-2 py-0.5 text-[10px] font-bold text-[#68766F]">
+                        Unavailable
+                      </span>
+                    ) : count > 0 ? (
+                      <span className="rounded-full bg-[#087B50] px-2 py-0.5 text-[10px] font-bold text-white">
+                        {count}
+                      </span>
+                    ) : null}
                   </div>
-                  <p className="mt-1 truncate text-xs text-[#7B8881]">{detail}</p>
+                  <p className="mt-1 truncate text-xs text-[#52625A]">{detail}</p>
                 </div>
                 <ArrowRight className="h-4 w-4 shrink-0 text-[#A6B0AA] transition group-hover:translate-x-0.5 group-hover:text-[#079B61]" />
               </Link>
@@ -307,10 +398,12 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[1.75rem] bg-[#087B50] p-6 text-white shadow-premium">
+        <div className="shadow-premium overflow-hidden rounded-[1.75rem] bg-[#087B50] p-6 text-white">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#DDF5E9]">Network pulse</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#DDF5E9]">
+                Network pulse
+              </p>
               <h2 className="mt-2 text-xl font-bold">Ghana at a glance</h2>
             </div>
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 text-white">
@@ -325,15 +418,34 @@ export default function AdminDashboardPage() {
                 <span className="font-bold text-white">{onlineRate}%</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20">
-                <div className="h-full rounded-full bg-white" style={{ width: `${Math.min(onlineRate, 100)}%` }} />
+                <div
+                  className="h-full rounded-full bg-white"
+                  style={{ width: `${Math.min(onlineRate, 100)}%` }}
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <PulseStat icon={UsersRound} label="Clients" value={stats.clients.total.toLocaleString()} />
-              <PulseStat icon={MapPinned} label="Active zones" value={stats.activeZones.toLocaleString()} />
-              <PulseStat icon={CheckCircle2} label="Active riders" value={stats.riders.active.toLocaleString()} />
-              <PulseStat icon={Clock3} label="Orders this week" value={stats.orders.thisWeek.toLocaleString()} />
+              <PulseStat
+                icon={UsersRound}
+                label="Clients"
+                value={stats.clients.total.toLocaleString()}
+              />
+              <PulseStat
+                icon={MapPinned}
+                label="Active zones"
+                value={stats.activeZones.toLocaleString()}
+              />
+              <PulseStat
+                icon={CheckCircle2}
+                label="Active riders"
+                value={stats.riders.active.toLocaleString()}
+              />
+              <PulseStat
+                icon={Clock3}
+                label="Orders this week"
+                value={stats.orders.thisWeek.toLocaleString()}
+              />
             </div>
           </div>
 
@@ -347,12 +459,16 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <QuickLink
           href="/dashboard/riders"
           icon={GraduationCap}
           title="Training & certification"
-          detail={`${operations?.evidenceQueues.training ?? 0} completions awaiting verification`}
+          detail={
+            operations
+              ? `${operations.evidenceQueues.training} completions awaiting verification`
+              : 'Training verification count unavailable'
+          }
         />
         <QuickLink
           href="/dashboard/orders"
@@ -366,12 +482,30 @@ export default function AdminDashboardPage() {
           title="Financial health"
           detail={`${formatCurrency(stats.revenue.total)} recorded all-time revenue`}
         />
+        <QuickLink
+          href="/dashboard/rider-experience"
+          icon={HeartHandshake}
+          title="Rider experience"
+          detail={
+            riderExperience
+              ? `${riderExperience.communications.publishedAnnouncements} broadcasts · ${riderExperience.community.upcomingEvents} upcoming events`
+              : 'Broadcast and event counts unavailable'
+          }
+        />
       </section>
     </div>
   );
 }
 
-function PulseStat({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+function PulseStat({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="rounded-2xl border border-white/20 bg-white/10 p-3.5">
       <Icon className="h-4 w-4 text-white" />
@@ -393,13 +527,16 @@ function QuickLink({
   detail: string;
 }) {
   return (
-    <Link href={href} className="admin-panel group flex items-center gap-4 p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-float">
+    <Link
+      href={href}
+      className="admin-panel hover:shadow-float group flex items-center gap-4 p-5 transition duration-200 hover:-translate-y-0.5"
+    >
       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#EAF8F1] text-[#079B61]">
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
         <h3 className="text-sm font-bold text-[#142019]">{title}</h3>
-        <p className="mt-1 truncate text-xs text-[#7B8881]">{detail}</p>
+        <p className="mt-1 truncate text-xs text-[#52625A]">{detail}</p>
       </div>
       <ArrowRight className="h-4 w-4 text-[#A6B0AA] transition group-hover:translate-x-0.5 group-hover:text-[#079B61]" />
     </Link>

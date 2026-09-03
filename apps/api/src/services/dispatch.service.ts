@@ -32,11 +32,7 @@ async function lockRiderState(
  * Can be called by admin (manual dispatch) or by the system (auto-dispatch).
  * Fully atomic — both order assignment and rider status update happen in one transaction.
  */
-export async function assignRider(
-  orderId: string,
-  riderProfileId: string,
-  actor: string,
-) {
+export async function assignRider(orderId: string, riderProfileId: string, actor: string) {
   const [order, rider] = await Promise.all([
     prisma.order.findUnique({ where: { id: orderId } }),
     prisma.riderProfile.findUnique({
@@ -71,10 +67,7 @@ export async function assignRider(
     throw ApiError.forbidden('Rider is currently suspended due to cancellation violations');
   }
   if (rider.availability !== 'ONLINE') {
-    throw ApiError.badRequest(
-      `Rider is currently ${rider.availability}`,
-      'RIDER_UNAVAILABLE',
-    );
+    throw ApiError.badRequest(`Rider is currently ${rider.availability}`, 'RIDER_UNAVAILABLE');
   }
 
   // Atomic transaction — both writes succeed or neither does
@@ -176,9 +169,7 @@ export async function unassignRider(orderId: string, actor: string) {
   // Can only unassign before pickup
   const unassignableStatuses = ['ASSIGNED', 'PICKUP_EN_ROUTE'] as const;
   if (!unassignableStatuses.includes(order.status as any)) {
-    throw ApiError.badRequest(
-      `Cannot unassign rider from order in status ${order.status}`,
-    );
+    throw ApiError.badRequest(`Cannot unassign rider from order in status ${order.status}`);
   }
 
   const prevRiderId = order.riderId;
@@ -224,20 +215,14 @@ export async function unassignRider(orderId: string, actor: string) {
  * Reassign an order to a different rider (admin action).
  * Atomic — unassign + assign happen in one transaction to prevent orphaning.
  */
-export async function reassignRider(
-  orderId: string,
-  newRiderProfileId: string,
-  actor: string,
-) {
+export async function reassignRider(orderId: string, newRiderProfileId: string, actor: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw ApiError.notFound('Order not found');
   if (!order.riderId) throw ApiError.badRequest('No rider currently assigned');
 
   const unassignableStatuses = ['ASSIGNED', 'PICKUP_EN_ROUTE'] as const;
   if (!unassignableStatuses.includes(order.status as any)) {
-    throw ApiError.badRequest(
-      `Cannot reassign order in status ${order.status}`,
-    );
+    throw ApiError.badRequest(`Cannot reassign order in status ${order.status}`);
   }
 
   const newRider = await prisma.riderProfile.findUnique({
@@ -250,7 +235,10 @@ export async function reassignRider(
   if (!newRider) throw ApiError.notFound('New rider not found');
   assertRiderWorkEligible(newRider);
   if (newRider.availability !== 'ONLINE') {
-    throw ApiError.badRequest(`New rider is currently ${newRider.availability}`, 'RIDER_UNAVAILABLE');
+    throw ApiError.badRequest(
+      `New rider is currently ${newRider.availability}`,
+      'RIDER_UNAVAILABLE',
+    );
   }
 
   const prevRiderId = order.riderId;
@@ -324,12 +312,14 @@ export async function getDispatchQueue(options?: {
   const whereClause: any = {};
 
   if (options?.status) {
-    const requestedStatuses = [...new Set(
-      options.status
-        .split(',')
-        .map((status) => status.trim())
-        .filter(Boolean),
-    )];
+    const requestedStatuses = [
+      ...new Set(
+        options.status
+          .split(',')
+          .map((status) => status.trim())
+          .filter(Boolean),
+      ),
+    ];
     const allowedStatuses = new Set<string>(Object.values(OrderStatus));
     const invalidStatus = requestedStatuses.find((status) => !allowedStatuses.has(status));
     if (invalidStatus || requestedStatuses.length === 0) {
@@ -338,13 +328,21 @@ export async function getDispatchQueue(options?: {
         'INVALID_ORDER_STATUS_FILTER',
       );
     }
-    whereClause.status = requestedStatuses.length === 1
-      ? requestedStatuses[0]
-      : { in: requestedStatuses };
+    whereClause.status =
+      requestedStatuses.length === 1 ? requestedStatuses[0] : { in: requestedStatuses };
   } else {
     // Default: show active orders
     whereClause.status = {
-      in: ['PENDING', 'SEARCHING_RIDER', 'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'],
+      in: [
+        'PENDING',
+        'SEARCHING_RIDER',
+        'ASSIGNED',
+        'PICKUP_EN_ROUTE',
+        'AT_PICKUP',
+        'PICKED_UP',
+        'IN_TRANSIT',
+        'AT_DROPOFF',
+      ],
     };
   }
 
@@ -359,7 +357,7 @@ export async function getDispatchQueue(options?: {
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        client: { select: { firstName: true, lastName: true, phone: true } },
+        client: { select: { id: true, firstName: true, lastName: true, phone: true } },
         rider: {
           select: {
             id: true,

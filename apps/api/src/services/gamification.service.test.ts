@@ -19,6 +19,7 @@ vi.mock('@riderguy/database', () => ({
     },
     badge: {
       findMany: vi.fn(),
+      update: vi.fn(),
     },
     riderBadge: {
       findMany: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock('../lib/logger', () => ({
 }));
 
 vi.mock('../lib/api-error', async () => {
-  const actual = await vi.importActual('../lib/api-error') as any;
+  const actual = (await vi.importActual('../lib/api-error')) as any;
   return actual;
 });
 
@@ -51,6 +52,7 @@ import {
   awardXp,
   getGamificationProfile,
   markBadgesSeen,
+  updateBadge,
 } from './gamification.service';
 import { prisma } from '@riderguy/database';
 import { RiderLevel, XpAction } from '@riderguy/types';
@@ -62,6 +64,17 @@ import { RiderLevel, XpAction } from '@riderguy/types';
 describe('GamificationService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('clears badge criteria with a database JSON null', async () => {
+    asMock(prisma.badge.update).mockResolvedValue({ id: 'badge-1', criteria: null });
+
+    await updateBadge('badge-1', { criteria: null });
+
+    expect(prisma.badge.update).toHaveBeenCalledWith({
+      where: { id: 'badge-1' },
+      data: { criteria: expect.anything() },
+    });
   });
 
   // ────────────────────────────────────────────────────────────
@@ -258,8 +271,9 @@ describe('GamificationService', () => {
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(null);
 
       // awardXp with a real action (non-zero XP) should throw
-      await expect(awardXp('ghost', XpAction.DELIVERY_COMPLETE))
-        .rejects.toThrow('Rider profile not found');
+      await expect(awardXp('ghost', XpAction.DELIVERY_COMPLETE)).rejects.toThrow(
+        'Rider profile not found',
+      );
     });
 
     it('should award badge when criteria met', async () => {
@@ -283,16 +297,18 @@ describe('GamificationService', () => {
       asMock(prisma.riderBadge.findMany).mockResolvedValue([]);
 
       // One badge candidate that rider qualifies for
-      asMock(prisma.badge.findMany).mockResolvedValue([{
-        id: 'badge-10-deliveries',
-        slug: 'first-10',
-        name: 'First 10 Deliveries',
-        description: 'Complete 10 deliveries',
-        icon: '🚀',
-        criteria: { action: 'delivery_complete', threshold: 10 },
-        xpReward: 25,
-        isActive: true,
-      }]);
+      asMock(prisma.badge.findMany).mockResolvedValue([
+        {
+          id: 'badge-10-deliveries',
+          slug: 'first-10',
+          name: 'First 10 Deliveries',
+          description: 'Complete 10 deliveries',
+          icon: '🚀',
+          criteria: { action: 'delivery_complete', threshold: 10 },
+          xpReward: 25,
+          isActive: true,
+        },
+      ]);
 
       // XP event action counts
       asMock(prisma.xpEvent.groupBy).mockResolvedValue([
@@ -324,9 +340,7 @@ describe('GamificationService', () => {
             seenAt: new Date(),
           },
         ],
-        xpEvents: [
-          { action: 'delivery_complete', points: 50, createdAt: new Date() },
-        ],
+        xpEvents: [{ action: 'delivery_complete', points: 50, createdAt: new Date() }],
       });
 
       const profile = await getGamificationProfile('rider-1');
@@ -341,8 +355,7 @@ describe('GamificationService', () => {
     it('should throw for non-existent rider', async () => {
       asMock(prisma.riderProfile.findUnique).mockResolvedValue(null);
 
-      await expect(getGamificationProfile('ghost'))
-        .rejects.toThrow('Rider profile not found');
+      await expect(getGamificationProfile('ghost')).rejects.toThrow('Rider profile not found');
     });
   });
 

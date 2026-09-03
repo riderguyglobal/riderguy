@@ -43,25 +43,46 @@ describe('Ghana phone launch boundary', () => {
   );
 
   it('normalizes phone identifiers and targeted invitations', () => {
-    expect(loginWithPinSchema.parse({ identifier: '0241234567', pin: '123456' }).identifier)
-      .toBe('+233241234567');
+    expect(loginWithPinSchema.parse({ identifier: '0241234567', pin: '123456' }).identifier).toBe(
+      '+233241234567',
+    );
     expect(
       loginWithPasswordSchema.parse({ identifier: '0501234567', password: 'secret' }).identifier,
     ).toBe('+233501234567');
     expect(
-      createInHouseInvitationSchema.parse({ phone: '0551234567' }).phone,
+      createInHouseInvitationSchema.parse({
+        phone: '0551234567',
+        idempotencyKey: 'c61b01d0-ab71-4cff-9046-7b7fabd8e824',
+      }).phone,
     ).toBe('+233551234567');
   });
 
+  it('requires a stable request ID and exactly one invitation delivery channel', () => {
+    const idempotencyKey = 'c61b01d0-ab71-4cff-9046-7b7fabd8e824';
+
+    expect(createInHouseInvitationSchema.safeParse({ phone: '0551234567' }).success).toBe(false);
+    expect(
+      createInHouseInvitationSchema.safeParse({
+        email: 'rider@example.com',
+        phone: '0551234567',
+        idempotencyKey,
+      }).success,
+    ).toBe(false);
+  });
+
   it('keeps Google authentication independent of internal placeholder phones', () => {
-    expect(googleAuthSchema.safeParse({ credential: 'google-id-token', role: 'RIDER' }).success)
-      .toBe(true);
-    expect(googleAuthSchema.safeParse({ credential: 'google-id-token', role: 'CLIENT' }).success)
-      .toBe(true);
-    expect(googleAuthSchema.safeParse({ credential: 'google-id-token', role: 'PARTNER' }).success)
-      .toBe(false);
-    expect(googleAuthSchema.safeParse({ credential: 'x'.repeat(4097), role: 'CLIENT' }).success)
-      .toBe(false);
+    expect(
+      googleAuthSchema.safeParse({ credential: 'google-id-token', role: 'RIDER' }).success,
+    ).toBe(true);
+    expect(
+      googleAuthSchema.safeParse({ credential: 'google-id-token', role: 'CLIENT' }).success,
+    ).toBe(true);
+    expect(
+      googleAuthSchema.safeParse({ credential: 'google-id-token', role: 'PARTNER' }).success,
+    ).toBe(false);
+    expect(
+      googleAuthSchema.safeParse({ credential: 'x'.repeat(4097), role: 'CLIENT' }).success,
+    ).toBe(false);
   });
 });
 
@@ -93,7 +114,15 @@ describe('Ghana order coordinate boundary', () => {
     expect(
       createOrderSchema.safeParse({
         ...validOrder,
-        stops: [{ type: 'DROPOFF', sequence: 0, address: 'Outside launch area', latitude: 6.5, longitude: 3.4 }],
+        stops: [
+          {
+            type: 'DROPOFF',
+            sequence: 0,
+            address: 'Outside launch area',
+            latitude: 6.5,
+            longitude: 3.4,
+          },
+        ],
       }).success,
     ).toBe(false);
     expect(
@@ -126,12 +155,16 @@ describe('Ghana order coordinate boundary', () => {
 describe('Rider availability state ownership', () => {
   it('requires a complete current position before going online', () => {
     expect(updateAvailabilitySchema.safeParse({ availability: 'ONLINE' }).success).toBe(false);
-    expect(updateAvailabilitySchema.safeParse({ availability: 'ONLINE', latitude: 5.56 }).success).toBe(false);
-    expect(updateAvailabilitySchema.safeParse({
-      availability: 'ONLINE',
-      latitude: 5.56,
-      longitude: -0.187,
-    }).success).toBe(true);
+    expect(
+      updateAvailabilitySchema.safeParse({ availability: 'ONLINE', latitude: 5.56 }).success,
+    ).toBe(false);
+    expect(
+      updateAvailabilitySchema.safeParse({
+        availability: 'ONLINE',
+        latitude: 5.56,
+        longitude: -0.187,
+      }).success,
+    ).toBe(true);
   });
 
   it.each(['ON_DELIVERY', 'ON_BREAK'])('rejects client-owned %s transitions', (availability) => {

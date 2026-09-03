@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  Modal,
+  Platform,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +25,10 @@ const SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myridergu
   .replace('api.riderguy.com', 'api.myriderguy.com')
   .replace(/\/+$/, '');
 
-const STATUS_ACTIONS: Record<string, { label: string; nextStatus?: string; nav: 'pickup' | 'dropoff' | 'none' }> = {
+const STATUS_ACTIONS: Record<
+  string,
+  { label: string; nextStatus?: string; nav: 'pickup' | 'dropoff' | 'none' }
+> = {
   ASSIGNED: { label: 'Navigate to pickup', nextStatus: 'PICKUP_EN_ROUTE', nav: 'pickup' },
   PICKUP_EN_ROUTE: { label: 'Confirm pickup arrival', nextStatus: 'AT_PICKUP', nav: 'none' },
   AT_PICKUP: { label: 'Package collected', nextStatus: 'PICKED_UP', nav: 'none' },
@@ -36,12 +48,26 @@ const CANCELLATION_REASONS = [
   'Personal emergency',
 ];
 
+type DeliveryStop = {
+  id: string;
+  type: 'PICKUP' | 'DROPOFF';
+  sequence: number;
+  status: 'PENDING' | 'ARRIVED' | 'COMPLETED' | 'SKIPPED' | 'FAILED';
+  address: string;
+  latitude: number;
+  longitude: number;
+  contactName?: string | null;
+  instructions?: string | null;
+};
+
 function getLoadErrorMessage(error: unknown) {
   const err = error as any;
-  return err?.response?.data?.error?.message
-    ?? err?.response?.data?.message
-    ?? err?.message
-    ?? 'We could not load this delivery.';
+  return (
+    err?.response?.data?.error?.message ??
+    err?.response?.data?.message ??
+    err?.message ??
+    'We could not load this delivery.'
+  );
 }
 
 function JobLoadState({
@@ -56,9 +82,34 @@ function JobLoadState({
   onRetry?: () => void;
 }) {
   return (
-    <View style={{ flex: 1, backgroundColor: riderColors.surface, padding: 18, justifyContent: 'center' }}>
-      <View style={{ backgroundColor: riderColors.white, borderRadius: 22, borderWidth: 1, borderColor: riderColors.line, padding: 18, gap: 14 }}>
-        <View style={{ width: 54, height: 54, borderRadius: 18, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: riderColors.surface,
+        padding: 18,
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          backgroundColor: riderColors.white,
+          borderRadius: 22,
+          borderWidth: 1,
+          borderColor: riderColors.line,
+          padding: 18,
+          gap: 14,
+        }}
+      >
+        <View
+          style={{
+            width: 54,
+            height: 54,
+            borderRadius: 18,
+            backgroundColor: riderColors.greenSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Ionicons name="alert-circle-outline" size={28} color={riderColors.greenDark} />
         </View>
         <View style={{ gap: 6 }}>
@@ -68,7 +119,12 @@ function JobLoadState({
         {onRetry ? (
           <RiderButton label="Retry" icon="refresh" loading={retrying} onPress={onRetry} />
         ) : null}
-        <RiderButton label="Back to deliveries" icon="arrow-back" variant="light" onPress={() => router.replace('/(tabs)/jobs')} />
+        <RiderButton
+          label="Back to deliveries"
+          icon="arrow-back"
+          variant="light"
+          onPress={() => router.replace('/(tabs)/jobs')}
+        />
       </View>
     </View>
   );
@@ -85,35 +141,154 @@ function DeliveryRouteCanvas({
     <View
       accessible
       accessibilityLabel={`Delivery route from ${pickupAddress} to ${dropoffAddress}`}
-      style={{ flex: 1, overflow: 'hidden', backgroundColor: '#EAF6F0', paddingHorizontal: 22, paddingTop: 126, paddingBottom: 250 }}
+      style={{
+        flex: 1,
+        overflow: 'hidden',
+        backgroundColor: '#EAF6F0',
+        paddingHorizontal: 22,
+        paddingTop: 126,
+        paddingBottom: 250,
+      }}
     >
-      <View style={{ position: 'absolute', width: '150%', height: 34, top: 110, left: '-24%', backgroundColor: 'rgba(255,255,255,0.72)', transform: [{ rotate: '-14deg' }] }} />
-      <View style={{ position: 'absolute', width: '145%', height: 22, top: 270, left: '-20%', backgroundColor: 'rgba(64,190,137,0.10)', transform: [{ rotate: '18deg' }] }} />
-      <View style={{ flex: 1, minHeight: 230, borderRadius: 28, borderWidth: 1, borderColor: '#CFE8DC', backgroundColor: 'rgba(255,255,255,0.96)', padding: 20, justifyContent: 'center', ...riderShadow }}>
+      <View
+        style={{
+          position: 'absolute',
+          width: '150%',
+          height: 34,
+          top: 110,
+          left: '-24%',
+          backgroundColor: 'rgba(255,255,255,0.72)',
+          transform: [{ rotate: '-14deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: '145%',
+          height: 22,
+          top: 270,
+          left: '-20%',
+          backgroundColor: 'rgba(64,190,137,0.10)',
+          transform: [{ rotate: '18deg' }],
+        }}
+      />
+      <View
+        style={{
+          flex: 1,
+          minHeight: 230,
+          borderRadius: 28,
+          borderWidth: 1,
+          borderColor: '#CFE8DC',
+          backgroundColor: 'rgba(255,255,255,0.96)',
+          padding: 20,
+          justifyContent: 'center',
+          ...riderShadow,
+        }}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <View style={{ width: 42, height: 42, borderRadius: 16, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 16,
+              backgroundColor: riderColors.greenSoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <Ionicons name="navigate" size={21} color={riderColors.greenDark} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>Delivery route</Text>
-            <Text style={{ color: riderColors.muted, fontSize: 11, marginTop: 2 }}>Tap Navigate for live turn-by-turn directions.</Text>
+            <Text style={{ color: riderColors.ink, fontSize: 16, fontWeight: '900' }}>
+              Delivery route
+            </Text>
+            <Text style={{ color: riderColors.muted, fontSize: 11, marginTop: 2 }}>
+              Tap Navigate for live turn-by-turn directions.
+            </Text>
           </View>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
           <View style={{ width: 34, alignItems: 'center' }}>
-            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: riderColors.green, borderWidth: 4, borderColor: riderColors.white }} />
-            <View style={{ width: 3, flex: 1, minHeight: 54, marginVertical: 5, borderRadius: 2, backgroundColor: '#B9DDCC' }} />
-            <View style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: riderColors.red, borderWidth: 4, borderColor: riderColors.white }} />
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 9,
+                backgroundColor: riderColors.green,
+                borderWidth: 4,
+                borderColor: riderColors.white,
+              }}
+            />
+            <View
+              style={{
+                width: 3,
+                flex: 1,
+                minHeight: 54,
+                marginVertical: 5,
+                borderRadius: 2,
+                backgroundColor: '#B9DDCC',
+              }}
+            />
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 5,
+                backgroundColor: riderColors.red,
+                borderWidth: 4,
+                borderColor: riderColors.white,
+              }}
+            />
           </View>
           <View style={{ flex: 1, gap: 20 }}>
             <View>
-              <Text style={{ color: riderColors.greenDark, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>Pickup</Text>
-              <Text style={{ color: riderColors.ink, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 3 }} numberOfLines={2}>{pickupAddress}</Text>
+              <Text
+                style={{
+                  color: riderColors.greenDark,
+                  fontSize: 10,
+                  fontWeight: '900',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Pickup
+              </Text>
+              <Text
+                style={{
+                  color: riderColors.ink,
+                  fontSize: 13,
+                  lineHeight: 18,
+                  fontWeight: '800',
+                  marginTop: 3,
+                }}
+                numberOfLines={2}
+              >
+                {pickupAddress}
+              </Text>
             </View>
             <View>
-              <Text style={{ color: riderColors.red, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>Dropoff</Text>
-              <Text style={{ color: riderColors.ink, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 3 }} numberOfLines={2}>{dropoffAddress}</Text>
+              <Text
+                style={{
+                  color: riderColors.red,
+                  fontSize: 10,
+                  fontWeight: '900',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Dropoff
+              </Text>
+              <Text
+                style={{
+                  color: riderColors.ink,
+                  fontSize: 13,
+                  lineHeight: 18,
+                  fontWeight: '800',
+                  marginTop: 3,
+                }}
+                numberOfLines={2}
+              >
+                {dropoffAddress}
+              </Text>
             </View>
           </View>
         </View>
@@ -179,11 +354,32 @@ export default function JobDetailScreen() {
       const position = await getUsablePosition();
       await api.patch(`/orders/${id}/status`, {
         status: nextStatus,
-        ...(position ? { latitude: position.coords.latitude, longitude: position.coords.longitude } : {}),
+        ...(position
+          ? { latitude: position.coords.latitude, longitude: position.coords.longitude }
+          : {}),
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['order', id] }),
-    onError: (error: any) => Toast.show({ type: 'error', text1: error?.response?.data?.error?.message ?? 'Status update failed.' }),
+    onError: (error: any) =>
+      Toast.show({
+        type: 'error',
+        text1: error?.response?.data?.error?.message ?? 'Status update failed.',
+      }),
+  });
+
+  const completeStop = useMutation({
+    mutationFn: async (stopId: string) => {
+      await api.post(`/orders/${id}/stops/${stopId}/complete`, {});
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['order', id] });
+      Toast.show({ type: 'success', text1: 'Route stop completed.' });
+    },
+    onError: (error: any) =>
+      Toast.show({
+        type: 'error',
+        text1: error?.response?.data?.error?.message ?? 'Could not complete this stop.',
+      }),
   });
 
   const cancelJob = useMutation({
@@ -210,7 +406,11 @@ export default function JobDetailScreen() {
       });
       if (result === 'cancelled') router.replace('/(tabs)/jobs');
     },
-    onError: (error: any) => Toast.show({ type: 'error', text1: error?.response?.data?.error?.message ?? 'Cancellation failed.' }),
+    onError: (error: any) =>
+      Toast.show({
+        type: 'error',
+        text1: error?.response?.data?.error?.message ?? 'Cancellation failed.',
+      }),
   });
 
   const openNavigation = async (lat: number, lng: number) => {
@@ -273,7 +473,14 @@ export default function JobDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: riderColors.surface }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: riderColors.surface,
+        }}
+      >
         <ActivityIndicator color={riderColors.green} size="large" />
       </View>
     );
@@ -285,26 +492,47 @@ export default function JobDetailScreen() {
         title="Delivery unavailable"
         body={getLoadErrorMessage(error)}
         retrying={isRefetching}
-        onRetry={() => { refetch(); }}
+        onRetry={() => {
+          refetch();
+        }}
       />
     );
   }
 
   const pickup = {
     latitude: Number(order.pickupLatitude ?? 5.6037),
-    longitude: Number(order.pickupLongitude ?? -0.1870),
+    longitude: Number(order.pickupLongitude ?? -0.187),
   };
   const dropoff = {
     latitude: Number(order.dropoffLatitude ?? 5.5913),
-    longitude: Number(order.dropoffLongitude ?? -0.2020),
+    longitude: Number(order.dropoffLongitude ?? -0.202),
   };
   const action = STATUS_ACTIONS[order.status];
+  const routeStops = (Array.isArray(order.stops) ? order.stops : [])
+    .slice()
+    .sort(
+      (left: DeliveryStop, right: DeliveryStop) => left.sequence - right.sequence,
+    ) as DeliveryStop[];
+  const currentStop =
+    routeStops.find((stop) => !['COMPLETED', 'SKIPPED'].includes(stop.status)) ?? null;
+  const canCompleteCurrentStop = Boolean(
+    order.isMultiStop && currentStop && ['IN_TRANSIT', 'AT_DROPOFF'].includes(order.status),
+  );
   const cancellationMode = PRE_PICKUP_CANCEL_STATUSES.has(order.status)
     ? 'cancel'
     : POST_PICKUP_CANCEL_REQUEST_STATUSES.has(order.status)
       ? 'request'
       : null;
-  const navTarget = action?.nav === 'pickup' ? pickup : dropoff;
+  const navTarget =
+    order.isMultiStop &&
+    currentStop &&
+    order.status !== 'ASSIGNED' &&
+    order.status !== 'PICKUP_EN_ROUTE' &&
+    order.status !== 'AT_PICKUP'
+      ? { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) }
+      : action?.nav === 'pickup'
+        ? pickup
+        : dropoff;
   const clientPhone = typeof order.client?.phone === 'string' ? order.client.phone.trim() : '';
 
   const openOrderChat = () => {
@@ -321,6 +549,10 @@ export default function JobDetailScreen() {
 
   const runAction = async () => {
     if (!action) return;
+    if (canCompleteCurrentStop && currentStop) {
+      completeStop.mutate(currentStop.id);
+      return;
+    }
     if (order.status === 'AT_DROPOFF') {
       bottomSheetRef.current?.dismiss();
       router.push({ pathname: '/(app)/jobs/[id]/proof' as any, params: { id } });
@@ -337,92 +569,353 @@ export default function JobDetailScreen() {
         dropoffAddress={order.dropoffAddress ?? 'Dropoff location'}
       />
 
-      <View style={{ position: 'absolute', top: 50, left: 16, right: 16, backgroundColor: riderColors.white, borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: riderColors.line }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: 50,
+          left: 16,
+          right: 16,
+          backgroundColor: riderColors.white,
+          borderRadius: 18,
+          padding: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          borderWidth: 1,
+          borderColor: riderColors.line,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            backgroundColor: riderColors.panelAlt,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Ionicons name="arrow-back" size={20} color={riderColors.ink} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>{cleanLabel(order.status)}</Text>
-          <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{eta ? `${Math.ceil((eta.durationSeconds ?? 0) / 60)} min to ${cleanLabel(eta.destination)}` : order.orderNumber}</Text>
+          <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>
+            {cleanLabel(order.status)}
+          </Text>
+          <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+            {eta
+              ? `${Math.ceil((eta.durationSeconds ?? 0) / 60)} min to ${cleanLabel(eta.destination)}`
+              : order.orderNumber}
+          </Text>
         </View>
-        <TouchableOpacity onPress={() => openNavigation(navTarget.latitude, navTarget.longitude)} style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <TouchableOpacity
+          onPress={() => openNavigation(navTarget.latitude, navTarget.longitude)}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            backgroundColor: riderColors.greenSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Ionicons name="navigate" size={19} color={riderColors.greenDark} />
         </TouchableOpacity>
       </View>
 
-      <BottomSheetModal ref={bottomSheetRef} snapPoints={['42%', '72%']} enablePanDownToClose={false}>
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['42%', '72%']}
+        enablePanDownToClose={false}
+      >
         <BottomSheetView>
           <View style={{ padding: 18, gap: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900' }}>{order.orderNumber ?? 'Delivery'}</Text>
-              <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 3 }}>{cleanLabel(order.packageType)} package</Text>
-            </View>
-            <View style={{ alignItems: 'flex-end', gap: 6 }}>
-              <StatusPill status={order.status} />
-              <Text style={{ color: riderColors.greenDark, fontSize: 16, fontWeight: '900' }}>
-                {formatCurrency(Number(order.riderEarnings ?? 0), order.currency ?? 'GHS')}
-              </Text>
-            </View>
-          </View>
-
-          <RouteSummary pickup={order.pickupAddress} dropoff={order.dropoffAddress} />
-
-          {order.client ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: riderColors.line, paddingTop: 14 }}>
-              <View style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: riderColors.ink, fontWeight: '900' }}>{order.client.firstName?.[0] ?? 'C'}</Text>
-              </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
               <View style={{ flex: 1 }}>
-                <Text style={{ color: riderColors.ink, fontWeight: '900' }}>{order.client.firstName ?? 'Customer'}</Text>
-                <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 2 }}>Delivery customer</Text>
+                <Text style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900' }}>
+                  {order.orderNumber ?? 'Delivery'}
+                </Text>
+                <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 3 }}>
+                  {cleanLabel(order.packageType)} package
+                </Text>
               </View>
-              <TouchableOpacity onPress={openOrderChat} style={{ width: 42, height: 42, borderRadius: 15, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="chatbubble-ellipses" size={18} color={riderColors.greenDark} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={callClient} style={{ width: 42, height: 42, borderRadius: 15, backgroundColor: clientPhone ? riderColors.panelAlt : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="call" size={18} color={clientPhone ? riderColors.ink : riderColors.muted} />
-              </TouchableOpacity>
+              <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                <StatusPill status={order.status} />
+                <Text style={{ color: riderColors.greenDark, fontSize: 16, fontWeight: '900' }}>
+                  {formatCurrency(Number(order.riderEarnings ?? 0), order.currency ?? 'GHS')}
+                </Text>
+              </View>
             </View>
-          ) : null}
 
-          {action ? (
+            <RouteSummary pickup={order.pickupAddress} dropoff={order.dropoffAddress} />
+
+            {order.isMultiStop && routeStops.length > 0 ? (
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: riderColors.line,
+                  borderRadius: 18,
+                  overflow: 'hidden',
+                  backgroundColor: riderColors.white,
+                }}
+              >
+                <View
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 11,
+                    backgroundColor: riderColors.panelAlt,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Text style={{ color: riderColors.ink, fontSize: 12, fontWeight: '900' }}>
+                    Ordered route stops
+                  </Text>
+                  <Text style={{ color: riderColors.greenDark, fontSize: 11, fontWeight: '800' }}>
+                    {
+                      routeStops.filter((stop) => ['COMPLETED', 'SKIPPED'].includes(stop.status))
+                        .length
+                    }
+                    /{routeStops.length} done
+                  </Text>
+                </View>
+                {routeStops.map((stop, index) => {
+                  const complete = ['COMPLETED', 'SKIPPED'].includes(stop.status);
+                  const active = currentStop?.id === stop.id;
+                  return (
+                    <View
+                      key={stop.id}
+                      style={{
+                        minHeight: 60,
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 11,
+                        borderTopWidth: index === 0 ? 0 : 1,
+                        borderTopColor: riderColors.line,
+                        backgroundColor: active ? '#F0FBF6' : riderColors.white,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 10,
+                          backgroundColor: complete
+                            ? riderColors.green
+                            : active
+                              ? riderColors.greenSoft
+                              : riderColors.panelAlt,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Ionicons
+                          name={
+                            complete
+                              ? 'checkmark'
+                              : stop.type === 'PICKUP'
+                                ? 'cube-outline'
+                                : 'location-outline'
+                          }
+                          size={16}
+                          color={complete ? riderColors.white : riderColors.greenDark}
+                        />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          style={{
+                            color: riderColors.ink,
+                            fontSize: 11.5,
+                            lineHeight: 16,
+                            fontWeight: '800',
+                          }}
+                          numberOfLines={2}
+                        >
+                          {stop.address}
+                        </Text>
+                        <Text style={{ color: riderColors.muted, fontSize: 9.5, marginTop: 2 }}>
+                          {stop.type} · Stop {index + 1} · {cleanLabel(stop.status)}
+                        </Text>
+                      </View>
+                      {active ? (
+                        <Text
+                          style={{ color: riderColors.greenDark, fontSize: 9.5, fontWeight: '900' }}
+                        >
+                          NEXT
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+
+            {order.client ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  borderTopWidth: 1,
+                  borderTopColor: riderColors.line,
+                  paddingTop: 14,
+                }}
+              >
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 16,
+                    backgroundColor: riderColors.panelAlt,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ color: riderColors.ink, fontWeight: '900' }}>
+                    {order.client.firstName?.[0] ?? 'C'}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: riderColors.ink, fontWeight: '900' }}>
+                    {order.client.firstName ?? 'Customer'}
+                  </Text>
+                  <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 2 }}>
+                    Delivery customer
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={openOrderChat}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 15,
+                    backgroundColor: riderColors.greenSoft,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="chatbubble-ellipses" size={18} color={riderColors.greenDark} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={callClient}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 15,
+                    backgroundColor: clientPhone ? riderColors.panelAlt : '#E5E7EB',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons
+                    name="call"
+                    size={18}
+                    color={clientPhone ? riderColors.ink : riderColors.muted}
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {action ? (
+              <RiderButton
+                label={
+                  canCompleteCurrentStop && currentStop
+                    ? `Complete stop ${currentStop.sequence}`
+                    : action.label
+                }
+                icon={
+                  canCompleteCurrentStop
+                    ? 'checkmark-circle'
+                    : order.status === 'AT_DROPOFF'
+                      ? 'camera'
+                      : 'navigate'
+                }
+                loading={updateStatus.isPending || completeStop.isPending}
+                onPress={runAction}
+              />
+            ) : (
+              <RiderButton
+                label="Delivery closed"
+                icon="checkmark-circle"
+                variant="light"
+                disabled
+              />
+            )}
+
             <RiderButton
-              label={action.label}
-              icon={order.status === 'AT_DROPOFF' ? 'camera' : 'navigate'}
-              loading={updateStatus.isPending}
-              onPress={runAction}
+              label={
+                cancellationMode === 'request'
+                  ? 'Request cancellation approval'
+                  : 'Request cancellation'
+              }
+              icon="alert-circle"
+              variant="danger"
+              disabled={!cancellationMode}
+              onPress={() => setCancelVisible(true)}
             />
-          ) : (
-            <RiderButton label="Delivery closed" icon="checkmark-circle" variant="light" disabled />
-          )}
-
-          <RiderButton
-            label={cancellationMode === 'request' ? 'Request cancellation approval' : 'Request cancellation'}
-            icon="alert-circle"
-            variant="danger"
-            disabled={!cancellationMode}
-            onPress={() => setCancelVisible(true)}
-          />
           </View>
         </BottomSheetView>
       </BottomSheetModal>
 
-      <Modal visible={cancelVisible} transparent animationType="slide" onRequestClose={() => setCancelVisible(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,17,31,0.58)' }}>
-          <View style={{ backgroundColor: riderColors.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, gap: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <Modal
+        visible={cancelVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCancelVisible(false)}
+      >
+        <View
+          style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,17,31,0.58)' }}
+        >
+          <View
+            style={{
+              backgroundColor: riderColors.white,
+              borderTopLeftRadius: 26,
+              borderTopRightRadius: 26,
+              padding: 18,
+              gap: 14,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={{ color: riderColors.ink, fontSize: 20, fontWeight: '900' }}>
                   {cancellationMode === 'request' ? 'Ask customer to approve' : 'Cancel this job'}
                 </Text>
-                <Text style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+                <Text
+                  style={{ color: riderColors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}
+                >
                   {cancellationMode === 'request'
                     ? 'The customer must authorize cancellation because the package has been picked up.'
                     : 'This releases the job and records the cancellation reason.'}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setCancelVisible(false)} style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity
+                onPress={() => setCancelVisible(false)}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 14,
+                  backgroundColor: riderColors.panelAlt,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <Ionicons name="close" size={22} color={riderColors.ink} />
               </TouchableOpacity>
             </View>
@@ -446,8 +939,12 @@ export default function JobDetailScreen() {
                       justifyContent: 'space-between',
                     }}
                   >
-                    <Text style={{ color: riderColors.ink, fontSize: 14, fontWeight: '800' }}>{reason}</Text>
-                    {selected ? <Ionicons name="checkmark-circle" size={20} color={riderColors.greenDark} /> : null}
+                    <Text style={{ color: riderColors.ink, fontSize: 14, fontWeight: '800' }}>
+                      {reason}
+                    </Text>
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={20} color={riderColors.greenDark} />
+                    ) : null}
                   </TouchableOpacity>
                 );
               })}
@@ -473,7 +970,13 @@ export default function JobDetailScreen() {
             />
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <RiderButton label="Keep job" icon="arrow-back" variant="light" style={{ flex: 1 }} onPress={() => setCancelVisible(false)} />
+              <RiderButton
+                label="Keep job"
+                icon="arrow-back"
+                variant="light"
+                style={{ flex: 1 }}
+                onPress={() => setCancelVisible(false)}
+              />
               <RiderButton
                 label={cancellationMode === 'request' ? 'Send request' : 'Cancel job'}
                 icon="send"

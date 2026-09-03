@@ -28,6 +28,8 @@ import * as ForumService from '../../services/forum.service';
 import * as AnnouncementService from '../../services/announcement.service';
 import * as ModerationService from '../../services/moderation.service';
 import { StatusCodes } from 'http-status-codes';
+import { adminAuditContext } from '../../services/admin-audit.service';
+import { prisma } from '@riderguy/database';
 
 const router = Router();
 
@@ -82,7 +84,12 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
-    const data = await ChatService.getMessages(req.params.roomId as string, req.user!.userId, cursor, limit);
+    const data = await ChatService.getMessages(
+      req.params.roomId as string,
+      req.user!.userId,
+      cursor,
+      limit,
+    );
     res.status(StatusCodes.OK).json({ success: true, data });
   }),
 );
@@ -216,7 +223,11 @@ router.put(
   '/forum/posts/:postId',
   validate(updateForumPostSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const post = await ForumService.updatePost(req.params.postId as string, req.user!.userId, req.body);
+    const post = await ForumService.updatePost(
+      req.params.postId as string,
+      req.user!.userId,
+      req.body,
+    );
     res.status(StatusCodes.OK).json({ success: true, data: post });
   }),
 );
@@ -270,7 +281,11 @@ router.post(
   '/forum/posts/:postId/vote',
   validate(voteSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const result = await ForumService.voteOnPost(req.params.postId as string, req.user!.userId, req.body.value);
+    const result = await ForumService.voteOnPost(
+      req.params.postId as string,
+      req.user!.userId,
+      req.body.value,
+    );
     res.status(StatusCodes.OK).json({ success: true, data: result });
   }),
 );
@@ -318,8 +333,15 @@ router.get(
 router.get(
   '/announcements',
   asyncHandler(async (req: Request, res: Response) => {
+    const rider = getAuthRoles(req.user!).includes(UserRole.RIDER)
+      ? await prisma.riderProfile.findUnique({
+          where: { userId: req.user!.userId },
+          select: { currentZoneId: true },
+        })
+      : null;
     const data = await AnnouncementService.getPublishedAnnouncements({
       roles: getAuthRoles(req.user!),
+      zoneId: rider?.currentZoneId ?? undefined,
       page: parseInt(req.query.page as string) || 1,
       limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
     });
@@ -348,10 +370,13 @@ router.post(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(createAnnouncementSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const announcement = await AnnouncementService.createAnnouncement({
-      authorId: req.user!.userId,
-      ...req.body,
-    });
+    const announcement = await AnnouncementService.createAnnouncement(
+      {
+        authorId: req.user!.userId,
+        ...req.body,
+      },
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.CREATED).json({ success: true, data: announcement });
   }),
 );
@@ -362,7 +387,11 @@ router.put(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(updateAnnouncementSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const announcement = await AnnouncementService.updateAnnouncement(req.params.id as string, req.body);
+    const announcement = await AnnouncementService.updateAnnouncement(
+      req.params.id as string,
+      req.body,
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.OK).json({ success: true, data: announcement });
   }),
 );
@@ -372,7 +401,8 @@ router.delete(
   '/announcements/admin/:id',
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req: Request, res: Response) => {
-    await AnnouncementService.deleteAnnouncement(req.params.id as string);
+    const announcementId = req.params.id as string;
+    await AnnouncementService.deleteAnnouncement(announcementId, adminAuditContext(req));
     res.status(StatusCodes.OK).json({ success: true });
   }),
 );
@@ -415,7 +445,12 @@ router.put(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(resolveContentReportSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const report = await ModerationService.resolveReport(req.params.id as string, req.user!.userId, req.body);
+    const report = await ModerationService.resolveReport(
+      req.params.id as string,
+      req.user!.userId,
+      req.body,
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.OK).json({ success: true, data: report });
   }),
 );
@@ -438,7 +473,11 @@ router.put(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(adminPinPostSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const post = await ForumService.pinPost(req.params.postId as string, req.body.isPinned);
+    const post = await ForumService.pinPost(
+      req.params.postId as string,
+      req.body.isPinned,
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.OK).json({ success: true, data: post });
   }),
 );
@@ -449,7 +488,11 @@ router.put(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(adminLockPostSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const post = await ForumService.lockPost(req.params.postId as string, req.body.isLocked);
+    const post = await ForumService.lockPost(
+      req.params.postId as string,
+      req.body.isLocked,
+      adminAuditContext(req),
+    );
     res.status(StatusCodes.OK).json({ success: true, data: post });
   }),
 );

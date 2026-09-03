@@ -104,15 +104,15 @@ function decimalToGhs(d: Prisma.Decimal): number {
  * Guards against admin accidentally entering a decimal like 0.15 instead of 15.
  */
 function normalizeCommissionRate(raw: number): number {
-  if (raw > 0 && raw < 1) return raw;              // already a decimal fraction
-  return Math.min(1, Math.max(0, raw / 100));       // clamp & convert
+  if (raw > 0 && raw < 1) return raw; // already a decimal fraction
+  return Math.min(1, Math.max(0, raw / 100)); // clamp & convert
 }
 
 /** Platform defaults — used when pickup is outside any defined zone */
 const PLATFORM_DEFAULTS = {
-  baseFare: 5.00,
-  perKmRate: 2.00,
-  minimumFare: 8.00,
+  baseFare: 5.0,
+  perKmRate: 2.0,
+  minimumFare: 8.0,
   commissionRate: 0.15,
   roadFactor: ROAD_FACTOR_DEFAULT,
   avgSpeedKmh: AVG_SPEED_DEFAULT,
@@ -172,6 +172,11 @@ let zoneCache: Zone[] | null = null;
 let zoneCacheExpiry = 0;
 const ZONE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+export function invalidateZoneCache(): void {
+  zoneCache = null;
+  zoneCacheExpiry = 0;
+}
+
 async function getActiveZones(): Promise<Zone[]> {
   if (zoneCache && Date.now() < zoneCacheExpiry) return zoneCache;
   const zones = await prisma.zone.findMany({ where: { status: 'ACTIVE' } });
@@ -191,14 +196,21 @@ async function findZoneForPoint(lat: number, lng: number): Promise<Zone | null> 
 
 // ── Dynamic Surge ───────────────────────────────────────────
 
-function calculateDynamicSurge(pendingOrders: number, activeRiders: number): { multiplier: number; level: string } {
+function calculateDynamicSurge(
+  pendingOrders: number,
+  activeRiders: number,
+): { multiplier: number; level: string } {
   if (activeRiders <= 0) return { multiplier: MAX_SURGE_MULTIPLIER, level: 'MAX' };
 
   const ratio = pendingOrders / activeRiders;
-  if (ratio >= SURGE_THRESHOLDS.LEVEL_4.ratio) return { multiplier: SURGE_THRESHOLDS.LEVEL_4.multiplier, level: 'MAX' };
-  if (ratio >= SURGE_THRESHOLDS.LEVEL_3.ratio) return { multiplier: SURGE_THRESHOLDS.LEVEL_3.multiplier, level: 'HIGH' };
-  if (ratio >= SURGE_THRESHOLDS.LEVEL_2.ratio) return { multiplier: SURGE_THRESHOLDS.LEVEL_2.multiplier, level: 'MEDIUM' };
-  if (ratio >= SURGE_THRESHOLDS.LEVEL_1.ratio) return { multiplier: SURGE_THRESHOLDS.LEVEL_1.multiplier, level: 'LOW' };
+  if (ratio >= SURGE_THRESHOLDS.LEVEL_4.ratio)
+    return { multiplier: SURGE_THRESHOLDS.LEVEL_4.multiplier, level: 'MAX' };
+  if (ratio >= SURGE_THRESHOLDS.LEVEL_3.ratio)
+    return { multiplier: SURGE_THRESHOLDS.LEVEL_3.multiplier, level: 'HIGH' };
+  if (ratio >= SURGE_THRESHOLDS.LEVEL_2.ratio)
+    return { multiplier: SURGE_THRESHOLDS.LEVEL_2.multiplier, level: 'MEDIUM' };
+  if (ratio >= SURGE_THRESHOLDS.LEVEL_1.ratio)
+    return { multiplier: SURGE_THRESHOLDS.LEVEL_1.multiplier, level: 'LOW' };
   return { multiplier: SURGE_THRESHOLDS.LEVEL_0.multiplier, level: 'NONE' };
 }
 
@@ -247,7 +259,10 @@ export async function calculatePrice(
   dropoffLat: number,
   dropoffLng: number,
   packageType: PackageType,
-  options?: Omit<CalculatePriceInput, 'pickupLat' | 'pickupLng' | 'dropoffLat' | 'dropoffLng' | 'packageType'>,
+  options?: Omit<
+    CalculatePriceInput,
+    'pickupLat' | 'pickupLng' | 'dropoffLat' | 'dropoffLng' | 'packageType'
+  >,
 ): Promise<PriceBreakdown> {
   const additionalStops = options?.additionalStops ?? 0;
   const scheduleType = options?.scheduleType;
@@ -272,9 +287,10 @@ export async function calculatePrice(
   const roadFactor = pickupZone?.roadFactor ?? PLATFORM_DEFAULTS.roadFactor;
   const avgSpeed = pickupZone?.avgSpeedKmh ?? PLATFORM_DEFAULTS.avgSpeedKmh;
   const currency = pickupZone?.currency ?? PLATFORM_DEFAULTS.currency;
-  const commissionRate = pickupZone?.commissionRate != null
-    ? normalizeCommissionRate(pickupZone.commissionRate)
-    : PLATFORM_DEFAULTS.commissionRate;
+  const commissionRate =
+    pickupZone?.commissionRate != null
+      ? normalizeCommissionRate(pickupZone.commissionRate)
+      : PLATFORM_DEFAULTS.commissionRate;
 
   // ── 3. Effective road distance & ETA ─────────────────────
   const routeDistanceKm: number | null = routeDistanceInput ?? null;
@@ -428,7 +444,8 @@ export async function calculatePrice(
         promoError = 'Promo code not found or inactive';
       } else {
         const now = new Date();
-        const withinValidity = (!promo.validUntil || promo.validUntil > now) && promo.validFrom <= now;
+        const withinValidity =
+          (!promo.validUntil || promo.validUntil > now) && promo.validFrom <= now;
         const withinUsageLimit = promo.maxUses == null || promo.usedCount < promo.maxUses;
         let withinUserLimit = true;
         if (clientId) {
@@ -438,7 +455,8 @@ export async function calculatePrice(
           withinUserLimit = userUsages < promo.maxUsesPerUser;
         }
         const zoneOk = !promo.zoneId || (pickupZone && promo.zoneId === pickupZone.id);
-        const packageOk = promo.packageTypes.length === 0 || promo.packageTypes.includes(packageType);
+        const packageOk =
+          promo.packageTypes.length === 0 || promo.packageTypes.includes(packageType);
         const meetsMinOrder = !promo.minOrderAmount || subtotal >= Number(promo.minOrderAmount);
 
         if (!withinValidity) promoError = 'Promo code has expired';
@@ -446,7 +464,8 @@ export async function calculatePrice(
         else if (!withinUserLimit) promoError = 'You have already used this promo code';
         else if (!zoneOk) promoError = 'Promo code is not valid for your zone';
         else if (!packageOk) promoError = 'Promo code is not valid for this package type';
-        else if (!meetsMinOrder) promoError = `Minimum order of GHS ${Number(promo.minOrderAmount).toFixed(2)} required`;
+        else if (!meetsMinOrder)
+          promoError = `Minimum order of GHS ${Number(promo.minOrderAmount).toFixed(2)} required`;
         else {
           promoIsPct = promo.discountType === 'PERCENTAGE';
           promoValue = Number(promo.discountValue);

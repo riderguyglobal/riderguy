@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiClient } from '@riderguy/auth';
 import { Badge, Button, Card, CardContent, Input, Spinner } from '@riderguy/ui';
@@ -100,11 +100,12 @@ interface Invitation {
 }
 
 interface IssuedInvitation {
-  code: string;
+  code: string | null;
   target: string;
   channel: 'email' | 'phone';
   expiresAt: string;
-  deliveryStatus: 'SENT' | 'FAILED' | 'NOT_REQUESTED';
+  deliveryStatus: 'SENT' | 'FAILED' | 'NOT_REQUESTED' | 'ALREADY_ISSUED';
+  requestState: 'CREATED' | 'IDEMPOTENT_REPLAY' | 'ACTIVE_TARGET_REUSED';
 }
 
 const queueOptions: Array<{ value: QueueName; label: string }> = [
@@ -137,7 +138,11 @@ function statusBadge(status: string) {
     APPLICATION_REJECTED: 'bg-red-100 text-red-800 hover:bg-red-100',
     DOCUMENTS_REJECTED: 'bg-red-100 text-red-800 hover:bg-red-100',
   };
-  return <Badge className={colors[status] ?? 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>{formatStatus(status)}</Badge>;
+  return (
+    <Badge className={colors[status] ?? 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>
+      {formatStatus(status)}
+    </Badge>
+  );
 }
 
 function channelBadge(riderCase: RiderCase) {
@@ -155,8 +160,10 @@ function channelBadge(riderCase: RiderCase) {
 }
 
 function invitationState(invitation: Invitation) {
-  if (invitation.usedAt) return { label: 'Used', className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' };
-  if (invitation.revokedAt) return { label: 'Revoked', className: 'bg-red-100 text-red-800 hover:bg-red-100' };
+  if (invitation.usedAt)
+    return { label: 'Used', className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' };
+  if (invitation.revokedAt)
+    return { label: 'Revoked', className: 'bg-red-100 text-red-800 hover:bg-red-100' };
   if (new Date(invitation.expiresAt).getTime() <= Date.now()) {
     return { label: 'Expired', className: 'bg-gray-100 text-gray-700 hover:bg-gray-100' };
   }
@@ -178,13 +185,17 @@ export default function RiderOperationsPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionFeedback, setActionFeedback] = useState('');
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [invitationPagination, setInvitationPagination] = useState<Pagination | null>(null);
+  const [invitationPage, setInvitationPage] = useState(1);
   const [inviteType, setInviteType] = useState<'email' | 'phone'>('email');
   const [inviteTarget, setInviteTarget] = useState('');
   const [issuedInvitation, setIssuedInvitation] = useState<IssuedInvitation | null>(null);
   const [inviteFeedback, setInviteFeedback] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const inviteAttemptRef = useRef<{ fingerprint: string; idempotencyKey: string } | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<Invitation | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
 
@@ -192,6 +203,69 @@ export default function RiderOperationsPage() {
   const [newAccountStatus, setNewAccountStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');
   const [updating, setUpdating] = useState(false);
+  const revokeDialogRef = useRef<HTMLDivElement>(null);
+  const revokeReasonRef = useRef<HTMLTextAreaElement>(null);
+  const statusDialogRef = useRef<HTMLDivElement>(null);
+  const statusSelectRef = useRef<HTMLSelectElement>(null);
+
+  const closeRevokeDialog = useCallback(() => {
+    setRevokeTarget(null);
+    setRevokeReason('');
+  }, []);
+
+  const closeStatusDialog = useCallback(() => {
+    setStatusTarget(null);
+  }, []);
+
+  useEffect(() => {
+    if (!revokeTarget && !statusTarget) return;
+
+    const dialogElement = revokeTarget ? revokeDialogRef.current : statusDialogRef.current;
+    const initialFocusElement = revokeTarget ? revokeReasonRef.current : statusSelectRef.current;
+    const closeDialog = revokeTarget ? closeRevokeDialog : closeStatusDialog;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusFrame = window.requestAnimationFrame(() => initialFocusElement?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDialog();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !dialogElement) return;
+      const focusableElements = Array.from(
+        dialogElement.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute('hidden'));
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (!dialogElement.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement)?.focus();
+      } else if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement?.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [closeRevokeDialog, closeStatusDialog, revokeTarget, statusTarget]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -220,14 +294,21 @@ export default function RiderOperationsPage() {
     setPagination(response.data.pagination);
   }, [api, channel, page, queue, search, status, tab]);
 
-  const fetchInvitations = useCallback(async () => {
-    const response = await api.get('/riders/admin/operations/invitations');
-    setInvitations(response.data.data);
-  }, [api]);
+  const fetchInvitations = useCallback(
+    async (requestedPage = invitationPage) => {
+      const response = await api.get('/riders/admin/operations/invitations', {
+        params: { page: requestedPage, limit: 20 },
+      });
+      setInvitations(response.data.data);
+      setInvitationPagination(response.data.pagination);
+    },
+    [api, invitationPage],
+  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
+    setActionFeedback('');
     try {
       if (tab === 'invitations') await Promise.all([fetchSummary(), fetchInvitations()]);
       else await Promise.all([fetchSummary(), fetchCases()]);
@@ -251,24 +332,55 @@ export default function RiderOperationsPage() {
   const createInvitation = async () => {
     const target = inviteTarget.trim();
     if (!target) return;
+    const fingerprint = `${inviteType}:${inviteType === 'email' ? target.toLowerCase() : target}`;
+    const currentAttempt = inviteAttemptRef.current;
+    const idempotencyKey =
+      currentAttempt?.fingerprint === fingerprint
+        ? currentAttempt.idempotencyKey
+        : globalThis.crypto.randomUUID();
+    inviteAttemptRef.current = { fingerprint, idempotencyKey };
     setInviteLoading(true);
     setIssuedInvitation(null);
     setInviteFeedback('');
     setError('');
+    setActionFeedback('');
     try {
-      const response = await api.post('/riders/invitations', { [inviteType]: target, expiresInDays: 7 });
+      const response = await api.post('/riders/invitations', {
+        [inviteType]: target,
+        expiresInDays: 7,
+        idempotencyKey,
+      });
       const deliveryKey = inviteType === 'email' ? 'email' : 'sms';
+      const invitation = response.data.data;
       setIssuedInvitation({
-        code: response.data.data.code,
+        code: typeof invitation.code === 'string' ? invitation.code : null,
         target,
         channel: inviteType,
-        expiresAt: response.data.data.expiresAt,
-        deliveryStatus: response.data.data.delivery?.[deliveryKey] ?? 'FAILED',
+        expiresAt: invitation.expiresAt,
+        deliveryStatus: invitation.delivery?.[deliveryKey] ?? 'FAILED',
+        requestState: invitation.requestState,
       });
+      inviteAttemptRef.current = null;
       setInviteTarget('');
-      await Promise.all([fetchInvitations(), fetchSummary()]);
+      setInvitationPage(1);
+      setActionFeedback(
+        invitation.requestState === 'CREATED'
+          ? 'Invitation issued successfully. The code is shown below only once.'
+          : invitation.requestState === 'ACTIVE_TARGET_REUSED'
+            ? 'An active invitation was already issued for this Rider. No duplicate code was created.'
+            : 'This invitation request was already processed. No duplicate code was created.',
+      );
+      try {
+        await Promise.all([fetchInvitations(1), fetchSummary()]);
+      } catch {
+        setError(
+          'The invitation was issued, but the queue could not refresh. Do not issue it again; use Refresh to load the latest list.',
+        );
+      }
     } catch (invitationError: unknown) {
-      const message = (invitationError as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      const message = (
+        invitationError as { response?: { data?: { error?: { message?: string } } } }
+      ).response?.data?.error?.message;
       setError(message ?? 'The invitation could not be issued.');
     } finally {
       setInviteLoading(false);
@@ -276,8 +388,12 @@ export default function RiderOperationsPage() {
   };
 
   const copyInvitation = async (messageOnly = false) => {
-    if (!issuedInvitation) return;
-    const expiry = new Date(issuedInvitation.expiresAt).toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' });
+    if (!issuedInvitation?.code) return;
+    const expiry = new Date(issuedInvitation.expiresAt).toLocaleDateString('en-GH', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
     const message = `Your RiderGuy In-House Rider invitation code is ${issuedInvitation.code}. Sign in with ${issuedInvitation.target}, open Rider onboarding, and enter the code. It expires on ${expiry} and can be used once.`;
     try {
       await navigator.clipboard.writeText(messageOnly ? message : issuedInvitation.code);
@@ -291,13 +407,24 @@ export default function RiderOperationsPage() {
     if (!revokeTarget || revokeReason.trim().length < 5) return;
     setUpdating(true);
     setError('');
+    setActionFeedback('');
     try {
-      await api.patch(`/riders/admin/operations/invitations/${revokeTarget.id}/revoke`, { reason: revokeReason.trim() });
+      await api.patch(`/riders/admin/operations/invitations/${revokeTarget.id}/revoke`, {
+        reason: revokeReason.trim(),
+      });
       setRevokeTarget(null);
       setRevokeReason('');
-      await Promise.all([fetchInvitations(), fetchSummary()]);
+      setActionFeedback('Invitation revoked successfully.');
+      try {
+        await Promise.all([fetchInvitations(), fetchSummary()]);
+      } catch {
+        setError(
+          'The invitation was revoked, but the queue could not refresh. Do not repeat the action; use Refresh to load the latest state.',
+        );
+      }
     } catch (revokeError: unknown) {
-      const message = (revokeError as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      const message = (revokeError as { response?: { data?: { error?: { message?: string } } } })
+        .response?.data?.error?.message;
       setError(message ?? 'The invitation could not be revoked.');
     } finally {
       setUpdating(false);
@@ -306,8 +433,13 @@ export default function RiderOperationsPage() {
 
   const updateAccountStatus = async () => {
     if (!statusTarget || !newAccountStatus) return;
+    if (newAccountStatus !== 'ACTIVE' && statusReason.trim().length < 5) {
+      setError('Enter a meaningful operational reason of at least 5 characters.');
+      return;
+    }
     setUpdating(true);
     setError('');
+    setActionFeedback('');
     try {
       await api.patch(`/admin/users/${statusTarget.userId}/status`, {
         status: newAccountStatus,
@@ -316,7 +448,14 @@ export default function RiderOperationsPage() {
       setStatusTarget(null);
       setNewAccountStatus('');
       setStatusReason('');
-      await Promise.all([fetchCases(), fetchSummary()]);
+      setActionFeedback('Rider account status updated successfully.');
+      try {
+        await Promise.all([fetchCases(), fetchSummary()]);
+      } catch {
+        setError(
+          'The Rider status was updated, but the workspace could not refresh. Do not repeat the action; use Refresh to load the latest state.',
+        );
+      }
     } catch {
       setError('The Rider account status could not be updated.');
     } finally {
@@ -324,96 +463,683 @@ export default function RiderOperationsPage() {
     }
   };
 
-  const summaryCards = summary ? [
-    { label: 'Open cases', value: summary.pendingCases, icon: ClipboardCheck, tone: 'bg-amber-50 text-amber-700' },
-    { label: 'Ready to activate', value: summary.readyForActivation, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
-    { label: 'Documents to review', value: summary.evidenceQueues.documents, icon: FileCheck2, tone: 'bg-blue-50 text-blue-700' },
-    { label: 'Vehicles to review', value: summary.evidenceQueues.vehicles, icon: Bike, tone: 'bg-purple-50 text-purple-700' },
-    { label: 'Training to verify', value: summary.evidenceQueues.training, icon: GraduationCap, tone: 'bg-indigo-50 text-indigo-700' },
-    { label: 'Stale over 48 hours', value: summary.staleCases, icon: Clock3, tone: 'bg-red-50 text-red-700' },
-  ] : [];
+  const summaryCards = summary
+    ? [
+        {
+          label: 'Open cases',
+          value: summary.pendingCases,
+          icon: ClipboardCheck,
+          tone: 'bg-amber-50 text-amber-700',
+        },
+        {
+          label: 'Ready to activate',
+          value: summary.readyForActivation,
+          icon: CheckCircle2,
+          tone: 'bg-emerald-50 text-emerald-700',
+        },
+        {
+          label: 'Documents to review',
+          value: summary.evidenceQueues.documents,
+          icon: FileCheck2,
+          tone: 'bg-blue-50 text-blue-700',
+        },
+        {
+          label: 'Vehicles to review',
+          value: summary.evidenceQueues.vehicles,
+          icon: Bike,
+          tone: 'bg-purple-50 text-purple-700',
+        },
+        {
+          label: 'Training to verify',
+          value: summary.evidenceQueues.training,
+          icon: GraduationCap,
+          tone: 'bg-indigo-50 text-indigo-700',
+        },
+        {
+          label: 'Stale over 48 hours',
+          value: summary.staleCases,
+          icon: Clock3,
+          tone: 'bg-red-50 text-red-700',
+        },
+      ]
+    : [];
 
   return (
     <div className="space-y-5 pb-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#40BE89] px-6 py-6 text-[#050505] shadow-premium sm:px-7">
+      <div className="shadow-premium flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] bg-[#40BE89] px-6 py-6 text-[#050505] sm:px-7">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#075C3D]">People &amp; welfare</p>
-          <div className="mt-2 flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-[#079B61]" /><h1 className="text-2xl font-bold tracking-[-0.03em]">Rider operations</h1></div>
-          <p className="mt-2 max-w-2xl text-sm text-[#0B3D2B]/75">Verify evidence, control access, and activate riders from one auditable workspace.</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#075C3D]">
+            People &amp; welfare
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <ShieldCheck className="h-6 w-6 text-[#079B61]" />
+            <h1 className="text-2xl font-bold tracking-[-0.03em]">Rider operations</h1>
+          </div>
+          <p className="mt-2 max-w-2xl text-sm text-[#0B3D2B]/75">
+            Verify evidence, control access, and activate riders from one auditable workspace.
+          </p>
         </div>
-        <Button variant="outline" size="sm" className="border-[#075C3D]/15 bg-white/40 text-[#050505] hover:bg-white/70 hover:text-[#050505]" onClick={() => void refresh()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-[#075C3D]/15 bg-white/40 text-[#050505] hover:bg-white/70 hover:text-[#050505]"
+          onClick={() => void refresh()}
+          disabled={loading}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {summary && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {summaryCards.map(({ label, value, icon: Icon, tone }) => (
-            <Card key={label} className="rounded-2xl border-[#E3EEE9] shadow-sm"><CardContent className="p-4"><div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></div><p className="text-2xl font-bold tracking-[-0.03em] text-[#07110D]">{value}</p><p className="text-xs text-[#6E7A73]">{label}</p></CardContent></Card>
+            <Card key={label} className="rounded-2xl border-[#E3EEE9] shadow-sm">
+              <CardContent className="p-4">
+                <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <p className="text-2xl font-bold tracking-[-0.03em] text-[#07110D]">{value}</p>
+                <p className="text-xs text-[#6E7A73]">{label}</p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
 
       <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-[#E3EEE9] bg-white p-1.5 shadow-sm">
-        {([
-          ['queue', 'Review queue'],
-          ['all', `All Riders${summary ? ` (${summary.totalRiders})` : ''}`],
-          ['invitations', `In-House invitations${summary ? ` (${summary.activeInvitations})` : ''}`],
-        ] as Array<[OperationsTab, string]>).map(([value, label]) => (
-          <button key={value} type="button" onClick={() => changeTab(value)} className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === value ? 'bg-[#087B50] text-white shadow-sm' : 'text-[#69766F] hover:bg-[#F3FBF7] hover:text-[#07110D]'}`}>{label}</button>
+        {(
+          [
+            ['queue', 'Review queue'],
+            ['all', `All Riders${summary ? ` (${summary.totalRiders})` : ''}`],
+            [
+              'invitations',
+              `In-House invitations${summary ? ` (${summary.activeInvitations})` : ''}`,
+            ],
+          ] as Array<[OperationsTab, string]>
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => changeTab(value)}
+            className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === value ? 'bg-[#087B50] text-white shadow-sm' : 'text-[#69766F] hover:bg-[#F3FBF7] hover:text-[#07110D]'}`}
+          >
+            {label}
+          </button>
         ))}
       </div>
 
-      {error && <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />{error}</div>}
+      {error && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+          {error}
+        </div>
+      )}
+
+      {actionFeedback && (
+        <div
+          role="status"
+          className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none" />
+          {actionFeedback}
+        </div>
+      )}
 
       {tab !== 'invitations' && (
         <>
           {tab === 'queue' && (
             <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-              {queueOptions.map((option) => <button key={option.value} type="button" onClick={() => { setQueue(option.value); setPage(1); }} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition ${queue === option.value ? 'border-[#079B61] bg-[#EAF8F1] text-[#067A4D]' : 'border-[#DCE7E1] bg-white text-[#69766F] hover:border-[#40BE89]'}`}>{option.label}</button>)}
+              {queueOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    setQueue(option.value);
+                    setPage(1);
+                  }}
+                  className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition ${queue === option.value ? 'border-[#079B61] bg-[#EAF8F1] text-[#067A4D]' : 'border-[#DCE7E1] bg-white text-[#69766F] hover:border-[#40BE89]'}`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           )}
 
-          <Card className="mb-4 rounded-2xl border-[#E3EEE9] shadow-sm"><CardContent className="flex flex-wrap gap-3 p-4">
-            <div className="relative min-w-[240px] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" /><Input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search name, phone, email, code, or plate" className="pl-9" /></div>
-            <select value={channel} onChange={(event) => { setChannel(event.target.value); setPage(1); }} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">All channels</option><option value="GUEST">Guest</option><option value="IN_HOUSE">In-House</option><option value="UNCLASSIFIED">Unclassified</option></select>
-            <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">All onboarding statuses</option>{['REGISTERED', 'DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW', 'DOCUMENTS_APPROVED', 'DOCUMENTS_REJECTED', 'TRAINING_PENDING', 'TRAINING_COMPLETE', 'APPLICATION_REJECTED', 'ACTIVATED'].map((value) => <option key={value} value={value}>{formatStatus(value)}</option>)}</select>
-          </CardContent></Card>
+          <Card className="mb-4 rounded-2xl border-[#E3EEE9] shadow-sm">
+            <CardContent className="flex flex-wrap gap-3 p-4">
+              <div className="relative min-w-[240px] flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search name, phone, email, code, or plate"
+                  className="pl-9"
+                />
+              </div>
+              <select
+                value={channel}
+                onChange={(event) => {
+                  setChannel(event.target.value);
+                  setPage(1);
+                }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">All channels</option>
+                <option value="GUEST">Guest</option>
+                <option value="IN_HOUSE">In-House</option>
+                <option value="UNCLASSIFIED">Unclassified</option>
+              </select>
+              <select
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value);
+                  setPage(1);
+                }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">All onboarding statuses</option>
+                {[
+                  'REGISTERED',
+                  'DOCUMENTS_PENDING',
+                  'DOCUMENTS_SUBMITTED',
+                  'DOCUMENTS_UNDER_REVIEW',
+                  'DOCUMENTS_APPROVED',
+                  'DOCUMENTS_REJECTED',
+                  'TRAINING_PENDING',
+                  'TRAINING_COMPLETE',
+                  'APPLICATION_REJECTED',
+                  'ACTIVATED',
+                ].map((value) => (
+                  <option key={value} value={value}>
+                    {formatStatus(value)}
+                  </option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
 
-          {loading ? <div className="flex justify-center py-20"><Spinner className="h-8 w-8 text-brand-500" /></div> : cases.length === 0 ? (
-            <Card><CardContent className="py-16 text-center"><CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-500" /><p className="font-semibold text-gray-800">This queue is clear</p><p className="mt-1 text-sm text-gray-500">No Rider cases match the selected filters.</p></CardContent></Card>
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Spinner className="text-brand-500 h-8 w-8" />
+            </div>
+          ) : cases.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center">
+                <CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-500" />
+                <p className="font-semibold text-gray-800">This queue is clear</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  No Rider cases match the selected filters.
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <div className="space-y-3">
               {cases.map((riderCase) => {
                 const name = `${riderCase.user.firstName} ${riderCase.user.lastName}`;
                 return (
-                  <Card key={riderCase.id} className="overflow-hidden rounded-2xl border-[#E3EEE9] shadow-sm transition hover:-translate-y-0.5 hover:border-[#9DDFC0] hover:shadow-float"><CardContent className="p-0">
-                    <div className="grid gap-4 p-4 lg:grid-cols-[minmax(230px,1.1fr)_minmax(280px,1.2fr)_minmax(240px,1fr)_auto] lg:items-center">
-                      <div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-100 font-bold text-brand-700">{riderCase.user.firstName[0]}{riderCase.user.lastName[0]}</div><div className="min-w-0"><p className="truncate font-semibold text-gray-950">{name}</p><p className="truncate text-xs text-gray-500">{riderCase.user.phone}{riderCase.user.email ? ` · ${riderCase.user.email}` : ''}</p><div className="mt-1 flex flex-wrap gap-1.5">{channelBadge(riderCase)}{statusBadge(riderCase.onboardingStatus)}</div></div></div>
-                      <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Evidence</p><div className="grid grid-cols-3 gap-2 text-xs"><div className="rounded-lg bg-gray-50 p-2"><FileCheck2 className="mb-1 h-4 w-4 text-blue-600" /><span className="font-bold text-gray-900">{riderCase.evidence.approvedDocuments}/{riderCase.evidence.requiredDocuments}</span><p className="text-gray-500">Documents</p></div><div className="rounded-lg bg-gray-50 p-2"><Bike className="mb-1 h-4 w-4 text-purple-600" /><span className="font-bold text-gray-900">{riderCase.evidence.approvedVehicles}/{riderCase.evidence.registeredVehicles}</span><p className="text-gray-500">Vehicles</p></div><div className="rounded-lg bg-gray-50 p-2"><GraduationCap className="mb-1 h-4 w-4 text-indigo-600" /><span className="font-bold text-gray-900">{riderCase.evidence.trainingVerified}/{riderCase.riderChannel === 'IN_HOUSE' ? 3 : 0}</span><p className="text-gray-500">Training</p></div></div></div>
-                      <div><p className={`text-sm font-semibold ${riderCase.readiness.ready ? 'text-emerald-700' : 'text-gray-900'}`}>{riderCase.nextAction}</p><p className="mt-1 text-xs text-gray-500">{ageLabel(riderCase.lastActivityAt)}</p>{!riderCase.readiness.ready && riderCase.readiness.missing.length > 0 && <p className="mt-1 line-clamp-2 text-xs text-amber-700">{riderCase.readiness.missing.slice(0, 2).join(' · ')}</p>}</div>
-                      <div className="flex gap-2 lg:flex-col"><Button size="sm" onClick={() => router.push(`/dashboard/riders/${riderCase.userId}/review`)}>Open case</Button>{tab === 'all' && <Button size="sm" variant="outline" onClick={() => setStatusTarget(riderCase)}>Account status</Button>}</div>
-                    </div>
-                  </CardContent></Card>
+                  <Card
+                    key={riderCase.id}
+                    className="hover:shadow-float overflow-hidden rounded-2xl border-[#E3EEE9] shadow-sm transition hover:-translate-y-0.5 hover:border-[#9DDFC0]"
+                  >
+                    <CardContent className="p-0">
+                      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(230px,1.1fr)_minmax(280px,1.2fr)_minmax(240px,1fr)_auto] lg:items-center">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="bg-brand-100 text-brand-700 flex h-11 w-11 flex-none items-center justify-center rounded-full font-bold">
+                            {riderCase.user.firstName[0]}
+                            {riderCase.user.lastName[0]}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-gray-950">{name}</p>
+                            <p className="truncate text-xs text-gray-500">
+                              {riderCase.user.phone}
+                              {riderCase.user.email ? ` · ${riderCase.user.email}` : ''}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {channelBadge(riderCase)}
+                              {statusBadge(riderCase.onboardingStatus)}
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Evidence
+                          </p>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <FileCheck2 className="mb-1 h-4 w-4 text-blue-600" />
+                              <span className="font-bold text-gray-900">
+                                {riderCase.evidence.approvedDocuments}/
+                                {riderCase.evidence.requiredDocuments}
+                              </span>
+                              <p className="text-gray-500">Documents</p>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <Bike className="mb-1 h-4 w-4 text-purple-600" />
+                              <span className="font-bold text-gray-900">
+                                {riderCase.evidence.approvedVehicles}/
+                                {riderCase.evidence.registeredVehicles}
+                              </span>
+                              <p className="text-gray-500">Vehicles</p>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <GraduationCap className="mb-1 h-4 w-4 text-indigo-600" />
+                              <span className="font-bold text-gray-900">
+                                {riderCase.evidence.trainingVerified}/
+                                {riderCase.riderChannel === 'IN_HOUSE' ? 3 : 0}
+                              </span>
+                              <p className="text-gray-500">Training</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <p
+                            className={`text-sm font-semibold ${riderCase.readiness.ready ? 'text-emerald-700' : 'text-gray-900'}`}
+                          >
+                            {riderCase.nextAction}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {ageLabel(riderCase.lastActivityAt)}
+                          </p>
+                          {!riderCase.readiness.ready && riderCase.readiness.missing.length > 0 && (
+                            <p className="mt-1 line-clamp-2 text-xs text-amber-700">
+                              {riderCase.readiness.missing.slice(0, 2).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2 lg:flex-col">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              router.push(`/dashboard/riders/${riderCase.userId}/review`)
+                            }
+                          >
+                            Open case
+                          </Button>
+                          {tab === 'all' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setStatusTarget(riderCase);
+                                setNewAccountStatus('');
+                                setStatusReason('');
+                              }}
+                            >
+                              Account status
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
             </div>
           )}
 
-          {pagination && pagination.totalPages > 1 && <div className="mt-5 flex items-center justify-between"><p className="text-sm text-gray-500">Page {pagination.page} of {pagination.totalPages} · {pagination.total} cases</p><div className="flex gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={page >= pagination.totalPages} onClick={() => setPage((value) => value + 1)}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button></div></div>}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="mt-5 flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                Page {pagination.page} of {pagination.totalPages} · {pagination.total} cases
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((value) => value - 1)}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((value) => value + 1)}
+                >
+                  Next
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
       {tab === 'invitations' && (
         <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-          <Card className="rounded-2xl border-[#E3EEE9] shadow-sm"><CardContent className="p-5"><div className="mb-4 flex items-center gap-2"><TicketCheck className="h-5 w-5 text-[#079B61]" /><h2 className="font-bold text-[#07110D]">Issue In-House invitation</h2></div><p className="mb-4 text-sm text-[#6E7A73]">Codes are targeted, single-use, expire after seven days, and are only displayed once.</p><div className="space-y-3"><select value={inviteType} onChange={(event) => setInviteType(event.target.value as 'email' | 'phone')} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option value="email">Send by email</option><option value="phone">Send by SMS</option></select><Input value={inviteTarget} onChange={(event) => setInviteTarget(event.target.value)} placeholder={inviteType === 'email' ? 'rider@example.com' : '+233...'} /><Button className="w-full" disabled={!inviteTarget.trim() || inviteLoading} onClick={() => void createInvitation()}><Send className="mr-2 h-4 w-4" />{inviteLoading ? 'Issuing…' : 'Issue secure invitation'}</Button></div>
-            {issuedInvitation && <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-semibold text-emerald-800">{issuedInvitation.deliveryStatus === 'SENT' ? `Sent to ${issuedInvitation.target}.` : `Automatic delivery failed. Send this code securely to ${issuedInvitation.target}.`}</p><code className="my-2 block select-all break-all text-base font-bold tracking-wide text-emerald-950">{issuedInvitation.code}</code><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void copyInvitation(false)}><Copy className="mr-1 h-3.5 w-3.5" />Code</Button><Button size="sm" variant="outline" onClick={() => void copyInvitation(true)}><Copy className="mr-1 h-3.5 w-3.5" />Message</Button></div><p className="mt-2 text-xs text-emerald-800">Store or send it now. Plaintext is never saved.</p>{inviteFeedback && <p className="mt-1 text-xs font-bold text-emerald-900">{inviteFeedback}</p>}</div>}
-          </CardContent></Card>
-          <Card className="rounded-2xl border-[#E3EEE9] shadow-sm"><CardContent className="p-0"><div className="border-b px-5 py-4"><h2 className="font-bold text-[#07110D]">Invitation register</h2><p className="text-xs text-[#6E7A73]">Latest 100 invitations with issuer and lifecycle state.</p></div>{loading ? <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-brand-500" /></div> : invitations.length === 0 ? <p className="py-16 text-center text-sm text-gray-500">No invitations have been issued.</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-[#F7FAF8] text-left text-xs font-semibold uppercase tracking-wide text-[#65736B]"><tr><th className="px-4 py-3">Target</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Issued by</th><th className="px-4 py-3">Expiry</th><th className="px-4 py-3 text-right">Control</th></tr></thead><tbody className="divide-y">{invitations.map((invitation) => { const state = invitationState(invitation); const canRevoke = state.label === 'Active'; return <tr key={invitation.id} className="hover:bg-[#F7FAF8]"><td className="px-4 py-3"><p className="font-medium text-gray-900">{invitation.targetEmail ?? invitation.targetPhone}</p><p className="text-xs text-gray-400">{new Date(invitation.createdAt).toLocaleString()}</p></td><td className="px-4 py-3"><Badge className={state.className}>{state.label}</Badge>{invitation.consumedBy && <p className="mt-1 text-xs text-gray-400">Linked to Rider</p>}</td><td className="px-4 py-3 text-gray-600">{invitation.createdBy.firstName} {invitation.createdBy.lastName}</td><td className="px-4 py-3 text-gray-600">{new Date(invitation.expiresAt).toLocaleDateString()}</td><td className="px-4 py-3 text-right"><Button size="sm" variant="outline" disabled={!canRevoke} onClick={() => setRevokeTarget(invitation)}><Ban className="mr-1 h-3.5 w-3.5" />Revoke</Button></td></tr>; })}</tbody></table></div>}</CardContent></Card>
+          <Card className="rounded-2xl border-[#E3EEE9] shadow-sm">
+            <CardContent className="p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <TicketCheck className="h-5 w-5 text-[#079B61]" />
+                <h2 className="font-bold text-[#07110D]">Issue In-House invitation</h2>
+              </div>
+              <p className="mb-4 text-sm text-[#6E7A73]">
+                Codes are targeted, single-use, expire after seven days, and are only displayed
+                once.
+              </p>
+              <div className="space-y-3">
+                <select
+                  value={inviteType}
+                  onChange={(event) => setInviteType(event.target.value as 'email' | 'phone')}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <option value="email">Send by email</option>
+                  <option value="phone">Send by SMS</option>
+                </select>
+                <Input
+                  value={inviteTarget}
+                  onChange={(event) => setInviteTarget(event.target.value)}
+                  placeholder={inviteType === 'email' ? 'rider@example.com' : '+233...'}
+                />
+                <Button
+                  className="w-full"
+                  disabled={!inviteTarget.trim() || inviteLoading}
+                  onClick={() => void createInvitation()}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {inviteLoading ? 'Issuing…' : 'Issue secure invitation'}
+                </Button>
+              </div>
+              {issuedInvitation && (
+                <div
+                  className={`mt-5 rounded-xl border p-4 ${issuedInvitation.code ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}
+                >
+                  {issuedInvitation.code ? (
+                    <>
+                      <p className="text-xs font-semibold text-emerald-800">
+                        {issuedInvitation.deliveryStatus === 'SENT'
+                          ? `Delivery was requested for ${issuedInvitation.target}.`
+                          : `Automatic delivery was unavailable. Send this code securely to ${issuedInvitation.target}.`}
+                      </p>
+                      <code className="my-2 block select-all break-all text-base font-bold tracking-wide text-emerald-950">
+                        {issuedInvitation.code}
+                      </code>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void copyInvitation(false)}
+                        >
+                          <Copy className="mr-1 h-3.5 w-3.5" />
+                          Code
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void copyInvitation(true)}
+                        >
+                          <Copy className="mr-1 h-3.5 w-3.5" />
+                          Message
+                        </Button>
+                      </div>
+                      <p className="mt-2 text-xs text-emerald-800">
+                        Store or send it now. Plaintext is never saved.
+                      </p>
+                    </>
+                  ) : (
+                    <div role="status" className="text-xs text-amber-900">
+                      <p className="font-bold">
+                        {issuedInvitation.requestState === 'ACTIVE_TARGET_REUSED'
+                          ? 'An active invitation already exists.'
+                          : 'This invitation request was already completed.'}
+                      </p>
+                      <p className="mt-1">
+                        No second code was created. For security, the original plaintext cannot be
+                        shown again.
+                        {issuedInvitation.requestState === 'ACTIVE_TARGET_REUSED'
+                          ? ' Use its original delivery, or revoke it in the register before issuing a replacement.'
+                          : ' Refresh the register to confirm whether the original invitation is active, used, revoked, or expired.'}
+                      </p>
+                    </div>
+                  )}
+                  {inviteFeedback && issuedInvitation.code && (
+                    <p className="mt-1 text-xs font-bold text-emerald-900">{inviteFeedback}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-[#E3EEE9] shadow-sm">
+            <CardContent className="p-0">
+              <div className="border-b px-5 py-4">
+                <h2 className="font-bold text-[#07110D]">Invitation register</h2>
+                <p className="text-xs text-[#6E7A73]">
+                  Complete invitation history with issuer and lifecycle state.
+                </p>
+              </div>
+              {loading ? (
+                <div className="flex justify-center py-16">
+                  <Spinner className="text-brand-500 h-7 w-7" />
+                </div>
+              ) : invitations.length === 0 ? (
+                <p className="py-16 text-center text-sm text-gray-500">
+                  No invitations have been issued.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#F7FAF8] text-left text-xs font-semibold uppercase tracking-wide text-[#65736B]">
+                      <tr>
+                        <th className="px-4 py-3">Target</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Issued by</th>
+                        <th className="px-4 py-3">Expiry</th>
+                        <th className="px-4 py-3 text-right">Control</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {invitations.map((invitation) => {
+                        const state = invitationState(invitation);
+                        const canRevoke = state.label === 'Active';
+                        return (
+                          <tr key={invitation.id} className="hover:bg-[#F7FAF8]">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-gray-900">
+                                {invitation.targetEmail ?? invitation.targetPhone}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {new Date(invitation.createdAt).toLocaleString()}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge className={state.className}>{state.label}</Badge>
+                              {invitation.consumedBy && (
+                                <p className="mt-1 text-xs text-gray-400">Linked to Rider</p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {invitation.createdBy.firstName} {invitation.createdBy.lastName}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {new Date(invitation.expiresAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!canRevoke}
+                                onClick={() => setRevokeTarget(invitation)}
+                              >
+                                <Ban className="mr-1 h-3.5 w-3.5" />
+                                Revoke
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {invitationPagination && invitationPagination.totalPages > 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-4">
+                  <p className="text-sm text-gray-500">
+                    Page {invitationPagination.page} of {invitationPagination.totalPages} ·{' '}
+                    {invitationPagination.total} invitations
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={invitationPage <= 1 || loading}
+                      onClick={() => setInvitationPage((value) => value - 1)}
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={invitationPage >= invitationPagination.totalPages || loading}
+                      onClick={() => setInvitationPage((value) => value + 1)}
+                    >
+                      Next
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {revokeTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#075C3D]/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Revoke invitation</h3><p className="mt-1 text-sm text-gray-500">This immediately prevents the unused code for {revokeTarget.targetEmail ?? revokeTarget.targetPhone} from being redeemed.</p><textarea value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} rows={3} placeholder="Reason for revocation" className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); }}>Cancel</Button><Button className="bg-red-600 hover:bg-red-700" disabled={revokeReason.trim().length < 5 || updating} onClick={() => void revokeInvitation()}>{updating ? 'Revoking…' : 'Revoke code'}</Button></div></div></div>}
+      {revokeTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#075C3D]/50 p-4 backdrop-blur-sm"
+          role="presentation"
+        >
+          <div
+            ref={revokeDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="revoke-invitation-title"
+            aria-describedby="revoke-invitation-description"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+          >
+            <h3 id="revoke-invitation-title" className="text-lg font-bold text-gray-950">
+              Revoke invitation
+            </h3>
+            <p id="revoke-invitation-description" className="mt-1 text-sm text-gray-500">
+              This immediately prevents the unused code for{' '}
+              {revokeTarget.targetEmail ?? revokeTarget.targetPhone} from being redeemed.
+            </p>
+            <label
+              htmlFor="revoke-invitation-reason"
+              className="mt-4 block text-xs font-semibold text-gray-700"
+            >
+              Reason for revocation
+            </label>
+            <textarea
+              ref={revokeReasonRef}
+              id="revoke-invitation-reason"
+              value={revokeReason}
+              onChange={(event) => setRevokeReason(event.target.value)}
+              rows={3}
+              placeholder="Reason for revocation"
+              className="focus:border-brand-500 mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={closeRevokeDialog}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700"
+                disabled={revokeReason.trim().length < 5 || updating}
+                onClick={() => void revokeInvitation()}
+              >
+                {updating ? 'Revoking…' : 'Revoke code'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {statusTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#075C3D]/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-gray-950">Account access</h3><p className="mt-1 text-sm text-gray-500">Update access for <strong>{statusTarget.user.firstName} {statusTarget.user.lastName}</strong>. Current status: {formatStatus(statusTarget.user.status)}.</p><select value={newAccountStatus} onChange={(event) => setNewAccountStatus(event.target.value)} className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option value="">Choose status</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="DEACTIVATED">Deactivated</option><option value="BANNED">Banned</option></select><textarea value={statusReason} onChange={(event) => setStatusReason(event.target.value)} rows={3} placeholder="Operational reason" className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500" /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button disabled={!newAccountStatus || updating} onClick={() => void updateAccountStatus()}>{updating ? 'Updating…' : 'Apply status'}</Button></div></div></div>}
+      {statusTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#075C3D]/50 p-4 backdrop-blur-sm"
+          role="presentation"
+        >
+          <div
+            ref={statusDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rider-status-title"
+            aria-describedby="rider-status-description"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+          >
+            <h3 id="rider-status-title" className="text-lg font-bold text-gray-950">
+              Account access
+            </h3>
+            <p id="rider-status-description" className="mt-1 text-sm text-gray-500">
+              Update access for{' '}
+              <strong>
+                {statusTarget.user.firstName} {statusTarget.user.lastName}
+              </strong>
+              . Current status: {formatStatus(statusTarget.user.status)}.
+            </p>
+            <label
+              htmlFor="rider-account-status"
+              className="mt-4 block text-xs font-semibold text-gray-700"
+            >
+              New account status
+            </label>
+            <select
+              ref={statusSelectRef}
+              id="rider-account-status"
+              value={newAccountStatus}
+              onChange={(event) => setNewAccountStatus(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            >
+              <option value="">Choose status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="DEACTIVATED">Deactivated</option>
+              <option value="BANNED">Banned</option>
+            </select>
+            <label
+              htmlFor="rider-status-reason"
+              className="mt-3 block text-xs font-semibold text-gray-700"
+            >
+              Operational reason{' '}
+              {newAccountStatus && newAccountStatus !== 'ACTIVE' ? '(required)' : '(optional)'}
+            </label>
+            <textarea
+              id="rider-status-reason"
+              value={statusReason}
+              onChange={(event) => setStatusReason(event.target.value)}
+              rows={3}
+              minLength={newAccountStatus !== 'ACTIVE' ? 5 : undefined}
+              required={Boolean(newAccountStatus && newAccountStatus !== 'ACTIVE')}
+              placeholder="Explain why access is changing"
+              className="focus:border-brand-500 mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none"
+            />
+            {newAccountStatus && newAccountStatus !== 'ACTIVE' && (
+              <p className="mt-1 text-xs text-gray-500">
+                At least 5 characters. This reason is recorded in the audit log.
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={closeStatusDialog}>
+                Cancel
+              </Button>
+              <Button
+                disabled={
+                  !newAccountStatus ||
+                  updating ||
+                  (newAccountStatus !== 'ACTIVE' && statusReason.trim().length < 5)
+                }
+                onClick={() => void updateAccountStatus()}
+              >
+                {updating ? 'Updating…' : 'Apply status'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

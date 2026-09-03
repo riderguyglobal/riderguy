@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useAuth } from '@riderguy/auth';
+import { getApiClient } from '@riderguy/auth';
 import {
   Card,
   CardContent,
@@ -19,10 +19,8 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
   DialogTrigger,
 } from '@riderguy/ui';
-import { API_BASE_URL } from '@/lib/constants';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -43,8 +41,6 @@ interface ZoneData {
 // ─── Component ──────────────────────────────────────────────
 
 export default function ZoneManagementPage() {
-  const { accessToken } = useAuth();
-
   const [zones, setZones] = useState<ZoneData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,19 +66,14 @@ export default function ZoneManagementPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${API_BASE_URL}/zones`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!res.ok) throw new Error('Failed to load zones');
-      const json = await res.json();
-      setZones(json.data);
+      const { data } = await getApiClient().get('/zones');
+      setZones(data.data ?? []);
     } catch {
       setError('Failed to load zones.');
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, []);
 
   useEffect(() => {
     void fetchZones();
@@ -90,15 +81,25 @@ export default function ZoneManagementPage() {
 
   // ── Create zone ───────────────────────────────────────────
   const handleCreateZone = useCallback(async () => {
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      setError('Zone name is required.');
+      return;
+    }
 
     setActionLoading(true);
     try {
-      const centerLat = parseFloat(newCenterLat) || -26.2041;
-      const centerLng = parseFloat(newCenterLng) || 28.0473;
+      const centerLat = Number(newCenterLat);
+      const centerLng = Number(newCenterLng);
+      if (!Number.isFinite(centerLat) || !Number.isFinite(centerLng)) {
+        throw new Error('Enter explicit Ghana centre coordinates before creating a zone.');
+      }
+      if (centerLat < 4.5 || centerLat > 11.2 || centerLng < -3.3 || centerLng > 1.3) {
+        throw new Error('Zone coordinates must be within Ghana.');
+      }
 
-      // Generate a simple square polygon around center (for demo)
-      const d = 0.05;
+      // Create a small, closed starter boundary around the explicitly chosen
+      // Ghana centre. It can be refined through the general zone update API.
+      const d = 0.025;
       const polygon = [
         [
           [centerLng - d, centerLat - d],
@@ -121,19 +122,7 @@ export default function ZoneManagementPage() {
         currency: newCurrency,
       };
 
-      const res = await fetch(`${API_BASE_URL}/zones`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const json = await res.json().catch((): null => null);
-        throw new Error(json?.error?.message ?? 'Failed to create zone');
-      }
+      await getApiClient().post('/zones', body);
 
       setShowNewZone(false);
       setNewName('');
@@ -146,7 +135,6 @@ export default function ZoneManagementPage() {
       setActionLoading(false);
     }
   }, [
-    accessToken,
     newName,
     newBaseFare,
     newPerKm,
@@ -164,12 +152,7 @@ export default function ZoneManagementPage() {
       setActionLoading(true);
       try {
         const action = currentStatus === 'ACTIVE' ? 'deactivate' : 'activate';
-        const res = await fetch(`${API_BASE_URL}/zones/${zoneId}/${action}`, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        if (!res.ok) throw new Error('Failed to update zone status');
+        await getApiClient().patch(`/zones/${zoneId}/${action}`);
         await fetchZones();
       } catch {
         setError('Failed to update zone status.');
@@ -177,7 +160,7 @@ export default function ZoneManagementPage() {
         setActionLoading(false);
       }
     },
-    [accessToken, fetchZones],
+    [fetchZones],
   );
 
   // ── Update surge ──────────────────────────────────────────
@@ -186,33 +169,29 @@ export default function ZoneManagementPage() {
 
     setActionLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/zones/${surgeZoneId}/surge`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ surgeMultiplier: parseFloat(surgeValue) }),
+      await getApiClient().patch(`/zones/${surgeZoneId}/surge`, {
+        surgeMultiplier: parseFloat(surgeValue),
       });
-
-      if (!res.ok) throw new Error('Failed to update surge');
       setSurgeZoneId(null);
       await fetchZones();
     } catch {
       setError('Failed to update surge multiplier.');
+      setSurgeZoneId(null);
     } finally {
       setActionLoading(false);
     }
-  }, [accessToken, surgeZoneId, surgeValue, fetchZones]);
+  }, [surgeZoneId, surgeValue, fetchZones]);
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <p className="admin-kicker">Coverage &amp; pricing</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">Zone management</h1>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#07110D]">
+            Zone management
+          </h1>
           <p className="mt-2 text-sm text-[#6E7A73]">
-            Manage delivery zones, pricing, and surge multipliers.
+            Ghana-only delivery boundaries, pricing, and live demand controls.
           </p>
         </div>
         <Button onClick={() => setShowNewZone(true)}>+ Create Zone</Button>
@@ -231,7 +210,7 @@ export default function ZoneManagementPage() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Spinner className="h-8 w-8 text-brand-500" />
+          <Spinner className="text-brand-500 h-8 w-8" />
         </div>
       )}
 
@@ -253,9 +232,9 @@ export default function ZoneManagementPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="centerLat">Center Latitude</Label>
+                <Label htmlFor="centerLat">Center Latitude *</Label>
                 <Input
                   id="centerLat"
                   type="number"
@@ -267,7 +246,7 @@ export default function ZoneManagementPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="centerLng">Center Longitude</Label>
+                <Label htmlFor="centerLng">Center Longitude *</Label>
                 <Input
                   id="centerLng"
                   type="number"
@@ -280,9 +259,14 @@ export default function ZoneManagementPage() {
               </div>
             </div>
 
+            <p className="rounded-xl border border-[#CFE8DB] bg-[#F0FBF6] px-4 py-3 text-xs leading-5 text-[#315B47]">
+              Coordinates are required and validated against Ghana&apos;s bounds. A closed starter
+              service boundary is created around this centre; review the impact before activation.
+            </p>
+
             <Separator />
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div>
                 <Label htmlFor="baseFare">Base Fare</Label>
                 <Input
@@ -332,10 +316,7 @@ export default function ZoneManagementPage() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowNewZone(false)}
-              >
+              <Button variant="outline" onClick={() => setShowNewZone(false)}>
                 Cancel
               </Button>
               <Button
@@ -386,25 +367,34 @@ export default function ZoneManagementPage() {
                       )}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
-                      <span>Base: {zone.currency} {zone.baseFare.toFixed(2)}</span>
-                      <span>Per km: {zone.currency} {zone.perKmRate.toFixed(2)}</span>
-                      <span>Min: {zone.currency} {zone.minimumFare.toFixed(2)}</span>
+                      <span>
+                        Base: {zone.currency} {zone.baseFare.toFixed(2)}
+                      </span>
+                      <span>
+                        Per km: {zone.currency} {zone.perKmRate.toFixed(2)}
+                      </span>
+                      <span>
+                        Min: {zone.currency} {zone.minimumFare.toFixed(2)}
+                      </span>
                       <span>Commission: {zone.commissionRate}%</span>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
                     {/* Surge button */}
-                    <Dialog>
+                    <Dialog
+                      open={surgeZoneId === zone.id}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          setSurgeZoneId(zone.id);
+                          setSurgeValue(String(zone.surgeMultiplier));
+                        } else if (!actionLoading) {
+                          setSurgeZoneId(null);
+                        }
+                      }}
+                    >
                       <DialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSurgeZoneId(zone.id);
-                            setSurgeValue(String(zone.surgeMultiplier));
-                          }}
-                        >
+                        <Button variant="outline" size="sm">
                           ⚡ Surge
                         </Button>
                       </DialogTrigger>
@@ -429,13 +419,14 @@ export default function ZoneManagementPage() {
                           />
                         </div>
                         <DialogFooter>
-                          <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                          </DialogClose>
                           <Button
-                            onClick={() => void handleUpdateSurge()}
+                            variant="outline"
                             disabled={actionLoading}
+                            onClick={() => setSurgeZoneId(null)}
                           >
+                            Cancel
+                          </Button>
+                          <Button onClick={() => void handleUpdateSurge()} disabled={actionLoading}>
                             Update Surge
                           </Button>
                         </DialogFooter>
@@ -446,9 +437,7 @@ export default function ZoneManagementPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        void handleToggleStatus(zone.id, zone.status)
-                      }
+                      onClick={() => void handleToggleStatus(zone.id, zone.status)}
                       disabled={actionLoading}
                     >
                       {zone.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}

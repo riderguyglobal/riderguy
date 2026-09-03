@@ -30,6 +30,25 @@ export const mentorSearchSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+export const adminMentorshipListSchema = z
+  .object({
+    status: z.enum(['PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED']).optional(),
+    search: z.string().trim().max(100).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+
+export const adminMentorshipStatusSchema = z
+  .object({
+    status: z.enum(['ACTIVE', 'COMPLETED', 'CANCELLED']),
+    note: z.string().trim().min(5, 'An administrator note is required').max(1000),
+  })
+  .strict();
+
+export type AdminMentorshipListQuery = z.infer<typeof adminMentorshipListSchema>;
+export type AdminMentorshipStatusInput = z.infer<typeof adminMentorshipStatusSchema>;
+
 // ────── Events ──────
 
 export const createEventSchema = z.object({
@@ -61,6 +80,7 @@ export const updateEventSchema = z.object({
 
 export const listEventsSchema = z.object({
   status: z.enum(['UPCOMING', 'ONGOING', 'COMPLETED', 'CANCELLED']).optional(),
+  scope: z.enum(['all', 'operational']).default('all'),
   zoneId: z.string().optional(),
   type: z.enum(['IN_PERSON', 'VIRTUAL', 'HYBRID']).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -71,7 +91,10 @@ export const listEventsSchema = z.object({
 
 export const createFeatureRequestSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(200, 'Title too long'),
-  description: z.string().min(20, 'Description must be at least 20 characters').max(5000, 'Description too long'),
+  description: z
+    .string()
+    .min(20, 'Description must be at least 20 characters')
+    .max(5000, 'Description too long'),
 });
 
 export const updateFeatureRequestStatusSchema = z.object({
@@ -80,7 +103,9 @@ export const updateFeatureRequestStatusSchema = z.object({
 });
 
 export const listFeatureRequestsSchema = z.object({
-  status: z.enum(['SUBMITTED', 'REVIEWED', 'PLANNED', 'IN_PROGRESS', 'SHIPPED', 'DECLINED']).optional(),
+  status: z
+    .enum(['SUBMITTED', 'REVIEWED', 'PLANNED', 'IN_PROGRESS', 'SHIPPED', 'DECLINED'])
+    .optional(),
   sort: z.enum(['newest', 'oldest', 'most_upvoted']).default('most_upvoted'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),

@@ -6,6 +6,7 @@ import { transitionStatus } from './order.service';
 import { processCancellationConsequences } from './cancellation.service';
 import { createOrderNotification } from './notification.service';
 import { emitOrderStatusUpdate } from '../socket';
+import { ApiError } from '../lib/api-error';
 
 // ============================================================
 // Order Reassign & Auto-Cancel Service
@@ -144,7 +145,10 @@ export async function reassignGpsDarkRiders(): Promise<number> {
   }
 
   if (reassigned > 0) {
-    logger.warn({ reassigned, total: staleOrders.length }, '[Reassign] GPS-dark rider sweep completed');
+    logger.warn(
+      { reassigned, total: staleOrders.length },
+      '[Reassign] GPS-dark rider sweep completed',
+    );
   }
 
   return reassigned;
@@ -237,7 +241,10 @@ export async function reassignOfflineRiders(): Promise<number> {
   }
 
   if (reassigned > 0) {
-    logger.warn({ reassigned, total: staleOrders.length }, '[Reassign] Offline rider sweep completed');
+    logger.warn(
+      { reassigned, total: staleOrders.length },
+      '[Reassign] Offline rider sweep completed',
+    );
   }
 
   return reassigned;
@@ -268,9 +275,7 @@ export async function failOrderAsStuck(
 
   // Only fail orders that are actually post-pickup (or AT_PICKUP).
   // Pre-pickup orders should be reassigned, not failed.
-  const failableStatuses: OrderStatus[] = [
-    'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF',
-  ];
+  const failableStatuses: OrderStatus[] = ['AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
   if (!failableStatuses.includes(order.status)) {
     logger.warn(
       { orderId, status: order.status },
@@ -297,12 +302,17 @@ export async function failOrderAsStuck(
     // ONLINE because they're likely broken; just clear the assignment
     // by flipping availability to OFFLINE so dispatch won't pick them.
     if (order.rider) {
-      await prisma.riderProfile.update({
-        where: { id: order.rider.id },
-        data: { availability: 'OFFLINE' },
-      }).catch((err) => {
-        logger.error({ err, riderId: order.rider!.id }, '[Reassign] Failed to mark stuck rider OFFLINE');
-      });
+      await prisma.riderProfile
+        .update({
+          where: { id: order.rider.id },
+          data: { availability: 'OFFLINE' },
+        })
+        .catch((err) => {
+          logger.error(
+            { err, riderId: order.rider!.id },
+            '[Reassign] Failed to mark stuck rider OFFLINE',
+          );
+        });
     }
 
     // Notify client
@@ -334,7 +344,9 @@ export async function failOrderAsStuck(
         reason,
         timestamp: new Date().toISOString(),
       });
-    } catch { /* socket might not be initialized in tests */ }
+    } catch {
+      /* socket might not be initialized in tests */
+    }
 
     logger.warn(
       { orderId, orderNumber: order.orderNumber, previousStatus, reason, actor },
@@ -391,7 +403,10 @@ export async function failStuckPostPickupOrders(): Promise<number> {
   }
 
   if (failed > 0) {
-    logger.warn({ failed, total: stuckOrders.length }, '[Reassign] Stuck-order auto-fail sweep completed');
+    logger.warn(
+      { failed, total: stuckOrders.length },
+      '[Reassign] Stuck-order auto-fail sweep completed',
+    );
   }
 
   return failed;
@@ -405,9 +420,7 @@ export async function failStuckPostPickupOrders(): Promise<number> {
  *
  * Called from the payment webhook when a previously-pending payment fails.
  */
-export async function handlePaymentFailureAfterAssignment(
-  orderId: string,
-): Promise<void> {
+export async function handlePaymentFailureAfterAssignment(orderId: string): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -419,7 +432,10 @@ export async function handlePaymentFailureAfterAssignment(
 
   // Only act if the order is still in an active status with a rider assigned
   const activeStatuses: OrderStatus[] = [
-    'ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'SEARCHING_RIDER',
+    'ASSIGNED',
+    'PICKUP_EN_ROUTE',
+    'AT_PICKUP',
+    'SEARCHING_RIDER',
   ];
   if (!activeStatuses.includes(order.status) || !order.rider) return;
 
@@ -452,7 +468,10 @@ export async function handlePaymentFailureAfterAssignment(
       orderId,
     ).catch(() => {});
 
-    logger.warn({ orderId, orderNumber: order.orderNumber }, '[Reassign] Cancelled order due to payment failure after assignment');
+    logger.warn(
+      { orderId, orderNumber: order.orderNumber },
+      '[Reassign] Cancelled order due to payment failure after assignment',
+    );
   } catch (err) {
     logger.error({ err, orderId }, '[Reassign] Failed to cancel order after payment failure');
   }
@@ -467,7 +486,17 @@ export async function handlePaymentFailureAfterAssignment(
  *
  * Called when admin suspends a rider via the admin dashboard.
  */
-export async function handleRiderSuspended(riderId: string): Promise<number> {
+export async function handleRiderSuspended(
+  riderId: string,
+  restriction: 'SUSPENDED' | 'DEACTIVATED' | 'BANNED' = 'SUSPENDED',
+): Promise<number> {
+  // Keep the operational presence model consistent with the account boundary,
+  // including restricted Riders who currently have no assigned order.
+  await prisma.riderProfile.updateMany({
+    where: { id: riderId, availability: { not: 'OFFLINE' } },
+    data: { availability: 'OFFLINE', isConnected: false, socketId: null },
+  });
+
   const activeOrders = await prisma.order.findMany({
     where: {
       riderId,
@@ -490,6 +519,7 @@ export async function handleRiderSuspended(riderId: string): Promise<number> {
   if (!rider) return 0;
 
   let handled = 0;
+  const failedOrderIds: string[] = [];
   for (const order of activeOrders) {
     try {
       if (PRE_PICKUP_STATUSES.includes(order.status as OrderStatus)) {
@@ -500,7 +530,7 @@ export async function handleRiderSuspended(riderId: string): Promise<number> {
           riderId,
           rider.userId,
           order.clientId,
-          'RIDER_SUSPENDED: Admin suspended rider. Auto-reassigning.',
+          `RIDER_${restriction}: Admin restricted rider access. Auto-reassigning.`,
         );
         handled++;
       } else {
@@ -510,13 +540,27 @@ export async function handleRiderSuspended(riderId: string): Promise<number> {
           order.status as OrderStatus,
           rider.userId,
           order.clientId,
-          'RIDER_SUSPENDED: Admin suspended rider while package is with rider. Requires resolution.',
+          `RIDER_${restriction}: Admin restricted rider access while package is with rider. Requires resolution.`,
         );
         handled++;
       }
     } catch (err) {
-      logger.error({ err, orderId: order.id }, '[Reassign] Failed to handle suspended rider order');
+      failedOrderIds.push(order.id);
+      logger.error(
+        { err, orderId: order.id, riderId, restriction },
+        '[Reassign] Failed to recover order for restricted Rider',
+      );
     }
+  }
+
+  if (failedOrderIds.length > 0) {
+    throw new ApiError(
+      503,
+      `Rider access was restricted, but ${failedOrderIds.length} active order(s) still require recovery. Retry or escalate immediately.`,
+      'RIDER_ORDER_RECOVERY_INCOMPLETE',
+      true,
+      { riderId, restriction, failedOrderIds, handledOrders: handled },
+    );
   }
 
   return handled;
@@ -569,12 +613,7 @@ export async function resolveExpiredCancelRequests(): Promise<number> {
 
       const cancelNote = `System cancel: Cancel request expired without client response after 30min. Package with rider.`;
 
-      await transitionStatus(
-        request.order.id,
-        'CANCELLED_BY_ADMIN',
-        'system',
-        cancelNote,
-      );
+      await transitionStatus(request.order.id, 'CANCELLED_BY_ADMIN', 'system', cancelNote);
 
       // Mark the cancel request as admin-resolved
       await prisma.cancellationRequest.update({
@@ -582,7 +621,8 @@ export async function resolveExpiredCancelRequests(): Promise<number> {
         data: {
           status: 'ADMIN_RESOLVED',
           adminResolvedBy: 'system',
-          adminNote: 'Auto-resolved after 30-minute timeout. Order cancelled. Investigation required.',
+          adminNote:
+            'Auto-resolved after 30-minute timeout. Order cancelled. Investigation required.',
         },
       });
 
@@ -623,7 +663,10 @@ export async function resolveExpiredCancelRequests(): Promise<number> {
 
       resolved++;
     } catch (err) {
-      logger.error({ err, requestId: request.id }, '[Reassign] Failed to resolve expired cancel request');
+      logger.error(
+        { err, requestId: request.id },
+        '[Reassign] Failed to resolve expired cancel request',
+      );
     }
   }
 
@@ -685,13 +728,19 @@ async function reassignOrder(
   // Release the rider back to ONLINE (if not suspended/offline)
   const rider = await prisma.riderProfile.findUnique({
     where: { id: riderId },
-    select: { availability: true, suspendedUntil: true },
+    select: {
+      availability: true,
+      suspendedUntil: true,
+      user: { select: { status: true } },
+    },
   });
   if (rider && rider.availability === 'ON_DELIVERY') {
     const isSuspended = rider.suspendedUntil && rider.suspendedUntil > new Date();
     await prisma.riderProfile.update({
       where: { id: riderId },
-      data: { availability: isSuspended ? 'OFFLINE' : 'ONLINE' },
+      data: {
+        availability: isSuspended || rider.user.status !== 'ACTIVE' ? 'OFFLINE' : 'ONLINE',
+      },
     });
   }
 
@@ -789,7 +838,12 @@ async function escalateToAdmin(
       reason: systemNote,
       timestamp: new Date().toISOString(),
     });
-  } catch { /* socket might not be initialized in tests */ }
+  } catch {
+    /* socket might not be initialized in tests */
+  }
 
-  logger.warn({ orderId, orderNumber, currentStatus }, `[Reassign] Escalated to admin: ${systemNote}`);
+  logger.warn(
+    { orderId, orderNumber, currentStatus },
+    `[Reassign] Escalated to admin: ${systemNote}`,
+  );
 }

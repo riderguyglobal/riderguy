@@ -14,6 +14,7 @@ import {
   reviewVehicleSchema,
   selectRiderChannelSchema,
   createInHouseInvitationSchema,
+  listInHouseInvitationsQuerySchema,
   rejectRiderApplicationSchema,
   adminClassifyRiderChannelSchema,
   createAssetFinancingInterestSchema,
@@ -21,7 +22,10 @@ import {
   updateAssetFinancingInterestStatusSchema,
   reviewTrainingModuleSchema,
 } from '@riderguy/validators';
-import type { ListAssetFinancingInterestsQuery } from '@riderguy/validators';
+import type {
+  ListAssetFinancingInterestsQuery,
+  ListInHouseInvitationsQuery,
+} from '@riderguy/validators';
 import { VehicleService } from '../../services/vehicle.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { AssetFinancingService } from '../../services/asset-financing.service';
@@ -59,8 +63,16 @@ async function getRiderProfileId(userId: string): Promise<string> {
 }
 
 const tempStorage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, os.tmpdir()),
-  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+  destination: (
+    _req: Request,
+    _file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void,
+  ) => cb(null, os.tmpdir()),
+  filename: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void,
+  ) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `riderguy-veh-${crypto.randomUUID()}${ext}`);
   },
@@ -77,6 +89,30 @@ const vehiclePhotoUpload = multer({
 });
 
 const router = Router();
+
+async function sendRiderDecisionNotification(input: {
+  userId: string;
+  title: string;
+  body: string;
+  type: 'TRAINING' | 'SYSTEM';
+  data: Record<string, unknown>;
+  failureContext: string;
+}): Promise<void> {
+  try {
+    await NotificationService.create({
+      userId: input.userId,
+      title: input.title,
+      body: input.body,
+      type: input.type,
+      data: input.data,
+    });
+  } catch (error) {
+    logger.error(
+      { error, riderId: input.userId, notificationData: input.data },
+      input.failureContext,
+    );
+  }
+}
 
 router.use(authenticate);
 
@@ -120,9 +156,10 @@ export async function registerAssetFinancingInterestHandler(
     success: true,
     data: {
       ...result,
-      message: result.outcome === 'UNCHANGED'
-        ? 'Your existing asset-financing interest is already registered.'
-        : 'Your interest has been registered for eligibility review.',
+      message:
+        result.outcome === 'UNCHANGED'
+          ? 'Your existing asset-financing interest is already registered.'
+          : 'Your interest has been registered for eligibility review.',
     },
   });
 }
@@ -213,7 +250,7 @@ router.get(
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
-  })
+  }),
 );
 
 /** PATCH /riders/availability — also accepts initial GPS so lat/lng is never null */
@@ -250,7 +287,10 @@ router.patch(
             `Your account is suspended until ${currentProfile.suspendedUntil.toISOString()}. You cannot go online during a suspension.`,
           );
         }
-        if (currentProfile.availability === 'ONLINE' || currentProfile.availability === 'ON_DELIVERY') {
+        if (
+          currentProfile.availability === 'ONLINE' ||
+          currentProfile.availability === 'ON_DELIVERY'
+        ) {
           existingSessionStartedAt = currentProfile.sessionStartedAt;
         }
       }
@@ -277,7 +317,7 @@ router.patch(
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
-  })
+  }),
 );
 
 /** POST /riders/location — update rider location */
@@ -302,22 +342,29 @@ router.post(
 
     // Write LocationHistory breadcrumbs for any active orders (REST fallback)
     const activeOrders = await prisma.order.findMany({
-      where: { riderId: profile.id, status: { in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'] } },
+      where: {
+        riderId: profile.id,
+        status: {
+          in: ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'],
+        },
+      },
       select: { id: true },
     });
     if (activeOrders.length > 0) {
-      prisma.locationHistory.createMany({
-        data: activeOrders.map((o) => ({
-          riderId: profile.id,
-          orderId: o.id,
-          latitude,
-          longitude,
-        })),
-      }).catch(() => {});
+      prisma.locationHistory
+        .createMany({
+          data: activeOrders.map((o) => ({
+            riderId: profile.id,
+            orderId: o.id,
+            latitude,
+            longitude,
+          })),
+        })
+        .catch(() => {});
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: { latitude, longitude } });
-  })
+  }),
 );
 
 /** GET /riders/nearby — Get online riders near a given location (for client maps) */
@@ -361,9 +408,7 @@ router.get(
         const dLng = (rLng - longitude) * DEG_TO_RAD;
         const a =
           Math.sin(dLat / 2) ** 2 +
-          Math.cos(latitude * DEG_TO_RAD) *
-            Math.cos(rLat * DEG_TO_RAD) *
-            Math.sin(dLng / 2) ** 2;
+          Math.cos(latitude * DEG_TO_RAD) * Math.cos(rLat * DEG_TO_RAD) * Math.sin(dLng / 2) ** 2;
         const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return { id: r.id, latitude: rLat, longitude: rLng, firstName: r.user?.firstName, distKm };
       })
@@ -372,7 +417,7 @@ router.get(
       .slice(0, 50); // cap at 50
 
     res.status(StatusCodes.OK).json({ success: true, data: nearbyRiders });
-  })
+  }),
 );
 
 /** GET /riders (admin only) — list all riders */
@@ -409,7 +454,7 @@ router.get(
       data: riders,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  })
+  }),
 );
 
 // ────────────────────────── Onboarding ──────────────────────────
@@ -659,7 +704,9 @@ router.post(
       req.body,
       adminAuditContext(req),
     );
-    res.status(StatusCodes.CREATED).json({ success: true, data: invitation });
+    res
+      .status(invitation.requestState === 'CREATED' ? StatusCodes.CREATED : StatusCodes.OK)
+      .json({ success: true, data: invitation });
   }),
 );
 
@@ -667,9 +714,16 @@ router.post(
 router.get(
   '/invitations',
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
-  asyncHandler(async (_req, res) => {
-    const invitations = await OnboardingService.listInHouseInvitations();
-    res.status(StatusCodes.OK).json({ success: true, data: invitations });
+  validate(listInHouseInvitationsQuerySchema, 'query'),
+  asyncHandler(async (req, res) => {
+    const result = await OnboardingService.listInHouseInvitations(
+      req.query as unknown as ListInHouseInvitationsQuery,
+    );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result.items,
+      pagination: result.pagination,
+    });
   }),
 );
 
@@ -713,7 +767,10 @@ router.get(
     const readiness = await OnboardingService.getApprovalReadiness(riderId);
     res.status(StatusCodes.OK).json({
       success: true,
-      data: { ...profile, approvalReadiness: { ready: readiness.ready, missing: readiness.missing } },
+      data: {
+        ...profile,
+        approvalReadiness: { ready: readiness.ready, missing: readiness.missing },
+      },
     });
   }),
 );
@@ -734,25 +791,44 @@ router.get(
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const skip = (page - 1) * limit;
-    const channel = req.query.channel === 'GUEST' || req.query.channel === 'IN_HOUSE'
-      ? req.query.channel
-      : undefined;
-    const requestedChannel = req.query.requestedChannel === 'GUEST' || req.query.requestedChannel === 'IN_HOUSE'
-      ? req.query.requestedChannel
-      : undefined;
+    const channel =
+      req.query.channel === 'GUEST' || req.query.channel === 'IN_HOUSE'
+        ? req.query.channel
+        : undefined;
+    const requestedChannel =
+      req.query.requestedChannel === 'GUEST' || req.query.requestedChannel === 'IN_HOUSE'
+        ? req.query.requestedChannel
+        : undefined;
     const requestedStatus = typeof req.query.status === 'string' ? req.query.status : undefined;
     const allowedStatuses = new Set([
-      'REGISTERED', 'DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'DOCUMENTS_UNDER_REVIEW',
-      'DOCUMENTS_APPROVED', 'DOCUMENTS_REJECTED', 'TRAINING_PENDING', 'TRAINING_COMPLETE',
-      'APPLICATION_REJECTED', 'ACTIVATED',
+      'REGISTERED',
+      'DOCUMENTS_PENDING',
+      'DOCUMENTS_SUBMITTED',
+      'DOCUMENTS_UNDER_REVIEW',
+      'DOCUMENTS_APPROVED',
+      'DOCUMENTS_REJECTED',
+      'TRAINING_PENDING',
+      'TRAINING_COMPLETE',
+      'APPLICATION_REJECTED',
+      'ACTIVATED',
     ]);
-    const status = requestedStatus && allowedStatuses.has(requestedStatus) ? requestedStatus : undefined;
+    const status =
+      requestedStatus && allowedStatuses.has(requestedStatus) ? requestedStatus : undefined;
     const where: any = {
       ...(status
         ? { onboardingStatus: status }
         : { OR: [{ onboardingStatus: { not: 'ACTIVATED' } }, { riderChannel: null }] }),
       ...(channel
-        ? { AND: [{ OR: [{ riderChannel: channel }, { riderChannel: null, requestedRiderChannel: channel }] }] }
+        ? {
+            AND: [
+              {
+                OR: [
+                  { riderChannel: channel },
+                  { riderChannel: null, requestedRiderChannel: channel },
+                ],
+              },
+            ],
+          }
         : {}),
       ...(requestedChannel ? { requestedRiderChannel: requestedChannel } : {}),
     };
@@ -794,12 +870,22 @@ router.patch(
   '/:riderId/training/:moduleKey/verify',
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
+    const riderId = String(req.params.riderId);
+    const moduleKey = String(req.params.moduleKey).toUpperCase();
     const completion = await OnboardingService.verifyTrainingModule(
       req.user!.userId,
-      String(req.params.riderId),
-      String(req.params.moduleKey).toUpperCase(),
+      riderId,
+      moduleKey,
       adminAuditContext(req),
     );
+    await sendRiderDecisionNotification({
+      userId: riderId,
+      title: 'Training module verified',
+      body: `Your ${moduleKey.replace(/_/g, ' ').toLowerCase()} training module has been verified by RiderGuy.`,
+      type: 'TRAINING',
+      data: { moduleKey, decision: 'VERIFIED' },
+      failureContext: 'Training verification notification failed after the decision was persisted',
+    });
     res.status(StatusCodes.OK).json({ success: true, data: completion });
   }),
 );
@@ -810,14 +896,29 @@ router.patch(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate(reviewTrainingModuleSchema),
   asyncHandler(async (req, res) => {
+    const riderId = String(req.params.riderId);
+    const moduleKey = String(req.params.moduleKey).toUpperCase();
+    const decision = req.body.decision as 'VERIFIED' | 'REVOKED';
+    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
     const completion = await OnboardingService.reviewTrainingModule(
       req.user!.userId,
-      String(req.params.riderId),
-      String(req.params.moduleKey).toUpperCase(),
-      req.body.decision,
-      req.body.reason,
+      riderId,
+      moduleKey,
+      decision,
+      reason || undefined,
       adminAuditContext(req),
     );
+    await sendRiderDecisionNotification({
+      userId: riderId,
+      title: decision === 'VERIFIED' ? 'Training module verified' : 'Training verification revoked',
+      body:
+        decision === 'VERIFIED'
+          ? `Your ${moduleKey.replace(/_/g, ' ').toLowerCase()} training module has been verified by RiderGuy.`
+          : `RiderGuy revoked verification for your ${moduleKey.replace(/_/g, ' ').toLowerCase()} training module.${reason ? ` Reason: ${reason}` : ''}`,
+      type: 'TRAINING',
+      data: { moduleKey, decision, ...(reason ? { reason } : {}) },
+      failureContext: 'Training review notification failed after the decision was persisted',
+    });
     res.status(StatusCodes.OK).json({ success: true, data: completion });
   }),
 );
@@ -851,22 +952,37 @@ router.patch(
         },
       });
       const context = adminAuditContext(req);
-      await AdminAuditService.record({
-        ...context,
-        action: 'rider_channel.classified',
-        entityType: 'RiderProfile',
-        entityId: existing.id,
-        oldData: {
-          riderChannel: existing.riderChannel,
-          requestedRiderChannel: existing.requestedRiderChannel,
+      await AdminAuditService.record(
+        {
+          ...context,
+          action: 'rider_channel.classified',
+          entityType: 'RiderProfile',
+          entityId: existing.id,
+          oldData: {
+            riderChannel: existing.riderChannel,
+            requestedRiderChannel: existing.requestedRiderChannel,
+          },
+          newData: { riderChannel: channel, classifiedAt: now },
         },
-        newData: { riderChannel: channel, classifiedAt: now },
-      }, tx);
+        tx,
+      );
       return updated;
     });
     if (profile.onboardingStatus !== 'ACTIVATED') {
       await OnboardingService.recalculateStatus(riderId);
     }
+
+    await sendRiderDecisionNotification({
+      userId: riderId,
+      title: 'Rider channel confirmed',
+      body:
+        channel === 'IN_HOUSE'
+          ? 'RiderGuy has confirmed your account as a trained In-House Rider.'
+          : 'RiderGuy has confirmed your account as a 3rd Party Rider (Guest).',
+      type: 'SYSTEM',
+      data: { channel, decision: 'CLASSIFIED' },
+      failureContext: 'Rider channel notification failed after the classification was persisted',
+    });
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
   }),
@@ -908,24 +1024,27 @@ router.patch(
       });
       await tx.user.update({ where: { id: riderId }, data: { status: 'ACTIVE' } });
       const context = adminAuditContext(req);
-      await AdminAuditService.record({
-        ...context,
-        action: 'rider_application.activated',
-        entityType: 'RiderProfile',
-        entityId: activated.id,
-        oldData: {
-          onboardingStatus: readiness.rider.onboardingStatus,
-          isVerified: readiness.rider.isVerified,
-          accountStatus: readiness.rider.user.status,
+      await AdminAuditService.record(
+        {
+          ...context,
+          action: 'rider_application.activated',
+          entityType: 'RiderProfile',
+          entityId: activated.id,
+          oldData: {
+            onboardingStatus: readiness.rider.onboardingStatus,
+            isVerified: readiness.rider.isVerified,
+            accountStatus: readiness.rider.user.status,
+          },
+          newData: {
+            riderUserId: riderId,
+            onboardingStatus: activated.onboardingStatus,
+            isVerified: activated.isVerified,
+            accountStatus: 'ACTIVE',
+            activatedAt: activated.activatedAt,
+          },
         },
-        newData: {
-          riderUserId: riderId,
-          onboardingStatus: activated.onboardingStatus,
-          isVerified: activated.isVerified,
-          accountStatus: 'ACTIVE',
-          activatedAt: activated.activatedAt,
-        },
-      }, tx);
+        tx,
+      );
       return activated;
     });
 
@@ -938,7 +1057,10 @@ router.patch(
         data: { status: 'ACTIVATED' },
       });
     } catch (error) {
-      logger.error({ error, riderId }, 'Rider activation notification failed after the decision was persisted');
+      logger.error(
+        { error, riderId },
+        'Rider activation notification failed after the decision was persisted',
+      );
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });
@@ -959,7 +1081,9 @@ router.patch(
       const existing = await tx.riderProfile.findUnique({ where: { userId: riderId } });
       if (!existing) throw ApiError.notFound('Rider profile not found');
       if (existing.onboardingStatus === 'ACTIVATED') {
-        throw ApiError.conflict('An activated Rider cannot be rejected. Suspend or deactivate the account instead.');
+        throw ApiError.conflict(
+          'An activated Rider cannot be rejected. Suspend or deactivate the account instead.',
+        );
       }
       const reviewedAt = new Date();
       const rejected = await tx.riderProfile.update({
@@ -975,23 +1099,26 @@ router.patch(
         },
       });
       const context = adminAuditContext(req);
-      await AdminAuditService.record({
-        ...context,
-        action: 'rider_application.rejected',
-        entityType: 'RiderProfile',
-        entityId: existing.id,
-        oldData: {
-          onboardingStatus: existing.onboardingStatus,
-          isVerified: existing.isVerified,
-          applicationRejectionReason: existing.applicationRejectionReason,
+      await AdminAuditService.record(
+        {
+          ...context,
+          action: 'rider_application.rejected',
+          entityType: 'RiderProfile',
+          entityId: existing.id,
+          oldData: {
+            onboardingStatus: existing.onboardingStatus,
+            isVerified: existing.isVerified,
+            applicationRejectionReason: existing.applicationRejectionReason,
+          },
+          newData: {
+            riderUserId: riderId,
+            onboardingStatus: rejected.onboardingStatus,
+            reason,
+            reviewedAt,
+          },
         },
-        newData: {
-          riderUserId: riderId,
-          onboardingStatus: rejected.onboardingStatus,
-          reason,
-          reviewedAt,
-        },
-      }, tx);
+        tx,
+      );
       return rejected;
     });
 
@@ -1004,7 +1131,10 @@ router.patch(
         data: { status: 'APPLICATION_REJECTED', reason },
       });
     } catch (error) {
-      logger.error({ error, riderId }, 'Rider rejection notification failed after the decision was persisted');
+      logger.error(
+        { error, riderId },
+        'Rider rejection notification failed after the decision was persisted',
+      );
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: profile });

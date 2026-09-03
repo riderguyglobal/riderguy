@@ -9,12 +9,14 @@
 import { prisma } from '@riderguy/database';
 import type { Prisma } from '@riderguy/database';
 import { ApiError } from '../lib/api-error';
+import { isPointInPolygon } from '@riderguy/utils';
+import { invalidateZoneCache } from './pricing.service';
 
 // --------------- types ------------------------------------------------
 
 export interface CreateZoneInput {
   name: string;
-  polygon: Array<{ lat: number; lng: number }>;
+  polygon: number[][][];
   centerLatitude: number;
   centerLongitude: number;
   baseFare: number;
@@ -26,6 +28,32 @@ export interface CreateZoneInput {
 }
 
 export type UpdateZoneInput = Partial<CreateZoneInput> & { status?: string };
+
+function normalizeStoredPolygon(value: unknown): number[][][] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+
+  // Canonical GeoJSON-style rings: [[[lng, lat], ...]].
+  if (Array.isArray(value[0]) && Array.isArray(value[0][0])) {
+    return value as number[][][];
+  }
+
+  // Backward compatibility for zones written by the original service as
+  // [{ lat, lng }, ...]. Existing production zones remain operational while
+  // every new/edited zone is stored in the canonical format.
+  if (typeof value[0] === 'object' && value[0] !== null && 'lat' in value[0] && 'lng' in value[0]) {
+    const ring = (value as Array<{ lat: number; lng: number }>).map((point) => [
+      point.lng,
+      point.lat,
+    ]);
+    if (ring.length < 3) return null;
+    const first = ring[0]!;
+    const last = ring[ring.length - 1]!;
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first]);
+    return [ring];
+  }
+
+  return null;
+}
 
 // --------------- service class ----------------------------------------
 
@@ -41,7 +69,7 @@ export class ZoneService {
       throw ApiError.conflict('A zone with this name already exists');
     }
 
-    return prisma.zone.create({
+    const zone = await prisma.zone.create({
       data: {
         name: input.name,
         polygon: input.polygon as unknown as Prisma.InputJsonValue,
@@ -56,6 +84,8 @@ export class ZoneService {
         status: 'ACTIVE',
       },
     });
+    invalidateZoneCache();
+    return zone;
   }
 
   // ---- Update a zone ----
@@ -67,7 +97,8 @@ export class ZoneService {
     const data: Prisma.ZoneUpdateInput = {};
 
     if (input.name !== undefined) data.name = input.name;
-    if (input.polygon !== undefined) data.polygon = input.polygon as unknown as Prisma.InputJsonValue;
+    if (input.polygon !== undefined)
+      data.polygon = input.polygon as unknown as Prisma.InputJsonValue;
     if (input.centerLatitude !== undefined) data.centerLatitude = input.centerLatitude;
     if (input.centerLongitude !== undefined) data.centerLongitude = input.centerLongitude;
     if (input.baseFare !== undefined) data.baseFare = input.baseFare;
@@ -78,7 +109,9 @@ export class ZoneService {
     if (input.currency !== undefined) data.currency = input.currency;
     if (input.status !== undefined) data.status = input.status as Prisma.ZoneUpdateInput['status'];
 
-    return prisma.zone.update({ where: { id: zoneId }, data });
+    const updated = await prisma.zone.update({ where: { id: zoneId }, data });
+    invalidateZoneCache();
+    return updated;
   }
 
   // ---- List all zones ----
@@ -104,10 +137,12 @@ export class ZoneService {
     const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
     if (!zone) throw ApiError.notFound('Zone not found');
 
-    return prisma.zone.update({
+    const updated = await prisma.zone.update({
       where: { id: zoneId },
       data: { status: 'INACTIVE' },
     });
+    invalidateZoneCache();
+    return updated;
   }
 
   // ---- Activate ----
@@ -115,10 +150,12 @@ export class ZoneService {
     const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
     if (!zone) throw ApiError.notFound('Zone not found');
 
-    return prisma.zone.update({
+    const updated = await prisma.zone.update({
       where: { id: zoneId },
       data: { status: 'ACTIVE' },
     });
+    invalidateZoneCache();
+    return updated;
   }
 
   // ---- Update surge multiplier (shortcut for real-time ops) ----
@@ -130,10 +167,12 @@ export class ZoneService {
     const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
     if (!zone) throw ApiError.notFound('Zone not found');
 
-    return prisma.zone.update({
+    const updated = await prisma.zone.update({
       where: { id: zoneId },
       data: { surgeMultiplier },
     });
+    invalidateZoneCache();
+    return updated;
   }
 
   // ---- Find zone for a given lat/lng coordinate ----
@@ -145,35 +184,12 @@ export class ZoneService {
     });
 
     for (const zone of zones) {
-      const polygon = zone.polygon as unknown as Array<{ lat: number; lng: number }>;
-      if (polygon && ZoneService.isPointInPolygon(lat, lng, polygon)) {
+      const polygon = normalizeStoredPolygon(zone.polygon);
+      if (polygon && isPointInPolygon(lat, lng, polygon)) {
         return zone;
       }
     }
 
     return null;
-  }
-
-  // ---- Ray-casting point-in-polygon test ----
-  private static isPointInPolygon(
-    lat: number,
-    lng: number,
-    polygon: Array<{ lat: number; lng: number }>,
-  ): boolean {
-    let inside = false;
-    const n = polygon.length;
-
-    for (let i = 0, j = n - 1; i < n; j = i++) {
-      const pi = polygon[i]!;
-      const pj = polygon[j]!;
-
-      const intersect =
-        pi.lat > lat !== pj.lat > lat &&
-        lng < ((pj.lng - pi.lng) * (lat - pi.lat)) / (pj.lat - pi.lat) + pi.lng;
-
-      if (intersect) inside = !inside;
-    }
-
-    return inside;
   }
 }

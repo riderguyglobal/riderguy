@@ -14,6 +14,15 @@ vi.mock('@riderguy/database', () => ({
   },
 }));
 
+// This queue-only unit test does not exercise Rider notifications. Isolating
+// the collaborator also prevents the push-service configuration from being
+// loaded before the test environment exists.
+vi.mock('./notification.service', () => ({
+  NotificationService: {
+    create: vi.fn(),
+  },
+}));
+
 import { AssetFinancingService } from './asset-financing.service';
 
 describe('AssetFinancingService.listForAdmin', () => {
@@ -32,25 +41,29 @@ describe('AssetFinancingService.listForAdmin', () => {
       limit: 20,
     });
 
-    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      skip: 20,
-      take: 20,
-      orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
-      where: expect.objectContaining({
-        status: 'UNDER_REVIEW',
-        assetType: 'ELECTRIC_VEHICLE',
-        OR: expect.arrayContaining([
-          { contactEmail: { contains: 'ama', mode: 'insensitive' } },
-          { rider: { user: { phone: { contains: 'ama' } } } },
-        ]),
+    expect(mocks.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 20,
+        take: 20,
+        orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+        where: expect.objectContaining({
+          status: 'UNDER_REVIEW',
+          assetType: 'ELECTRIC_VEHICLE',
+          OR: expect.arrayContaining([
+            { contactEmail: { contains: 'ama', mode: 'insensitive' } },
+            { rider: { user: { phone: { contains: 'ama' } } } },
+          ]),
+        }),
+        select: expect.objectContaining({
+          updatedAt: true,
+          reviewNotes: true,
+          rider: expect.objectContaining({
+            select: expect.objectContaining({ user: expect.any(Object) }),
+          }),
+          reviewedBy: expect.any(Object),
+        }),
       }),
-      select: expect.objectContaining({
-        updatedAt: true,
-        reviewNotes: true,
-        rider: expect.objectContaining({ select: expect.objectContaining({ user: expect.any(Object) }) }),
-        reviewedBy: expect.any(Object),
-      }),
-    }));
+    );
     expect(mocks.count).toHaveBeenCalledWith({
       where: expect.objectContaining({ status: 'UNDER_REVIEW', assetType: 'ELECTRIC_VEHICLE' }),
     });

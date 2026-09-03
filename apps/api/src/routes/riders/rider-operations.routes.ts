@@ -3,11 +3,13 @@ import { StatusCodes } from 'http-status-codes';
 import { UserRole } from '@riderguy/types';
 import {
   listRiderAuditHistoryQuerySchema,
+  listInHouseInvitationsQuerySchema,
   listRiderOperationsCasesQuerySchema,
   revokeInHouseInvitationSchema,
 } from '@riderguy/validators';
 import type {
   ListRiderAuditHistoryQuery,
+  ListInHouseInvitationsQuery,
   ListRiderOperationsCasesQuery,
 } from '@riderguy/validators';
 import { authenticate, requireRole, validate } from '../../middleware';
@@ -31,6 +33,17 @@ export async function riderOperationsSummaryHandler(_req: Request, res: Response
 export async function listRiderOperationsCasesHandler(req: Request, res: Response): Promise<void> {
   const result = await RiderOperationsService.listCases(
     req.query as unknown as ListRiderOperationsCasesQuery,
+  );
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: result.items,
+    pagination: result.pagination,
+  });
+}
+
+export async function listInHouseInvitationsHandler(req: Request, res: Response): Promise<void> {
+  const result = await OnboardingService.listInHouseInvitations(
+    req.query as unknown as ListInHouseInvitationsQuery,
   );
   res.status(StatusCodes.OK).json({
     success: true,
@@ -71,10 +84,8 @@ router.get(
 
 router.get(
   '/invitations',
-  asyncHandler(async (_req, res) => {
-    const invitations = await OnboardingService.listInHouseInvitations();
-    res.status(StatusCodes.OK).json({ success: true, data: invitations });
-  }),
+  validate(listInHouseInvitationsQuerySchema, 'query'),
+  asyncHandler(listInHouseInvitationsHandler),
 );
 
 router.patch(

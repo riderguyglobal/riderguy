@@ -25,7 +25,7 @@ import type {
 } from '@riderguy/types';
 import { logger } from '../lib/logger';
 import { ApiError } from '../lib/api-error';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import * as BonusXpService from './bonus-xp.service';
 
 // ────── Level Calculation ──────
@@ -59,7 +59,9 @@ export function getLevelProgress(totalXp: number) {
 
   const xpInLevel = totalXp - currentThreshold;
   const xpForLevel = isMaxLevel ? 1 : nextThreshold - currentThreshold;
-  const progressPercent = isMaxLevel ? 100 : Math.min(100, Math.round((xpInLevel / xpForLevel) * 100));
+  const progressPercent = isMaxLevel
+    ? 100
+    : Math.min(100, Math.round((xpInLevel / xpForLevel) * 100));
 
   return {
     currentLevel,
@@ -234,15 +236,17 @@ async function checkAndAwardBadges(riderId: string): Promise<Array<{ badge: Badg
           select: { userId: true },
         });
         if (rider) {
-          await prisma.notification.create({
-            data: {
-              userId: rider.userId,
-              title: `${badge.icon} New Badge!`,
-              body: `You earned "${badge.name}" — ${badge.description}`,
-              type: 'GAMIFICATION',
-              data: { type: 'badge_earned', badgeId: badge.id, badgeSlug: badge.slug },
-            },
-          }).catch(() => {});
+          await prisma.notification
+            .create({
+              data: {
+                userId: rider.userId,
+                title: `${badge.icon} New Badge!`,
+                body: `You earned "${badge.name}" — ${badge.description}`,
+                type: 'GAMIFICATION',
+                data: { type: 'badge_earned', badgeId: badge.id, badgeSlug: badge.slug },
+              },
+            })
+            .catch(() => {});
         }
       } catch (e) {
         // Unique constraint violation = already awarded (race condition)
@@ -276,10 +280,7 @@ async function getActionCounts(riderId: string): Promise<Record<string, number>>
     select: { totalDeliveries: true },
   });
   if (rider) {
-    result['delivery_complete'] = Math.max(
-      result['delivery_complete'] ?? 0,
-      rider.totalDeliveries,
-    );
+    result['delivery_complete'] = Math.max(result['delivery_complete'] ?? 0, rider.totalDeliveries);
   }
 
   return result;
@@ -336,11 +337,7 @@ export async function markBadgesSeen(riderId: string, badgeIds: string[]): Promi
 /**
  * Get XP history for a rider (paginated).
  */
-export async function getXpHistory(
-  riderId: string,
-  page: number = 1,
-  limit: number = 20,
-) {
+export async function getXpHistory(riderId: string, page: number = 1, limit: number = 20) {
   const skip = (page - 1) * limit;
   const [events, total] = await Promise.all([
     prisma.xpEvent.findMany({
@@ -439,9 +436,7 @@ async function getTimeRangeXpLeaderboard(options: {
     by: ['riderId'],
     where: {
       createdAt: { gte: since },
-      ...(zoneId
-        ? { rider: { currentZoneId: zoneId } }
-        : {}),
+      ...(zoneId ? { rider: { currentZoneId: zoneId } } : {}),
     },
     _sum: { points: true },
     orderBy: { _sum: { points: 'desc' } },
@@ -625,7 +620,7 @@ export async function updateBadge(
     description: string;
     icon: string;
     category: string;
-    criteria: BadgeCriteria;
+    criteria: BadgeCriteria | null;
     xpReward: number;
     sortOrder: number;
     isActive: boolean;
@@ -635,7 +630,12 @@ export async function updateBadge(
     where: { id: badgeId },
     data: {
       ...data,
-      criteria: data.criteria ? (data.criteria as unknown as Prisma.InputJsonValue) : undefined,
+      criteria:
+        data.criteria === null
+          ? Prisma.DbNull
+          : data.criteria !== undefined
+            ? (data.criteria as unknown as Prisma.InputJsonValue)
+            : undefined,
     },
   });
 }

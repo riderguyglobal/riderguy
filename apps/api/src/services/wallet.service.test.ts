@@ -29,7 +29,7 @@ vi.mock('@riderguy/database', () => ({
 }));
 
 vi.mock('../lib/api-error', async () => {
-  const actual = await vi.importActual('../lib/api-error') as any;
+  const actual = (await vi.importActual('../lib/api-error')) as any;
   return actual;
 });
 
@@ -37,8 +37,18 @@ vi.mock('../lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../lib/postgres-advisory-lock', () => ({
+  acquireTransactionAdvisoryLock: vi.fn(),
+}));
+
 // ── Import AFTER mocks ──
-import { creditWallet, debitWallet, creditTip, getBalance, getOrCreateWallet } from './wallet.service';
+import {
+  creditWallet,
+  debitWallet,
+  creditTip,
+  getBalance,
+  getOrCreateWallet,
+} from './wallet.service';
 import { prisma } from '@riderguy/database';
 
 // ============================================================
@@ -48,6 +58,7 @@ import { prisma } from '@riderguy/database';
 describe('WalletService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTx.transaction.findFirst.mockResolvedValue(null);
   });
 
   // ────────────────────────────────────────────────────────────
@@ -113,13 +124,20 @@ describe('WalletService', () => {
       mockTx.wallet.upsert.mockResolvedValue(newWallet);
       mockTx.transaction.create.mockResolvedValue({ id: 'tx-1', amount: 15 });
 
-      const result = await creditWallet('new-user', 15, 'DELIVERY_EARNING' as any, 'First delivery');
+      const result = await creditWallet(
+        'new-user',
+        15,
+        'DELIVERY_EARNING' as any,
+        'First delivery',
+      );
 
       expect(result).toBeDefined();
-      expect(mockTx.wallet.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        where: { userId: 'new-user' },
-        create: expect.objectContaining({ userId: 'new-user', balance: 15 }),
-      }));
+      expect(mockTx.wallet.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'new-user' },
+          create: expect.objectContaining({ userId: 'new-user', balance: 15 }),
+        }),
+      );
     });
 
     it('should NOT increment totalEarned for non-earning types (e.g., WITHDRAWAL_REVERSAL)', async () => {
@@ -159,15 +177,17 @@ describe('WalletService', () => {
       const wallet = { id: 'w-1', userId: 'user-1', balance: 10 };
       mockTx.wallet.findUnique.mockResolvedValue(wallet);
 
-      await expect(debitWallet('user-1', 50, 'WITHDRAWAL' as any, 'Too much'))
-        .rejects.toThrow('Insufficient wallet balance');
+      await expect(debitWallet('user-1', 50, 'WITHDRAWAL' as any, 'Too much')).rejects.toThrow(
+        'Insufficient wallet balance',
+      );
     });
 
     it('should reject debit on non-existent wallet', async () => {
       mockTx.wallet.findUnique.mockResolvedValue(null);
 
-      await expect(debitWallet('ghost-user', 10, 'WITHDRAWAL' as any, 'No wallet'))
-        .rejects.toThrow('Wallet not found');
+      await expect(debitWallet('ghost-user', 10, 'WITHDRAWAL' as any, 'No wallet')).rejects.toThrow(
+        'Wallet not found',
+      );
     });
 
     it('should handle optimistic concurrency (balance dropped between read and write)', async () => {
@@ -175,8 +195,55 @@ describe('WalletService', () => {
       mockTx.wallet.findUnique.mockResolvedValue(wallet);
       mockTx.wallet.updateMany.mockResolvedValue({ count: 0 }); // concurrent debit won
 
-      await expect(debitWallet('user-1', 50, 'WITHDRAWAL' as any, 'Race'))
-        .rejects.toThrow('Insufficient wallet balance (concurrent update)');
+      await expect(debitWallet('user-1', 50, 'WITHDRAWAL' as any, 'Race')).rejects.toThrow(
+        'Insufficient wallet balance (concurrent update)',
+      );
+    });
+
+    it('should be idempotent for a repeated debit business reference', async () => {
+      const existingDebit = {
+        id: 'tx-existing-penalty',
+        walletId: 'w-1',
+        type: 'PENALTY',
+        amount: -15,
+        wallet: { id: 'w-1', userId: 'user-1', balance: 85 },
+      };
+      mockTx.transaction.findFirst.mockResolvedValue(existingDebit);
+
+      const result = await debitWallet(
+        'user-1',
+        15,
+        'PENALTY' as any,
+        'Cancellation penalty',
+        'cancellation-1',
+        'cancellation_penalty',
+      );
+
+      expect(result?.transaction).toBe(existingDebit);
+      expect(mockTx.wallet.findUnique).not.toHaveBeenCalled();
+      expect(mockTx.wallet.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.transaction.create).not.toHaveBeenCalled();
+    });
+
+    it('should join a caller transaction instead of opening a nested transaction', async () => {
+      const wallet = { id: 'w-1', userId: 'user-1', balance: 100 };
+      mockTx.wallet.findUnique.mockResolvedValue(wallet);
+      mockTx.wallet.updateMany.mockResolvedValue({ count: 1 });
+      mockTx.wallet.findUniqueOrThrow.mockResolvedValue({ ...wallet, balance: 90 });
+      mockTx.transaction.create.mockResolvedValue({ id: 'tx-1', amount: -10 });
+
+      await debitWallet(
+        'user-1',
+        10,
+        'PENALTY' as any,
+        'Cancellation penalty',
+        'cancellation-1',
+        'cancellation_penalty',
+        mockTx as never,
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(mockTx.wallet.updateMany).toHaveBeenCalledOnce();
     });
 
     it('should skip zero/negative amounts', async () => {
@@ -199,12 +266,14 @@ describe('WalletService', () => {
       const result = await creditTip('rider-1', 5, 'Tip from order RG-001', 'order-1', 'order');
 
       expect(result).toBeDefined();
-      expect(mockTx.wallet.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        update: expect.objectContaining({
-          balance: { increment: 5 },
-          totalTips: { increment: 5 },
+      expect(mockTx.wallet.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            balance: { increment: 5 },
+            totalTips: { increment: 5 },
+          }),
         }),
-      }));
+      );
     });
 
     it('should be idempotent for duplicate tips', async () => {
@@ -233,11 +302,11 @@ describe('WalletService', () => {
   // ────────────────────────────────────────────────────────────
   describe('getBalance', () => {
     it('should return wallet balance', async () => {
-      asMock(prisma.wallet.findUnique).mockResolvedValue({ id: 'w-1', balance: 85.50 });
+      asMock(prisma.wallet.findUnique).mockResolvedValue({ id: 'w-1', balance: 85.5 });
 
       const balance = await getBalance('user-1');
 
-      expect(balance).toBe(85.50);
+      expect(balance).toBe(85.5);
     });
 
     it('should return 0 for non-existent wallet', async () => {

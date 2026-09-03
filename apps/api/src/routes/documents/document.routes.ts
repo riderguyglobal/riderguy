@@ -64,20 +64,23 @@ router.post(
     const { type } = req.body;
     const userId = req.user!.userId;
 
-    // Read the temp file into a buffer and pass to DocumentService
-    const buffer = await fs.readFile(req.file.path);
-
-    const document = await DocumentService.upload({
-      userId,
-      type,
-      buffer,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      sizeBytes: req.file.size,
-    });
-
-    // Clean up temp file
-    await fs.unlink(req.file.path).catch(() => {});
+    let document: Awaited<ReturnType<typeof DocumentService.upload>>;
+    try {
+      // Read the temp file into a buffer and pass to DocumentService.
+      const buffer = await fs.readFile(req.file.path);
+      document = await DocumentService.upload({
+        userId,
+        type,
+        buffer,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size,
+      });
+    } finally {
+      // Multer has already persisted the upload. Always remove it, including
+      // when content validation, object storage or the database rejects it.
+      await fs.unlink(req.file.path).catch(() => {});
+    }
 
     res.status(StatusCodes.CREATED).json({ success: true, data: document });
   }),

@@ -34,6 +34,7 @@ import * as RewardsStoreService from '../../services/rewards-store.service';
 import * as BonusXpService from '../../services/bonus-xp.service';
 import { StatusCodes } from 'http-status-codes';
 import { ApiError } from '../../lib/api-error';
+import { adminAuditContext } from '../../services/admin-audit.service';
 
 const router = Router();
 
@@ -620,7 +621,8 @@ router.put(
     const result = await RewardsStoreService.updateRedemptionStatus(
       req.params.redemptionId as string,
       req.body.status,
-      req.body.notes,
+      req.body.reason ?? req.body.notes,
+      adminAuditContext(req),
     );
 
     res.status(StatusCodes.OK).json({ success: true, data: result });

@@ -1,7 +1,10 @@
 import { prisma } from '@riderguy/database';
 import type { CancellationCategory, CancellationSeverity, OrderStatus } from '@prisma/client';
-import { debitWallet } from './wallet.service';
+import { creditWallet, debitWallet } from './wallet.service';
 import { createOrderNotification } from './notification.service';
+import { ApiError } from '../lib/api-error';
+import { acquireTransactionAdvisoryLock } from '../lib/postgres-advisory-lock';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 // ============================================================
 // Cancellation Consequence Service
@@ -41,7 +44,7 @@ const REASON_CATEGORY_MAP: Record<string, CancellationCategory> = {
   'Accepted by mistake': 'ACCIDENTAL_ACCEPT',
   'Wrong address': 'ADDRESS_INVALID',
   'address does not exist': 'ADDRESS_INVALID',
-  'address doesn\'t exist': 'ADDRESS_INVALID',
+  "address doesn't exist": 'ADDRESS_INVALID',
   'Road inaccessible': 'ADDRESS_INVALID',
   'Client added extra': 'UNDISCLOSED_REQUIREMENTS',
   'extra requirements': 'UNDISCLOSED_REQUIREMENTS',
@@ -60,7 +63,7 @@ export function categoriseReason(reason: string): CancellationCategory {
 
 interface SeverityResult {
   severity: CancellationSeverity;
-  penaltyAmount: number;      // GHS
+  penaltyAmount: number; // GHS
   suspensionHours: number;
   requiresInvestigation: boolean;
 }
@@ -90,7 +93,7 @@ export function determineSeverity(
   if (POST_PICKUP_STATUSES.includes(orderStatusAtCancel)) {
     return {
       severity: 'CRITICAL',
-      penaltyAmount: 15.00,
+      penaltyAmount: 15.0,
       suspensionHours: 24,
       requiresInvestigation: true,
     };
@@ -112,7 +115,7 @@ export function determineSeverity(
   if (cancellationsInWindow === 2) {
     return {
       severity: 'MINOR',
-      penaltyAmount: isLowBlame ? 0 : 5.00,
+      penaltyAmount: isLowBlame ? 0 : 5.0,
       suspensionHours: 0,
       requiresInvestigation: false,
     };
@@ -121,7 +124,7 @@ export function determineSeverity(
   if (cancellationsInWindow === 3) {
     return {
       severity: 'MODERATE',
-      penaltyAmount: isLowBlame ? 5.00 : 10.00,
+      penaltyAmount: isLowBlame ? 5.0 : 10.0,
       suspensionHours: isLowBlame ? 0 : 2,
       requiresInvestigation: false,
     };
@@ -130,13 +133,19 @@ export function determineSeverity(
   // 4+ cancellations
   return {
     severity: 'SEVERE',
-    penaltyAmount: isLowBlame ? 10.00 : 20.00,
+    penaltyAmount: isLowBlame ? 10.0 : 20.0,
     suspensionHours: 24,
     requiresInvestigation: true,
   };
 }
 
 // ── Main: process a rider cancellation ──────────────────────
+
+function isExpectedPenaltyCollectionFailure(error: unknown): error is ApiError {
+  if (!(error instanceof ApiError)) return false;
+  if (error.code === 'NOT_FOUND' && error.message === 'Wallet not found') return true;
+  return error.code === 'BAD_REQUEST' && error.message.startsWith('Insufficient wallet balance');
+}
 
 export async function processCancellationConsequences(
   riderId: string,
@@ -147,105 +156,146 @@ export async function processCancellationConsequences(
   reason: string,
   clientId: string,
 ) {
-  const category = categoriseReason(reason);
+  const transactionResult = await prisma.$transaction(async (tx) => {
+    // The order lock makes retries deterministic even if a stale caller passes
+    // a different rider. The rider lock serializes the rolling severity count.
+    await acquireTransactionAdvisoryLock(tx, 'cancellation-order', orderId);
+    await acquireTransactionAdvisoryLock(tx, 'cancellation-rider', riderId);
 
-  // Count cancellations in the last 30 days (rolling window)
-  const windowStart = new Date();
-  windowStart.setDate(windowStart.getDate() - 30);
-
-  const recentCount = await prisma.cancellationRecord.count({
-    where: {
-      riderId,
-      createdAt: { gte: windowStart },
-    },
-  });
-
-  const cancellationsInWindow = recentCount + 1; // Including this one
-
-  const { severity, penaltyAmount, suspensionHours, requiresInvestigation } =
-    determineSeverity(category, orderStatusAtCancel, cancellationsInWindow);
-
-  // ── Create the cancellation record ──
-  const record = await prisma.cancellationRecord.create({
-    data: {
-      riderId,
-      orderId,
-      category,
-      reason,
-      orderStatusAtCancel,
-      severity,
-      penaltyAmount,
-      suspensionHours,
-      requiresInvestigation,
-      cancellationsInWindow,
-    },
-  });
-
-  // ── Apply penalty (wallet debit) ──
-  if (penaltyAmount > 0) {
-    try {
-      await debitWallet(
-        riderUserId,
-        penaltyAmount,
-        'PENALTY',
-        `Cancellation penalty for order ${orderNumber} (${severity.toLowerCase()})`,
-        record.id,
-        'cancellation_penalty',
-      );
-      await prisma.cancellationRecord.update({
-        where: { id: record.id },
-        data: { penaltyApplied: true },
-      });
-    } catch {
-      // If wallet has insufficient funds, record it but don't block
-      // Penalty remains as a negative balance or is collected on next earning
+    const existing = await tx.cancellationRecord.findUnique({ where: { orderId } });
+    if (existing) {
+      if (existing.riderId !== riderId) {
+        throw ApiError.conflict('Cancellation consequences already belong to another rider');
+      }
+      return { record: existing, created: false } as const;
     }
-  }
 
-  // ── Apply suspension ──
-  if (suspensionHours > 0) {
-    const suspendedUntil = new Date();
-    suspendedUntil.setHours(suspendedUntil.getHours() + suspensionHours);
-
-    await prisma.riderProfile.update({
+    const rider = await tx.riderProfile.findUnique({
       where: { id: riderId },
+      select: { suspendedUntil: true },
+    });
+    if (!rider) throw ApiError.notFound('Rider profile not found');
+
+    const category = categoriseReason(reason);
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - 30);
+
+    const recentCount = await tx.cancellationRecord.count({
+      where: {
+        riderId,
+        createdAt: { gte: windowStart },
+      },
+    });
+    const cancellationsInWindow = recentCount + 1;
+    const { severity, penaltyAmount, suspensionHours, requiresInvestigation } = determineSeverity(
+      category,
+      orderStatusAtCancel,
+      cancellationsInWindow,
+    );
+
+    // ── Create the cancellation record ──
+    const record = await tx.cancellationRecord.create({
       data: {
-        suspendedUntil,
-        availability: 'OFFLINE',
+        riderId,
+        orderId,
+        category,
+        reason,
+        orderStatusAtCancel,
+        severity,
+        penaltyAmount,
+        suspensionHours,
+        suspensionApplied: suspensionHours > 0,
+        requiresInvestigation,
+        cancellationsInWindow,
       },
     });
 
-    await prisma.cancellationRecord.update({
-      where: { id: record.id },
-      data: { suspensionApplied: true },
-    });
-  }
+    // ── Apply penalty (wallet debit) ──
+    if (penaltyAmount > 0) {
+      try {
+        await debitWallet(
+          riderUserId,
+          penaltyAmount,
+          'PENALTY',
+          `Cancellation penalty for order ${orderNumber} (${severity.toLowerCase()})`,
+          record.id,
+          'cancellation_penalty',
+          tx,
+        );
+        await tx.cancellationRecord.update({
+          where: { id: record.id },
+          data: { penaltyApplied: true },
+        });
+      } catch (error) {
+        // An absent or underfunded wallet is a policy outcome, not a failed
+        // consequence transaction. Unexpected persistence errors still roll back.
+        if (!isExpectedPenaltyCollectionFailure(error)) throw error;
+      }
+    }
 
-  // ── Update rider cancellation stats ──
-  await prisma.riderProfile.update({
-    where: { id: riderId },
-    data: {
-      cancellationCount: { increment: 1 },
-      lastCancellationAt: new Date(),
-    },
+    // ── Apply suspension ──
+    let suspendedUntil: Date | undefined;
+    if (suspensionHours > 0) {
+      const proposedSuspensionEnd = new Date();
+      proposedSuspensionEnd.setHours(proposedSuspensionEnd.getHours() + suspensionHours);
+      suspendedUntil =
+        rider.suspendedUntil && rider.suspendedUntil > proposedSuspensionEnd
+          ? rider.suspendedUntil
+          : proposedSuspensionEnd;
+    }
+
+    // ── Update rider cancellation stats ──
+    await tx.riderProfile.update({
+      where: { id: riderId },
+      data: {
+        cancellationCount: { increment: 1 },
+        lastCancellationAt: new Date(),
+        ...(suspendedUntil ? { suspendedUntil, availability: 'OFFLINE' as const } : {}),
+      },
+    });
+
+    const persisted = await tx.cancellationRecord.findUniqueOrThrow({
+      where: { id: record.id },
+    });
+    return { record: persisted, created: true } as const;
   });
 
+  const { record, created } = transactionResult;
+  if (!created) return record;
+
+  const penaltyAmount = Number(record.penaltyAmount);
+  const { severity, suspensionHours, cancellationsInWindow } = record;
+
   // ── Notify rider of consequences ──
-  const consequenceMsg = buildConsequenceMessage(severity, penaltyAmount, suspensionHours, cancellationsInWindow);
+  const consequenceMsg = buildConsequenceMessage(
+    severity,
+    penaltyAmount,
+    suspensionHours,
+    cancellationsInWindow,
+    record.penaltyApplied,
+  );
   try {
     await createOrderNotification(
       riderUserId,
-      severity === 'WARNING' ? 'Cancellation Recorded ⚠️' : 'Cancellation Penalty Applied 🚨',
+      severity === 'WARNING'
+        ? 'Cancellation Recorded ⚠️'
+        : record.penaltyApplied
+          ? 'Cancellation Penalty Applied 🚨'
+          : 'Cancellation Consequence Recorded ⚠️',
       consequenceMsg,
       orderId,
     );
-  } catch { /* non-blocking */ }
+  } catch {
+    /* non-blocking */
+  }
 
   // ── Enhanced client notification with context ──
   const clientMsg = buildClientNotification(orderNumber, reason, severity);
   try {
     await createOrderNotification(clientId, 'Delivery Cancelled by Rider ⚠️', clientMsg, orderId);
-  } catch { /* non-blocking */ }
+  } catch {
+    /* non-blocking */
+  }
 
   return record;
 }
@@ -257,31 +307,45 @@ function buildConsequenceMessage(
   penalty: number,
   suspensionHours: number,
   windowCount: number,
+  penaltyApplied: boolean,
 ): string {
   const parts: string[] = [];
+  const financialConsequence =
+    penalty <= 0
+      ? 'No financial penalty was charged.'
+      : penaltyApplied
+        ? `GHS ${penalty.toFixed(2)} was deducted from your wallet.`
+        : `A GHS ${penalty.toFixed(2)} penalty was assessed, but no wallet debit was made.`;
 
   switch (severity) {
     case 'WARNING':
       parts.push(`This cancellation has been recorded (${windowCount} in 30 days).`);
-      parts.push('No penalty this time, but repeated cancellations will result in fees and suspensions.');
+      parts.push(
+        'No penalty this time, but repeated cancellations will result in fees and suspensions.',
+      );
       break;
     case 'MINOR':
-      parts.push(`Cancellation penalty: GHS ${penalty.toFixed(2)} deducted from your wallet.`);
+      parts.push(financialConsequence);
       parts.push(`You've cancelled ${windowCount} times in 30 days.`);
       break;
     case 'MODERATE':
-      parts.push(`Cancellation penalty: GHS ${penalty.toFixed(2)} deducted.`);
-      if (suspensionHours > 0) parts.push(`You are suspended from new orders for ${suspensionHours} hours.`);
+      parts.push(financialConsequence);
+      if (suspensionHours > 0)
+        parts.push(`You are suspended from new orders for ${suspensionHours} hours.`);
       parts.push(`${windowCount} cancellations in 30 days — please improve your acceptance rate.`);
       break;
     case 'SEVERE':
-      parts.push(`Serious penalty: GHS ${penalty.toFixed(2)} deducted.`);
+      parts.push(financialConsequence);
       parts.push(`Suspended for ${suspensionHours} hours. An admin will review your account.`);
       parts.push(`${windowCount} cancellations in 30 days is unacceptable.`);
       break;
     case 'CRITICAL':
-      parts.push(`CRITICAL: GHS ${penalty.toFixed(2)} deducted. Cancelling after pickup is a serious violation.`);
-      parts.push(`Suspended for ${suspensionHours} hours. Your account is under admin investigation.`);
+      parts.push(
+        `CRITICAL: ${financialConsequence} Cancelling after pickup is a serious violation.`,
+      );
+      parts.push(
+        `Suspended for ${suspensionHours} hours. Your account is under admin investigation.`,
+      );
       parts.push('You may appeal this decision within 48 hours.');
       break;
   }
@@ -317,18 +381,18 @@ export async function submitAppeal(
     include: { rider: { select: { userId: true } } },
   });
 
-  if (!record) throw new Error('Cancellation record not found');
-  if (record.rider.userId !== riderUserId) throw new Error('Not your cancellation');
+  if (!record) throw ApiError.notFound('Cancellation record not found');
+  if (record.rider.userId !== riderUserId) throw ApiError.forbidden('Not your cancellation');
 
   // Check if appeal already exists
   const existing = await prisma.cancellationAppeal.findUnique({
     where: { cancellationId },
   });
-  if (existing) throw new Error('Appeal already submitted for this cancellation');
+  if (existing) throw ApiError.conflict('Appeal already submitted for this cancellation');
 
   // Must appeal within 48 hours
   const hoursSinceCancellation = (Date.now() - record.createdAt.getTime()) / (1000 * 60 * 60);
-  if (hoursSinceCancellation > 48) throw new Error('Appeal window has closed (48 hours)');
+  if (hoursSinceCancellation > 48) throw ApiError.badRequest('Appeal window has closed (48 hours)');
 
   return prisma.cancellationAppeal.create({
     data: {
@@ -344,55 +408,152 @@ export async function submitAppeal(
 
 export async function reviewAppeal(
   appealId: string,
-  adminUserId: string,
   decision: 'APPROVED' | 'PARTIALLY_APPROVED' | 'DENIED',
   notes: string,
   refundPenalty: boolean,
   liftSuspension: boolean,
+  audit: AdminAuditContext,
 ) {
-  const appeal = await prisma.cancellationAppeal.findUnique({
-    where: { id: appealId },
-    include: {
-      cancellation: {
-        include: { rider: { select: { userId: true, id: true, suspendedUntil: true } } },
+  if (notes.trim().length < 5) throw ApiError.badRequest('A clear appeal rationale is required');
+  if (decision === 'DENIED' && (refundPenalty || liftSuspension)) {
+    throw ApiError.badRequest('A denied appeal cannot refund a penalty or lift a suspension');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await acquireTransactionAdvisoryLock(tx, 'cancellation-appeal', appealId);
+    const appeal = await tx.cancellationAppeal.findUnique({
+      where: { id: appealId },
+      include: {
+        cancellation: {
+          include: { rider: { select: { userId: true, id: true, suspendedUntil: true } } },
+        },
       },
-    },
-  });
-
-  if (!appeal) throw new Error('Appeal not found');
-
-  // Refund penalty if approved
-  if (refundPenalty && Number(appeal.cancellation.penaltyAmount) > 0) {
-    const { creditWallet } = await import('./wallet.service');
-    await creditWallet(
-      appeal.cancellation.rider.userId,
-      Number(appeal.cancellation.penaltyAmount),
-      'REFUND',
-      `Penalty refund — appeal ${decision.toLowerCase()} for cancellation`,
-      appeal.cancellationId,
-      'appeal_refund',
-    );
-  }
-
-  // Lift suspension if approved
-  if (liftSuspension && appeal.cancellation.rider.suspendedUntil) {
-    await prisma.riderProfile.update({
-      where: { id: appeal.cancellation.rider.id },
-      data: { suspendedUntil: null },
     });
+
+    if (!appeal) throw ApiError.notFound('Appeal not found');
+    if (!['PENDING', 'UNDER_REVIEW'].includes(appeal.status)) {
+      throw ApiError.conflict(`This appeal is already ${appeal.status.toLowerCase()}`);
+    }
+
+    const penaltyAmount = Number(appeal.cancellation.penaltyAmount);
+    if (refundPenalty && (!appeal.cancellation.penaltyApplied || penaltyAmount <= 0)) {
+      throw ApiError.badRequest('This cancellation has no applied penalty to refund');
+    }
+
+    const suspensionIsActive = Boolean(
+      appeal.cancellation.suspensionApplied &&
+      appeal.cancellation.rider.suspendedUntil &&
+      appeal.cancellation.rider.suspendedUntil > new Date(),
+    );
+    if (liftSuspension && !suspensionIsActive) {
+      throw ApiError.badRequest('This rider has no active cancellation suspension to lift');
+    }
+
+    // The advisory lock serialises cooperating decision paths. The status CAS
+    // also protects against another path that does not acquire that lock.
+    const claimed = await tx.cancellationAppeal.updateMany({
+      where: { id: appealId, status: { in: ['PENDING', 'UNDER_REVIEW'] } },
+      data: {
+        status: decision,
+        reviewedBy: audit.actorUserId,
+        reviewNotes: notes.trim(),
+        outcome: `${decision}: ${notes.trim()}`,
+        penaltyRefunded: refundPenalty,
+        suspensionLifted: liftSuspension,
+        reviewedAt: new Date(),
+      },
+    });
+    if (claimed.count !== 1) {
+      throw ApiError.conflict('This appeal was decided by another administrator');
+    }
+
+    // Refund penalty if approved
+    if (refundPenalty) {
+      await creditWallet(
+        appeal.cancellation.rider.userId,
+        penaltyAmount,
+        'REFUND',
+        `Penalty refund — appeal ${decision.toLowerCase()} for cancellation`,
+        appeal.cancellationId,
+        'appeal_refund',
+        tx,
+      );
+    }
+
+    // Lift suspension if approved
+    if (liftSuspension) {
+      await tx.riderProfile.update({
+        where: { id: appeal.cancellation.rider.id },
+        data: { suspendedUntil: null },
+      });
+    }
+
+    await AdminAuditService.record(
+      {
+        ...audit,
+        action: 'CANCELLATION_APPEAL_DECIDED',
+        entityType: 'CancellationAppeal',
+        entityId: appealId,
+        oldData: {
+          status: appeal.status,
+          penaltyRefunded: appeal.penaltyRefunded,
+          suspensionLifted: appeal.suspensionLifted,
+        },
+        newData: { decision, notes: notes.trim(), refundPenalty, liftSuspension },
+      },
+      tx,
+    );
+
+    return tx.cancellationAppeal.findUniqueOrThrow({ where: { id: appealId } });
+  });
+}
+
+export async function closeCancellationInvestigation(
+  cancellationId: string,
+  notes: string,
+  audit: AdminAuditContext,
+) {
+  const trimmedNotes = notes.trim();
+  if (trimmedNotes.length < 5) {
+    throw ApiError.badRequest('Clear investigation findings are required');
   }
 
-  return prisma.cancellationAppeal.update({
-    where: { id: appealId },
-    data: {
-      status: decision,
-      reviewedBy: adminUserId,
-      reviewNotes: notes,
-      outcome: `${decision}: ${notes}`,
-      penaltyRefunded: refundPenalty,
-      suspensionLifted: liftSuspension,
-      reviewedAt: new Date(),
-    },
+  return prisma.$transaction(async (tx) => {
+    await acquireTransactionAdvisoryLock(tx, 'cancellation-investigation', cancellationId);
+    const existing = await tx.cancellationRecord.findUnique({ where: { id: cancellationId } });
+    if (!existing) throw ApiError.notFound('Cancellation record not found');
+    if (!existing.requiresInvestigation) {
+      throw ApiError.badRequest('This cancellation is not flagged for investigation');
+    }
+    if (existing.investigationNotes) {
+      throw ApiError.conflict('This investigation is already closed');
+    }
+
+    const claimed = await tx.cancellationRecord.updateMany({
+      where: {
+        id: cancellationId,
+        requiresInvestigation: true,
+        investigationNotes: null,
+      },
+      data: { investigationNotes: trimmedNotes },
+    });
+    if (claimed.count !== 1) {
+      throw ApiError.conflict('This investigation was closed by another administrator');
+    }
+
+    await AdminAuditService.record(
+      {
+        ...audit,
+        action: 'CANCELLATION_INVESTIGATION_CLOSED',
+        entityType: 'CancellationRecord',
+        entityId: cancellationId,
+        oldData: { investigationNotes: existing.investigationNotes },
+        newData: { investigationNotes: trimmedNotes },
+      },
+      tx,
+    );
+
+    return tx.cancellationRecord.findUniqueOrThrow({ where: { id: cancellationId } });
   });
 }
 
@@ -414,7 +575,9 @@ export async function getPendingInvestigations() {
   return prisma.cancellationRecord.findMany({
     where: { requiresInvestigation: true, investigationNotes: null },
     include: {
-      rider: { select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } } },
+      rider: {
+        select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } },
+      },
       order: { select: { orderNumber: true } },
       appeal: true,
     },
@@ -423,18 +586,36 @@ export async function getPendingInvestigations() {
 }
 
 export async function getPendingAppeals() {
-  return prisma.cancellationAppeal.findMany({
-    where: { status: 'PENDING' },
+  const appeals = await prisma.cancellationAppeal.findMany({
+    where: { status: { in: ['PENDING', 'UNDER_REVIEW'] } },
     include: {
       cancellation: {
         include: {
-          rider: { select: { userId: true, user: { select: { firstName: true, lastName: true } } } },
+          rider: {
+            select: {
+              userId: true,
+              suspendedUntil: true,
+              user: { select: { firstName: true, lastName: true } },
+            },
+          },
           order: { select: { orderNumber: true } },
         },
       },
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  const now = Date.now();
+  return appeals.map((appeal) => ({
+    ...appeal,
+    canRefundPenalty:
+      appeal.cancellation.penaltyApplied && Number(appeal.cancellation.penaltyAmount) > 0,
+    canLiftSuspension: Boolean(
+      appeal.cancellation.suspensionApplied &&
+      appeal.cancellation.rider.suspendedUntil &&
+      appeal.cancellation.rider.suspendedUntil.getTime() > now,
+    ),
+  }));
 }
 
 // ── Suspension check utility ────────────────────────────────

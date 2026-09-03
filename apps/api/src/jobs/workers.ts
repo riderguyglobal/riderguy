@@ -2,7 +2,7 @@ import { Worker, Job } from 'bullmq';
 import { config } from '../config';
 import { logger } from '../lib/logger';
 import { prisma } from '@riderguy/database';
-import { paystackService } from '../services/paystack.service';
+import { processWithdrawalPayout } from '../services/withdrawal-payout.service';
 import { EmailService } from '../services/email.service';
 import { redisEnabled } from './queues';
 import { notifyAdminJobFailure } from './admin-alerts';
@@ -54,110 +54,10 @@ export async function startWorkers(): Promise<void> {
   payoutWorker = new Worker(
     'payouts',
     async (job: Job<PayoutJobData>) => {
-      const { withdrawalId, userId, amount, method, destination, destinationName, bankCode } =
-        job.data;
+      const { withdrawalId, amount } = job.data;
 
       logger.info({ withdrawalId, amount }, 'Processing payout');
-
-      const withdrawal = await prisma.withdrawal.findUnique({
-        where: { id: withdrawalId },
-      });
-
-      if (!withdrawal || withdrawal.status !== 'PENDING') {
-        logger.warn({ withdrawalId }, 'Payout: withdrawal not found or not pending');
-        return { skipped: true };
-      }
-
-      try {
-        await prisma.withdrawal.update({
-          where: { id: withdrawalId },
-          data: { status: 'PROCESSING' },
-        });
-
-        if (!config.paystack.secretKey) {
-          // Never claim that money moved when no payout provider was called.
-          // The catch block below marks this FAILED and refunds the wallet.
-          throw new Error('Paystack is not configured for payouts');
-        }
-
-        // Reuse a previously-created Paystack recipient code when present.
-        // Without this, every retry creates a fresh recipient on Paystack's side,
-        // resulting in orphaned recipient records and unnecessary API calls.
-        let recipientCode = withdrawal.paystackRecipientCode ?? null;
-        if (!recipientCode) {
-          if (!bankCode) {
-            throw new Error('Withdrawal is missing a payout provider code');
-          }
-
-          const recipient = await paystackService.createTransferRecipient({
-            type: method === 'MOBILE_MONEY' ? 'mobile_money' : 'ghipss',
-            name: destinationName,
-            accountNumber: destination,
-            bankCode,
-          });
-          recipientCode = recipient.recipientCode;
-          await prisma.withdrawal.update({
-            where: { id: withdrawalId },
-            data: { paystackRecipientCode: recipientCode },
-          });
-        } else {
-          logger.info({ withdrawalId, recipientCode }, 'Reusing persisted Paystack recipient');
-        }
-
-        const reference = `WD_${withdrawalId}_${Date.now()}`;
-        const transfer = await paystackService.initiateTransfer({
-          amount: Math.round(amount * 100),
-          recipientCode,
-          reason: `RiderGuy withdrawal #${withdrawalId.slice(0, 8)}`,
-          reference,
-        });
-
-        await prisma.withdrawal.update({
-          where: { id: withdrawalId },
-          data: { paymentReference: transfer.reference },
-        });
-
-        logger.info(
-          { withdrawalId, transferCode: transfer.transferCode },
-          'Transfer initiated on Paystack',
-        );
-
-        return { status: 'initiated', reference: transfer.reference };
-      } catch (err) {
-        logger.error({ err, withdrawalId }, 'Payout processing failed');
-
-        await prisma.$transaction(async (tx) => {
-          await tx.withdrawal.update({
-            where: { id: withdrawalId },
-            data: {
-              status: 'FAILED',
-              failureReason: err instanceof Error ? err.message : 'Unknown error',
-            },
-          });
-
-          const wallet = await tx.wallet.findUnique({ where: { userId } });
-          if (wallet) {
-            const updatedWallet = await tx.wallet.update({
-              where: { id: wallet.id },
-              data: { balance: { increment: amount } },
-            });
-
-            await tx.transaction.create({
-              data: {
-                walletId: wallet.id,
-                type: 'REFUND',
-                amount: amount,
-                balanceAfter: Number(updatedWallet.balance),
-                description: `Refund for failed withdrawal #${withdrawalId.slice(0, 8)}`,
-                referenceId: withdrawalId,
-                referenceType: 'withdrawal',
-              },
-            });
-          }
-        });
-
-        throw err;
-      }
+      return processWithdrawalPayout({ withdrawalId });
     },
     {
       connection: redisConnection,
@@ -189,7 +89,10 @@ export async function startWorkers(): Promise<void> {
     async (job: Job<ReceiptJobData>) => {
       const { orderId, orderNumber, totalPrice, currency } = job.data;
 
-      logger.info({ orderId, orderNumber, correlationId: (job.data as any).correlationId }, 'Generating delivery receipt');
+      logger.info(
+        { orderId, orderNumber, correlationId: (job.data as any).correlationId },
+        'Generating delivery receipt',
+      );
 
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -209,7 +112,10 @@ export async function startWorkers(): Promise<void> {
       // PAY-07: Idempotency — skip if already sent. Worker retries should not
       //         duplicate emails to the client.
       if (order.receiptEmailSentAt) {
-        logger.info({ orderId, sentAt: order.receiptEmailSentAt }, 'Receipt already sent — skipping');
+        logger.info(
+          { orderId, sentAt: order.receiptEmailSentAt },
+          'Receipt already sent — skipping',
+        );
         return { skipped: true, reason: 'already_sent' };
       }
 
@@ -302,8 +208,7 @@ export async function startWorkers(): Promise<void> {
   commissionWorker = new Worker(
     'commissions',
     async (job: Job<CommissionJobData>) => {
-      const { orderId, riderUserId, orderAmount, commissionRate, platformCommission } =
-        job.data;
+      const { orderId, riderUserId, orderAmount, commissionRate, platformCommission } = job.data;
 
       logger.info({ orderId, platformCommission }, 'Recording commission');
 
@@ -433,7 +338,7 @@ export async function startWorkers(): Promise<void> {
 
       logger.info(
         { deletedCount: result.count, retentionDays, cutoffDate: cutoffDate.toISOString() },
-        'Location history cleanup completed'
+        'Location history cleanup completed',
       );
 
       return { deletedCount: result.count };
@@ -461,7 +366,9 @@ export async function startWorkers(): Promise<void> {
     });
   });
 
-  logger.info('BullMQ workers started: payouts, receipts, commissions, push-notifications, data-cleanup');
+  logger.info(
+    'BullMQ workers started: payouts, receipts, commissions, push-notifications, data-cleanup',
+  );
 }
 
 // ── Graceful shutdown ──

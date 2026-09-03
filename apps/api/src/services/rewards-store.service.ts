@@ -7,6 +7,7 @@ import { prisma } from '@riderguy/database';
 import type { RedemptionStatus } from '@riderguy/types';
 import { logger } from '../lib/logger';
 import { ApiError } from '../lib/api-error';
+import { AdminAuditService, type AdminAuditContext } from './admin-audit.service';
 
 // ────── Admin: CRUD Store Items ──────
 
@@ -74,10 +75,7 @@ export async function listItemsAdmin() {
 // ────── Rider: Browse Store ──────
 
 /** Get available store items (active only) */
-export async function getStoreItems(filters?: {
-  category?: string;
-  featured?: boolean;
-}) {
+export async function getStoreItems(filters?: { category?: string; featured?: boolean }) {
   const where: Record<string, unknown> = { isActive: true };
   if (filters?.category) where.category = filters.category;
   if (filters?.featured) where.isFeatured = true;
@@ -142,15 +140,17 @@ export async function redeemItem(riderId: string, itemId: string) {
   });
 
   // Notify rider
-  await prisma.notification.create({
-    data: {
-      userId: rider.userId,
-      title: `${item.icon} Reward Redeemed!`,
-      body: `You redeemed "${item.name}" for ${item.pointsCost} points. We'll process it shortly!`,
-      type: 'GAMIFICATION',
-      data: { type: 'reward_redeemed', redemptionId: redemption.id, itemId },
-    },
-  }).catch(() => {});
+  await prisma.notification
+    .create({
+      data: {
+        userId: rider.userId,
+        title: `${item.icon} Reward Redeemed!`,
+        body: `You redeemed "${item.name}" for ${item.pointsCost} points. We'll process it shortly!`,
+        type: 'GAMIFICATION',
+        data: { type: 'reward_redeemed', redemptionId: redemption.id, itemId },
+      },
+    })
+    .catch(() => {});
 
   logger.info(
     { riderId, itemId, itemName: item.name, pointsSpent: item.pointsCost },
@@ -216,25 +216,153 @@ export async function listRedemptionsAdmin(filters?: {
 export async function updateRedemptionStatus(
   redemptionId: string,
   status: RedemptionStatus,
-  notes?: string,
+  reason: string | undefined,
+  auditContext: AdminAuditContext,
 ) {
-  const redemption = await prisma.rewardRedemption.findUnique({ where: { id: redemptionId } });
-  if (!redemption) throw ApiError.notFound('Redemption not found');
+  const allowedTransitions: Record<string, readonly string[]> = {
+    PENDING: ['APPROVED', 'REJECTED', 'CANCELLED'],
+    APPROVED: ['FULFILLED', 'CANCELLED'],
+    FULFILLED: [],
+    REJECTED: [],
+    CANCELLED: [],
+  };
 
-  const data: Record<string, unknown> = { status, notes: notes ?? undefined };
-  if (status === 'FULFILLED') data.fulfilledAt = new Date();
-
-  // If rejecting, refund points — only if still PENDING to prevent double-refund
-  if ((status === 'REJECTED' || status === 'CANCELLED') && redemption.status === 'PENDING') {
-    await prisma.riderProfile.update({
-      where: { id: redemption.riderId },
-      data: { rewardPoints: { increment: redemption.pointsSpent } },
-    });
+  const decisionReason = reason?.trim() || undefined;
+  if (status === 'REJECTED' && (!decisionReason || decisionReason.length < 10)) {
+    throw ApiError.badRequest(
+      'A meaningful rejection reason of at least 10 characters is required',
+    );
   }
 
-  return prisma.rewardRedemption.update({
-    where: { id: redemptionId },
-    data: data as any,
-    include: { item: true },
+  const outcome = await prisma.$transaction(async (tx) => {
+    const redemption = await tx.rewardRedemption.findUnique({
+      where: { id: redemptionId },
+      include: { item: true, rider: { select: { userId: true } } },
+    });
+    if (!redemption) throw ApiError.notFound('Redemption not found');
+
+    // A retry after a committed decision is a successful no-op. This is
+    // especially important when the first HTTP response was lost.
+    if (redemption.status === status) return { redemption, changed: false };
+
+    if (!allowedTransitions[redemption.status]?.includes(status)) {
+      throw ApiError.conflict(
+        `Cannot change a reward redemption from ${redemption.status} to ${status}`,
+        'INVALID_REDEMPTION_TRANSITION',
+      );
+    }
+
+    const restoreReservation = status === 'REJECTED' || status === 'CANCELLED';
+    const data: Record<string, unknown> = { status, notes: decisionReason };
+    if (status === 'FULFILLED') data.fulfilledAt = new Date();
+
+    const changed = await tx.rewardRedemption.updateMany({
+      where: { id: redemptionId, status: redemption.status },
+      data: data as any,
+    });
+
+    if (changed.count !== 1) {
+      const latest = await tx.rewardRedemption.findUnique({
+        where: { id: redemptionId },
+        include: { item: true, rider: { select: { userId: true } } },
+      });
+      if (latest?.status === status) return { redemption: latest, changed: false };
+      throw ApiError.conflict(
+        'This reward redemption changed while it was being reviewed',
+        'REDEMPTION_DECISION_CONFLICT',
+      );
+    }
+
+    if (restoreReservation) {
+      await tx.riderProfile.update({
+        where: { id: redemption.riderId },
+        data: { rewardPoints: { increment: redemption.pointsSpent } },
+      });
+
+      // A non-negative inventory is finite. Redemption decremented it once,
+      // so an unfulfilled rejection/cancellation must put that unit back.
+      if (redemption.item.inventory >= 0) {
+        await tx.rewardStoreItem.update({
+          where: { id: redemption.itemId },
+          data: { inventory: { increment: 1 } },
+        });
+      }
+    }
+
+    await AdminAuditService.record(
+      {
+        ...auditContext,
+        action: `reward_redemption.status_${String(status).toLowerCase()}`,
+        entityType: 'RewardRedemption',
+        entityId: redemptionId,
+        oldData: { status: redemption.status },
+        newData: {
+          status,
+          notes: decisionReason ?? null,
+          pointsRestored: restoreReservation ? redemption.pointsSpent : 0,
+          inventoryRestored: restoreReservation && redemption.item.inventory >= 0,
+        },
+      },
+      tx,
+    );
+
+    const updated = await tx.rewardRedemption.findUniqueOrThrow({
+      where: { id: redemptionId },
+      include: { item: true, rider: { select: { userId: true } } },
+    });
+
+    return { redemption: updated, changed: true };
   });
+
+  if (outcome.changed) {
+    const itemName = outcome.redemption.item.name;
+    const notificationByStatus: Partial<
+      Record<RedemptionStatus, { title: string; body: string; event: string }>
+    > = {
+      APPROVED: {
+        title: 'Reward approved',
+        body: `Your ${itemName} redemption has been approved and is being prepared.`,
+        event: 'reward_redemption_approved',
+      },
+      FULFILLED: {
+        title: 'Reward fulfilled',
+        body: `Your ${itemName} reward has been fulfilled.`,
+        event: 'reward_redemption_fulfilled',
+      },
+      REJECTED: {
+        title: 'Reward request refunded',
+        body: `Your ${itemName} request was declined. ${outcome.redemption.pointsSpent} points have been returned. Reason: ${decisionReason}`,
+        event: 'reward_redemption_rejected',
+      },
+      CANCELLED: {
+        title: 'Reward request refunded',
+        body: `Your ${itemName} request was cancelled and ${outcome.redemption.pointsSpent} points have been returned.`,
+        event: 'reward_redemption_cancelled',
+      },
+    };
+    const notification = notificationByStatus[status];
+
+    if (notification) {
+      await prisma.notification
+        .create({
+          data: {
+            userId: outcome.redemption.rider.userId,
+            title: notification.title,
+            body: notification.body,
+            type: 'GAMIFICATION',
+            data: {
+              type: notification.event,
+              redemptionId,
+              itemId: outcome.redemption.itemId,
+              status,
+            },
+          },
+        })
+        .catch((error) => {
+          logger.warn({ error, redemptionId, status }, 'Reward status notification failed');
+        });
+    }
+  }
+
+  return outcome.redemption;
 }

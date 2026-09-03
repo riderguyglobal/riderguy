@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import messaging, { type FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { useAuth } from '@riderguy/auth-native';
+import { resolveRiderNotificationRoute } from '@/lib/notification-route';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -16,12 +17,8 @@ Notifications.setNotificationHandler({
 });
 
 function openFromNotificationData(data?: Record<string, unknown> | null) {
-  const orderId = data?.orderId ? String(data.orderId) : '';
-  if (orderId) {
-    router.push(`/(app)/jobs/${orderId}` as any);
-    return;
-  }
-  router.push('/(app)/notifications' as any);
+  const target = resolveRiderNotificationRoute(data);
+  router.push((target ?? '/(app)/notifications') as any);
 }
 
 export function usePushNotifications() {
@@ -75,15 +72,17 @@ export function usePushNotifications() {
 
       // FCM notification messages are silent in the foreground —
       // mirror them as local notifications so the rider still sees them.
-      unsubscribeForeground = messaging().onMessage(async (message: FirebaseMessagingTypes.RemoteMessage) => {
-        const title = message.notification?.title ?? 'RiderGuy';
-        const body = message.notification?.body ?? '';
-        if (!title && !body) return;
-        await Notifications.scheduleNotificationAsync({
-          content: { title, body, data: message.data ?? {}, sound: true },
-          trigger: null,
-        }).catch(() => {});
-      });
+      unsubscribeForeground = messaging().onMessage(
+        async (message: FirebaseMessagingTypes.RemoteMessage) => {
+          const title = message.notification?.title ?? 'RiderGuy';
+          const body = message.notification?.body ?? '';
+          if (!title && !body) return;
+          await Notifications.scheduleNotificationAsync({
+            content: { title, body, data: message.data ?? {}, sound: true },
+            trigger: null,
+          }).catch(() => {});
+        },
+      );
 
       // Tap on an FCM-displayed notification while app was in background
       unsubscribeOpened = messaging().onNotificationOpenedApp((message) => {
@@ -91,7 +90,9 @@ export function usePushNotifications() {
       });
 
       // App launched from a quit state by tapping a notification
-      const initial = await messaging().getInitialNotification().catch(() => null);
+      const initial = await messaging()
+        .getInitialNotification()
+        .catch(() => null);
       if (initial) openFromNotificationData(initial.data);
     };
 
@@ -101,7 +102,9 @@ export function usePushNotifications() {
 
     // Tap on a locally-mirrored (foreground) notification
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      openFromNotificationData(response.notification.request.content.data as Record<string, unknown>);
+      openFromNotificationData(
+        response.notification.request.content.data as Record<string, unknown>,
+      );
     });
 
     return () => {

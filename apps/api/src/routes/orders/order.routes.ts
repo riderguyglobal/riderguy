@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { authenticate, getAuthRoles, hasAnyRole, requireRole, validate, sensitiveRateLimit } from '../../middleware';
+import {
+  authenticate,
+  getAuthRoles,
+  hasAnyRole,
+  requireRole,
+  validate,
+  sensitiveRateLimit,
+} from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { ApiError } from '../../lib/api-error';
 import { z } from 'zod';
@@ -16,7 +23,13 @@ import { StatusCodes } from 'http-status-codes';
 import * as OrderService from '../../services/order.service';
 import * as DispatchService from '../../services/dispatch.service';
 import * as GeocodingService from '../../services/geocoding.service';
-import { formatPlusCode, decodePlusCode, isValidPlusCode, isFullPlusCode, recoverPlusCode } from '@riderguy/utils';
+import {
+  formatPlusCode,
+  decodePlusCode,
+  isValidPlusCode,
+  isFullPlusCode,
+  recoverPlusCode,
+} from '@riderguy/utils';
 import * as TrackingService from '../../services/tracking.service';
 import { notifyNearbyRiders, createOrderNotification } from '../../services/notification.service';
 import { autoDispatch, cancelDispatch } from '../../services/auto-dispatch.service';
@@ -30,11 +43,20 @@ import multer from 'multer';
 import type { Request } from 'express';
 import os from 'node:os';
 import path from 'node:path';
+import { adminAuditContext } from '../../services/admin-audit.service';
+import {
+  completeRiderOrderStop,
+  persistRiderOrderProof,
+  sanitizeOrderPayloadForRequester,
+} from './order-route-security';
 
 // ── Google Routes API helpers ───────────────────────────
 
 /** Decode a Google encoded polyline into GeoJSON LineString */
-function decodeGooglePolyline(encoded: string): { type: 'LineString'; coordinates: [number, number][] } {
+function decodeGooglePolyline(encoded: string): {
+  type: 'LineString';
+  coordinates: [number, number][];
+} {
   const coordinates: [number, number][] = [];
   let index = 0;
   let lat = 0;
@@ -49,7 +71,7 @@ function decodeGooglePolyline(encoded: string): { type: 'LineString'; coordinate
       result |= (byte & 0x1f) << shift;
       shift += 5;
     } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
 
     shift = 0;
     result = 0;
@@ -58,7 +80,7 @@ function decodeGooglePolyline(encoded: string): { type: 'LineString'; coordinate
       result |= (byte & 0x1f) << shift;
       shift += 5;
     } while (byte >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
 
     coordinates.push([lng / 1e5, lat / 1e5]);
   }
@@ -84,12 +106,14 @@ function buildEstimatedRoutes(points: RoutePoint[], travelMode: 'DRIVE' | 'BICYC
   const speedKmh = travelMode === 'WALK' ? 5 : travelMode === 'BICYCLE' ? 15 : 25;
   const legs = points.slice(0, -1).map((origin, index) => {
     const destination = points[index + 1]!;
-    const distance = Math.round(TrackingService.haversineKm(
-      origin.latitude,
-      origin.longitude,
-      destination.latitude,
-      destination.longitude,
-    ) * 1000);
+    const distance = Math.round(
+      TrackingService.haversineKm(
+        origin.latitude,
+        origin.longitude,
+        destination.latitude,
+        destination.longitude,
+      ) * 1000,
+    );
     const duration = Math.max(60, Math.round((distance / 1000 / speedKmh) * 3600));
     return {
       duration,
@@ -108,18 +132,20 @@ function buildEstimatedRoutes(points: RoutePoint[], travelMode: 'DRIVE' | 'BICYC
   const distance = legs.reduce((total, leg) => total + leg.distance, 0);
   const duration = legs.reduce((total, leg) => total + leg.duration, 0);
 
-  return [{
-    geometry: {
-      type: 'LineString' as const,
-      coordinates: points.map((point) => [point.longitude, point.latitude] as [number, number]),
+  return [
+    {
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: points.map((point) => [point.longitude, point.latitude] as [number, number]),
+      },
+      duration,
+      distance,
+      weight: duration,
+      weight_name: 'estimated',
+      legs,
+      estimated: true,
     },
-    duration,
-    distance,
-    weight: duration,
-    weight_name: 'estimated',
-    legs,
-    estimated: true,
-  }];
+  ];
 }
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
@@ -131,12 +157,12 @@ import fs from 'node:fs/promises';
 
 // Magic byte signatures for allowed file types
 const MAGIC_BYTES: Record<string, { offset: number; bytes: number[] }[]> = {
-  'image/jpeg': [{ offset: 0, bytes: [0xFF, 0xD8, 0xFF] }],
-  'image/png': [{ offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47] }],
+  'image/jpeg': [{ offset: 0, bytes: [0xff, 0xd8, 0xff] }],
+  'image/png': [{ offset: 0, bytes: [0x89, 0x50, 0x4e, 0x47] }],
   'image/webp': [{ offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] }], // after RIFF header
   'video/mp4': [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] }], // ftyp box
   'video/quicktime': [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] }],
-  'video/webm': [{ offset: 0, bytes: [0x1A, 0x45, 0xDF, 0xA3] }], // EBML header
+  'video/webm': [{ offset: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }], // EBML header
 };
 
 /** Verify file content matches declared MIME type via magic bytes */
@@ -150,9 +176,16 @@ function verifyMagicBytes(buffer: Buffer, declaredMime: string): boolean {
 }
 
 const tempStorage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) =>
-    cb(null, os.tmpdir()),
-  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+  destination: (
+    _req: Request,
+    _file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void,
+  ) => cb(null, os.tmpdir()),
+  filename: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void,
+  ) => {
     const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
     cb(null, `riderguy-order-${crypto.randomUUID()}${ext}`);
   },
@@ -162,7 +195,14 @@ const packagePhotoUpload = multer({
   storage: tempStorage,
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB for videos
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
+    const ALLOWED = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'video/mp4',
+      'video/quicktime',
+      'video/webm',
+    ];
     cb(null, ALLOWED.includes(file.mimetype));
   },
 });
@@ -289,10 +329,13 @@ router.get(
     const query = req.query.q as string;
     if (query && place) {
       // Infer provider from ID prefix (gaz-, nom-, com-, or Google place ID)
-      const source = placeId.startsWith('gaz-') ? 'gazetteer' as const
-        : placeId.startsWith('nom-') ? 'nominatim' as const
-        : placeId.startsWith('com-') ? 'community' as const
-        : 'google' as const;
+      const source = placeId.startsWith('gaz-')
+        ? ('gazetteer' as const)
+        : placeId.startsWith('nom-')
+          ? ('nominatim' as const)
+          : placeId.startsWith('com-')
+            ? ('community' as const)
+            : ('google' as const);
       GeocodingService.recordSelection(query, {
         id: placeId,
         text: place.name,
@@ -345,28 +388,33 @@ router.post(
     // Auto-create a CommunityPlace entry (if not from the community provider already)
     // so the location becomes searchable in future autocomplete queries.
     if (suggestion.source !== 'community') {
-      prisma.communityPlace.upsert({
-        where: {
-          // Use a deterministic key based on coords (snap to ~11m grid)
-          id: `auto-${Math.round(suggestion.latitude * 10000)}-${Math.round(suggestion.longitude * 10000)}`,
-        },
-        create: {
-          id: `auto-${Math.round(suggestion.latitude * 10000)}-${Math.round(suggestion.longitude * 10000)}`,
-          name: suggestion.text,
-          address: suggestion.placeName ?? suggestion.text,
-          latitude: suggestion.latitude,
-          longitude: suggestion.longitude,
-          source: 'auto_learned',
-          contributedById: userId,
-          usageCount: 1,
-          verified: false,
-        },
-        update: {
-          usageCount: { increment: 1 },
-        },
-      }).catch((err) => {
-        logger.warn({ err, query }, '[Orders/RecordSelection] Failed to auto-create community place');
-      });
+      prisma.communityPlace
+        .upsert({
+          where: {
+            // Use a deterministic key based on coords (snap to ~11m grid)
+            id: `auto-${Math.round(suggestion.latitude * 10000)}-${Math.round(suggestion.longitude * 10000)}`,
+          },
+          create: {
+            id: `auto-${Math.round(suggestion.latitude * 10000)}-${Math.round(suggestion.longitude * 10000)}`,
+            name: suggestion.text,
+            address: suggestion.placeName ?? suggestion.text,
+            latitude: suggestion.latitude,
+            longitude: suggestion.longitude,
+            source: 'auto_learned',
+            contributedById: userId,
+            usageCount: 1,
+            verified: false,
+          },
+          update: {
+            usageCount: { increment: 1 },
+          },
+        })
+        .catch((err) => {
+          logger.warn(
+            { err, query },
+            '[Orders/RecordSelection] Failed to auto-create community place',
+          );
+        });
     }
 
     res.status(StatusCodes.OK).json({ success: true });
@@ -409,7 +457,10 @@ router.get(
       }
       const area = decodePlusCode(fullCode);
       // Also reverse geocode the center to get an address
-      const geocoded = await GeocodingService.reverseGeocode(area.latitudeCenter, area.longitudeCenter);
+      const geocoded = await GeocodingService.reverseGeocode(
+        area.latitudeCenter,
+        area.longitudeCenter,
+      );
       res.status(StatusCodes.OK).json({
         success: true,
         data: {
@@ -432,10 +483,14 @@ router.get(
     const latitude = parseFloat(latStr ?? '');
     const longitude = parseFloat(lngStr ?? '');
     if (isNaN(latitude) || isNaN(longitude)) {
-      throw ApiError.badRequest('Provide either "code" (Plus Code) or "latitude" & "longitude" query parameters');
+      throw ApiError.badRequest(
+        'Provide either "code" (Plus Code) or "latitude" & "longitude" query parameters',
+      );
     }
-    if (!ghanaOrderLatitudeSchema.safeParse(latitude).success
-      || !ghanaOrderLongitudeSchema.safeParse(longitude).success) {
+    if (
+      !ghanaOrderLatitudeSchema.safeParse(latitude).success ||
+      !ghanaOrderLongitudeSchema.safeParse(longitude).success
+    ) {
       throw ApiError.badRequest('Location must be within Ghana');
     }
     const plusCode = formatPlusCode(latitude, longitude);
@@ -449,14 +504,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const { coordinates, profile: driveProfile } = req.query;
     if (!coordinates || typeof coordinates !== 'string') {
-      throw ApiError.badRequest('coordinates query parameter is required (format: lng,lat;lng,lat;...)');
+      throw ApiError.badRequest(
+        'coordinates query parameter is required (format: lng,lat;lng,lat;...)',
+      );
     }
 
     const googleConfig = (await import('../../config')).config.google;
     const googleApiKey = googleConfig.mapsEnabled ? googleConfig.mapsApiKey : '';
 
     // Parse coordinate pairs: "lng,lat;lng,lat;..."
-    const pairs = coordinates.split(';').map(p => {
+    const pairs = coordinates.split(';').map((p) => {
       const [lng, lat] = p.split(',').map(Number);
       return { latitude: lat, longitude: lng };
     });
@@ -464,15 +521,20 @@ router.get(
 
     // Validate every route point against the Ghana launch boundary.
     for (const p of pairs) {
-      if (p.latitude == null || p.longitude == null ||
-          isNaN(p.latitude) || isNaN(p.longitude) ||
-          !ghanaOrderLatitudeSchema.safeParse(p.latitude).success ||
-          !ghanaOrderLongitudeSchema.safeParse(p.longitude).success) {
+      if (
+        p.latitude == null ||
+        p.longitude == null ||
+        isNaN(p.latitude) ||
+        isNaN(p.longitude) ||
+        !ghanaOrderLatitudeSchema.safeParse(p.latitude).success ||
+        !ghanaOrderLongitudeSchema.safeParse(p.longitude).success
+      ) {
         throw ApiError.badRequest('Invalid coordinates: every route point must be within Ghana');
       }
     }
 
-    const travelMode = driveProfile === 'cycling' ? 'BICYCLE' : driveProfile === 'walking' ? 'WALK' : 'DRIVE';
+    const travelMode =
+      driveProfile === 'cycling' ? 'BICYCLE' : driveProfile === 'walking' ? 'WALK' : 'DRIVE';
 
     if (!googleApiKey) {
       res.status(StatusCodes.OK).json({
@@ -487,9 +549,8 @@ router.get(
     }
 
     // Build intermediates (waypoints between origin and destination)
-    const intermediates = pairs.length > 2
-      ? pairs.slice(1, -1).map(p => ({ location: { latLng: p } }))
-      : undefined;
+    const intermediates =
+      pairs.length > 2 ? pairs.slice(1, -1).map((p) => ({ location: { latLng: p } })) : undefined;
 
     const body = {
       origin: { location: { latLng: pairs[0] } },
@@ -504,7 +565,8 @@ router.get(
       units: 'METRIC',
     };
 
-    const fieldMask = 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.routeLabels,routes.travelAdvisory';
+    const fieldMask =
+      'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.routeLabels,routes.travelAdvisory';
 
     const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
       method: 'POST',
@@ -512,7 +574,7 @@ router.get(
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': googleApiKey,
         'X-Goog-FieldMask': fieldMask,
-        'Referer': 'https://api.myriderguy.com/',
+        Referer: 'https://api.myriderguy.com/',
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(8000),
@@ -521,47 +583,63 @@ router.get(
     if (!response.ok) {
       const errBody = await response.text().catch(() => '');
       console.error(`[Directions] Google Routes API ${response.status}: ${errBody.slice(0, 500)}`);
-      throw ApiError.internal(`Routes service unavailable: ${response.status} ${errBody.slice(0, 200)}`);
+      throw ApiError.internal(
+        `Routes service unavailable: ${response.status} ${errBody.slice(0, 200)}`,
+      );
     }
 
-    const googleData = await response.json() as { routes?: Array<Record<string, unknown>> };
+    const googleData = (await response.json()) as { routes?: Array<Record<string, unknown>> };
 
     // Transform Google Routes response to match frontend expectations
     const routes = (googleData.routes ?? []).map((route: Record<string, unknown>) => {
-      const legs = (route.legs as Array<Record<string, unknown>> ?? []).map((leg: Record<string, unknown>) => {
-        const steps = (leg.steps as Array<Record<string, unknown>> ?? []).map((step: Record<string, unknown>) => ({
-          geometry: decodeGooglePolyline((step.polyline as Record<string, string>)?.encodedPolyline ?? ''),
-          duration: parseDuration(step.staticDuration as string ?? step.duration as string ?? '0s'),
-          distance: step.distanceMeters as number ?? 0,
-          name: (step.navigationInstruction as Record<string, string>)?.instructions ?? '',
-          maneuver: {
-            type: (step.navigationInstruction as Record<string, string>)?.maneuver ?? '',
-            instruction: (step.navigationInstruction as Record<string, string>)?.instructions ?? '',
-          },
-        }));
+      const legs = ((route.legs as Array<Record<string, unknown>>) ?? []).map(
+        (leg: Record<string, unknown>) => {
+          const steps = ((leg.steps as Array<Record<string, unknown>>) ?? []).map(
+            (step: Record<string, unknown>) => ({
+              geometry: decodeGooglePolyline(
+                (step.polyline as Record<string, string>)?.encodedPolyline ?? '',
+              ),
+              duration: parseDuration(
+                (step.staticDuration as string) ?? (step.duration as string) ?? '0s',
+              ),
+              distance: (step.distanceMeters as number) ?? 0,
+              name: (step.navigationInstruction as Record<string, string>)?.instructions ?? '',
+              maneuver: {
+                type: (step.navigationInstruction as Record<string, string>)?.maneuver ?? '',
+                instruction:
+                  (step.navigationInstruction as Record<string, string>)?.instructions ?? '',
+              },
+            }),
+          );
 
-        // Extract congestion from traffic-aware polyline
-        const travelAdvisory = leg.travelAdvisory as Record<string, unknown> | undefined;
-        const speedReadings = travelAdvisory?.speedReadingIntervals as Array<Record<string, unknown>> ?? [];
-        const congestion = speedReadings.map((s: Record<string, unknown>) => {
-          const speed = s.speed as string;
-          if (speed === 'SLOW') return 'heavy';
-          if (speed === 'TRAFFIC_JAM') return 'severe';
-          if (speed === 'NORMAL') return 'low';
-          return 'moderate';
-        });
+          // Extract congestion from traffic-aware polyline
+          const travelAdvisory = leg.travelAdvisory as Record<string, unknown> | undefined;
+          const speedReadings =
+            (travelAdvisory?.speedReadingIntervals as Array<Record<string, unknown>>) ?? [];
+          const congestion = speedReadings.map((s: Record<string, unknown>) => {
+            const speed = s.speed as string;
+            if (speed === 'SLOW') return 'heavy';
+            if (speed === 'TRAFFIC_JAM') return 'severe';
+            if (speed === 'NORMAL') return 'low';
+            return 'moderate';
+          });
 
-        return {
-          duration: parseDuration(leg.staticDuration as string ?? leg.duration as string ?? '0s'),
-          distance: leg.distanceMeters as number ?? 0,
-          summary: '',
-          steps,
-          annotation: congestion.length > 0 ? { congestion } : undefined,
-        };
-      });
+          return {
+            duration: parseDuration(
+              (leg.staticDuration as string) ?? (leg.duration as string) ?? '0s',
+            ),
+            distance: (leg.distanceMeters as number) ?? 0,
+            summary: '',
+            steps,
+            annotation: congestion.length > 0 ? { congestion } : undefined,
+          };
+        },
+      );
 
       return {
-        geometry: decodeGooglePolyline((route.polyline as Record<string, string>)?.encodedPolyline ?? ''),
+        geometry: decodeGooglePolyline(
+          (route.polyline as Record<string, string>)?.encodedPolyline ?? '',
+        ),
         duration: parseDuration((route as Record<string, string>).duration ?? '0s'),
         distance: (route as Record<string, number>).distanceMeters ?? 0,
         weight: 0,
@@ -587,7 +665,10 @@ router.get(
   requireRole(UserRole.RIDER),
   asyncHandler(async (req, res) => {
     const jobs = await OrderService.getAvailableJobs(req.user!.userId);
-    res.status(StatusCodes.OK).json({ success: true, data: jobs });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(jobs, getAuthRoles(req.user!)),
+    });
   }),
 );
 
@@ -633,7 +714,8 @@ router.post(
   validate(createOrderSchema),
   asyncHandler(async (req, res) => {
     const order = await OrderService.createOrder(req.user!.userId, req.body);
-    const scheduledForFuture = order.isScheduled && order.scheduledAt && order.scheduledAt > new Date();
+    const scheduledForFuture =
+      order.isScheduled && order.scheduledAt && order.scheduledAt > new Date();
 
     if (!scheduledForFuture) {
       // Dispatch immediate orders now. Future scheduled orders stay PENDING
@@ -642,14 +724,11 @@ router.post(
         logger.error({ err, orderId: order.id }, '[Orders] autoDispatch failed silently');
       });
 
-      notifyNearbyRiders(
-        order.id,
-        order.orderNumber,
-        order.zoneId,
-        order.pickupAddress,
-      ).catch((err) => {
-        logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
-      });
+      notifyNearbyRiders(order.id, order.orderNumber, order.zoneId, order.pickupAddress).catch(
+        (err) => {
+          logger.error({ err, orderId: order.id }, '[Orders] notifyNearbyRiders failed silently');
+        },
+      );
     }
 
     res.status(StatusCodes.CREATED).json({ success: true, data: order });
@@ -660,17 +739,22 @@ router.post(
 router.get(
   '/',
   asyncHandler(async (req, res) => {
+    const roles = getAuthRoles(req.user!);
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const status = req.query.status as OrderStatus | undefined;
 
-    const result = await OrderService.listOrders(req.user!.userId, getAuthRoles(req.user!), {
+    const result = await OrderService.listOrders(req.user!.userId, roles, {
       page,
       limit,
       status,
     });
 
-    res.status(StatusCodes.OK).json({ success: true, data: result.orders, pagination: result.pagination });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(result.orders, roles),
+      pagination: result.pagination,
+    });
   }),
 );
 
@@ -689,7 +773,6 @@ router.get(
       UserRole.SUPER_ADMIN,
       UserRole.DISPATCHER,
     );
-
     if (!isAdmin) {
       const isClient = order.clientId === userId;
       let isRider = false;
@@ -701,7 +784,12 @@ router.get(
       }
     }
 
-    res.status(StatusCodes.OK).json({ success: true, data: order });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(order, getAuthRoles(req.user!), {
+        clientOwnsOrder: order.clientId === userId,
+      }),
+    });
   }),
 );
 
@@ -716,7 +804,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const order = await DispatchService.acceptJob(req.params.id as string, req.user!.userId);
     cancelDispatch(req.params.id as string);
-    res.status(StatusCodes.OK).json({ success: true, data: order });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(order, getAuthRoles(req.user!)),
+    });
   }),
 );
 
@@ -782,14 +873,33 @@ router.patch(
       UserRole.SUPER_ADMIN,
       UserRole.DISPATCHER,
     );
+    if (!isAdmin && (String(status).startsWith('CANCELLED_') || status === 'FAILED')) {
+      throw ApiError.forbidden('Use the Rider cancellation workflow for cancellation requests');
+    }
+    if (isAdmin && ['CANCELLED_BY_CLIENT', 'CANCELLED_BY_RIDER'].includes(String(status))) {
+      throw ApiError.badRequest('Administrator cancellations must use CANCELLED_BY_ADMIN');
+    }
+    if (
+      isAdmin &&
+      status === 'CANCELLED_BY_ADMIN' &&
+      (typeof note !== 'string' || note.trim().length < 8)
+    ) {
+      throw ApiError.badRequest('A clear administrator cancellation reason is required');
+    }
     let previousStatus = '';
+    let expectedRiderId: string | undefined;
     if (!isAdmin) {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         select: {
-          id: true, status: true, riderId: true, isMultiStop: true,
-          pickupLatitude: true, pickupLongitude: true,
-          dropoffLatitude: true, dropoffLongitude: true,
+          id: true,
+          status: true,
+          riderId: true,
+          isMultiStop: true,
+          pickupLatitude: true,
+          pickupLongitude: true,
+          dropoffLatitude: true,
+          dropoffLongitude: true,
         },
       });
       if (!order) throw ApiError.notFound('Order not found');
@@ -802,12 +912,14 @@ router.patch(
       if (!riderProfile || order.riderId !== riderProfile.id) {
         throw ApiError.forbidden('You are not assigned to this order');
       }
+      expectedRiderId = riderProfile.id;
 
       // If the rider sent a fresh GPS fix (e.g. after returning from
       // Google Maps navigation), persist it so the geofence check
       // uses up-to-date coordinates instead of stale ones.
       const freshLat = typeof latitude === 'number' && Number.isFinite(latitude) ? latitude : null;
-      const freshLng = typeof longitude === 'number' && Number.isFinite(longitude) ? longitude : null;
+      const freshLng =
+        typeof longitude === 'number' && Number.isFinite(longitude) ? longitude : null;
 
       // Validate GPS range
       if (freshLat !== null && (freshLat < -90 || freshLat > 90)) {
@@ -820,7 +932,11 @@ router.patch(
       if (freshLat !== null && freshLng !== null) {
         await prisma.riderProfile.update({
           where: { id: riderProfile.id },
-          data: { currentLatitude: freshLat, currentLongitude: freshLng, lastLocationUpdate: new Date() },
+          data: {
+            currentLatitude: freshLat,
+            currentLongitude: freshLng,
+            lastLocationUpdate: new Date(),
+          },
         });
         riderProfile.currentLatitude = freshLat;
         riderProfile.currentLongitude = freshLng;
@@ -878,7 +994,40 @@ router.patch(
       status as OrderStatus,
       req.user!.userId,
       note as string | undefined,
+      isAdmin
+        ? { auditContext: adminAuditContext(req) }
+        : expectedRiderId
+          ? { expectedRiderId }
+          : undefined,
     );
+
+    if (status === 'CANCELLED_BY_ADMIN') {
+      cancelDispatch(orderId);
+      const rider = order.riderId
+        ? await prisma.riderProfile.findUnique({
+            where: { id: order.riderId },
+            select: { userId: true },
+          })
+        : null;
+      await Promise.allSettled([
+        createOrderNotification(
+          order.clientId,
+          'Delivery cancelled by RiderGuy',
+          `Order ${order.orderNumber} was cancelled by operations. ${String(note).trim()}`,
+          order.id,
+        ),
+        ...(rider
+          ? [
+              createOrderNotification(
+                rider.userId,
+                'Delivery cancelled by RiderGuy',
+                `Order ${order.orderNumber} was cancelled by operations. ${String(note).trim()}`,
+                order.id,
+              ),
+            ]
+          : []),
+      ]);
+    }
 
     // Emit real-time status update via WebSocket
     emitOrderStatusUpdate({
@@ -890,7 +1039,10 @@ router.patch(
       note: note as string | undefined,
     });
 
-    res.status(StatusCodes.OK).json({ success: true, data: order });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(order, getAuthRoles(req.user!)),
+    });
   }),
 );
 
@@ -908,13 +1060,9 @@ router.post(
     });
     if (!beforeCancel) throw ApiError.notFound('Order not found');
     const previousStatus = beforeCancel.status;
-    const riderId = beforeCancel.riderId;
 
-    const order = await OrderService.cancelOrder(
-      orderId,
-      req.user!.userId,
-      req.body.reason,
-    );
+    const order = await OrderService.cancelOrder(orderId, req.user!.userId, req.body.reason);
+    const riderId = order.riderId;
 
     // Emit real-time status update via WebSocket (includes reason for rider UI)
     emitOrderStatusUpdate({
@@ -968,11 +1116,7 @@ router.post(
     if (!beforeCancel) throw ApiError.notFound('Order not found');
     const previousStatus = beforeCancel.status;
 
-    const order = await OrderService.cancelOrderByRider(
-      orderId,
-      req.user!.userId,
-      reason.trim(),
-    );
+    const order = await OrderService.cancelOrderByRider(orderId, req.user!.userId, reason.trim());
 
     // Emit real-time status update via WebSocket
     emitOrderStatusUpdate({
@@ -987,7 +1131,10 @@ router.post(
     // Client notification is now handled by the cancellation consequence service
     // (includes penalty context and better messaging)
 
-    res.status(StatusCodes.OK).json({ success: true, data: order });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(order, getAuthRoles(req.user!)),
+    });
   }),
 );
 
@@ -1051,10 +1198,7 @@ router.post(
     const cancelRequest = await CancelRequestService.getCancelRequest(orderId);
     if (!cancelRequest) throw ApiError.notFound('No cancellation request found for this order');
 
-    const updated = await CancelRequestService.confirmReturn(
-      cancelRequest.id,
-      req.user!.userId,
-    );
+    const updated = await CancelRequestService.confirmReturn(cancelRequest.id, req.user!.userId);
 
     res.status(StatusCodes.OK).json({ success: true, data: updated });
   }),
@@ -1143,8 +1287,12 @@ router.get(
 
     // Determine destination: pickup if not yet picked up, dropoff otherwise
     const prePickupStatuses = ['ASSIGNED', 'PICKUP_EN_ROUTE', 'AT_PICKUP'];
-    const destLat = prePickupStatuses.includes(order.status) ? order.pickupLatitude : order.dropoffLatitude;
-    const destLng = prePickupStatuses.includes(order.status) ? order.pickupLongitude : order.dropoffLongitude;
+    const destLat = prePickupStatuses.includes(order.status)
+      ? order.pickupLatitude
+      : order.dropoffLatitude;
+    const destLng = prePickupStatuses.includes(order.status)
+      ? order.pickupLongitude
+      : order.dropoffLongitude;
 
     const eta = await TrackingService.getETA(
       order.rider.currentLatitude,
@@ -1246,87 +1394,132 @@ router.post(
   proofUpload.single('file'),
   asyncHandler(async (req, res) => {
     const orderId = req.params.id as string;
-    const proofType = (req.body.proofType ?? req.query.proofType) as string;
+    try {
+      const proofType = (req.body.proofType ?? req.query.proofType) as string;
 
-    if (!proofType) throw ApiError.badRequest('proofType is required');
+      if (!proofType) throw ApiError.badRequest('proofType is required');
 
-    const ALLOWED_PROOF_TYPES = ['PHOTO', 'PIN_CODE'];
-    if (!ALLOWED_PROOF_TYPES.includes(proofType)) {
-      throw ApiError.badRequest(`proofType must be one of: ${ALLOWED_PROOF_TYPES.join(', ')}`);
-    }
-
-    // Verify rider is assigned
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
-    if (!order) throw ApiError.notFound('Order not found');
-
-    const riderProfile = await prisma.riderProfile.findUnique({
-      where: { userId: req.user!.userId },
-    });
-    if (!riderProfile || order.riderId !== riderProfile.id) {
-      throw ApiError.forbidden('You are not assigned to this order');
-    }
-
-    OrderService.assertDeliveryPaymentReady(order);
-
-    let proofUrl: string;
-
-    if (proofType === 'PIN_CODE') {
-      // PIN code — validate against the order's actual delivery PIN
-      const proofData = req.body.proofData as string;
-      if (!proofData || !/^\d{6}$/.test(proofData)) throw ApiError.badRequest('Valid 6-digit PIN code required');
-      if (!order.deliveryPinCode) {
-        throw ApiError.badRequest('No delivery PIN was set for this order');
+      const ALLOWED_PROOF_TYPES = ['PHOTO', 'PIN_CODE'];
+      if (!ALLOWED_PROOF_TYPES.includes(proofType)) {
+        throw ApiError.badRequest(`proofType must be one of: ${ALLOWED_PROOF_TYPES.join(', ')}`);
       }
-      if (proofData !== order.deliveryPinCode) {
-        throw ApiError.badRequest('Incorrect delivery PIN', 'INVALID_PIN');
+      const normalizedProofType = proofType as 'PHOTO' | 'PIN_CODE';
+
+      // Verify rider is assigned
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!order) throw ApiError.notFound('Order not found');
+
+      const riderProfile = await prisma.riderProfile.findUnique({
+        where: { userId: req.user!.userId },
+      });
+      if (!riderProfile || order.riderId !== riderProfile.id) {
+        throw ApiError.forbidden('You are not assigned to this order');
       }
-      proofUrl = `pin:${proofData}`;
-    } else if (req.file) {
-      // Multipart file upload (PHOTO or SIGNATURE) via StorageService
-      const result = await StorageService.uploadFromPath(
-        req.file.path,
-        req.file.originalname,
-        req.file.mimetype,
-        StorageService.ownerFolder('proofs', req.user!.userId),
-      );
-      // Clean up temp file after upload
-      fs.unlink(req.file.path).catch(() => {});
-      proofUrl = result.url;
-    } else if (req.body.proofData) {
-      // Fallback: accept base64 for backward compatibility (signatures)
-      const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');
-      const estimatedSize = Math.ceil(base64Data.length * 0.75);
-      if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
+      if (order.status !== 'AT_DROPOFF') {
+        throw ApiError.badRequest(
+          'Proof of delivery can only be submitted at the delivery point',
+          'INVALID_PROOF_STATUS',
+        );
+      }
 
-      const result = await StorageService.upload(
-        Buffer.from(base64Data, 'base64'),
-        `proof-${orderId}.png`,
-        'image/png',
-        StorageService.ownerFolder('proofs', req.user!.userId),
-      );
-      proofUrl = result.url;
-    } else {
-      throw ApiError.badRequest('File upload or proofData is required');
+      OrderService.assertDeliveryPaymentReady(order);
+
+      let proofUrl: string;
+      let submittedPin: string | undefined;
+      let uploadedStorageKey: string | undefined;
+
+      if (normalizedProofType === 'PIN_CODE') {
+        // PIN code — validate against the order's actual delivery PIN
+        const proofData = req.body.proofData;
+        if (typeof proofData !== 'string' || !/^\d{6}$/.test(proofData))
+          throw ApiError.badRequest('Valid 6-digit PIN code required');
+        if (!order.deliveryPinCode) {
+          throw ApiError.badRequest('No delivery PIN was set for this order');
+        }
+        if (proofData !== order.deliveryPinCode) {
+          throw ApiError.badRequest('Incorrect delivery PIN', 'INVALID_PIN');
+        }
+        submittedPin = proofData;
+        proofUrl = 'pin:verified';
+      } else if (req.file) {
+        const header = Buffer.alloc(16);
+        const fd = fsSync.openSync(req.file.path, 'r');
+        try {
+          fsSync.readSync(fd, header, 0, 16, 0);
+        } finally {
+          fsSync.closeSync(fd);
+        }
+        if (!verifyMagicBytes(header, req.file.mimetype)) {
+          throw ApiError.badRequest('File content does not match declared type');
+        }
+
+        const result = await StorageService.uploadFromPath(
+          req.file.path,
+          req.file.originalname,
+          req.file.mimetype,
+          StorageService.ownerFolder('proofs', req.user!.userId),
+        );
+        proofUrl = result.url;
+        uploadedStorageKey = result.key;
+      } else if (typeof req.body.proofData === 'string' && req.body.proofData) {
+        // Fallback: accept base64 for backward compatibility (signatures)
+        const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');
+        const estimatedSize = Math.ceil(base64Data.length * 0.75);
+        if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
+
+        const proofBuffer = Buffer.from(base64Data, 'base64');
+        if (!verifyMagicBytes(proofBuffer, 'image/png')) {
+          throw ApiError.badRequest('Base64 proof must contain a valid PNG image');
+        }
+        const result = await StorageService.upload(
+          proofBuffer,
+          `proof-${orderId}.png`,
+          'image/png',
+          StorageService.ownerFolder('proofs', req.user!.userId),
+        );
+        proofUrl = result.url;
+        uploadedStorageKey = result.key;
+      } else {
+        throw ApiError.badRequest('File upload or proofData is required');
+      }
+
+      await persistRiderOrderProof({
+        orderId,
+        riderProfileId: riderProfile.id,
+        expectedStatus: order.status,
+        expectedProofUrl: order.proofOfDeliveryUrl,
+        proofType: normalizedProofType,
+        proofUrl,
+        ...(submittedPin ? { submittedPin } : {}),
+        ...(uploadedStorageKey ? { uploadedStorageKey } : {}),
+      });
+
+      // Preserve the existing optional completion behavior after proof persistence.
+      const completeDelivery =
+        req.body.completeDelivery === true || req.body.completeDelivery === 'true';
+      if (completeDelivery) {
+        const updated = await OrderService.transitionStatus(
+          orderId,
+          'DELIVERED',
+          req.user!.userId,
+          undefined,
+          { expectedRiderId: riderProfile.id },
+        );
+        res.status(StatusCodes.OK).json({
+          success: true,
+          data: {
+            proofUrl,
+            delivered: true,
+            order: sanitizeOrderPayloadForRequester(updated, getAuthRoles(req.user!)),
+          },
+        });
+        return;
+      }
+
+      res.status(StatusCodes.OK).json({ success: true, data: { proofUrl } });
+    } finally {
+      if (req.file?.path) await fs.unlink(req.file.path).catch(() => {});
     }
-
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        proofOfDeliveryUrl: proofUrl,
-        proofOfDeliveryType: proofType as 'PHOTO' | 'PIN_CODE' | 'LEFT_AT_DOOR',
-      },
-    });
-
-    // When completeDelivery flag is set, atomically transition to DELIVERED
-    // in the same request (prevents proof-saved-but-status-stuck race)
-    const completeDelivery = req.body.completeDelivery === true || req.body.completeDelivery === 'true';
-    if (completeDelivery && order.status === 'AT_DROPOFF') {
-      const updated = await OrderService.transitionStatus(orderId, 'DELIVERED', req.user!.userId);
-      res.status(StatusCodes.OK).json({ success: true, data: { proofUrl, delivered: true, order: updated } });
-      return;
-    }
-
-    res.status(StatusCodes.OK).json({ success: true, data: { proofUrl } });
   }),
 );
 
@@ -1338,122 +1531,165 @@ router.post(
   asyncHandler(async (req, res) => {
     const orderId = req.params.id as string;
     const stopId = req.params.stopId as string;
-
-    // Verify rider is assigned
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, riderId: true, status: true, isMultiStop: true, deliveryPinCode: true },
-    });
-    if (!order) throw ApiError.notFound('Order not found');
-
-    const riderProfile = await prisma.riderProfile.findUnique({
-      where: { userId: req.user!.userId },
-    });
-    if (!riderProfile || order.riderId !== riderProfile.id) {
-      throw ApiError.forbidden('You are not assigned to this order');
-    }
-
-    if (!order.isMultiStop) {
-      throw ApiError.badRequest('This order is not a multi-stop delivery');
-    }
-
-    // Only allow stop completion during active delivery statuses
-    const activeStatuses = ['PICKUP_EN_ROUTE', 'AT_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
-    if (!activeStatuses.includes(order.status)) {
-      throw ApiError.badRequest(`Cannot complete stops while order is ${order.status}`);
-    }
-
-    // Find the stop
-    const stop = await prisma.orderStop.findFirst({
-      where: { id: stopId, orderId },
-    });
-    if (!stop) throw ApiError.notFound('Stop not found');
-
-    // Dropoff stops cannot be completed before package is picked up
-    if (stop.type === 'DROPOFF') {
-      const postPickupStatuses = ['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
-      if (!postPickupStatuses.includes(order.status)) {
-        throw ApiError.badRequest('Package must be picked up before completing dropoff stops');
-      }
-    }
-
-    if (stop.status === 'COMPLETED') {
-      throw ApiError.badRequest('This stop is already completed');
-    }
-    if (stop.status === 'SKIPPED' || stop.status === 'FAILED') {
-      throw ApiError.badRequest(`This stop has been ${stop.status.toLowerCase()}`);
-    }
-
-    // D-07: Enforce multi-stop sequence — all prior stops must be completed first
-    if (stop.sequence > 1) {
-      const incompleteEarlierStops = await prisma.orderStop.count({
-        where: {
-          orderId,
-          sequence: { lt: stop.sequence },
-          status: { notIn: ['COMPLETED', 'SKIPPED'] },
-        },
+    try {
+      // Verify rider is assigned
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, riderId: true, status: true, isMultiStop: true, deliveryPinCode: true },
       });
-      if (incompleteEarlierStops > 0) {
-        throw ApiError.badRequest(
-          `Complete all earlier stops before stop #${stop.sequence}. ${incompleteEarlierStops} prior stop(s) still pending.`,
+      if (!order) throw ApiError.notFound('Order not found');
+
+      const riderProfile = await prisma.riderProfile.findUnique({
+        where: { userId: req.user!.userId },
+      });
+      if (!riderProfile || order.riderId !== riderProfile.id) {
+        throw ApiError.forbidden('You are not assigned to this order');
+      }
+
+      if (!order.isMultiStop) {
+        throw ApiError.badRequest('This order is not a multi-stop delivery');
+      }
+
+      // Only allow stop completion during active delivery statuses
+      const activeStatuses = [
+        'PICKUP_EN_ROUTE',
+        'AT_PICKUP',
+        'PICKED_UP',
+        'IN_TRANSIT',
+        'AT_DROPOFF',
+      ];
+      if (!activeStatuses.includes(order.status)) {
+        throw ApiError.badRequest(`Cannot complete stops while order is ${order.status}`);
+      }
+
+      // Find the stop
+      const stop = await prisma.orderStop.findFirst({
+        where: { id: stopId, orderId },
+      });
+      if (!stop) throw ApiError.notFound('Stop not found');
+
+      // Dropoff stops cannot be completed before package is picked up
+      if (stop.type === 'DROPOFF') {
+        const postPickupStatuses = ['PICKED_UP', 'IN_TRANSIT', 'AT_DROPOFF'];
+        if (!postPickupStatuses.includes(order.status)) {
+          throw ApiError.badRequest('Package must be picked up before completing dropoff stops');
+        }
+      }
+
+      if (stop.status === 'COMPLETED') {
+        throw ApiError.badRequest('This stop is already completed');
+      }
+      if (stop.status === 'SKIPPED' || stop.status === 'FAILED') {
+        throw ApiError.badRequest(`This stop has been ${stop.status.toLowerCase()}`);
+      }
+
+      // D-07: Enforce multi-stop sequence — all prior stops must be completed first
+      if (stop.sequence > 1) {
+        const incompleteEarlierStops = await prisma.orderStop.count({
+          where: {
+            orderId,
+            sequence: { lt: stop.sequence },
+            status: { notIn: ['COMPLETED', 'SKIPPED'] },
+          },
+        });
+        if (incompleteEarlierStops > 0) {
+          throw ApiError.badRequest(
+            `Complete all earlier stops before stop #${stop.sequence}. ${incompleteEarlierStops} prior stop(s) still pending.`,
+          );
+        }
+      }
+
+      // Handle proof submission for the stop
+      const proofType = (req.body.proofType ?? req.query.proofType) as string | undefined;
+      if (proofType && !['PHOTO', 'PIN_CODE'].includes(proofType)) {
+        throw ApiError.badRequest('proofType must be one of: PHOTO, PIN_CODE');
+      }
+      if ((req.file || req.body.proofData) && !proofType) {
+        throw ApiError.badRequest('proofType is required when proof data is provided');
+      }
+      const normalizedProofType = proofType as 'PHOTO' | 'PIN_CODE' | undefined;
+      if (
+        normalizedProofType === 'PHOTO' &&
+        !req.file &&
+        (typeof req.body.proofData !== 'string' || !req.body.proofData)
+      ) {
+        throw ApiError.badRequest('Photo proof data is required');
+      }
+      let proofUrl: string | undefined;
+      let submittedPin: string | undefined;
+      let uploadedStorageKey: string | undefined;
+
+      if (normalizedProofType === 'PIN_CODE') {
+        const proofData = req.body.proofData;
+        if (typeof proofData !== 'string' || !/^\d{6}$/.test(proofData))
+          throw ApiError.badRequest('Valid 6-digit PIN code required');
+        if (!order.deliveryPinCode) {
+          throw ApiError.badRequest('No delivery PIN was set for this order');
+        }
+        if (proofData !== order.deliveryPinCode) {
+          throw ApiError.badRequest('Incorrect delivery PIN', 'INVALID_PIN');
+        }
+        submittedPin = proofData;
+      } else if (req.file) {
+        const header = Buffer.alloc(16);
+        const fd = fsSync.openSync(req.file.path, 'r');
+        try {
+          fsSync.readSync(fd, header, 0, 16, 0);
+        } finally {
+          fsSync.closeSync(fd);
+        }
+        if (!verifyMagicBytes(header, req.file.mimetype)) {
+          throw ApiError.badRequest('File content does not match declared type');
+        }
+        const result = await StorageService.uploadFromPath(
+          req.file.path,
+          req.file.originalname,
+          req.file.mimetype,
+          StorageService.ownerFolder('proofs', req.user!.userId),
         );
+        proofUrl = result.url;
+        uploadedStorageKey = result.key;
+      } else if (typeof req.body.proofData === 'string' && req.body.proofData && proofType) {
+        const base64Data = req.body.proofData.replace(/^data:image\/\w+;base64,/, '');
+        const estimatedSize = Math.ceil(base64Data.length * 0.75);
+        if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
+
+        const proofBuffer = Buffer.from(base64Data, 'base64');
+        if (!verifyMagicBytes(proofBuffer, 'image/png')) {
+          throw ApiError.badRequest('Base64 proof must contain a valid PNG image');
+        }
+        const result = await StorageService.upload(
+          proofBuffer,
+          `stop-proof-${stopId}.png`,
+          'image/png',
+          StorageService.ownerFolder('proofs', req.user!.userId),
+        );
+        proofUrl = result.url;
+        uploadedStorageKey = result.key;
       }
-    }
 
-    // Handle proof submission for the stop
-    const proofType = (req.body.proofType ?? req.query.proofType) as string | undefined;
-    let proofUrl: string | undefined;
-    let pinCode: string | undefined;
-
-    if (proofType === 'PIN_CODE') {
-      const proofData = req.body.proofData as string;
-      if (!proofData || !/^\d{6}$/.test(proofData)) throw ApiError.badRequest('Valid 6-digit PIN code required');
-      if (!order.deliveryPinCode) {
-        throw ApiError.badRequest('No delivery PIN was set for this order');
-      }
-      if (proofData !== order.deliveryPinCode) {
-        throw ApiError.badRequest('Incorrect delivery PIN', 'INVALID_PIN');
-      }
-      pinCode = proofData;
-    } else if (req.file) {
-      const result = await StorageService.uploadFromPath(
-        req.file.path,
-        req.file.originalname,
-        req.file.mimetype,
-        StorageService.ownerFolder('proofs', req.user!.userId),
-      );
-      // Clean up temp file after upload
-      fs.unlink(req.file.path).catch(() => {});
-      proofUrl = result.url;
-    } else if (req.body.proofData && proofType) {
-      const base64Data = (req.body.proofData as string).replace(/^data:image\/\w+;base64,/, '');
-      const estimatedSize = Math.ceil(base64Data.length * 0.75);
-      if (estimatedSize > 5 * 1024 * 1024) throw ApiError.badRequest('Proof exceeds 5MB');
-
-      const result = await StorageService.upload(
-        Buffer.from(base64Data, 'base64'),
-        `stop-proof-${stopId}.png`,
-        'image/png',
-        StorageService.ownerFolder('proofs', req.user!.userId),
-      );
-      proofUrl = result.url;
-    }
-
-    // Mark stop as complete
-    const updatedStop = await prisma.orderStop.update({
-      where: { id: stopId },
-      data: {
-        status: 'COMPLETED',
-        completedAt: new Date(),
-        ...(proofType ? { proofType: proofType as 'PHOTO' | 'PIN_CODE' | 'LEFT_AT_DOOR' } : {}),
+      const updatedStop = await completeRiderOrderStop({
+        orderId,
+        stopId,
+        riderProfileId: riderProfile.id,
+        expectedOrderStatus: order.status,
+        expectedStopStatus: stop.status,
+        expectedSequence: stop.sequence,
+        ...(normalizedProofType ? { proofType: normalizedProofType } : {}),
         ...(proofUrl ? { proofUrl } : {}),
-        ...(pinCode ? { pinCode } : {}),
-      },
-    });
+        ...(submittedPin ? { submittedPin } : {}),
+        ...(uploadedStorageKey ? { uploadedStorageKey } : {}),
+      });
 
-    logger.info({ orderId, stopId, sequence: stop.sequence }, 'Multi-stop completed');
+      logger.info({ orderId, stopId, sequence: stop.sequence }, 'Multi-stop completed');
 
-    res.status(StatusCodes.OK).json({ success: true, data: updatedStop });
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: sanitizeOrderPayloadForRequester(updatedStop, getAuthRoles(req.user!)),
+      });
+    } finally {
+      if (req.file?.path) await fs.unlink(req.file.path).catch(() => {});
+    }
   }),
 );
 
@@ -1514,6 +1750,7 @@ router.post(
       'FAILED' as OrderStatus,
       req.user!.userId,
       reason,
+      { expectedRiderId: riderProfile.id },
     );
 
     emitOrderStatusUpdate({
@@ -1525,7 +1762,10 @@ router.post(
       note: reason,
     });
 
-    res.status(StatusCodes.OK).json({ success: true, data: updated });
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: sanitizeOrderPayloadForRequester(updated, getAuthRoles(req.user!)),
+    });
   }),
 );
 

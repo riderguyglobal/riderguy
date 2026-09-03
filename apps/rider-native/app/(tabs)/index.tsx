@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { router, useNavigation } from 'expo-router';
@@ -43,6 +44,15 @@ type IncomingOffer = Record<string, any> & {
 
 type LatLng = { latitude: number; longitude: number };
 
+type RiderAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  priority: number;
+  publishedAt: string | null;
+  expiresAt: string | null;
+};
+
 const BACKGROUND_LOCATION_TASK = 'background-location-task';
 const SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com')
   .replace('api.riderguy.com', 'api.myriderguy.com')
@@ -63,7 +73,11 @@ async function getUsablePosition() {
     new Promise<null>((resolve) => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS)),
   ]).catch(() => null);
 
-  if (current && Number.isFinite(current.coords.latitude) && Number.isFinite(current.coords.longitude)) {
+  if (
+    current &&
+    Number.isFinite(current.coords.latitude) &&
+    Number.isFinite(current.coords.longitude)
+  ) {
     return current;
   }
 
@@ -75,19 +89,21 @@ async function getUsablePosition() {
   const lastKnownAge = lastKnown ? Date.now() - lastKnown.timestamp : Number.POSITIVE_INFINITY;
   const lastKnownAccuracy = lastKnown?.coords.accuracy;
   if (
-    lastKnown
-    && Number.isFinite(lastKnown.coords.latitude)
-    && Number.isFinite(lastKnown.coords.longitude)
-    && lastKnownAge >= 0
-    && lastKnownAge <= LAST_KNOWN_MAX_AGE_MS
-    && typeof lastKnownAccuracy === 'number'
-    && Number.isFinite(lastKnownAccuracy)
-    && lastKnownAccuracy <= MAX_LAST_KNOWN_ACCURACY_METERS
+    lastKnown &&
+    Number.isFinite(lastKnown.coords.latitude) &&
+    Number.isFinite(lastKnown.coords.longitude) &&
+    lastKnownAge >= 0 &&
+    lastKnownAge <= LAST_KNOWN_MAX_AGE_MS &&
+    typeof lastKnownAccuracy === 'number' &&
+    Number.isFinite(lastKnownAccuracy) &&
+    lastKnownAccuracy <= MAX_LAST_KNOWN_ACCURACY_METERS
   ) {
     return lastKnown;
   }
 
-  throw new Error('A recent, accurate GPS location is required before you can go online. Move to an open area and try again.');
+  throw new Error(
+    'A recent, accurate GPS location is required before you can go online. Move to an open area and try again.',
+  );
 }
 
 function offerOrderId(offer?: IncomingOffer | null) {
@@ -103,10 +119,14 @@ function emitOfferResponse(socket: Socket | null, orderId: string, response: 'ac
     }
 
     const timer = setTimeout(() => resolve({ success: false, error: 'Timed out' }), 6000);
-    socket.emit('job:offer:respond', { orderId, response }, (ack: { success: boolean; error?: string }) => {
-      clearTimeout(timer);
-      resolve(ack);
-    });
+    socket.emit(
+      'job:offer:respond',
+      { orderId, response },
+      (ack: { success: boolean; error?: string }) => {
+        clearTimeout(timer);
+        resolve(ack);
+      },
+    );
   });
 }
 
@@ -121,15 +141,30 @@ function formatOnlineDuration(startedAt: number | null, now: number) {
 }
 
 function inferAreaName(profile: any, position: LatLng | null) {
-  const direct = profile?.currentZone?.name ?? profile?.currentZoneName ?? profile?.zoneName ?? profile?.city ?? profile?.market;
+  const direct =
+    profile?.currentZone?.name ??
+    profile?.currentZoneName ??
+    profile?.zoneName ??
+    profile?.city ??
+    profile?.market;
   if (direct) return cleanLabel(String(direct));
 
   if (!position) return 'Current area';
 
-  if (position.latitude >= 4.75 && position.latitude <= 5.35 && position.longitude >= -2.25 && position.longitude <= -1.45) {
+  if (
+    position.latitude >= 4.75 &&
+    position.latitude <= 5.35 &&
+    position.longitude >= -2.25 &&
+    position.longitude <= -1.45
+  ) {
     return 'Takoradi';
   }
-  if (position.latitude >= 5.45 && position.latitude <= 5.75 && position.longitude >= -0.35 && position.longitude <= 0.05) {
+  if (
+    position.latitude >= 5.45 &&
+    position.latitude <= 5.75 &&
+    position.longitude >= -0.35 &&
+    position.longitude <= 0.05
+  ) {
     return 'Accra';
   }
   return 'Current area';
@@ -194,14 +229,17 @@ export default function RiderHomeScreen() {
   const onlineServicesSetupRef = useRef<Promise<void> | null>(null);
   const promptForBackgroundLocationRef = useRef(false);
   const { unreadCount } = useUnreadNotifications();
-  const defaultTabBarStyle = useMemo(() => ({
-    borderTopWidth: 1,
-    borderTopColor: '#EDF2EF',
-    backgroundColor: riderColors.white,
-    height: 62 + insets.bottom,
-    paddingTop: 9,
-    paddingBottom: Math.max(insets.bottom, 8),
-  }), [insets.bottom]);
+  const defaultTabBarStyle = useMemo(
+    () => ({
+      borderTopWidth: 1,
+      borderTopColor: '#EDF2EF',
+      backgroundColor: riderColors.white,
+      height: 62 + insets.bottom,
+      paddingTop: 9,
+      paddingBottom: Math.max(insets.bottom, 8),
+    }),
+    [insets.bottom],
+  );
 
   const {
     data: wallet,
@@ -267,6 +305,19 @@ export default function RiderHomeScreen() {
       return data.data ?? data;
     },
   });
+
+  const { data: announcements = [], refetch: refetchAnnouncements } = useQuery<RiderAnnouncement[]>(
+    {
+      queryKey: ['rider-announcements'],
+      queryFn: async () => {
+        const { data } = await api.get('/community/announcements?limit=3');
+        const payload = data.data ?? data;
+        return Array.isArray(payload?.announcements) ? payload.announcements : [];
+      },
+      staleTime: 60_000,
+      retry: false,
+    },
+  );
 
   useEffect(() => {
     if (!profile?.availability) return;
@@ -344,37 +395,45 @@ export default function RiderHomeScreen() {
     socketRef.current = socket;
   }, [qc]);
 
-  const respondToOffer = useCallback(async (response: 'accept' | 'decline') => {
-    const offer = incomingOffer;
-    const orderId = offerOrderId(offer);
-    if (!offer || !orderId || respondingOffer) return;
+  const respondToOffer = useCallback(
+    async (response: 'accept' | 'decline') => {
+      const offer = incomingOffer;
+      const orderId = offerOrderId(offer);
+      if (!offer || !orderId || respondingOffer) return;
 
-    setRespondingOffer(true);
-    try {
-      const ack = await emitOfferResponse(socketRef.current, orderId, response);
-      if (!ack.success && response === 'accept') {
-        await api.post(`/orders/${orderId}/accept`);
-      } else if (!ack.success) {
-        throw new Error(ack.error ?? 'Could not respond');
+      setRespondingOffer(true);
+      try {
+        const ack = await emitOfferResponse(socketRef.current, orderId, response);
+        if (!ack.success && response === 'accept') {
+          await api.post(`/orders/${orderId}/accept`);
+        } else if (!ack.success) {
+          throw new Error(ack.error ?? 'Could not respond');
+        }
+
+        setIncomingOffer(null);
+        await qc.invalidateQueries({ queryKey: ['jobs-available'] });
+
+        if (response === 'accept') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          Toast.show({ type: 'success', text1: 'Request accepted.' });
+          router.push(`/(app)/jobs/${orderId}` as any);
+        }
+      } catch (error: any) {
+        Toast.show({
+          type: 'error',
+          text1: error?.response?.data?.error?.message ?? error?.message ?? 'Could not respond.',
+        });
+      } finally {
+        setRespondingOffer(false);
       }
-
-      setIncomingOffer(null);
-      await qc.invalidateQueries({ queryKey: ['jobs-available'] });
-
-      if (response === 'accept') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        Toast.show({ type: 'success', text1: 'Request accepted.' });
-        router.push(`/(app)/jobs/${orderId}` as any);
-      }
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: error?.response?.data?.error?.message ?? error?.message ?? 'Could not respond.' });
-    } finally {
-      setRespondingOffer(false);
-    }
-  }, [api, incomingOffer, qc, respondingOffer]);
+    },
+    [api, incomingOffer, qc, respondingOffer],
+  );
 
   const startBackgroundLocationUpdates = useCallback(async () => {
-    const running = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(() => false);
+    const running = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(
+      () => false,
+    );
     if (running) return;
     await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
       accuracy: Location.Accuracy.Balanced,
@@ -396,7 +455,11 @@ export default function RiderHomeScreen() {
       if (status === 'granted') {
         await startBackgroundLocationUpdates();
       } else {
-        Toast.show({ type: 'info', text1: 'Background location not granted.', text2: 'You can still receive jobs while the app is open.' });
+        Toast.show({
+          type: 'info',
+          text1: 'Background location not granted.',
+          text2: 'You can still receive jobs while the app is open.',
+        });
       }
     } finally {
       setRequestingBackgroundLocation(false);
@@ -408,48 +471,51 @@ export default function RiderHomeScreen() {
     setShowLocationDisclosure(false);
   }, []);
 
-  const setupOnlineServices = useCallback(async (promptForBackgroundLocation: boolean) => {
-    if (onlineServicesSetupRef.current) return onlineServicesSetupRef.current;
+  const setupOnlineServices = useCallback(
+    async (promptForBackgroundLocation: boolean) => {
+      if (onlineServicesSetupRef.current) return onlineServicesSetupRef.current;
 
-    const setup = (async () => {
-      if (!locationWatchRef.current) {
-        locationWatchRef.current = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.Balanced, timeInterval: 9000, distanceInterval: 25 },
-          (loc) => {
-            setConfirmedPosition({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-            });
-            socketRef.current?.emit('rider:updateLocation', {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              heading: loc.coords.heading,
-              speed: loc.coords.speed,
-            });
-          },
-        );
+      const setup = (async () => {
+        if (!locationWatchRef.current) {
+          locationWatchRef.current = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.Balanced, timeInterval: 9000, distanceInterval: 25 },
+            (loc) => {
+              setConfirmedPosition({
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+              });
+              socketRef.current?.emit('rider:updateLocation', {
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+                heading: loc.coords.heading,
+                speed: loc.coords.speed,
+              });
+            },
+          );
+        }
+
+        await activateKeepAwakeAsync();
+        await connectSocket();
+
+        // Background location requires a prominent in-app disclosure (Play policy)
+        // shown before the OS "Allow all the time" prompt.
+        const { status: existingBackground } = await Location.getBackgroundPermissionsAsync();
+        if (existingBackground === 'granted') {
+          await startBackgroundLocationUpdates();
+        } else if (promptForBackgroundLocation) {
+          setShowLocationDisclosure(true);
+        }
+      })();
+
+      onlineServicesSetupRef.current = setup;
+      try {
+        await setup;
+      } finally {
+        onlineServicesSetupRef.current = null;
       }
-
-      await activateKeepAwakeAsync();
-      await connectSocket();
-
-      // Background location requires a prominent in-app disclosure (Play policy)
-      // shown before the OS "Allow all the time" prompt.
-      const { status: existingBackground } = await Location.getBackgroundPermissionsAsync();
-      if (existingBackground === 'granted') {
-        await startBackgroundLocationUpdates();
-      } else if (promptForBackgroundLocation) {
-        setShowLocationDisclosure(true);
-      }
-    })();
-
-    onlineServicesSetupRef.current = setup;
-    try {
-      await setup;
-    } finally {
-      onlineServicesSetupRef.current = null;
-    }
-  }, [connectSocket, startBackgroundLocationUpdates]);
+    },
+    [connectSocket, startBackgroundLocationUpdates],
+  );
 
   const goOnline = async () => {
     setTogglingOnline(true);
@@ -471,7 +537,10 @@ export default function RiderHomeScreen() {
         longitude: startingPosition.longitude,
       });
       const updatedProfile = data.data ?? data;
-      qc.setQueryData(['rider-profile'], (existing: any) => ({ ...(existing ?? {}), ...updatedProfile }));
+      qc.setQueryData(['rider-profile'], (existing: any) => ({
+        ...(existing ?? {}),
+        ...updatedProfile,
+      }));
       setConfirmedPosition(startingPosition);
       promptForBackgroundLocationRef.current = true;
       setIsOnline(true);
@@ -499,7 +568,9 @@ export default function RiderHomeScreen() {
       await api.patch('/riders/availability', { availability: 'OFFLINE' });
       locationWatchRef.current?.remove();
       locationWatchRef.current = null;
-      const running = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(() => false);
+      const running = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(
+        () => false,
+      );
       if (running) await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       socketRef.current?.disconnect();
       socketRef.current = null;
@@ -511,7 +582,10 @@ export default function RiderHomeScreen() {
       setConfirmedPosition(null);
       await refetchProfile();
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: error?.response?.data?.error?.message ?? 'Could not go offline.' });
+      Toast.show({
+        type: 'error',
+        text1: error?.response?.data?.error?.message ?? 'Could not go offline.',
+      });
     } finally {
       setTogglingOnline(false);
     }
@@ -554,6 +628,7 @@ export default function RiderHomeScreen() {
       refetchAvailableJobs(),
       refetchRecentJobs(),
       refetchGamification(),
+      refetchAnnouncements(),
     ]);
   };
 
@@ -579,9 +654,11 @@ export default function RiderHomeScreen() {
     if (job.status !== 'DELIVERED' || !completedAt) return false;
     const delivered = new Date(completedAt);
     const now = new Date();
-    return delivered.getFullYear() === now.getFullYear()
-      && delivered.getMonth() === now.getMonth()
-      && delivered.getDate() === now.getDate();
+    return (
+      delivered.getFullYear() === now.getFullYear() &&
+      delivered.getMonth() === now.getMonth() &&
+      delivered.getDate() === now.getDate()
+    );
   }).length;
   const parsedSessionStartedAt = profile?.sessionStartedAt
     ? Date.parse(String(profile.sessionStartedAt))
@@ -591,7 +668,13 @@ export default function RiderHomeScreen() {
     clock,
   );
   const retryDashboardData = async () => {
-    await Promise.allSettled([refetchWallet(), refetchProfile(), refetchRecentJobs(), refetchGamification()]);
+    await Promise.allSettled([
+      refetchWallet(),
+      refetchProfile(),
+      refetchRecentJobs(),
+      refetchGamification(),
+      refetchAnnouncements(),
+    ]);
   };
 
   return (
@@ -618,13 +701,29 @@ export default function RiderHomeScreen() {
             unread={unreadCount > 0}
           />
           <ScrollView
-            refreshControl={<RefreshControl refreshing={walletLoading} onRefresh={onRefresh} tintColor={riderColors.green} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={walletLoading}
+                onRefresh={onRefresh}
+                tintColor={riderColors.green}
+              />
+            }
             showsVerticalScrollIndicator={false}
             style={{ backgroundColor: riderColors.white }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 22 }}
           >
             <HomeDashboard
-              dataError={walletError || profileError || recentJobsError || gamificationError || walletUnavailable || profileUnavailable || recentJobsUnavailable || gamificationUnavailable}
+              dataError={
+                walletError ||
+                profileError ||
+                recentJobsError ||
+                gamificationError ||
+                walletUnavailable ||
+                profileUnavailable ||
+                recentJobsUnavailable ||
+                gamificationUnavailable
+              }
+              announcements={announcements}
               gamification={gamificationProfile}
               gamificationLoading={gamificationLoading}
               gamificationUnavailable={gamificationUnavailable}
@@ -662,10 +761,7 @@ export default function RiderHomeScreen() {
         onDecline={declineBackgroundLocation}
         onContinue={confirmBackgroundLocation}
       />
-      <RiderNavigationMenu
-        visible={mainMenuOpen}
-        onClose={() => setMainMenuOpen(false)}
-      />
+      <RiderNavigationMenu visible={mainMenuOpen} onClose={() => setMainMenuOpen(false)} />
       <AvailabilityMenuModal
         visible={availabilityMenuOpen}
         isOnline={isOnline}
@@ -689,6 +785,7 @@ export default function RiderHomeScreen() {
 }
 
 function HomeDashboard({
+  announcements,
   dataError,
   gamification,
   gamificationLoading,
@@ -711,6 +808,7 @@ function HomeDashboard({
   walletLoading,
   walletUnavailable,
 }: {
+  announcements: RiderAnnouncement[];
   dataError: boolean;
   gamification: any;
   gamificationLoading: boolean;
@@ -737,7 +835,9 @@ function HomeDashboard({
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
   const currency = String(wallet?.currency ?? 'GHS').toUpperCase();
-  const balance = walletUnavailable ? 'Unavailable' : formatMoneyAmount(Number(wallet?.balance ?? 0), currency);
+  const balance = walletUnavailable
+    ? 'Unavailable'
+    : formatMoneyAmount(Number(wallet?.balance ?? 0), currency);
   const todayEarnings = walletUnavailable
     ? '—'
     : walletLoading && !wallet
@@ -752,13 +852,14 @@ function HomeDashboard({
       : isOnline
         ? 'online'
         : 'offline';
-  const availabilityLabel = availabilityState === 'unavailable'
-    ? 'Unavailable'
-    : availabilityState === 'loading'
-      ? 'Checking'
-      : availabilityState === 'online'
-        ? 'Online'
-        : 'Offline';
+  const availabilityLabel =
+    availabilityState === 'unavailable'
+      ? 'Unavailable'
+      : availabilityState === 'loading'
+        ? 'Checking'
+        : availabilityState === 'online'
+          ? 'Online'
+          : 'Offline';
   const deliveriesValue = recentJobsUnavailable
     ? '—'
     : recentJobsLoading
@@ -802,7 +903,12 @@ function HomeDashboard({
           accessibilityRole="button"
           accessibilityLabel={`Change availability. Currently ${availabilityLabel.toLowerCase()}`}
         >
-          <View style={[homeStyles.availabilityDot, availabilityState !== 'online' ? homeStyles.availabilityDotOffline : null]} />
+          <View
+            style={[
+              homeStyles.availabilityDot,
+              availabilityState !== 'online' ? homeStyles.availabilityDotOffline : null,
+            ]}
+          />
           <Text style={homeStyles.availabilityText}>{availabilityLabel}</Text>
           <Ionicons name="chevron-down" size={13} color="#717875" />
         </TouchableOpacity>
@@ -812,13 +918,17 @@ function HomeDashboard({
 
       {dataError ? <DashboardDataNotice onRetry={onRetryData} /> : null}
 
+      {announcements.length > 0 ? <HomeAnnouncements announcements={announcements} /> : null}
+
       <HomeWalletCard
         balance={balance}
         balanceVisible={balanceVisible}
         loading={walletLoading}
         unavailable={walletUnavailable}
         onAddMoney={() => router.push('/(app)/wallet/add-funds' as any)}
-        onCashOut={() => router.push({ pathname: '/(tabs)/earnings', params: { action: 'cash-out' } })}
+        onCashOut={() =>
+          router.push({ pathname: '/(tabs)/earnings', params: { action: 'cash-out' } })
+        }
         onHistory={() => router.push('/(tabs)/earnings')}
         onToggleBalance={() => setBalanceVisible((current) => !current)}
       />
@@ -900,6 +1010,87 @@ function HomeDashboard({
   );
 }
 
+function HomeAnnouncements({ announcements }: { announcements: RiderAnnouncement[] }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.max(252, Math.min(width - 64, 340));
+
+  return (
+    <View style={homeStyles.announcementsSection}>
+      <View style={homeStyles.announcementsHeading}>
+        <Text style={homeStyles.announcementsTitle}>RiderGuy updates</Text>
+        <Text style={homeStyles.announcementsCount}>{announcements.length}</Text>
+      </View>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={homeStyles.announcementsRail}
+        accessibilityRole="list"
+      >
+        {announcements.map((announcement) => (
+          <HomeAnnouncementCard
+            key={announcement.id}
+            announcement={announcement}
+            width={cardWidth}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function HomeAnnouncementCard({
+  announcement,
+  width,
+}: {
+  announcement: RiderAnnouncement;
+  width: number;
+}) {
+  const urgent = announcement.priority >= 2;
+  const important = announcement.priority === 1;
+  const label = urgent
+    ? 'Urgent RiderGuy update'
+    : important
+      ? 'Important RiderGuy update'
+      : 'From RiderGuy';
+
+  return (
+    <View
+      style={[
+        homeStyles.announcementCard,
+        { width },
+        urgent ? homeStyles.announcementCardUrgent : null,
+      ]}
+      accessibilityRole="summary"
+      accessibilityLabel={`${label}. ${announcement.title}. ${announcement.body}`}
+    >
+      <View
+        style={[homeStyles.announcementIcon, urgent ? homeStyles.announcementIconUrgent : null]}
+      >
+        <Ionicons
+          name={urgent ? 'warning-outline' : 'megaphone-outline'}
+          size={18}
+          color={urgent ? '#A62A2A' : '#087B50'}
+        />
+      </View>
+      <View style={homeStyles.announcementCopy}>
+        <Text
+          style={[
+            homeStyles.announcementKicker,
+            urgent ? homeStyles.announcementKickerUrgent : null,
+          ]}
+        >
+          {label}
+        </Text>
+        <Text style={homeStyles.announcementTitle}>{announcement.title}</Text>
+        <Text style={homeStyles.announcementBody} numberOfLines={3}>
+          {announcement.body}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function DashboardDataNotice({ onRetry }: { onRetry: () => void }) {
   return (
     <View style={homeStyles.dataNotice} accessibilityRole="alert">
@@ -948,12 +1139,22 @@ function HomeWalletCard({
         <TouchableOpacity
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel={unavailable ? 'Wallet balance unavailable' : balanceVisible ? 'Hide wallet balance' : 'Show wallet balance'}
+          accessibilityLabel={
+            unavailable
+              ? 'Wallet balance unavailable'
+              : balanceVisible
+                ? 'Hide wallet balance'
+                : 'Show wallet balance'
+          }
           disabled={unavailable}
           hitSlop={8}
           onPress={onToggleBalance}
         >
-          <Ionicons name={balanceVisible ? 'eye-outline' : 'eye-off-outline'} size={16} color="#FFFFFF" />
+          <Ionicons
+            name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
+            size={16}
+            color="#FFFFFF"
+          />
         </TouchableOpacity>
       </View>
       <Text style={homeStyles.walletBalance} numberOfLines={1}>
@@ -963,8 +1164,20 @@ function HomeWalletCard({
       <View style={homeStyles.walletDivider} />
       <View style={homeStyles.walletActions}>
         <HomeWalletAction flex={0.95} icon="cash-outline" label="Add Money" onPress={onAddMoney} />
-        <HomeWalletAction flex={0.95} icon="share-outline" label="Cash Out" onPress={onCashOut} divided />
-        <HomeWalletAction flex={1.3} icon="receipt-outline" label="Transaction History" onPress={onHistory} divided />
+        <HomeWalletAction
+          flex={0.95}
+          icon="share-outline"
+          label="Cash Out"
+          onPress={onCashOut}
+          divided
+        />
+        <HomeWalletAction
+          flex={1.3}
+          icon="receipt-outline"
+          label="Transaction History"
+          onPress={onHistory}
+          divided
+        />
       </View>
     </View>
   );
@@ -990,7 +1203,9 @@ function HomeWalletAction({
       style={[homeStyles.walletAction, { flex }, divided ? homeStyles.walletActionDivided : null]}
     >
       <Ionicons name={icon} size={17} color="#FFFFFF" />
-      <Text style={homeStyles.walletActionText} numberOfLines={1}>{label}</Text>
+      <Text style={homeStyles.walletActionText} numberOfLines={1}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -1046,7 +1261,12 @@ function HomeMetric({
       <Text style={homeStyles.metricLabel}>{label}</Text>
       <View style={homeStyles.metricValueRow}>
         {starred ? <Ionicons name="star" size={15} color="#08A568" /> : null}
-        <Text style={[homeStyles.metricValue, value.length > 12 ? homeStyles.metricValueCompact : null]} numberOfLines={1}>{value}</Text>
+        <Text
+          style={[homeStyles.metricValue, value.length > 12 ? homeStyles.metricValueCompact : null]}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
       </View>
     </View>
   );
@@ -1088,7 +1308,12 @@ function HomeOnlineCard({
       <View style={homeStyles.onlineCopy}>
         <View style={homeStyles.onlineTitleRow}>
           <Text style={homeStyles.onlineTitle}>{title}</Text>
-          <View style={[homeStyles.onlineTitleDot, !isOnline ? homeStyles.availabilityDotOffline : null]} />
+          <View
+            style={[
+              homeStyles.onlineTitleDot,
+              !isOnline ? homeStyles.availabilityDotOffline : null,
+            ]}
+          />
         </View>
         <Text style={homeStyles.onlineBody} numberOfLines={2}>
           {body}
@@ -1103,7 +1328,9 @@ function HomeOnlineCard({
         {loading ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
-          <Text style={homeStyles.onlineButtonText}>{unavailable ? 'Retry' : isOnline ? 'Go Offline' : 'Go Online'}</Text>
+          <Text style={homeStyles.onlineButtonText}>
+            {unavailable ? 'Retry' : isOnline ? 'Go Offline' : 'Go Online'}
+          </Text>
         )}
       </TouchableOpacity>
     </View>
@@ -1138,7 +1365,12 @@ function HomeRecommendationTile({
       </View>
       <Text style={homeStyles.recommendationTitle}>{title}</Text>
       <Text style={homeStyles.recommendationBody}>{body}</Text>
-      <Ionicons name="chevron-forward" size={17} color="#777F7B" style={homeStyles.recommendationArrow} />
+      <Ionicons
+        name="chevron-forward"
+        size={17}
+        color="#777F7B"
+        style={homeStyles.recommendationArrow}
+      />
     </TouchableOpacity>
   );
 }
@@ -1175,7 +1407,11 @@ function HomeLevelProgress({
     <TouchableOpacity
       activeOpacity={0.84}
       accessibilityRole="button"
-      accessibilityLabel={unavailable ? 'Level progress unavailable. Open progress hub.' : `${levelName}. ${totalXp} XP. Open progress hub.`}
+      accessibilityLabel={
+        unavailable
+          ? 'Level progress unavailable. Open progress hub.'
+          : `${levelName}. ${totalXp} XP. Open progress hub.`
+      }
       onPress={onPress}
       style={homeStyles.levelCard}
     >
@@ -1184,8 +1420,12 @@ function HomeLevelProgress({
           <Text style={homeStyles.levelTitle}>Level progress</Text>
           <Text style={homeStyles.levelName}>{levelName}</Text>
         </View>
-        <View style={[homeStyles.levelXpPill, unavailable ? homeStyles.levelXpPillUnavailable : null]}>
-          <Text style={[homeStyles.levelXpText, unavailable ? homeStyles.levelXpTextUnavailable : null]}>
+        <View
+          style={[homeStyles.levelXpPill, unavailable ? homeStyles.levelXpPillUnavailable : null]}
+        >
+          <Text
+            style={[homeStyles.levelXpText, unavailable ? homeStyles.levelXpTextUnavailable : null]}
+          >
             {totalXp} XP
           </Text>
         </View>
@@ -1217,18 +1457,55 @@ function AvailabilityMenuModal({
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,15,10,0.48)' }}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close availability menu" activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View style={{ backgroundColor: riderColors.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 18, paddingBottom: Math.max(insets.bottom, 18) }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Close availability menu"
+          activeOpacity={1}
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          style={{
+            backgroundColor: riderColors.white,
+            borderTopLeftRadius: 26,
+            borderTopRightRadius: 26,
+            paddingHorizontal: 18,
+            paddingTop: 18,
+            paddingBottom: Math.max(insets.bottom, 18),
+          }}
+        >
+          <View
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+          >
             <View>
-              <Text style={{ color: riderColors.ink, fontSize: 20, fontWeight: '900' }}>Availability</Text>
+              <Text style={{ color: riderColors.ink, fontSize: 20, fontWeight: '900' }}>
+                Availability
+              </Text>
               <Text style={{ color: riderColors.muted, fontSize: 12, marginTop: 3 }}>
                 You are currently {isOnline ? 'online and receiving offers' : 'offline'}.
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: riderColors.panelAlt, alignItems: 'center', justifyContent: 'center' }}>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+                backgroundColor: riderColors.panelAlt,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <Ionicons name="close" size={21} color={riderColors.ink} />
             </TouchableOpacity>
           </View>
@@ -1239,12 +1516,24 @@ function AvailabilityMenuModal({
                 activeOpacity={0.86}
                 disabled={loading}
                 onPress={onOpenMap}
-                style={{ minHeight: 56, borderRadius: 16, backgroundColor: riderColors.greenDark, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{
+                  minHeight: 56,
+                  borderRadius: 16,
+                  backgroundColor: riderColors.greenDark,
+                  paddingHorizontal: 15,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
               >
                 <Ionicons name="map-outline" size={23} color={riderColors.white} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: riderColors.white, fontSize: 14, fontWeight: '900' }}>Open live map</Text>
-                  <Text style={{ color: '#DDF6EA', fontSize: 11, marginTop: 2 }}>View your position while waiting for offers</Text>
+                  <Text style={{ color: riderColors.white, fontSize: 14, fontWeight: '900' }}>
+                    Open live map
+                  </Text>
+                  <Text style={{ color: '#DDF6EA', fontSize: 11, marginTop: 2 }}>
+                    View your position while waiting for offers
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={19} color={riderColors.white} />
               </TouchableOpacity>
@@ -1253,12 +1542,28 @@ function AvailabilityMenuModal({
                 activeOpacity={0.86}
                 disabled={loading}
                 onPress={onGoOnline}
-                style={{ minHeight: 56, borderRadius: 16, backgroundColor: riderColors.greenDark, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{
+                  minHeight: 56,
+                  borderRadius: 16,
+                  backgroundColor: riderColors.greenDark,
+                  paddingHorizontal: 15,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
               >
-                {loading ? <ActivityIndicator color={riderColors.white} /> : <Ionicons name="radio-outline" size={23} color={riderColors.white} />}
+                {loading ? (
+                  <ActivityIndicator color={riderColors.white} />
+                ) : (
+                  <Ionicons name="radio-outline" size={23} color={riderColors.white} />
+                )}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: riderColors.white, fontSize: 14, fontWeight: '900' }}>Go online</Text>
-                  <Text style={{ color: '#DDF6EA', fontSize: 11, marginTop: 2 }}>Start receiving nearby delivery offers</Text>
+                  <Text style={{ color: riderColors.white, fontSize: 14, fontWeight: '900' }}>
+                    Go online
+                  </Text>
+                  <Text style={{ color: '#DDF6EA', fontSize: 11, marginTop: 2 }}>
+                    Start receiving nearby delivery offers
+                  </Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -1268,10 +1573,26 @@ function AvailabilityMenuModal({
                 activeOpacity={0.86}
                 disabled={loading}
                 onPress={onGoOffline}
-                style={{ minHeight: 54, borderRadius: 16, backgroundColor: riderColors.white, borderWidth: 1, borderColor: riderColors.line, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{
+                  minHeight: 54,
+                  borderRadius: 16,
+                  backgroundColor: riderColors.white,
+                  borderWidth: 1,
+                  borderColor: riderColors.line,
+                  paddingHorizontal: 15,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
               >
-                {loading ? <ActivityIndicator color={riderColors.ink} /> : <Ionicons name="power-outline" size={22} color={riderColors.ink} />}
-                <Text style={{ flex: 1, color: riderColors.ink, fontSize: 14, fontWeight: '900' }}>Go offline</Text>
+                {loading ? (
+                  <ActivityIndicator color={riderColors.ink} />
+                ) : (
+                  <Ionicons name="power-outline" size={22} color={riderColors.ink} />
+                )}
+                <Text style={{ flex: 1, color: riderColors.ink, fontSize: 14, fontWeight: '900' }}>
+                  Go offline
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -1401,6 +1722,98 @@ const homeStyles = StyleSheet.create({
     fontSize: 10.5,
     fontFamily: riderFonts.bold,
     fontWeight: '800',
+  },
+  announcementsSection: {
+    marginBottom: 12,
+  },
+  announcementsHeading: {
+    minHeight: 24,
+    marginBottom: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  announcementsTitle: {
+    color: '#0A120E',
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  announcementsCount: {
+    minWidth: 24,
+    height: 20,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#E4F7EE',
+    color: '#087B50',
+    fontSize: 10,
+    lineHeight: 20,
+    textAlign: 'center',
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+  },
+  announcementsRail: {
+    gap: 10,
+    paddingRight: 8,
+  },
+  announcementCard: {
+    minHeight: 92,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#BFEAD5',
+    backgroundColor: '#F0FBF6',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 11,
+  },
+  announcementCardUrgent: {
+    borderColor: '#F0B8B8',
+    backgroundColor: '#FFF4F4',
+  },
+  announcementIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#DDF5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  announcementIconUrgent: {
+    backgroundColor: '#FCE0E0',
+  },
+  announcementCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  announcementKicker: {
+    color: '#087B50',
+    fontSize: 9.5,
+    lineHeight: 13,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  announcementKickerUrgent: {
+    color: '#A62A2A',
+  },
+  announcementTitle: {
+    color: '#0A120E',
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: riderFonts.bold,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  announcementBody: {
+    color: '#526159',
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: riderFonts.regular,
+    fontWeight: '500',
+    marginTop: 3,
   },
   walletCard: {
     height: 125,
@@ -1823,7 +2236,12 @@ function OnlineDashboard({
 }) {
   return (
     <View style={{ flex: 1, backgroundColor: riderColors.white }}>
-      <OnlineTopBar onAvailability={onAvailability} onBack={onBack} onNotifications={onNotifications} unread={unread} />
+      <OnlineTopBar
+        onAvailability={onAvailability}
+        onBack={onBack}
+        onNotifications={onNotifications}
+        unread={unread}
+      />
 
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: '#EAF1EF' }}>
         <LiveLocationCanvas areaName={areaName} position={riderPosition} />
@@ -1831,11 +2249,13 @@ function OnlineDashboard({
         <OnlineReadySheet
           areaName={areaName}
           bottomInset={bottomInset}
-          onStayOnline={() => Toast.show({
-            type: 'success',
-            text1: 'You are online',
-            text2: 'Live location sharing is active for new requests.',
-          })}
+          onStayOnline={() =>
+            Toast.show({
+              type: 'success',
+              text1: 'You are online',
+              text2: 'Live location sharing is active for new requests.',
+            })
+          }
           onGoOffline={onGoOffline}
           onlineFor={onlineFor}
           todayAmount={todayAmount}
@@ -1846,33 +2266,111 @@ function OnlineDashboard({
   );
 }
 
-function LiveLocationCanvas({
-  areaName,
-  position,
-}: {
-  areaName: string;
-  position: LatLng | null;
-}) {
+function LiveLocationCanvas({ areaName, position }: { areaName: string; position: LatLng | null }) {
   return (
     <View
       accessible
       accessibilityLabel={`Live location sharing ${position ? 'active' : 'starting'} in ${areaName}`}
-      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden', backgroundColor: '#EFF8F3' }}
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        overflow: 'hidden',
+        backgroundColor: '#EFF8F3',
+      }}
     >
-      <View style={{ position: 'absolute', width: '150%', height: 36, top: 70, left: '-25%', backgroundColor: '#FFFFFF', transform: [{ rotate: '-12deg' }] }} />
-      <View style={{ position: 'absolute', width: '150%', height: 22, top: 175, left: '-20%', backgroundColor: '#DCEDE5', transform: [{ rotate: '22deg' }] }} />
-      <View style={{ position: 'absolute', width: 220, height: 220, borderRadius: 110, top: 58, right: -70, backgroundColor: 'rgba(64,190,137,0.08)' }} />
-      <View style={{ position: 'absolute', width: 160, height: 160, borderRadius: 80, top: 120, left: -58, backgroundColor: 'rgba(64,190,137,0.10)' }} />
+      <View
+        style={{
+          position: 'absolute',
+          width: '150%',
+          height: 36,
+          top: 70,
+          left: '-25%',
+          backgroundColor: '#FFFFFF',
+          transform: [{ rotate: '-12deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: '150%',
+          height: 22,
+          top: 175,
+          left: '-20%',
+          backgroundColor: '#DCEDE5',
+          transform: [{ rotate: '22deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: 220,
+          height: 220,
+          borderRadius: 110,
+          top: 58,
+          right: -70,
+          backgroundColor: 'rgba(64,190,137,0.08)',
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: 160,
+          height: 160,
+          borderRadius: 80,
+          top: 120,
+          left: -58,
+          backgroundColor: 'rgba(64,190,137,0.10)',
+        }}
+      />
 
-      <View style={{ alignSelf: 'center', marginTop: 24, borderRadius: 999, borderWidth: 1, borderColor: '#CDE8DB', backgroundColor: 'rgba(255,255,255,0.94)', paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 7, ...riderShadow }}>
+      <View
+        style={{
+          alignSelf: 'center',
+          marginTop: 24,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: '#CDE8DB',
+          backgroundColor: 'rgba(255,255,255,0.94)',
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 7,
+          ...riderShadow,
+        }}
+      >
         <Ionicons name="location" size={15} color={riderColors.greenDark} />
-        <Text style={{ color: riderColors.ink, fontSize: 12, fontWeight: '900' }} numberOfLines={1}>{areaName}</Text>
+        <Text style={{ color: riderColors.ink, fontSize: 12, fontWeight: '900' }} numberOfLines={1}>
+          {areaName}
+        </Text>
       </View>
 
       <View style={{ alignItems: 'center', marginTop: 28 }}>
         <RiderPulseMarker />
-        <View style={{ marginTop: -8, borderRadius: 14, backgroundColor: riderColors.white, borderWidth: 1, borderColor: riderColors.line, paddingHorizontal: 13, paddingVertical: 8, alignItems: 'center', ...riderShadow }}>
-          <Text style={{ color: riderColors.greenDark, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }}>
+        <View
+          style={{
+            marginTop: -8,
+            borderRadius: 14,
+            backgroundColor: riderColors.white,
+            borderWidth: 1,
+            borderColor: riderColors.line,
+            paddingHorizontal: 13,
+            paddingVertical: 8,
+            alignItems: 'center',
+            ...riderShadow,
+          }}
+        >
+          <Text
+            style={{
+              color: riderColors.greenDark,
+              fontSize: 11,
+              fontWeight: '900',
+              textTransform: 'uppercase',
+            }}
+          >
             {position ? 'Location active' : 'Finding location'}
           </Text>
           <Text style={{ color: riderColors.muted, fontSize: 10, fontWeight: '700', marginTop: 2 }}>
@@ -1898,20 +2396,81 @@ function OnlineTopBar({
   unread: boolean;
 }) {
   return (
-    <View style={{ height: 72, backgroundColor: riderColors.white, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <TouchableOpacity onPress={onBack} activeOpacity={0.82} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        height: 72,
+        backgroundColor: riderColors.white,
+        paddingHorizontal: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+    >
+      <TouchableOpacity
+        onPress={onBack}
+        activeOpacity={0.82}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Ionicons name="arrow-back" size={27} color={riderColors.ink} />
       </TouchableOpacity>
 
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change availability. Currently online" activeOpacity={0.86} onPress={onAvailability} style={{ minWidth: 142, height: 44, borderRadius: 22, borderWidth: 1, borderColor: riderColors.line, backgroundColor: riderColors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, ...riderShadow }}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Change availability. Currently online"
+        activeOpacity={0.86}
+        onPress={onAvailability}
+        style={{
+          minWidth: 142,
+          height: 44,
+          borderRadius: 22,
+          borderWidth: 1,
+          borderColor: riderColors.line,
+          backgroundColor: riderColors.white,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 9,
+          ...riderShadow,
+        }}
+      >
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#10B66B' }} />
         <Text style={{ color: riderColors.ink, fontSize: 17, fontWeight: '700' }}>Online</Text>
         <Ionicons name="chevron-down" size={20} color={riderColors.soft} />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={onNotifications} activeOpacity={0.82} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}>
+      <TouchableOpacity
+        onPress={onNotifications}
+        activeOpacity={0.82}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Ionicons name="notifications-outline" size={28} color={riderColors.ink} />
-        {unread ? <View style={{ position: 'absolute', top: 8, right: 7, width: 14, height: 14, borderRadius: 7, backgroundColor: riderColors.red, borderWidth: 2, borderColor: riderColors.white }} /> : null}
+        {unread ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 7,
+              width: 14,
+              height: 14,
+              borderRadius: 7,
+              backgroundColor: riderColors.red,
+              borderWidth: 2,
+              borderColor: riderColors.white,
+            }}
+          />
+        ) : null}
       </TouchableOpacity>
     </View>
   );
@@ -1920,13 +2479,61 @@ function OnlineTopBar({
 function RiderPulseMarker() {
   return (
     <View style={{ width: 138, height: 150, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', width: 136, height: 136, borderRadius: 68, backgroundColor: 'rgba(64,190,137,0.15)' }} />
-      <View style={{ position: 'absolute', width: 102, height: 102, borderRadius: 51, backgroundColor: 'rgba(64,190,137,0.20)' }} />
-      <View style={{ position: 'absolute', width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(64,190,137,0.28)' }} />
-      <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: riderColors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DCEBE4', ...riderShadow }}>
+      <View
+        style={{
+          position: 'absolute',
+          width: 136,
+          height: 136,
+          borderRadius: 68,
+          backgroundColor: 'rgba(64,190,137,0.15)',
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: 102,
+          height: 102,
+          borderRadius: 51,
+          backgroundColor: 'rgba(64,190,137,0.20)',
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: 70,
+          height: 70,
+          borderRadius: 35,
+          backgroundColor: 'rgba(64,190,137,0.28)',
+        }}
+      />
+      <View
+        style={{
+          width: 58,
+          height: 58,
+          borderRadius: 29,
+          backgroundColor: riderColors.white,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: 1,
+          borderColor: '#DCEBE4',
+          ...riderShadow,
+        }}
+      >
         <MaterialCommunityIcons name="motorbike" size={31} color={riderColors.ink} />
       </View>
-      <View style={{ width: 0, height: 0, borderLeftWidth: 9, borderRightWidth: 9, borderTopWidth: 16, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: riderColors.greenDark, marginTop: -4 }} />
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderLeftWidth: 9,
+          borderRightWidth: 9,
+          borderTopWidth: 16,
+          borderLeftColor: 'transparent',
+          borderRightColor: 'transparent',
+          borderTopColor: riderColors.greenDark,
+          marginTop: -4,
+        }}
+      />
     </View>
   );
 }
@@ -1949,19 +2556,63 @@ function OnlineReadySheet({
   toggling: boolean;
 }) {
   return (
-    <View style={{ position: 'absolute', left: 12, right: 12, bottom: 0, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: riderColors.white, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(bottomInset, 18), ...riderShadow }}>
-      <View style={{ alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: '#C8D0CC', marginBottom: 16 }} />
+    <View
+      style={{
+        position: 'absolute',
+        left: 12,
+        right: 12,
+        bottom: 0,
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        backgroundColor: riderColors.white,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: Math.max(bottomInset, 18),
+        ...riderShadow,
+      }}
+    >
+      <View
+        style={{
+          alignSelf: 'center',
+          width: 42,
+          height: 5,
+          borderRadius: 3,
+          backgroundColor: '#C8D0CC',
+          marginBottom: 16,
+        }}
+      />
 
       <View style={{ alignItems: 'center', paddingHorizontal: 8 }}>
-        <Text style={{ color: riderColors.ink, fontSize: 22, lineHeight: 27, fontWeight: '900', textAlign: 'center' }} numberOfLines={1}>
+        <Text
+          style={{
+            color: riderColors.ink,
+            fontSize: 22,
+            lineHeight: 27,
+            fontWeight: '900',
+            textAlign: 'center',
+          }}
+          numberOfLines={1}
+        >
           You are live
         </Text>
-        <Text style={{ color: riderColors.muted, fontSize: 13, lineHeight: 19, fontWeight: '600', marginTop: 4, textAlign: 'center' }} numberOfLines={1}>
+        <Text
+          style={{
+            color: riderColors.muted,
+            fontSize: 13,
+            lineHeight: 19,
+            fontWeight: '600',
+            marginTop: 4,
+            textAlign: 'center',
+          }}
+          numberOfLines={1}
+        >
           Waiting for your next request
         </Text>
       </View>
 
-      <View style={{ height: 1, backgroundColor: riderColors.line, marginTop: 15, marginBottom: 14 }} />
+      <View
+        style={{ height: 1, backgroundColor: riderColors.line, marginTop: 15, marginBottom: 14 }}
+      />
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 17 }}>
         <ReadyStat icon="wallet" label="Today" value={todayAmount} />
@@ -1971,13 +2622,47 @@ function OnlineReadySheet({
         <ReadyStat icon="location" label="Area" value={areaName} />
       </View>
 
-      <TouchableOpacity activeOpacity={0.88} onPress={onStayOnline} style={{ height: 50, borderRadius: 15, backgroundColor: riderColors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 }}>
+      <TouchableOpacity
+        activeOpacity={0.88}
+        onPress={onStayOnline}
+        style={{
+          height: 50,
+          borderRadius: 15,
+          backgroundColor: riderColors.ink,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
         <Ionicons name="radio" size={20} color={riderColors.greenDark} />
-        <Text style={{ color: riderColors.white, fontSize: 16, fontWeight: '900' }}>Stay Online</Text>
+        <Text style={{ color: riderColors.white, fontSize: 16, fontWeight: '900' }}>
+          Stay Online
+        </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity activeOpacity={0.86} disabled={toggling} onPress={onGoOffline} style={{ height: 48, borderRadius: 15, borderWidth: 1, borderColor: '#B8E9D1', backgroundColor: riderColors.white, alignItems: 'center', justifyContent: 'center' }}>
-        {toggling ? <ActivityIndicator color={riderColors.greenDark} /> : <Text style={{ color: riderColors.greenDark, fontSize: 16, fontWeight: '900' }}>Go Offline</Text>}
+      <TouchableOpacity
+        activeOpacity={0.86}
+        disabled={toggling}
+        onPress={onGoOffline}
+        style={{
+          height: 48,
+          borderRadius: 15,
+          borderWidth: 1,
+          borderColor: '#B8E9D1',
+          backgroundColor: riderColors.white,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {toggling ? (
+          <ActivityIndicator color={riderColors.greenDark} />
+        ) : (
+          <Text style={{ color: riderColors.greenDark, fontSize: 16, fontWeight: '900' }}>
+            Go Offline
+          </Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -1993,13 +2678,47 @@ function ReadyStat({
   value: string;
 }) {
   return (
-    <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 5 }}>
-      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 7,
+        paddingHorizontal: 5,
+      }}
+    >
+      <View
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          backgroundColor: riderColors.greenSoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Ionicons name={icon} size={17} color={riderColors.greenDark} />
       </View>
       <View style={{ minWidth: 0 }}>
-        <Text style={{ color: riderColors.muted, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
-        <Text style={{ color: riderColors.ink, fontSize: value.length > 9 ? 11 : 13, fontWeight: '900', marginTop: 2 }} numberOfLines={1}>{value}</Text>
+        <Text
+          style={{ color: riderColors.muted, fontSize: 11, fontWeight: '700' }}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+        <Text
+          style={{
+            color: riderColors.ink,
+            fontSize: value.length > 9 ? 11 : 13,
+            fontWeight: '900',
+            marginTop: 2,
+          }}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
       </View>
     </View>
   );
@@ -2018,26 +2737,88 @@ function LocationDisclosureModal({
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDecline}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(5,5,5,0.58)', paddingHorizontal: 18, justifyContent: 'center' }}>
-        <View style={{ borderRadius: 28, backgroundColor: riderColors.white, padding: 20, ...riderShadow }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: riderColors.greenSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(5,5,5,0.58)',
+          paddingHorizontal: 18,
+          justifyContent: 'center',
+        }}
+      >
+        <View
+          style={{
+            borderRadius: 28,
+            backgroundColor: riderColors.white,
+            padding: 20,
+            ...riderShadow,
+          }}
+        >
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: riderColors.greenSoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 14,
+            }}
+          >
             <Ionicons name="location" size={24} color={riderColors.greenDark} />
           </View>
-          <Text style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900', marginBottom: 8 }}>
+          <Text
+            style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900', marginBottom: 8 }}
+          >
             Background location
           </Text>
-          <Text style={{ color: riderColors.muted, fontSize: 14, lineHeight: 20, marginBottom: 18 }}>
+          <Text
+            style={{ color: riderColors.muted, fontSize: 14, lineHeight: 20, marginBottom: 18 }}
+          >
             RiderGuy Rider collects location in the background — when the app is closed or not in
             use — to share your live location with customers and support during active deliveries
             and to match you with nearby jobs while you are online. Tracking stops when you go
             offline.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity activeOpacity={0.86} disabled={loading} onPress={onDecline} style={{ flex: 1, height: 52, borderRadius: 15, borderWidth: 1, borderColor: riderColors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: riderColors.white }}>
-              <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>Not now</Text>
+            <TouchableOpacity
+              activeOpacity={0.86}
+              disabled={loading}
+              onPress={onDecline}
+              style={{
+                flex: 1,
+                height: 52,
+                borderRadius: 15,
+                borderWidth: 1,
+                borderColor: riderColors.line,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: riderColors.white,
+              }}
+            >
+              <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>
+                Not now
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.88} disabled={loading} onPress={onContinue} style={{ flex: 1.3, height: 52, borderRadius: 15, backgroundColor: riderColors.greenDark, alignItems: 'center', justifyContent: 'center' }}>
-              {loading ? <ActivityIndicator color={riderColors.white} /> : <Text style={{ color: riderColors.white, fontSize: 15, fontWeight: '900' }}>Allow location</Text>}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              disabled={loading}
+              onPress={onContinue}
+              style={{
+                flex: 1.3,
+                height: 52,
+                borderRadius: 15,
+                backgroundColor: riderColors.greenDark,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {loading ? (
+                <ActivityIndicator color={riderColors.white} />
+              ) : (
+                <Text style={{ color: riderColors.white, fontSize: 15, fontWeight: '900' }}>
+                  Allow location
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -2060,55 +2841,192 @@ function IncomingRequestModal({
   timeLeft: number;
 }) {
   const progress = Math.max(0, (timeLeft / OFFER_TIMEOUT) * 100);
-  const amount = formatMoneyAmount(Number(offer?.riderEarnings ?? offer?.earnings ?? 0), offer?.currency ?? 'GHS');
+  const amount = formatMoneyAmount(
+    Number(offer?.riderEarnings ?? offer?.earnings ?? 0),
+    offer?.currency ?? 'GHS',
+  );
   const distance = Number(offer?.distanceKm ?? 0);
   const duration = offer?.estimatedDurationMinutes ?? offer?.durationMinutes ?? '?';
 
   return (
     <Modal visible={Boolean(offer)} transparent animationType="fade" onRequestClose={onDecline}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(5,5,5,0.58)', paddingHorizontal: 18, justifyContent: 'center' }}>
-        <View style={{ borderRadius: 28, backgroundColor: riderColors.white, padding: 16, ...riderShadow }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(5,5,5,0.58)',
+          paddingHorizontal: 18,
+          justifyContent: 'center',
+        }}
+      >
+        <View
+          style={{
+            borderRadius: 28,
+            backgroundColor: riderColors.white,
+            padding: 16,
+            ...riderShadow,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+            }}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: riderColors.greenDark, alignItems: 'center', justifyContent: 'center' }}>
+              <View
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: riderColors.greenDark,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <Ionicons name="flash" size={22} color={riderColors.white} />
               </View>
               <View>
-                <Text style={{ color: riderColors.greenDark, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }}>New request</Text>
-                <Text style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900', marginTop: 1 }}>Delivery offer</Text>
+                <Text
+                  style={{
+                    color: riderColors.greenDark,
+                    fontSize: 11,
+                    fontWeight: '900',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  New request
+                </Text>
+                <Text
+                  style={{ color: riderColors.ink, fontSize: 19, fontWeight: '900', marginTop: 1 }}
+                >
+                  Delivery offer
+                </Text>
               </View>
             </View>
-            <View style={{ borderRadius: 999, backgroundColor: riderColors.greenSoft, borderWidth: 1, borderColor: '#B9EBD4', paddingHorizontal: 10, paddingVertical: 6 }}>
-              <Text style={{ color: riderColors.greenDark, fontSize: 12, fontWeight: '900' }}>{timeLeft}s</Text>
+            <View
+              style={{
+                borderRadius: 999,
+                backgroundColor: riderColors.greenSoft,
+                borderWidth: 1,
+                borderColor: '#B9EBD4',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: riderColors.greenDark, fontSize: 12, fontWeight: '900' }}>
+                {timeLeft}s
+              </Text>
             </View>
           </View>
 
-          <ProgressBar progress={progress} color={progress < 35 ? riderColors.red : riderColors.greenDark} />
+          <ProgressBar
+            progress={progress}
+            color={progress < 35 ? riderColors.red : riderColors.greenDark}
+          />
 
           <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 13 }}>
-            <Text style={{ color: riderColors.muted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }}>Estimated payout</Text>
-            <Text style={{ color: riderColors.ink, fontSize: 29, lineHeight: 35, fontWeight: '900', marginTop: 2 }} numberOfLines={1}>{amount}</Text>
+            <Text
+              style={{
+                color: riderColors.muted,
+                fontSize: 11,
+                fontWeight: '900',
+                textTransform: 'uppercase',
+              }}
+            >
+              Estimated payout
+            </Text>
+            <Text
+              style={{
+                color: riderColors.ink,
+                fontSize: 29,
+                lineHeight: 35,
+                fontWeight: '900',
+                marginTop: 2,
+              }}
+              numberOfLines={1}
+            >
+              {amount}
+            </Text>
           </View>
 
-          <View style={{ borderRadius: 18, borderWidth: 1, borderColor: riderColors.line, backgroundColor: riderColors.greenMist, padding: 12, gap: 11 }}>
-            <RequestRoute color={riderColors.greenDark} label="Pickup" value={offer?.pickupAddress ?? 'Pickup location'} />
+          <View
+            style={{
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: riderColors.line,
+              backgroundColor: riderColors.greenMist,
+              padding: 12,
+              gap: 11,
+            }}
+          >
+            <RequestRoute
+              color={riderColors.greenDark}
+              label="Pickup"
+              value={offer?.pickupAddress ?? 'Pickup location'}
+            />
             <View style={{ height: 1, backgroundColor: riderColors.line, marginLeft: 28 }} />
-            <RequestRoute color={riderColors.red} label="Dropoff" value={offer?.dropoffAddress ?? 'Dropoff location'} square />
+            <RequestRoute
+              color={riderColors.red}
+              label="Dropoff"
+              value={offer?.dropoffAddress ?? 'Dropoff location'}
+              square
+            />
           </View>
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-            <OfferChip icon="navigate" label={distance > 0 ? `${distance.toFixed(1)} km` : 'Nearby'} />
+            <OfferChip
+              icon="navigate"
+              label={distance > 0 ? `${distance.toFixed(1)} km` : 'Nearby'}
+            />
             <OfferChip icon="time" label={`${duration} min`} />
             <OfferChip icon="cube" label={cleanLabel(offer?.packageType)} />
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
-            <TouchableOpacity activeOpacity={0.86} disabled={responding} onPress={onDecline} style={{ flex: 1, height: 52, borderRadius: 15, borderWidth: 1, borderColor: riderColors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: riderColors.white }}>
-              <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>Decline</Text>
+            <TouchableOpacity
+              activeOpacity={0.86}
+              disabled={responding}
+              onPress={onDecline}
+              style={{
+                flex: 1,
+                height: 52,
+                borderRadius: 15,
+                borderWidth: 1,
+                borderColor: riderColors.line,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: riderColors.white,
+              }}
+            >
+              <Text style={{ color: riderColors.ink, fontSize: 15, fontWeight: '900' }}>
+                Decline
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.88} disabled={responding} onPress={onAccept} style={{ flex: 1.45, height: 52, borderRadius: 15, backgroundColor: riderColors.greenDark, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              {responding ? <ActivityIndicator color={riderColors.white} /> : <Ionicons name="checkmark-circle" size={21} color={riderColors.white} />}
-              <Text style={{ color: riderColors.white, fontSize: 16, fontWeight: '900' }}>{responding ? 'Accepting' : 'Accept'}</Text>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              disabled={responding}
+              onPress={onAccept}
+              style={{
+                flex: 1.45,
+                height: 52,
+                borderRadius: 15,
+                backgroundColor: riderColors.greenDark,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {responding ? (
+                <ActivityIndicator color={riderColors.white} />
+              ) : (
+                <Ionicons name="checkmark-circle" size={21} color={riderColors.white} />
+              )}
+              <Text style={{ color: riderColors.white, fontSize: 16, fontWeight: '900' }}>
+                {responding ? 'Accepting' : 'Accept'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2130,26 +3048,59 @@ function RequestRoute({
 }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <View style={{ width: 18, height: 18, borderRadius: square ? 5 : 9, backgroundColor: color, borderWidth: 3, borderColor: riderColors.white }} />
+      <View
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: square ? 5 : 9,
+          backgroundColor: color,
+          borderWidth: 3,
+          borderColor: riderColors.white,
+        }}
+      />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ color: riderColors.muted, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>{label}</Text>
-        <Text style={{ color: riderColors.ink, fontSize: 13, fontWeight: '800', marginTop: 2 }} numberOfLines={1}>{value}</Text>
+        <Text
+          style={{
+            color: riderColors.muted,
+            fontSize: 10,
+            fontWeight: '900',
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+        </Text>
+        <Text
+          style={{ color: riderColors.ink, fontSize: 13, fontWeight: '800', marginTop: 2 }}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
       </View>
     </View>
   );
 }
 
-function OfferChip({
-  icon,
-  label,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-}) {
+function OfferChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
   return (
-    <View style={{ flex: 1, minWidth: 0, borderRadius: 13, backgroundColor: riderColors.panelAlt, borderWidth: 1, borderColor: riderColors.line, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 }}>
+    <View
+      style={{
+        flex: 1,
+        minWidth: 0,
+        borderRadius: 13,
+        backgroundColor: riderColors.panelAlt,
+        borderWidth: 1,
+        borderColor: riderColors.line,
+        paddingVertical: 9,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 5,
+      }}
+    >
       <Ionicons name={icon} size={14} color={riderColors.greenDark} />
-      <Text style={{ color: riderColors.ink, fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{label}</Text>
+      <Text style={{ color: riderColors.ink, fontSize: 11, fontWeight: '900' }} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }

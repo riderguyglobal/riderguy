@@ -11,6 +11,7 @@ import type { Prisma, NotificationType } from '@riderguy/database';
 import { PushService } from './push.service';
 import { emitNewJob } from '../socket';
 import { logger } from '../lib/logger';
+import { riderWorkEligibilityWhere } from './rider-work-eligibility';
 
 // --------------- types ------------------------------------------------
 
@@ -182,15 +183,27 @@ export async function notifyNearbyRiders(
   zoneId: string | null,
   pickupAddress: string,
 ) {
-  // Notify ALL online activated riders — zones are for pricing, not rider filtering
-  const riders = await prisma.riderProfile.findMany({
-    where: {
-      availability: 'ONLINE',
-      onboardingStatus: 'ACTIVATED',
-    },
-    select: { userId: true },
-    take: 50,
-  });
+  // Notify every online, work-eligible rider — zones are for pricing, not filtering.
+  // Walk the eligible population deterministically so a hidden first-page
+  // cap never starves later Riders. IDs live only for this broadcast and
+  // push delivery is chunked below.
+  const riders: Array<{ id: string; userId: string }> = [];
+  const pageSize = 200;
+  let cursor: string | undefined;
+  do {
+    const page = await prisma.riderProfile.findMany({
+      where: {
+        availability: 'ONLINE',
+        ...riderWorkEligibilityWhere(),
+      },
+      select: { id: true, userId: true },
+      orderBy: { id: 'asc' },
+      take: pageSize,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    riders.push(...page);
+    cursor = page.length === pageSize ? page.at(-1)?.id : undefined;
+  } while (cursor);
 
   logger.info(
     { orderId, orderNumber, riderCount: riders.length, zoneId },
@@ -215,33 +228,42 @@ export async function notifyNearbyRiders(
     if (order) {
       // Pass eligible rider IDs so socket broadcast skips offline riders
       const eligibleUserIds = new Set(riders.map((r) => r.userId));
-      emitNewJob(zoneId, {
-        orderId,
-        orderNumber,
-        pickupAddress,
-        dropoffAddress: order.dropoffAddress,
-        pickupLat: order.pickupLatitude,
-        pickupLng: order.pickupLongitude,
-        distanceKm: order.distanceKm,
-        totalPrice: typeof order.totalPrice === 'number' ? order.totalPrice : Number(order.totalPrice),
-        packageType: order.packageType,
-        isMultiStop: order.isMultiStop,
-        isScheduled: order.isScheduled,
-      }, eligibleUserIds);
+      emitNewJob(
+        zoneId,
+        {
+          orderId,
+          orderNumber,
+          pickupAddress,
+          dropoffAddress: order.dropoffAddress,
+          pickupLat: order.pickupLatitude,
+          pickupLng: order.pickupLongitude,
+          distanceKm: order.distanceKm,
+          totalPrice:
+            typeof order.totalPrice === 'number' ? order.totalPrice : Number(order.totalPrice),
+          packageType: order.packageType,
+          isMultiStop: order.isMultiStop,
+          isScheduled: order.isScheduled,
+        },
+        eligibleUserIds,
+      );
     }
   } catch (err) {
     logger.error({ err, orderId }, '[NotifyRiders] Failed to emit job:new broadcast');
   }
 
-  await Promise.allSettled(
-    riders.map((rider) =>
-      createOrderNotification(
-        rider.userId,
-        'New Delivery Available',
-        `New order ${orderNumber} — pickup at ${pickupAddress}. Open the job feed to accept.`,
-        orderId,
-        'job-offers',
-      ),
-    ),
-  );
+  for (let offset = 0; offset < riders.length; offset += pageSize) {
+    await Promise.allSettled(
+      riders
+        .slice(offset, offset + pageSize)
+        .map((rider) =>
+          createOrderNotification(
+            rider.userId,
+            'New Delivery Available',
+            `New order ${orderNumber} — pickup at ${pickupAddress}. Open the job feed to accept.`,
+            orderId,
+            'job-offers',
+          ),
+        ),
+    );
+  }
 }

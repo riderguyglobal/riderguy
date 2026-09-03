@@ -9,10 +9,17 @@ import { paystackService, PaystackService } from '../../services/paystack.servic
 import { logger } from '../../lib/logger';
 import { enqueuePayoutJob } from '../../jobs/queues';
 import { handlePaymentFailureAfterAssignment } from '../../services/order-reassign.service';
-import {
-  processWalletTopupWebhook,
-} from '../../services/wallet-topup.service';
+import { processWalletTopupWebhook } from '../../services/wallet-topup.service';
 import { getOrderPaymentReceiptMismatch } from '../../services/order-payment-verification';
+import { adminAuditContext } from '../../services/admin-audit.service';
+import { ApiError } from '../../lib/api-error';
+import {
+  approveWithdrawalForPayout,
+  completeWithdrawalByReference,
+  markWithdrawalQueueUnavailable,
+  refundFailedWithdrawalByReference,
+  rejectWithdrawalByAdmin,
+} from '../../services/withdrawal-decision.service';
 
 const router = Router();
 
@@ -41,6 +48,16 @@ const verifyPaymentSchema = z.object({
 const resolveAccountSchema = z.object({
   accountNumber: z.string().min(10).max(10),
   bankCode: z.string().min(2),
+});
+
+const rejectWithdrawalSchema = z.object({
+  reason: z.string().trim().min(5, 'A meaningful payout rejection reason is required').max(500),
+});
+
+const withdrawalListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED']).optional(),
 });
 
 // ── Routes ──
@@ -246,7 +263,10 @@ router.get(
 
         // If a rider was already assigned, release them and cancel the order
         handlePaymentFailureAfterAssignment(order.id).catch((err) =>
-          logger.error({ err, orderId: order.id }, 'Failed to handle payment failure after assignment'),
+          logger.error(
+            { err, orderId: order.id },
+            'Failed to handle payment failure after assignment',
+          ),
         );
 
         res.status(StatusCodes.OK).json({
@@ -298,7 +318,10 @@ router.post(
       (event?.data?.reference ? `${event.event}:${event.data.reference}` : undefined);
 
     if (!providerEventId) {
-      logger.warn({ eventType: event?.event }, 'Webhook missing event id — accepting without idempotency');
+      logger.warn(
+        { eventType: event?.event },
+        'Webhook missing event id — accepting without idempotency',
+      );
       res.status(StatusCodes.OK).json({ success: true });
       return;
     }
@@ -323,7 +346,10 @@ router.post(
       // Unique violation = duplicate delivery — Paystack retries can hit us multiple times.
       const code = (err as { code?: string })?.code;
       if (code === 'P2002') {
-        logger.info({ eventId: providerEventId, eventType: event.event }, 'Duplicate webhook ignored');
+        logger.info(
+          { eventId: providerEventId, eventType: event.event },
+          'Duplicate webhook ignored',
+        );
         res.status(StatusCodes.OK).json({ success: true, deduped: true });
         return;
       }
@@ -331,155 +357,134 @@ router.post(
     }
 
     try {
-    switch (event.event) {
-      // ── Charge events (order payments) ──
-      case 'charge.success': {
-        const reference = event.data?.reference as string | undefined;
-        if (!reference) break;
+      switch (event.event) {
+        // ── Charge events (order payments) ──
+        case 'charge.success': {
+          const reference = event.data?.reference as string | undefined;
+          if (!reference) break;
 
-        const metadata = event.data?.metadata ?? {};
-        if (metadata.type === 'wallet_topup') {
-          const topup = await processWalletTopupWebhook({
-            amount: Number(event.data?.amount),
-            currency: String(event.data?.currency ?? ''),
-            metadata,
-            reference,
-            channel: event.data?.channel,
-            paidAt: event.data?.paid_at ?? null,
-          });
-          if (!topup.accepted) {
-            logger.warn({ err: topup.error, reference }, 'Rejected invalid wallet top-up webhook');
+          const metadata = event.data?.metadata ?? {};
+          if (metadata.type === 'wallet_topup') {
+            const topup = await processWalletTopupWebhook({
+              amount: Number(event.data?.amount),
+              currency: String(event.data?.currency ?? ''),
+              metadata,
+              reference,
+              channel: event.data?.channel,
+              paidAt: event.data?.paid_at ?? null,
+            });
+            if (!topup.accepted) {
+              logger.warn(
+                { err: topup.error, reference },
+                'Rejected invalid wallet top-up webhook',
+              );
+              break;
+            }
+            logger.info(
+              { userId: topup.userId, reference, amount: topup.amount },
+              'Wallet top-up completed via webhook',
+            );
             break;
           }
-          logger.info(
-            { userId: topup.userId, reference, amount: topup.amount },
-            'Wallet top-up completed via webhook',
-          );
-          break;
-        }
 
-        const order = await prisma.order.findFirst({
-          where: { paymentReference: reference },
-        });
-
-        const receiptMismatch = order
-          ? getOrderPaymentReceiptMismatch(order, {
-              amount: event.data?.amount,
-              currency: event.data?.currency,
-            })
-          : null;
-
-        if (order && receiptMismatch) {
-          logger.warn(
-            {
-              orderId: order.id,
-              reference,
-              code: receiptMismatch.code,
-              expected: receiptMismatch.expected,
-              received: receiptMismatch.received,
-            },
-            'Rejected mismatched order payment webhook',
-          );
-          break;
-        }
-
-        if (order && order.paymentStatus !== 'COMPLETED') {
-          // Optimistic update: only mark COMPLETED if not already done (prevents double-dispatch with /verify)
-          const webhookUpdate = await prisma.order.updateMany({
-            where: { id: order.id, paymentStatus: { not: 'COMPLETED' } },
-            data: { paymentStatus: 'COMPLETED' },
+          const order = await prisma.order.findFirst({
+            where: { paymentReference: reference },
           });
 
-          if (webhookUpdate.count > 0) {
-            logger.info({ orderId: order.id, reference }, 'Order payment completed via webhook');
-            // Dispatch is handled at order creation — webhook only confirms payment.
-          }
-        }
-        break;
-      }
+          const receiptMismatch = order
+            ? getOrderPaymentReceiptMismatch(order, {
+                amount: event.data?.amount,
+                currency: event.data?.currency,
+              })
+            : null;
 
-      // ── Transfer events (rider withdrawals/payouts) ──
-      case 'transfer.success': {
-        const transferRef = event.data?.reference as string | undefined;
-        if (!transferRef) break;
-
-        const withdrawal = await prisma.withdrawal.findFirst({
-          where: { paymentReference: transferRef },
-        });
-
-        if (withdrawal && withdrawal.status !== 'COMPLETED') {
-          await prisma.withdrawal.update({
-            where: { id: withdrawal.id },
-            data: { status: 'COMPLETED', processedAt: new Date() },
-          });
-
-          // Update wallet totalWithdrawn
-          await prisma.wallet.update({
-            where: { id: withdrawal.walletId },
-            data: { totalWithdrawn: { increment: withdrawal.amount } },
-          });
-
-          logger.info(
-            { withdrawalId: withdrawal.id, reference: transferRef },
-            'Withdrawal completed via webhook',
-          );
-        }
-        break;
-      }
-
-      case 'transfer.failed':
-      case 'transfer.reversed': {
-        const failRef = event.data?.reference as string | undefined;
-        if (!failRef) break;
-
-        const failedWithdrawal = await prisma.withdrawal.findFirst({
-          where: { paymentReference: failRef },
-        });
-
-        if (failedWithdrawal && !['COMPLETED', 'CANCELLED'].includes(failedWithdrawal.status)) {
-          // Refund the money back to the wallet — sequential writes with optimistic guard
-          const failUpdate = await prisma.withdrawal.updateMany({
-            where: { id: failedWithdrawal.id, status: { notIn: ['COMPLETED', 'CANCELLED', 'FAILED'] } },
-            data: {
-              status: 'FAILED',
-              failureReason: event.data?.reason ?? `Transfer ${event.event.split('.')[1]}`,
-            },
-          });
-
-          if (failUpdate.count > 0) {
-            const updatedWallet = await prisma.wallet.update({
-              where: { id: failedWithdrawal.walletId },
-              data: { balance: { increment: failedWithdrawal.amount } },
-            });
-
-            await prisma.transaction.create({
-              data: {
-                walletId: updatedWallet.id,
-                type: 'REFUND',
-                amount: failedWithdrawal.amount,
-                balanceAfter: Number(updatedWallet.balance),
-                description: `Refund for failed withdrawal`,
-                referenceId: failedWithdrawal.id,
-                referenceType: 'withdrawal',
+          if (order && receiptMismatch) {
+            logger.warn(
+              {
+                orderId: order.id,
+                reference,
+                code: receiptMismatch.code,
+                expected: receiptMismatch.expected,
+                received: receiptMismatch.received,
               },
-            });
+              'Rejected mismatched order payment webhook',
+            );
+            break;
           }
 
-          logger.info(
-            { withdrawalId: failedWithdrawal.id },
-            `Withdrawal ${event.event.split('.')[1]} — refunded`,
-          );
-        }
-        break;
-      }
+          if (order && order.paymentStatus !== 'COMPLETED') {
+            // Optimistic update: only mark COMPLETED if not already done (prevents double-dispatch with /verify)
+            const webhookUpdate = await prisma.order.updateMany({
+              where: { id: order.id, paymentStatus: { not: 'COMPLETED' } },
+              data: { paymentStatus: 'COMPLETED' },
+            });
 
-      default:
-        logger.info({ event: event.event }, 'Unhandled Paystack webhook event');
-    }
+            if (webhookUpdate.count > 0) {
+              logger.info({ orderId: order.id, reference }, 'Order payment completed via webhook');
+              // Dispatch is handled at order creation — webhook only confirms payment.
+            }
+          }
+          break;
+        }
+
+        // ── Transfer events (rider withdrawals/payouts) ──
+        case 'transfer.success': {
+          const transferRef = event.data?.reference as string | undefined;
+          if (!transferRef) break;
+
+          const completion = await completeWithdrawalByReference(transferRef, event.data?.amount);
+          if (completion?.outcome === 'COMPLETED') {
+            logger.info(
+              { withdrawalId: completion.withdrawalId, reference: transferRef },
+              'Withdrawal completed via webhook',
+            );
+          } else if (completion?.outcome === 'IGNORED_TERMINAL') {
+            logger.warn(
+              {
+                withdrawalId: completion.withdrawalId,
+                status: completion.status,
+                reference: transferRef,
+              },
+              'Ignored transfer success for a final non-payable withdrawal',
+            );
+          } else if (completion?.outcome === 'AMOUNT_MISMATCH') {
+            logger.error(
+              { withdrawalId: completion.withdrawalId, reference: transferRef },
+              'Held transfer success for manual review because the provider amount did not match',
+            );
+          }
+          break;
+        }
+
+        case 'transfer.failed':
+        case 'transfer.reversed': {
+          const failRef = event.data?.reference as string | undefined;
+          if (!failRef) break;
+          const refund = await refundFailedWithdrawalByReference(
+            failRef,
+            event.data?.reason ?? `Transfer ${event.event.split('.')[1]}`,
+            event.event === 'transfer.reversed' ? 'REVERSED' : 'FAILED',
+          );
+          if (refund?.outcome === 'REFUNDED') {
+            logger.info(
+              { withdrawalId: refund.withdrawalId },
+              `Withdrawal ${event.event.split('.')[1]} — refunded`,
+            );
+          }
+          break;
+        }
+
+        default:
+          logger.info({ event: event.event }, 'Unhandled Paystack webhook event');
+      }
     } catch (processingErr: unknown) {
       // Mark the webhook event row as FAILED so ops can audit / replay manually.
-      const message = processingErr instanceof Error ? processingErr.message : String(processingErr);
-      logger.error({ err: processingErr, eventId: providerEventId, eventType: event.event }, 'Webhook processing failed');
+      const message =
+        processingErr instanceof Error ? processingErr.message : String(processingErr);
+      logger.error(
+        { err: processingErr, eventId: providerEventId, eventType: event.event },
+        'Webhook processing failed',
+      );
       await prisma.webhookEvent
         .update({
           where: { id: webhookEventRow.id },
@@ -559,9 +564,10 @@ router.get(
   '/withdrawals',
   authenticate,
   requireRole(UserRole.RIDER, UserRole.PARTNER),
+  validate(withdrawalListQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const page = parseInt(String(req.query.page ?? '1')) || 1;
-    const limit = Math.min(parseInt(String(req.query.limit ?? '20')) || 20, 100);
+    const page = Number(req.query.page);
+    const limit = Number(req.query.limit);
     const skip = (page - 1) * limit;
     const status = req.query.status ? String(req.query.status) : undefined;
 
@@ -596,9 +602,10 @@ router.get(
   '/admin/withdrawals',
   authenticate,
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate(withdrawalListQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const page = Number(req.query.page);
+    const limit = Number(req.query.limit);
     const skip = (page - 1) * limit;
     const status = req.query.status as string | undefined;
 
@@ -640,39 +647,43 @@ router.post(
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const approval = await approveWithdrawalForPayout(id, adminAuditContext(req));
+    const { withdrawal } = approval;
 
-    const withdrawal = await prisma.withdrawal.findUnique({
-      where: { id },
-    });
-
-    if (!withdrawal) {
-      res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Withdrawal not found' },
-      });
-      return;
+    if (approval.outcome !== 'ALREADY_SUBMITTED') {
+      try {
+        await enqueuePayoutJob({
+          withdrawalId: withdrawal.id,
+          userId: withdrawal.userId,
+          amount: Number(withdrawal.amount),
+          method: withdrawal.method,
+          destination: withdrawal.destination,
+          destinationName: withdrawal.destinationName,
+          bankCode: withdrawal.bankCode ?? undefined,
+        });
+      } catch (error) {
+        await markWithdrawalQueueUnavailable(withdrawal.id).catch((markError) =>
+          logger.error(
+            { err: markError, withdrawalId: withdrawal.id },
+            'Failed to record payout queue delay',
+          ),
+        );
+        logger.error({ err: error, withdrawalId: withdrawal.id }, 'Payout queueing failed');
+        throw ApiError.serviceUnavailable(
+          'Payout approval was saved, but queueing is delayed. Retry approval safely.',
+          'PAYOUT_QUEUE_UNAVAILABLE',
+        );
+      }
     }
 
-    if (withdrawal.status !== 'PENDING') {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'INVALID_STATUS', message: `Cannot approve a ${withdrawal.status} withdrawal` },
-      });
-      return;
-    }
-
-    // Enqueue payout job
-    await enqueuePayoutJob({
-      withdrawalId: withdrawal.id,
-      userId: withdrawal.userId,
-      amount: Number(withdrawal.amount),
-      method: withdrawal.method,
-      destination: withdrawal.destination,
-      destinationName: withdrawal.destinationName,
-      bankCode: withdrawal.bankCode ?? undefined,
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message:
+        approval.outcome === 'ALREADY_SUBMITTED'
+          ? 'Payout is already awaiting provider confirmation'
+          : 'Payout approved and queued for processing',
+      data: { outcome: approval.outcome, status: withdrawal.status },
     });
-
-    res.status(StatusCodes.OK).json({ success: true, message: 'Payout queued for processing' });
   }),
 );
 
@@ -684,60 +695,18 @@ router.post(
   '/admin/withdrawals/:id/reject',
   authenticate,
   requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate(rejectWithdrawalSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
-    const reason = (req.body.reason as string) || 'Rejected by admin';
+    const reason = req.body.reason as string;
 
-    const withdrawal = await prisma.withdrawal.findUnique({ where: { id } });
-    if (!withdrawal) {
-      res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Withdrawal not found' },
-      });
-      return;
-    }
+    const result = await rejectWithdrawalByAdmin(id, reason, adminAuditContext(req));
 
-    if (withdrawal.status !== 'PENDING') {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'INVALID_STATUS', message: `Cannot reject a ${withdrawal.status} withdrawal` },
-      });
-      return;
-    }
-
-    // Optimistic guard: only reject if still PENDING
-    const rejectUpdate = await prisma.withdrawal.updateMany({
-      where: { id, status: 'PENDING' },
-      data: { status: 'CANCELLED', failureReason: reason },
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Withdrawal rejected and refunded',
+      data: result,
     });
-
-    if (rejectUpdate.count === 0) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'INVALID_STATUS', message: 'Withdrawal is no longer in PENDING status' },
-      });
-      return;
-    }
-
-    // Refund the amount — use update return value for accurate balanceAfter
-    const updatedWallet = await prisma.wallet.update({
-      where: { id: withdrawal.walletId },
-      data: { balance: { increment: withdrawal.amount } },
-    });
-
-    await prisma.transaction.create({
-      data: {
-        walletId: updatedWallet.id,
-        type: 'REFUND',
-        amount: withdrawal.amount,
-        balanceAfter: Number(updatedWallet.balance),
-        description: `Refund for rejected withdrawal: ${reason}`,
-        referenceId: withdrawal.id,
-        referenceType: 'withdrawal',
-      },
-    });
-
-    res.status(StatusCodes.OK).json({ success: true, message: 'Withdrawal rejected and refunded' });
   }),
 );
 
@@ -760,12 +729,15 @@ router.get(
       paidOrders,
     ] = await Promise.all([
       prisma.order.aggregate({ _sum: { totalPrice: true }, where: { status: 'DELIVERED' } }),
-      prisma.order.aggregate({ _sum: { platformCommission: true }, where: { status: 'DELIVERED' } }),
+      prisma.order.aggregate({
+        _sum: { platformCommission: true },
+        where: { status: 'DELIVERED' },
+      }),
       prisma.withdrawal.count({ where: { status: 'PENDING' } }),
       prisma.withdrawal.count({ where: { status: 'COMPLETED' } }),
       prisma.withdrawal.aggregate({ _sum: { amount: true }, where: { status: 'COMPLETED' } }),
       prisma.order.count({ where: { status: 'DELIVERED' } }),
-      prisma.order.count({ where: { paymentStatus: 'COMPLETED' } }),
+      prisma.order.count({ where: { status: 'DELIVERED', paymentStatus: 'COMPLETED' } }),
     ]);
 
     res.status(StatusCodes.OK).json({
