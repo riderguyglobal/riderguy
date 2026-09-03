@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -100,6 +100,14 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const mobileDrawerRef = useRef<HTMLElement>(null);
   const mobileCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileOpenButtonRef = useRef<HTMLButtonElement>(null);
+
+  const setMobileCloseButton = useCallback((element: HTMLButtonElement | null) => {
+    mobileCloseButtonRef.current = element;
+    // Callback refs run when the dialog DOM is committed, so this does not
+    // depend on a later paint or timer before focus enters the modal.
+    element?.focus({ preventScroll: true });
+  }, []);
 
   const hasAdministratorAccess =
     user?.role === UserRole.ADMIN ||
@@ -137,12 +145,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     if (!mobileNavigationOpen) return;
 
     const previousOverflow = document.body.style.overflow;
-    const previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const returnFocusElement = mobileOpenButtonRef.current;
     document.body.style.overflow = 'hidden';
 
+    mobileCloseButtonRef.current?.focus({ preventScroll: true });
     const focusFrame = window.requestAnimationFrame(() => {
-      mobileCloseButtonRef.current?.focus();
+      mobileCloseButtonRef.current?.focus({ preventScroll: true });
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -162,11 +170,18 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       if (focusableElements.length === 0) return;
       const firstElement = focusableElements[0];
       const lastElement = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
 
-      if (event.shiftKey && document.activeElement === firstElement) {
+      if (!mobileDrawerRef.current.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement)?.focus();
+        return;
+      }
+
+      if (event.shiftKey && activeElement === firstElement) {
         event.preventDefault();
         lastElement?.focus();
-      } else if (!event.shiftKey && document.activeElement === lastElement) {
+      } else if (!event.shiftKey && activeElement === lastElement) {
         event.preventDefault();
         firstElement?.focus();
       }
@@ -177,7 +192,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       window.cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
-      previouslyFocused?.focus();
+      returnFocusElement?.focus({ preventScroll: true });
     };
   }, [mobileNavigationOpen]);
 
@@ -355,7 +370,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 >
                   {sidebar}
                   <button
-                    ref={mobileCloseButtonRef}
+                    ref={setMobileCloseButton}
                     type="button"
                     aria-label="Close navigation"
                     onClick={() => setMobileNavigationOpen(false)}
@@ -370,6 +385,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             <header className="sticky top-0 z-40 border-b border-[#DDE9E3]/90 bg-white/90 backdrop-blur-xl">
               <div className="mx-auto flex h-[76px] max-w-[1680px] items-center gap-3 px-4 sm:gap-4 sm:px-6 xl:px-8">
                 <button
+                  ref={mobileOpenButtonRef}
                   type="button"
                   aria-label="Open navigation"
                   aria-expanded={mobileNavigationOpen}
