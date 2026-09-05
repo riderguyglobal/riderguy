@@ -3,7 +3,7 @@ import { useAuth } from '@riderguy/auth-native';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function AuthLayout() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -14,8 +14,9 @@ export default function AuthLayout() {
   }
 
   if (isAuthenticated) {
-    const activated = user?.riderProfile?.onboardingStatus === 'ACTIVATED' && user.riderProfile.isVerified;
-    return <Redirect href={activated ? '/(tabs)' : '/(app)/onboarding'} />;
+    // The login payload is not a complete work-eligibility snapshot. The tabs
+    // layout performs the server-authoritative access check before rendering.
+    return <Redirect href="/(tabs)" />;
   }
 
   return (

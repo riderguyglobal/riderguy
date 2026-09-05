@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@riderguy/auth-native';
 import { riderColors } from '@/lib/rider-design';
 import { useRiderOnboardingGate } from '@/hooks/useRiderOnboardingGate';
+import { RiderAccessCheckUnavailable } from '@/components/rider-access-check';
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,6 +19,9 @@ export default function AppLayout() {
   }
 
   if (!isAuthenticated) return <Redirect href="/(auth)" />;
+  if (onboarding.isError || !onboarding.hasAuthoritativeStatus) {
+    return <RiderAccessCheckUnavailable isRetrying={onboarding.isFetching} onRetry={() => void onboarding.refetch()} />;
+  }
 
   const isOnboardingRoute = pathname.includes('/onboarding')
     || pathname.includes('/training')

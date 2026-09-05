@@ -11,22 +11,110 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
+let prisma = null;
 
-const REVIEW_PASSWORD = process.env.PLAY_REVIEW_PASSWORD || 'Test1234';
+const REVIEWER_EVIDENCE_URL = 'https://myriderguy.com/images/new/Display%20of%20Fleet.png';
+const REVIEWER_REQUIRED_DOCUMENTS = [
+  {
+    id: 'play-reviewer-rider-document-national-id-v1',
+    type: 'NATIONAL_ID',
+    fileName: 'play-reviewer-synthetic-national-id.png',
+  },
+  {
+    id: 'play-reviewer-rider-document-drivers-license-v1',
+    type: 'DRIVERS_LICENSE',
+    fileName: 'play-reviewer-synthetic-drivers-license.png',
+  },
+  {
+    id: 'play-reviewer-rider-document-selfie-v1',
+    type: 'SELFIE',
+    fileName: 'play-reviewer-synthetic-selfie.png',
+  },
+];
+
+function resolveReviewerPassword(environment = process.env) {
+  const configuredPassword = environment.PLAY_REVIEW_PASSWORD;
+  if (typeof configuredPassword === 'string' && configuredPassword.trim()) {
+    return configuredPassword;
+  }
+  if (environment.NODE_ENV === 'production') {
+    throw new Error('PLAY_REVIEW_PASSWORD is required when NODE_ENV=production');
+  }
+  return 'Test1234';
+}
+
+/**
+ * Keep only the dedicated Play reviewer fixture work-eligible. We never delete
+ * or rewrite other evidence: a deterministic synthetic record is moved after
+ * the newest record for each required type and approved. This matters because
+ * Rider compliance deliberately evaluates the latest evidence, not merely any
+ * historical approval.
+ */
+async function ensureApprovedReviewerDocuments(tx, userId, now = new Date()) {
+  for (const evidence of REVIEWER_REQUIRED_DOCUMENTS) {
+    const [fixture, latest] = await Promise.all([
+      tx.document.findUnique({
+        where: { id: evidence.id },
+        select: { id: true, userId: true, type: true, status: true, createdAt: true },
+      }),
+      tx.document.findFirst({
+        where: { userId, type: evidence.type },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, createdAt: true },
+      }),
+    ]);
+
+    if (fixture && (fixture.userId !== userId || fixture.type !== evidence.type)) {
+      throw new Error(`Reserved Play reviewer document ID collision: ${evidence.id}`);
+    }
+
+    const latestTime = latest?.createdAt ? new Date(latest.createdAt).getTime() : 0;
+    const fixtureIsLatest = fixture?.id === latest?.id;
+    const createdAt = fixtureIsLatest
+      ? new Date(fixture.createdAt)
+      : new Date(Math.max(now.getTime(), latestTime + 1));
+    const approvedData = {
+      fileUrl: REVIEWER_EVIDENCE_URL,
+      fileName: evidence.fileName,
+      fileSizeBytes: 2510676,
+      mimeType: 'image/png',
+      status: 'APPROVED',
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedAt: now,
+      expiresAt: null,
+      createdAt,
+    };
+
+    if (fixture) {
+      await tx.document.update({ where: { id: evidence.id }, data: approvedData });
+    } else {
+      await tx.document.create({
+        data: {
+          id: evidence.id,
+          userId,
+          type: evidence.type,
+          ...approvedData,
+        },
+      });
+    }
+  }
+}
 
 async function main() {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required');
   }
+  const reviewPassword = resolveReviewerPassword(process.env);
+  prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  });
 
-  const passwordHash = await bcrypt.hash(REVIEW_PASSWORD, 12);
+  const passwordHash = await bcrypt.hash(reviewPassword, 12);
 
   const accounts = await prisma.$transaction(async (tx) => {
     const rider = await tx.user.upsert({
@@ -127,6 +215,11 @@ async function main() {
       },
     });
 
+    // The canonical compliance recalculation checks the latest National ID,
+    // driver's licence, and selfie. These synthetic records are restricted to
+    // the reserved reviewer identity and contain no real person's documents.
+    await ensureApprovedReviewerDocuments(tx, rider.id);
+
     await tx.wallet.upsert({
       where: { userId: rider.id },
       create: { userId: rider.id },
@@ -185,9 +278,17 @@ async function main() {
   }
 }
 
-main()
-  .catch((error) => {
-    console.error('Failed to ensure Play reviewer accounts:', error.message);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error('Failed to ensure Play reviewer accounts:', error.message);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma?.$disconnect());
+}
+
+module.exports = {
+  REVIEWER_REQUIRED_DOCUMENTS,
+  ensureApprovedReviewerDocuments,
+  resolveReviewerPassword,
+};

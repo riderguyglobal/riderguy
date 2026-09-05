@@ -100,7 +100,14 @@ export class OnboardingService {
     const rider = await prisma.riderProfile.findUnique({
       where: { userId },
       include: {
-        user: { include: { documents: { select: { type: true, status: true } } } },
+        user: {
+          include: {
+            documents: {
+              orderBy: { createdAt: 'desc' },
+              select: { type: true, status: true },
+            },
+          },
+        },
         vehicles: {
           select: {
             id: true,
@@ -117,9 +124,12 @@ export class OnboardingService {
 
     if (!rider) throw ApiError.notFound('Rider profile not found');
 
-    const docMap = new Map(
-      rider.user.documents.map((document) => [document.type, document.status]),
-    );
+    const docMap = new Map<string, string>();
+    for (const document of rider.user.documents) {
+      // The query is newest-first. Preserve the first record for each type so
+      // progress uses the same latest-evidence rule as compliance recalculation.
+      if (!docMap.has(document.type)) docMap.set(document.type, document.status);
+    }
     const trainingMap = new Map(rider.trainingCompletions.map((item) => [item.moduleKey, item]));
 
     const channelStep: OnboardingStep = rider.riderChannel

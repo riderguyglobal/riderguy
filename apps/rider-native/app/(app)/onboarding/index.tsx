@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAuthErrorMessage, useAuth } from '@riderguy/auth-native';
 import { EmptyState, ProgressBar, RiderButton, RiderCard, RiderHeader, StatusPill } from '@/components/rider-ui';
 import { cleanLabel, riderColors } from '@/lib/rider-design';
+import { isRiderOnboardingGateData } from '@/hooks/useRiderOnboardingGate';
 
 const ROUTE_BY_STEP: Record<string, string> = {
   national_id: '/(app)/onboarding/documents',
@@ -29,7 +30,7 @@ export default function OnboardingIndexScreen() {
   const [invitationCode, setInvitationCode] = useState('');
   const [channelError, setChannelError] = useState('');
 
-  const { data: progress, isLoading, isFetching, refetch } = useQuery({
+  const { data: progress, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['rider-onboarding-status'],
     queryFn: async () => {
       const { data } = await api.get('/riders/onboarding');
@@ -47,8 +48,9 @@ export default function OnboardingIndexScreen() {
 
   const firstVehicleId = vehicles?.[0]?.id;
   const steps = progress?.steps ?? [];
+  const hasAuthoritativeStatus = isRiderOnboardingGateData(progress);
   const activatedWithoutChannel = progress?.onboardingStatus === 'ACTIVATED' && !progress?.riderChannel;
-  const canChooseChannel = !progress?.riderChannel && !activatedWithoutChannel;
+  const canChooseChannel = hasAuthoritativeStatus && !progress.riderChannel && !activatedWithoutChannel;
 
   const channelMutation = useMutation({
     mutationFn: async ({ channel, code }: { channel: 'GUEST' | 'IN_HOUSE'; code?: string }) => {
@@ -78,6 +80,22 @@ export default function OnboardingIndexScreen() {
     }
     router.push(route as any);
   };
+
+  if (!isLoading && (isError || !hasAuthoritativeStatus)) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.surface }}>
+        <RiderHeader title="Rider onboarding" subtitle="Verify your current Rider status" canGoBack />
+        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 16 }}>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Rider status could not be verified"
+            body="Check your connection and retry before choosing a Rider channel or changing onboarding details."
+            action={<RiderButton label="Retry status check" icon="refresh-outline" loading={isFetching} onPress={() => void refetch()} />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: riderColors.surface }}>

@@ -471,6 +471,57 @@ describe('OnboardingService security gates', () => {
     expect(progress.canAccessWork).toBe(false);
   });
 
+  it('shows the latest document status when older evidence for the same type was approved', async () => {
+    asMock(prisma.riderProfile.findUnique).mockResolvedValue({
+      ...baseRider,
+      onboardingStatus: 'ACTIVATED',
+      isVerified: false,
+      riderChannel: 'GUEST',
+      referralCode: 'RG-TEST',
+      user: {
+        email: 'rider@example.com',
+        phone: '+233241234567',
+        status: 'ACTIVE',
+        // Mirrors the newest-first ordering requested by getProgress.
+        documents: [
+          { type: 'NATIONAL_ID', status: 'PENDING', createdAt: new Date('2026-02-01') },
+          { type: 'NATIONAL_ID', status: 'APPROVED', createdAt: new Date('2026-01-01') },
+          { type: 'DRIVERS_LICENSE', status: 'APPROVED', createdAt: new Date('2026-01-01') },
+          { type: 'SELFIE', status: 'APPROVED', createdAt: new Date('2026-01-01') },
+        ],
+      },
+      vehicles: [
+        {
+          id: 'vehicle-1',
+          reviewStatus: 'APPROVED',
+          photoFrontUrl: 'front.jpg',
+          photoBackUrl: 'back.jpg',
+          photoLeftUrl: 'left.jpg',
+          photoRightUrl: 'right.jpg',
+        },
+      ],
+      trainingCompletions: [],
+    });
+
+    const progress = await OnboardingService.getProgress(baseRider.userId);
+
+    expect(progress.steps.find((step) => step.key === 'national_id')?.status).toBe('current');
+    expect(prisma.riderProfile.findUnique).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          user: {
+            include: {
+              documents: {
+                orderBy: { createdAt: 'desc' },
+                select: { type: true, status: true },
+              },
+            },
+          },
+        }),
+      }),
+    );
+  });
+
   it('closes the work gate and takes an activated Rider offline when latest evidence is pending', async () => {
     asMock(prisma.riderProfile.findUnique).mockResolvedValue({
       ...baseRider,

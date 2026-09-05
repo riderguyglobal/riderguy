@@ -5,6 +5,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderColors, riderFonts } from '@/lib/rider-design';
 import { useRiderOnboardingGate } from '@/hooks/useRiderOnboardingGate';
+import { RiderAccessCheckUnavailable } from '@/components/rider-access-check';
 
 export default function TabsLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,6 +21,9 @@ export default function TabsLayout() {
   }
 
   if (!isAuthenticated) return <Redirect href="/(auth)" />;
+  if (onboarding.isError || !onboarding.hasAuthoritativeStatus) {
+    return <RiderAccessCheckUnavailable isRetrying={onboarding.isFetching} onRetry={() => void onboarding.refetch()} />;
+  }
   if (!onboarding.isActivated) return <Redirect href="/(app)/onboarding" />;
 
   return (
