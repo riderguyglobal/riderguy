@@ -18,13 +18,13 @@ vi.mock('../../jobs/queues', () => ({
 }));
 
 // Mock Paystack service
-const mockPaystackService = {
+const mockPaystackService = vi.hoisted(() => ({
   initializeTransaction: vi.fn(),
   verifyTransaction: vi.fn(),
   verifyWebhookSignature: vi.fn(),
   listBanks: vi.fn(),
   resolveAccountNumber: vi.fn(),
-};
+}));
 vi.mock('../../services/paystack.service', () => ({
   paystackService: mockPaystackService,
   PaystackService: {
@@ -83,6 +83,7 @@ vi.mock('../../lib/logger', () => ({
 
 import { prisma } from '@riderguy/database';
 import { enqueuePayoutJob } from '../../jobs/queues';
+import { resolveAccountSchema } from './payment.routes';
 
 // ─── Helper: Lightweight route handler tester ───────────────
 // We test the route handler logic by simulating request/response
@@ -424,7 +425,9 @@ describe('Payment Verification Logic', () => {
       amount: 9999, // Wrong amount
     });
 
-    const foundOrder = await prisma.order.findFirst({ where: { paymentReference: 'REF_mismatch' } });
+    const foundOrder = await prisma.order.findFirst({
+      where: { paymentReference: 'REF_mismatch' },
+    });
     const verification = await mockPaystackService.verifyTransaction('REF_mismatch');
 
     const expectedPesewas = Math.round(Number(foundOrder!.totalPrice) * 100);
@@ -494,6 +497,26 @@ describe('Bank & Account Resolution', () => {
     const result = await mockPaystackService.resolveAccountNumber('0241234567', 'MTN');
     expect(result.accountName).toBe('John Doe');
     expect(result.accountNumber).toBe('0241234567');
+  });
+
+  it('accepts 6-to-20 digit payout identifiers and rejects malformed values', () => {
+    expect(resolveAccountSchema.parse({ accountNumber: '123456', bankCode: 'MTN' })).toEqual({
+      accountNumber: '123456',
+      bankCode: 'MTN',
+    });
+    expect(
+      resolveAccountSchema.parse({ accountNumber: '12345678901234567890', bankCode: 'GCB' }),
+    ).toEqual({ accountNumber: '12345678901234567890', bankCode: 'GCB' });
+
+    for (const accountNumber of [
+      '12345',
+      '123456789012345678901',
+      '024 123 4567',
+      '02412abc67',
+      '+233241234567',
+    ]) {
+      expect(() => resolveAccountSchema.parse({ accountNumber, bankCode: 'MTN' })).toThrow();
+    }
   });
 });
 

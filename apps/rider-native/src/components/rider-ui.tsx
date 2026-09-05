@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -34,12 +34,23 @@ export function RiderHeader({
   return (
     <View style={styles.header}>
       {canGoBack ? (
-        <IconButton accessibilityLabel="Go back" icon="arrow-back" onPress={() => router.back()} style={{ marginRight: 10 }} />
+        <IconButton
+          accessibilityLabel="Go back"
+          icon="arrow-back"
+          onPress={() => router.back()}
+          style={{ marginRight: 10 }}
+        />
       ) : null}
       <View style={{ flex: 1 }}>
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-        <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={styles.headerSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {right ? <View style={{ marginLeft: 10 }}>{right}</View> : null}
     </View>
@@ -77,7 +88,9 @@ export function BrandHeader({
         <TouchableOpacity
           onPress={onNotifications}
           accessibilityRole="button"
-          accessibilityLabel={unread ? 'Open notifications, unread items available' : 'Open notifications'}
+          accessibilityLabel={
+            unread ? 'Open notifications, unread items available' : 'Open notifications'
+          }
           activeOpacity={0.82}
           style={styles.brandHeaderButton}
         >
@@ -166,7 +179,9 @@ function WalletAction({
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.82} style={styles.walletAction}>
       <Ionicons name={icon} size={19} color={riderColors.white} />
-      <Text style={styles.walletActionText} numberOfLines={1}>{label}</Text>
+      <Text style={styles.walletActionText} numberOfLines={1}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -180,11 +195,7 @@ export function RiderCard({
   style?: StyleProp<ViewStyle>;
   dark?: boolean;
 }) {
-  return (
-    <View style={[styles.card, dark ? styles.darkCard : null, style]}>
-      {children}
-    </View>
-  );
+  return <View style={[styles.card, dark ? styles.darkCard : null, style]}>{children}</View>;
 }
 
 export function RiderButton({
@@ -230,10 +241,16 @@ export function RiderButton({
       style={[styles.button, variantStyle, disabled || loading ? styles.disabled : null, style]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'ghost' || variant === 'light' ? riderColors.ink : riderColors.white} />
+        <ActivityIndicator
+          color={variant === 'ghost' || variant === 'light' ? riderColors.ink : riderColors.white}
+        />
       ) : (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          {icon ? <Ionicons name={icon} size={18} color={(labelStyle as TextStyle).color as string} /> : null}
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+        >
+          {icon ? (
+            <Ionicons name={icon} size={18} color={(labelStyle as TextStyle).color as string} />
+          ) : null}
           <Text style={labelStyle}>{label}</Text>
         </View>
       )}
@@ -259,7 +276,12 @@ export function OverviewPanel({
   title: string;
   actionLabel?: string;
   onAction?: () => void;
-  items: { icon: IconName; label: string; value: string; tone?: 'green' | 'blue' | 'amber' | 'red' | 'violet' | 'dark' }[];
+  items: {
+    icon: IconName;
+    label: string;
+    value: string;
+    tone?: 'green' | 'blue' | 'amber' | 'red' | 'violet' | 'dark';
+  }[];
 }) {
   return (
     <RiderCard style={{ padding: 0, overflow: 'hidden' }}>
@@ -275,14 +297,13 @@ export function OverviewPanel({
         {items.map((item, index) => (
           <View
             key={`${item.label}-${item.value}`}
-            style={[
-              styles.overviewItem,
-              index < items.length - 1 ? styles.overviewDivider : null,
-            ]}
+            style={[styles.overviewItem, index < items.length - 1 ? styles.overviewDivider : null]}
           >
             <MetricIcon icon={item.icon} tone={item.tone ?? 'green'} />
             <Text style={styles.overviewLabel}>{item.label}</Text>
-            <Text style={styles.overviewValue} numberOfLines={1}>{item.value}</Text>
+            <Text style={styles.overviewValue} numberOfLines={1}>
+              {item.value}
+            </Text>
           </View>
         ))}
       </View>
@@ -325,7 +346,9 @@ export function ActionBand({
       {buttonLabel ? (
         <View style={styles.actionBandButton}>
           <Text style={styles.actionBandButtonText}>{buttonLabel}</Text>
-          {buttonIcon ? <Ionicons name={buttonIcon} size={17} color={riderColors.greenDark} /> : null}
+          {buttonIcon ? (
+            <Ionicons name={buttonIcon} size={17} color={riderColors.greenDark} />
+          ) : null}
         </View>
       ) : (
         <Ionicons name="chevron-forward" size={22} color={riderColors.muted} />
@@ -350,9 +373,18 @@ export function RecommendationTile({
   return (
     <TouchableOpacity activeOpacity={0.86} onPress={onPress} style={styles.recommendationTile}>
       <MetricIcon icon={icon} tone={tone} size={56} iconSize={26} />
-      <Text style={styles.recommendationTitle} numberOfLines={2}>{title}</Text>
-      <Text style={styles.recommendationBody} numberOfLines={3}>{body}</Text>
-      <Ionicons name="chevron-forward" size={18} color={riderColors.muted} style={{ alignSelf: 'flex-end', marginTop: 5 }} />
+      <Text style={styles.recommendationTitle} numberOfLines={2}>
+        {title}
+      </Text>
+      <Text style={styles.recommendationBody} numberOfLines={3}>
+        {body}
+      </Text>
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={riderColors.muted}
+        style={{ alignSelf: 'flex-end', marginTop: 5 }}
+      />
     </TouchableOpacity>
   );
 }
@@ -403,7 +435,16 @@ function MetricIcon({
   } as const;
   const [backgroundColor, color] = toneMap[tone];
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       <Ionicons name={icon} size={iconSize} color={color} />
     </View>
   );
@@ -436,8 +477,12 @@ export function MetricTile({
       <View style={[styles.metricIcon, { backgroundColor: background }]}>
         {icon ? <Ionicons name={icon} size={18} color={color} /> : null}
       </View>
-      <Text style={styles.metricValue} numberOfLines={1}>{value}</Text>
-      <Text style={styles.metricLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.metricValue} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={styles.metricLabel} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -453,8 +498,19 @@ export function RouteSummary({
 }) {
   return (
     <View style={{ gap: compact ? 7 : 10 }}>
-      <RoutePoint color={riderColors.green} label="Pickup" value={pickup ?? 'Pickup not set'} compact={compact} />
-      <RoutePoint color={riderColors.red} label="Dropoff" value={dropoff ?? 'Dropoff not set'} compact={compact} square />
+      <RoutePoint
+        color={riderColors.green}
+        label="Pickup"
+        value={pickup ?? 'Pickup not set'}
+        compact={compact}
+      />
+      <RoutePoint
+        color={riderColors.red}
+        label="Dropoff"
+        value={dropoff ?? 'Dropoff not set'}
+        compact={compact}
+        square
+      />
     </View>
   );
 }
@@ -474,10 +530,18 @@ function RoutePoint({
 }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-      <View style={[styles.routeDot, square ? { borderRadius: 4 } : null, { borderColor: color, backgroundColor: `${color}18` }]} />
+      <View
+        style={[
+          styles.routeDot,
+          square ? { borderRadius: 4 } : null,
+          { borderColor: color, backgroundColor: `${color}18` },
+        ]}
+      />
       <View style={{ flex: 1 }}>
         {!compact ? <Text style={styles.routeLabel}>{label}</Text> : null}
-        <Text style={styles.routeValue} numberOfLines={compact ? 1 : 2}>{value}</Text>
+        <Text style={styles.routeValue} numberOfLines={compact ? 1 : 2}>
+          {value}
+        </Text>
       </View>
     </View>
   );
@@ -506,10 +570,21 @@ export function EmptyState({
   );
 }
 
-export function ProgressBar({ progress, color = riderColors.green }: { progress: number; color?: string }) {
+export function ProgressBar({
+  progress,
+  color = riderColors.green,
+}: {
+  progress: number;
+  color?: string;
+}) {
   return (
     <View style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, progress))}%`, backgroundColor: color }]} />
+      <View
+        style={[
+          styles.progressFill,
+          { width: `${Math.max(0, Math.min(100, progress))}%`, backgroundColor: color },
+        ]}
+      />
     </View>
   );
 }
@@ -518,23 +593,35 @@ export function SegmentedControl<T extends string>({
   value,
   options,
   onChange,
+  disabled = false,
 }: {
   value: T;
   options: { label: string; value: T }[];
   onChange: (value: T) => void;
+  disabled?: boolean;
 }) {
   return (
-    <View style={styles.segmented}>
+    <View style={styles.segmented} accessibilityRole="tablist">
       {options.map((option) => {
         const active = option.value === value;
         return (
           <TouchableOpacity
             key={option.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active, disabled }}
+            accessibilityLabel={option.label}
+            disabled={disabled}
             onPress={() => onChange(option.value)}
-            style={[styles.segment, active ? styles.segmentActive : null]}
+            style={[
+              styles.segment,
+              active ? styles.segmentActive : null,
+              disabled ? { opacity: 0.62 } : null,
+            ]}
             activeOpacity={0.82}
           >
-            <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>{option.label}</Text>
+            <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
+              {option.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -546,18 +633,26 @@ export function RiderTextField({
   label,
   inputStyle,
   containerStyle,
+  accessibilityLabel,
   ...props
 }: TextInputProps & {
   label?: string;
   inputStyle?: StyleProp<TextStyle>;
   containerStyle?: StyleProp<ViewStyle>;
 }) {
+  const labelId = useId();
   return (
     <View style={[{ marginBottom: 14 }, containerStyle]}>
-      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      {label ? (
+        <Text nativeID={labelId} style={styles.fieldLabel}>
+          {label}
+        </Text>
+      ) : null}
       <TextInput
         placeholderTextColor="#9ba8b8"
         {...props}
+        accessibilityLabel={accessibilityLabel ?? label}
+        {...(label ? { accessibilityLabelledBy: labelId } : {})}
         style={[styles.input, inputStyle]}
       />
     </View>
@@ -583,8 +678,11 @@ export function PinBoxes({
           const active = value.length === index;
           const filled = !!value[index];
           return (
-            <View key={index} style={[styles.pinBox, active || filled ? styles.pinBoxActive : null]}>
-              <Text style={styles.pinText}>{secure && filled ? '*' : value[index] ?? ''}</Text>
+            <View
+              key={index}
+              style={[styles.pinBox, active || filled ? styles.pinBoxActive : null]}
+            >
+              <Text style={styles.pinText}>{secure && filled ? '*' : (value[index] ?? '')}</Text>
             </View>
           );
         })}

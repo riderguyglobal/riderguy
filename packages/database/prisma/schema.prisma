@@ -1077,6 +1077,7 @@ model Transaction {
 
 model Withdrawal {
   id                    String           @id @default(cuid())
+  requestId             String?          @unique
   walletId              String
   wallet                Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
   userId                String

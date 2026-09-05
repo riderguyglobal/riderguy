@@ -743,11 +743,13 @@ router.get(
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const status = req.query.status as OrderStatus | undefined;
+    const scope = req.query.scope === 'rider' ? 'RIDER' : undefined;
 
     const result = await OrderService.listOrders(req.user!.userId, roles, {
       page,
       limit,
       status,
+      ...(scope ? { scope } : {}),
     });
 
     res.status(StatusCodes.OK).json({

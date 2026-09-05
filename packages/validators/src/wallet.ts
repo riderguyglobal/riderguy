@@ -29,6 +29,9 @@ export function normalizeGhanaMobileMoneyNumber(value: string): string {
 
 export const requestWithdrawalSchema = z
   .object({
+    // Modern clients preserve one UUID per user-confirmed attempt while
+    // retrying. Omission remains accepted for already-released legacy APKs.
+    requestId: z.string().uuid('A valid withdrawal request ID is required').optional(),
     amount: currencyAmountSchema,
     method: z.enum(['BANK_TRANSFER', 'MOBILE_MONEY']),
     destination: z.string().trim().min(1, 'Destination account is required').max(50),

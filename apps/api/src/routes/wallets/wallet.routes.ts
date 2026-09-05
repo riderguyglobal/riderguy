@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { authenticate, requireRole, validate, sensitiveRateLimit } from '../../middleware';
 import { asyncHandler } from '../../lib/async-handler';
 import { prisma } from '@riderguy/database';
@@ -6,7 +6,6 @@ import { UserRole } from '@riderguy/types';
 import { requestWithdrawalSchema } from '@riderguy/validators';
 import { MIN_WITHDRAWAL_AMOUNT } from '@riderguy/utils';
 import { StatusCodes } from 'http-status-codes';
-import type { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
 import { ApiError } from '../../lib/api-error';
 import { z } from 'zod';
 import { paystackService, PaystackService } from '../../services/paystack.service';
@@ -14,6 +13,11 @@ import {
   creditWalletTopup,
   validateWalletTopupVerification,
 } from '../../services/wallet-topup.service';
+import {
+  createWithdrawalRequest,
+  findWithdrawalRequestReplay,
+  resolveWithdrawalRequestId,
+} from '../../services/withdrawal-request.service';
 
 const router = Router();
 
@@ -55,7 +59,7 @@ router.get(
       success: true,
       data: { ...wallet, todayEarnings: Number(todayAgg._sum.amount ?? 0) },
     });
-  })
+  }),
 );
 
 /** GET /wallets/transactions */
@@ -93,7 +97,7 @@ router.get(
       data: transactions,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  })
+  }),
 );
 
 /** POST /wallets/topup - initialise a wallet top-up through Paystack */
@@ -136,7 +140,7 @@ router.post(
         currency: 'GHS',
       },
     });
-  })
+  }),
 );
 
 /** GET /wallets/topup/verify/:reference - verify and credit a wallet top-up */
@@ -182,8 +186,76 @@ router.get(
         wallet: credited.wallet,
       },
     });
-  })
+  }),
 );
+
+export async function requestWithdrawalHandler(req: Request, res: Response): Promise<void> {
+  const {
+    requestId: clientRequestId,
+    amount,
+    method,
+    destination,
+    destinationName,
+    bankCode,
+  } = req.body;
+  const userId = req.user!.userId;
+  const request = {
+    // Compatibility bridge for APKs released before request IDs were part of
+    // the contract. Version 1.0.4+ supplies and retains its own stable UUID.
+    requestId: resolveWithdrawalRequestId(clientRequestId),
+    userId,
+    amount,
+    method,
+    destination,
+    destinationName,
+    bankCode,
+  };
+
+  // Resolve committed retries before calling Paystack, so a transient provider
+  // outage cannot make a previously accepted withdrawal look unsuccessful.
+  const replay = await findWithdrawalRequestReplay(request);
+  if (replay) {
+    res.status(StatusCodes.OK).json({ success: true, data: replay.withdrawal });
+    return;
+  }
+
+  if (amount < MIN_WITHDRAWAL_AMOUNT) {
+    throw ApiError.badRequest(
+      `Minimum withdrawal amount is GHS ${MIN_WITHDRAWAL_AMOUNT}`,
+      'MIN_WITHDRAWAL',
+    );
+  }
+
+  const payoutType = method === 'MOBILE_MONEY' ? 'mobile_money' : 'ghipss';
+  const supportedProviders = await paystackService.listBanks({
+    currency: 'GHS',
+    type: payoutType,
+  });
+  const payoutProvider = supportedProviders.find(
+    (provider) =>
+      provider.currency.toUpperCase() === 'GHS' &&
+      provider.type.toLowerCase() === payoutType &&
+      provider.name.trim().toLowerCase() !== 'bank of ghana' &&
+      provider.code.toLowerCase() === bankCode.toLowerCase(),
+  );
+
+  if (!payoutProvider) {
+    throw ApiError.badRequest(
+      method === 'MOBILE_MONEY'
+        ? 'Select a supported Ghana Mobile Money network'
+        : 'Select a supported Ghana bank',
+      'INVALID_PAYOUT_PROVIDER',
+    );
+  }
+
+  const result = await createWithdrawalRequest({
+    ...request,
+    bankCode: payoutProvider.code,
+  });
+  res
+    .status(result.replayed ? StatusCodes.OK : StatusCodes.CREATED)
+    .json({ success: true, data: result.withdrawal });
+}
 
 /** POST /wallets/withdraw */
 router.post(
@@ -191,124 +263,7 @@ router.post(
   sensitiveRateLimit,
   requireRole(UserRole.RIDER, UserRole.PARTNER),
   validate(requestWithdrawalSchema),
-  asyncHandler(async (req, res) => {
-    const { amount, method, destination, destinationName, bankCode } = req.body;
-
-    const payoutType = method === 'MOBILE_MONEY' ? 'mobile_money' : 'ghipss';
-    const supportedProviders = await paystackService.listBanks({
-      currency: 'GHS',
-      type: payoutType,
-    });
-    const payoutProvider = supportedProviders.find(
-      (provider) =>
-        provider.currency.toUpperCase() === 'GHS' &&
-        provider.type.toLowerCase() === payoutType &&
-        provider.name.trim().toLowerCase() !== 'bank of ghana' &&
-        provider.code.toLowerCase() === bankCode.toLowerCase(),
-    );
-
-    if (!payoutProvider) {
-      throw ApiError.badRequest(
-        method === 'MOBILE_MONEY'
-          ? 'Select a supported Ghana Mobile Money network'
-          : 'Select a supported Ghana bank',
-        'INVALID_PAYOUT_PROVIDER',
-      );
-    }
-
-    const wallet = await prisma.wallet.findUnique({
-      where: { userId: req.user!.userId },
-    });
-
-    if (!wallet) {
-      res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Wallet not found' },
-      });
-      return;
-    }
-
-    if (Number(wallet.balance) < amount) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance' },
-      });
-      return;
-    }
-
-    if (amount < MIN_WITHDRAWAL_AMOUNT) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        error: {
-          code: 'MIN_WITHDRAWAL',
-          message: `Minimum withdrawal amount is GHS ${MIN_WITHDRAWAL_AMOUNT}`,
-        },
-      });
-      return;
-    }
-
-    // Atomic debit + transaction record in a single Prisma transaction
-    // Prevents stale balanceAfter and concurrent withdrawal races
-    let withdrawal;
-    try {
-      const result = await prisma.$transaction(async (tx) => {
-        // Optimistic debit: only succeeds if balance hasn't dropped below amount
-        const debitResult = await tx.wallet.updateMany({
-          where: { id: wallet.id, balance: { gte: amount } },
-          data: { balance: { decrement: amount } },
-        });
-
-        if (debitResult.count === 0) {
-          throw new Error('INSUFFICIENT_BALANCE');
-        }
-
-        // Re-read to get the actual post-debit balance
-        const updatedWallet = await tx.wallet.findUniqueOrThrow({
-          where: { id: wallet.id },
-        });
-
-        const wd = await tx.withdrawal.create({
-          data: {
-            walletId: wallet.id,
-            userId: req.user!.userId,
-            amount,
-            method: method as PrismaPaymentMethod,
-            destination,
-            destinationName,
-            bankCode: payoutProvider.code,
-            status: 'PENDING',
-          },
-        });
-
-        await tx.transaction.create({
-          data: {
-            walletId: wallet.id,
-            type: 'WITHDRAWAL',
-            amount: -amount,
-            balanceAfter: Number(updatedWallet.balance),
-            description: `Withdrawal to ${destinationName}`,
-            referenceId: wd.id,
-            referenceType: 'withdrawal',
-          },
-        });
-
-        return wd;
-      });
-
-      withdrawal = result;
-    } catch (err: any) {
-      if (err.message === 'INSUFFICIENT_BALANCE') {
-        res.status(StatusCodes.BAD_REQUEST).json({
-          success: false,
-          error: { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient wallet balance (concurrent update)' },
-        });
-        return;
-      }
-      throw err;
-    }
-
-    res.status(StatusCodes.CREATED).json({ success: true, data: withdrawal });
-  })
+  asyncHandler(requestWithdrawalHandler),
 );
 
 export { router as walletRouter };

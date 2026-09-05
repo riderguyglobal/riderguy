@@ -470,7 +470,7 @@ export async function getOrderById(orderId: string) {
 export async function listOrders(
   userId: string,
   roleOrRoles: string | readonly string[],
-  options: { page?: number; limit?: number; status?: OrderStatus },
+  options: { page?: number; limit?: number; status?: OrderStatus; scope?: 'RIDER' },
 ) {
   const page = options.page ?? 1;
   const limit = Math.min(options.limit ?? 20, 100);
@@ -480,8 +480,20 @@ export async function listOrders(
 
   const roles = new Set(Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles]);
   const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'DISPATCHER'].some((role) => roles.has(role));
+  const includeRiderOperationalFields = options.scope === 'RIDER' || isAdmin;
 
-  if (!isAdmin) {
+  if (options.scope === 'RIDER') {
+    if (!roles.has('RIDER')) {
+      throw ApiError.forbidden('Rider order scope requires a rider account');
+    }
+
+    const riderProfile = await prisma.riderProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!riderProfile) throw ApiError.notFound('Rider profile not found');
+    whereClause.riderId = riderProfile.id;
+  } else if (!isAdmin) {
     const ownership: Array<Record<string, string>> = [];
     const hasClientRole = roles.has('CLIENT') || roles.has('BUSINESS_CLIENT');
     if (hasClientRole) ownership.push({ clientId: userId });
@@ -521,11 +533,13 @@ export async function listOrders(
       select: {
         id: true,
         orderNumber: true,
+        ...(includeRiderOperationalFields ? { riderId: true } : {}),
         status: true,
         pickupAddress: true,
         dropoffAddress: true,
         packageType: true,
         totalPrice: true,
+        ...(includeRiderOperationalFields ? { riderEarnings: true } : {}),
         currency: true,
         distanceKm: true,
         estimatedDurationMinutes: true,
@@ -533,6 +547,10 @@ export async function listOrders(
         createdAt: true,
         assignedAt: true,
         deliveredAt: true,
+        cancelledAt: true,
+        updatedAt: true,
+        isScheduled: true,
+        scheduledAt: true,
       },
     }),
     prisma.order.count({ where: whereClause }),

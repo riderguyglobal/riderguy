@@ -47,6 +47,8 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { EmailService } from '../../services/email.service';
 
 // ---------------------------------------------------------------------------
 // Multer config for vehicle photo uploads
@@ -89,6 +91,20 @@ const vehiclePhotoUpload = multer({
 });
 
 const router = Router();
+
+export const riderSafetySupportSchema = z.object({
+  category: z.enum([
+    'Delivery safety concern',
+    'Road incident',
+    'Vehicle safety',
+    'Threat or harassment',
+  ]),
+  followUpEmail: z.string().trim().email().max(320),
+  details: z.string().trim().min(10).max(5000),
+});
+
+export const requireRiderSafetySupport = requireRole(UserRole.RIDER);
+export const validateRiderSafetySupport = validate(riderSafetySupportSchema);
 
 async function sendRiderDecisionNotification(input: {
   userId: string;
@@ -235,6 +251,70 @@ export async function reviewVehicleHandler(req: Request, res: Response): Promise
 
   res.status(StatusCodes.OK).json({ success: true, data: vehicle });
 }
+
+export async function submitRiderSafetySupportHandler(req: Request, res: Response): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.userId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      riderProfile: { select: { id: true } },
+    },
+  });
+  if (!user?.riderProfile) throw ApiError.notFound('Rider profile not found');
+
+  const { category, followUpEmail, details } = req.body as z.infer<typeof riderSafetySupportSchema>;
+  const message = [
+    'Authenticated non-emergency Rider Safety Center support message.',
+    `Category: ${category}`,
+    `Rider user ID: ${user.id}`,
+    `Rider profile ID: ${user.riderProfile.id}`,
+    `Rider phone: ${user.phone}`,
+    `Details: ${details}`,
+  ].join('\n');
+
+  const submission = await prisma.contactSubmission.create({
+    data: {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: followUpEmail,
+      subject: 'support',
+      message,
+    },
+  });
+
+  logger.info(
+    { submissionId: submission.id, riderUserId: user.id, category },
+    'Authenticated Rider safety-support message saved',
+  );
+  EmailService.sendContactAck(followUpEmail, user.firstName, 'support').catch(() => {});
+  EmailService.sendContactNotification({
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: followUpEmail,
+    subject: 'support',
+    message,
+  }).catch(() => {});
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: {
+      id: submission.id,
+      message: 'Your non-emergency support message was received.',
+    },
+  });
+}
+
+/** POST /riders/safety-support — authenticated, non-emergency Rider support intake. */
+router.post(
+  '/safety-support',
+  sensitiveUserRateLimit,
+  requireRiderSafetySupport,
+  validateRiderSafetySupport,
+  asyncHandler(submitRiderSafetySupportHandler),
+);
 
 /** GET /riders/profile — get own rider profile */
 router.get(

@@ -5,9 +5,14 @@ function normalizePublicUrl(value: string) {
   return value.trim().replace('api.riderguy.com', 'api.myriderguy.com').replace(/\/+$/, '');
 }
 
-const apiUrl = normalizePublicUrl(process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myriderguy.com/api/v1');
-const socketUrl = normalizePublicUrl(process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com');
-const androidGoogleServicesFile = process.env.GOOGLE_SERVICES_JSON ?? './android/app/google-services.json';
+const apiUrl = normalizePublicUrl(
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myriderguy.com/api/v1',
+);
+const socketUrl = normalizePublicUrl(
+  process.env.EXPO_PUBLIC_SOCKET_URL ?? 'https://api.myriderguy.com',
+);
+const androidGoogleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON ?? './android/app/google-services.json';
 const iosGoogleServicesFile = process.env.GOOGLE_SERVICE_INFO_PLIST ?? './GoogleService-Info.plist';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -15,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'RiderGuy Rider',
   slug: 'riderguy-rider',
   scheme: 'riderguy-rider',
-  version: '1.0.3',
+  version: '1.0.4',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -46,7 +51,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    ...(apiUrl.startsWith('http://') || socketUrl.startsWith('http://') ? { usesCleartextTraffic: true } : {}),
+    ...(apiUrl.startsWith('http://') || socketUrl.startsWith('http://')
+      ? { usesCleartextTraffic: true }
+      : {}),
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#40BE89',
@@ -100,9 +107,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         action: 'VIEW',
         autoVerify: true,
-        data: [
-          { scheme: 'https', host: 'rider.myriderguy.com', pathPrefix: '/auth' },
-        ],
+        data: [{ scheme: 'https', host: 'rider.myriderguy.com', pathPrefix: '/auth' }],
         category: ['BROWSABLE', 'DEFAULT'],
       },
     ],
@@ -119,8 +124,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-location',
       {
-        locationWhenInUsePermission:
-          'Allow RiderGuy Rider to use your location while delivering.',
+        locationWhenInUsePermission: 'Allow RiderGuy Rider to use your location while delivering.',
         locationAlwaysAndWhenInUsePermission:
           'Allow RiderGuy Rider to use your location at all times during active deliveries.',
         isIosBackgroundLocationEnabled: true,
@@ -139,15 +143,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-image-picker',
       {
-        photosPermission:
-          'Allow RiderGuy Rider to access your photos for document uploads.',
+        photosPermission: 'Allow RiderGuy Rider to access your photos for document uploads.',
         microphonePermission: false,
       },
     ],
-    [
-      'expo-av',
-      { microphonePermission: false },
-    ],
+    ['expo-av', { microphonePermission: false }],
     'expo-notifications',
     '@react-native-firebase/app',
     '@react-native-firebase/messaging',

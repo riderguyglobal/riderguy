@@ -45,8 +45,8 @@ const verifyPaymentSchema = z.object({
   reference: z.string().min(1),
 });
 
-const resolveAccountSchema = z.object({
-  accountNumber: z.string().min(10).max(10),
+export const resolveAccountSchema = z.object({
+  accountNumber: z.string().regex(/^\d{6,20}$/, 'Account number must contain 6 to 20 digits'),
   bankCode: z.string().min(2),
 });
 

@@ -1504,6 +1504,64 @@ describe('OrderService', () => {
   // 8. AVAILABLE JOBS — rider sees pending orders
   // ────────────────────────────────────────────────────────────
   describe('Order list authorization', () => {
+    it('supports an explicit Rider-only scope for multi-role accounts', async () => {
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue({ id: 'rider-profile-1' });
+      asMock(prisma.order.findMany).mockResolvedValue([]);
+      asMock(prisma.order.count).mockResolvedValue(0);
+
+      await listOrders('user-1', ['CLIENT', 'RIDER'], { scope: 'RIDER' });
+
+      const expectedWhere = { riderId: 'rider-profile-1' };
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(prisma.order.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('returns the scheduling and Rider pay fields required by the Rider delivery feed', async () => {
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue({ id: 'rider-profile-1' });
+      asMock(prisma.order.findMany).mockResolvedValue([]);
+      asMock(prisma.order.count).mockResolvedValue(0);
+
+      await listOrders('rider-1', ['RIDER'], { scope: 'RIDER' });
+
+      const call = asMock(prisma.order.findMany).mock.calls.at(-1)?.[0] as {
+        select?: Record<string, boolean>;
+      };
+      expect(call.select).toEqual(
+        expect.objectContaining({
+          riderId: true,
+          riderEarnings: true,
+          isScheduled: true,
+          scheduledAt: true,
+          assignedAt: true,
+          deliveredAt: true,
+          cancelledAt: true,
+          updatedAt: true,
+        }),
+      );
+    });
+
+    it('rejects Rider-only scope for a non-rider account', async () => {
+      await expect(listOrders('client-1', ['CLIENT'], { scope: 'RIDER' })).rejects.toThrow(
+        'Rider order scope requires a rider account',
+      );
+
+      expect(prisma.order.findMany).not.toHaveBeenCalled();
+      expect(prisma.order.count).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to an unscoped query when the Rider profile is missing', async () => {
+      asMock(prisma.riderProfile.findUnique).mockResolvedValue(null);
+
+      await expect(listOrders('rider-1', ['RIDER'], { scope: 'RIDER' })).rejects.toThrow(
+        'Rider profile not found',
+      );
+
+      expect(prisma.order.findMany).not.toHaveBeenCalled();
+      expect(prisma.order.count).not.toHaveBeenCalled();
+    });
+
     it('scopes a Client + Rider account to both of its ownership identities', async () => {
       asMock(prisma.riderProfile.findUnique).mockResolvedValue({ id: 'rider-profile-1' });
       asMock(prisma.order.findMany).mockResolvedValue([]);
@@ -1518,6 +1576,19 @@ describe('OrderService', () => {
         expect.objectContaining({ where: expectedWhere }),
       );
       expect(prisma.order.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('does not select Rider pay fields for a Client order list', async () => {
+      asMock(prisma.order.findMany).mockResolvedValue([]);
+      asMock(prisma.order.count).mockResolvedValue(0);
+
+      await listOrders('client-1', ['CLIENT'], {});
+
+      const call = asMock(prisma.order.findMany).mock.calls.at(-1)?.[0] as {
+        select?: Record<string, boolean>;
+      };
+      expect(call.select).not.toHaveProperty('riderEarnings');
+      expect(call.select).not.toHaveProperty('riderId');
     });
 
     it('never falls through to an unscoped list for an unsupported role', async () => {

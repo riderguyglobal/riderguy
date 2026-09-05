@@ -32,6 +32,7 @@ export interface Transaction {
 /** Withdrawal request */
 export interface Withdrawal {
   id: string;
+  requestId: string | null;
   walletId: string;
   userId: string;
   amount: number;
@@ -50,6 +51,7 @@ export interface Withdrawal {
 
 /** Input for requesting a withdrawal */
 export interface RequestWithdrawalInput {
+  requestId?: string;
   amount: number;
   method: PaymentMethod;
   destination: string;

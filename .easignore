@@ -68,6 +68,8 @@ desktop.ini
 /app.json
 /output/
 /tmp/
+/apps/rider-native/tmp/
+/apps/rider-native/assets/images/illustrations/rider-profile-avatar-v2.png
 
 # Runtime data
 packages/database/prisma/*.db
